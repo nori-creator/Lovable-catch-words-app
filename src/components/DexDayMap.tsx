@@ -1,5 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any -- Google Maps の型は実行時に読み込む（型定義を入れていない） */
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { ReaderMeaning } from "@/components/ReaderMeaning";
 import { createPortal } from "react-dom";
 import { CalendarDays, ChevronLeft, ChevronRight, ChevronUp, MapPin, X } from "lucide-react";
 import type { StickerWithWord } from "@/lib/stickers.functions";
@@ -310,7 +311,7 @@ export function DexDayMap({
                                 </span>
                               ) : (
                                 <span className="block truncate text-footnote text-muted-foreground">
-                                  {it.s.word.meaning_ja}
+                                  <ReaderMeaning text={it.s.word.meaning_ja} />
                                 </span>
                               )}
                             </span>

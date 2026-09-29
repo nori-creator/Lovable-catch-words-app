@@ -1,4 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
+import { readerText } from "./note-language";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { z } from "zod";
 import { normalizeExtras } from "./extras";
@@ -154,7 +155,8 @@ export async function saveWordExplanation(
           explain_lang: key.explainLang,
           l1: key.l1,
           meaning: input.meaning,
-          example_translation: input.example_translation ?? null,
+          // 読む人の言語でない訳（例文の写しなど）は貯めない（2026-09-29）。
+          example_translation: readerText(input.example_translation, key.explainLang) || null,
           extras: input.extras,
           source: "ai",
           updated_at: new Date().toISOString(),

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { ReaderMeaning } from "@/components/ReaderMeaning";
 import { ChevronLeft, ChevronRight, MapPin } from "lucide-react";
 import type { StickerWithWord } from "@/lib/stickers.functions";
 import { stickerPhotoUrl } from "@/lib/sticker-photo";
@@ -451,7 +452,7 @@ function DayTimeline({
                   <span className="min-w-0 flex-1">
                     <Zh className="block truncate text-body font-semibold">{s.word.headword}</Zh>
                     <span className="block truncate text-footnote text-muted-foreground">
-                      {s.word.meaning_ja}
+                      <ReaderMeaning text={s.word.meaning_ja} />
                     </span>
                     {s.location_name && (
                       <span className="mt-0.5 flex items-center gap-1 truncate text-caption text-muted-foreground">

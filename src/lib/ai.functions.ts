@@ -12,7 +12,7 @@ import { pickReportedItem, reportContext } from "@/lib/report-locate";
 import { CATEGORY_KEYS, ROOM_KEYS, normalizeCategory } from "./category";
 import { orderByRegister } from "./candidate-order";
 import { ExtrasSchema, emptyExtras, mergeExtras, normalizeExtras } from "./extras";
-import { scrubForeignNotes } from "./note-language";
+import { readerText, scrubForReader, scrubForeignNotes } from "./note-language";
 import {
   worldExampleRule,
   exampleSourceRule,
@@ -745,6 +745,9 @@ ${data.hintCategory ? `カテゴリのヒント: ${data.hintCategory}` : ""}`;
     }
     return {
       ...card,
+      // **訳は読む人の言語で**（2026-09-29「例文の訳に中文が混ざってる」）。例文の写しや
+      // 別の言語で返ってきた訳は落とす（空なら画面は訳を出さず、作り直しが埋める）。
+      example_translation: readerText(card.example_translation, explainLang, card.example_sentence),
       headword_zh: resolvedHead,
       level: level.stored,
       category_key: categoryKey,
@@ -757,7 +760,10 @@ ${data.hintCategory ? `カテゴリのヒント: ${data.hintCategory}` : ""}`;
       // 返ってきた物のほうを見る(`src/lib/note-language.ts`)。
       extras: {
         // 頼まなかった節の欄は落とす（空の欄で共有の語を上書きしない）。
-        ...stripUnrequested(scrubForeignNotes(card.extras ?? {}, explainLang), data.sections),
+        ...stripUnrequested(
+          scrubForReader(scrubForeignNotes(card.extras ?? {}, explainLang), explainLang),
+          data.sections,
+        ),
         // **辞書の事実で上書きする。** AI が書いた物より後に置く。
         exam_tags: examTags,
         explain_lang: explainLang,
@@ -1272,7 +1278,10 @@ async function runSectionRegen(
   // 作り直しの経路にも同じ掃除を通す。**片方だけ直すと、もう片方から
   // 中国語の注記が入り続ける**(この app が何度も踏んだ兄弟の取りこぼし)。
   const extrasPatch: Record<string, unknown> = {
-    ...scrubForeignNotes(out as Parameters<typeof scrubForeignNotes>[0], regenLang),
+    ...scrubForReader(
+      scrubForeignNotes(out as Parameters<typeof scrubForeignNotes>[0], regenLang),
+      regenLang,
+    ),
   };
   if (data.section === "meaning") {
     delete extrasPatch.meaning_ja;
@@ -1283,7 +1292,11 @@ async function runSectionRegen(
     delete extrasPatch.example_translation;
     if (word.source !== "verified") {
       baseUpdate.example_sentence = out.example_sentence;
-      baseUpdate.example_translation = out.example_translation;
+      baseUpdate.example_translation = readerText(
+        out.example_translation as string,
+        regenLang,
+        out.example_sentence as string,
+      );
     }
   }
 

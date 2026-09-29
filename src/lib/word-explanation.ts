@@ -1,3 +1,4 @@
+import { looksWrongForReader } from "./note-language";
 /**
  * 「その語の解説を、いま作り直す必要があるか」を決める唯一の場所。
  *
@@ -179,7 +180,13 @@ export function shouldWriteSharedColumns(shared: {
  * (`readerLanguage` を渡さなければ、この選り分けはしない)。
  */
 export function resolveDisplayWord<E extends { explain_lang?: string } | null | undefined>(
-  shared: { meaning?: string | null; exampleTranslation?: string | null; extras: E },
+  shared: {
+    meaning?: string | null;
+    exampleTranslation?: string | null;
+    /** 例文（訳がその写しになっていないかを見る）。 */
+    exampleSentence?: string | null;
+    extras: E;
+  },
   explanation: {
     meaning?: string | null;
     example_translation?: string | null;
@@ -202,8 +209,18 @@ export function resolveDisplayWord<E extends { explain_lang?: string } | null | 
   // 落とすには根拠が要る(この app の他の判定と同じ)。
   const wrongLanguage = !!want && !!has && has !== want;
   return {
-    meaning: cachedMeaning || (shared.meaning ?? ""),
-    exampleTranslation: cachedTranslation || (shared.exampleTranslation ?? null),
+    // 意味も読む人の言語の物だけ（2026-09-29 の言語の検査: その人向けの解説がまだ無い間、
+    // 共有の語の日本語の意味が英語・台湾華語の人に出ていた）。漢字だけの和文は落とさない。
+    meaning:
+      [cachedMeaning, (shared.meaning ?? "").trim()].find(
+        (x) => !!x && !(want && looksWrongForReader(x, want, null, { hanOnlyOk: true })),
+      ) ?? "",
+    // **訳は読む人の言語の物だけ**（2026-09-29「例文の訳に中文が混ざってる」）。その人向けの
+    // 解説の訳 → 共有の語の訳の順に、読む人の言語で書かれた方を採る。どちらも違えば出さない。
+    exampleTranslation:
+      [cachedTranslation, (shared.exampleTranslation ?? "").trim()].find(
+        (x) => !!x && !(want && looksWrongForReader(x, want, shared.exampleSentence)),
+      ) ?? null,
     extras: wrongLanguage ? (null as E) : extras,
   };
 }

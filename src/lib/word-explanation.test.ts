@@ -241,11 +241,51 @@ describe("読む人の言語で書かれていない解説は出さない", () =
     expect(resolveDisplayWord(shared, null, "").extras).toEqual(shared.extras);
   });
 
-  it("**意味と例文の訳は落とさない**(そこは別の列から来る)", () => {
+  it("意味は別の列から来る（読む人の言語なら出す）。例文の訳は読む人の言語の物だけ", () => {
     // 解説だけが古い言語で、意味は共有キャッシュの正しい言語、という
     // 組み合わせが実際に起きている(届いた絵がその形)。
     const got = resolveDisplayWord(shared, null, "zh-TW");
-    expect(got.meaning).toBe("共有の意味");
-    expect(got.exampleTranslation).toBe("共有の訳");
+    // 共有の意味が日本語なら、台湾華語で読む人には出さない（2026-09-29）。台湾華語なら出す。
+    expect(got.meaning).toBe("");
+    expect(resolveDisplayWord({ ...shared, meaning: "珍珠奶茶" }, null, "zh-TW").meaning).toBe(
+      "珍珠奶茶",
+    );
+    // 2026-09-29「例文の訳は母語（表示言語）にして」: 台湾華語で読む人に日本語の訳は出さない。
+    expect(got.exampleTranslation).toBeNull();
+    const zhShared = { ...shared, exampleTranslation: "這名選手因為小腿抽筋而休息。" };
+    expect(resolveDisplayWord(zhShared, null, "zh-TW").exampleTranslation).toBe(
+      "這名選手因為小腿抽筋而休息。",
+    );
+  });
+
+  it("例文そのままの写し（2026-09-29 小腿）は訳として出さず、読む人の言語の訳へ落ちる", () => {
+    const sentence = "這名馬拉松選手因為小腿抽筋，不得不停下來休息。";
+    const got = resolveDisplayWord(
+      {
+        ...shared,
+        exampleSentence: sentence,
+        exampleTranslation: "選手はふくらはぎがつって休んだ。",
+      },
+      { meaning: "", example_translation: sentence, extras: null },
+      "ja",
+    );
+    expect(got.exampleTranslation).toBe("選手はふくらはぎがつって休んだ。");
+  });
+});
+
+describe("意味も読む人の言語の物だけ（2026-09-29 の言語の検査）", () => {
+  it("英語で読む人に日本語の意味は出さない。漢字だけの和文は日本語の人に出す", () => {
+    const shared = { meaning: "タピオカミルクティー", exampleTranslation: null, extras: null };
+    expect(resolveDisplayWord(shared, null, "en").meaning).toBe("");
+    expect(resolveDisplayWord({ ...shared, meaning: "台湾高速鉄道" }, null, "ja").meaning).toBe(
+      "台湾高速鉄道",
+    );
+    expect(
+      resolveDisplayWord(
+        shared,
+        { meaning: "bubble tea", example_translation: null, extras: null },
+        "en",
+      ).meaning,
+    ).toBe("bubble tea");
   });
 });

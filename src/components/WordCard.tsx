@@ -40,6 +40,7 @@ import { updateWordExtras } from "@/lib/stickers.functions";
 import { posDisplay } from "@/lib/pos";
 import { Reading, ReadingOf } from "@/lib/phonetic";
 import { useT, useUiLang } from "@/lib/i18n";
+import { readerMeaning, readerText } from "@/lib/note-language";
 import { Prose } from "@/components/Prose";
 import { useWebImages } from "@/lib/use-web-images";
 import {
@@ -1508,6 +1509,8 @@ function Body({
   t: (k: string, vars?: Record<string, string | number>) => string;
   onPickImage?: (url: string) => void | Promise<void>;
 }) {
+  // 訳は表示言語で読む物だけ出す（2026-09-29「例文の訳に中文が混ざってる」）。
+  const uiLang = useUiLang();
   switch (id) {
     case "meaning":
       // **この画面を開く理由がこの一行。** これまで注釈と同じ 15px で置いて
@@ -1516,7 +1519,11 @@ function Body({
       // 6段の階調の title(22px)に上げて、二番目の着地点を作る。
       // **太字にしない**(オーナー指摘 2026-08-21「日本語の意味の文字が
       // 太すぎる」)。大きさで着地点は作れているので、太さは足さない。
-      return <p className="text-title leading-snug text-foreground">{word.meaning_ja}</p>;
+      return (
+        <p className="text-title leading-snug text-foreground">
+          {readerMeaning(word.meaning_ja, uiLang)}
+        </p>
+      );
 
     case "example":
       // 品詞ごとの色分けは外してある(色分けは「使い方チャンク」だけ)。
@@ -1547,9 +1554,11 @@ function Body({
               stopPropagation
             />
           </div>
-          <p className="prose-body mt-1 text-footnote text-muted-foreground">
-            {word.example_translation}
-          </p>
+          {readerText(word.example_translation, uiLang, word.example_sentence) && (
+            <p className="prose-body mt-1 text-footnote text-muted-foreground">
+              {word.example_translation}
+            </p>
+          )}
         </div>
       );
 
@@ -1589,7 +1598,9 @@ function Body({
                   stopPropagation
                 />
               </div>
-              <p className="prose-body mt-1 text-caption text-muted-foreground">{e.ja}</p>
+              {readerText(e.ja, uiLang, e.zh) && (
+                <p className="prose-body mt-1 text-caption text-muted-foreground">{e.ja}</p>
+              )}
             </li>
           ))}
         </ul>
@@ -1652,7 +1663,12 @@ function Body({
         <ul className="space-y-1.5">
           {(ex.measure_words ?? []).map((m, i) => (
             <li key={i} className="flex items-start gap-2 rounded-xl bg-secondary px-3 py-2">
-              <MeasureWordRow word={m.word} zhuyin={m.zhuyin} pinyin={m.pinyin} note={m.note} />
+              <MeasureWordRow
+                word={m.word}
+                zhuyin={m.zhuyin}
+                pinyin={m.pinyin}
+                note={readerMeaning(m.note, uiLang)}
+              />
             </li>
           ))}
         </ul>
@@ -1689,7 +1705,7 @@ function Body({
                     <RelatedWordRow
                       key={i}
                       word={r.word}
-                      note={r.note}
+                      note={readerMeaning(r.note, uiLang)}
                       reading={"reading" in r ? r.reading : ""}
                       readingAlt={"reading_alt" in r ? r.reading_alt : ""}
                       tone={tone}
@@ -1735,7 +1751,7 @@ function Body({
                     <span className="inline-block rounded-full bg-secondary px-2.5 py-0.5 text-footnote font-medium text-foreground shadow-sm ring-1 ring-border">
                       {r.word}
                     </span>
-                    {r.note && (
+                    {readerMeaning(r.note, uiLang) && (
                       <span className="text-footnote text-muted-foreground">{r.note}</span>
                     )}
                   </div>
@@ -2007,6 +2023,7 @@ function ChunkRow({
   language?: string | null;
   headword?: string;
 }) {
+  const uiLang = useUiLang();
   return (
     <div className="usage-chunk-row">
       {/* 札（品詞ごとの丸）、その下に訳を小さく薄く、右端に型ぜんぶの音声
@@ -2014,7 +2031,7 @@ function ChunkRow({
           札を1つ押すとその語が鳴る。 */}
       <ChunkLine
         parts={chunk.parts}
-        translation={chunkTranslation(chunk.ja)}
+        translation={chunkTranslation(readerMeaning(chunk.ja, uiLang))}
         lang={language}
         headword={headword}
         speakText={chunkSpeechText(chunk, language)}

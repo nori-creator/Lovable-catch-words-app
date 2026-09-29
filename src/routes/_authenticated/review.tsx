@@ -102,6 +102,7 @@ import {
   BookOpen,
 } from "lucide-react";
 import { tStatic } from "@/lib/i18n";
+import { readerText } from "@/lib/note-language";
 
 // ---- prefs -------------------------------------------------------------------
 // Review mode (speaking/choice) lives in profiles.review_mode (DB) so it
@@ -1957,6 +1958,7 @@ function FeedbackView({
  */
 export function AnswerExplain({ card }: { card: DueReviewCard }) {
   const t = useT();
+  const uiLang = useUiLang();
   const ex = card.explain;
   const chunks = ex?.chunks ?? [];
   const related = ex?.related ?? [];
@@ -1999,7 +2001,7 @@ export function AnswerExplain({ card }: { card: DueReviewCard }) {
             <Term lang={card.language} className="mt-1 block text-body font-medium">
               {card.example_sentence}
             </Term>
-            {card.example_translation && (
+            {readerText(card.example_translation, uiLang, card.example_sentence) && (
               <span className="mt-0.5 block text-footnote text-muted-foreground">
                 {card.example_translation}
               </span>

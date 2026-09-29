@@ -657,6 +657,7 @@ export function StickerSheet({ stickerId, onClose, openPhotoPicker, from, local 
                   {
                     meaning: s.word.meaning_ja,
                     exampleTranslation: s.word.example_translation,
+                    exampleSentence: s.word.example_sentence,
                     extras: s.word.extras,
                   },
                   null,
@@ -1014,6 +1015,7 @@ export function StickerSheetBody({
     {
       meaning: s.word.meaning_ja,
       exampleTranslation: s.word.example_translation,
+      exampleSentence: s.word.example_sentence,
       // 返事を待つ間は古い解説を出さない — 出すと、届いた瞬間に別の文へ入れ替わる。
       extras: explanationPending ? null : s.word.extras,
     },

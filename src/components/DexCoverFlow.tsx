@@ -1,4 +1,5 @@
 import { memo, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { ReaderMeaning } from "@/components/ReaderMeaning";
 import { ZhuyinWord, useZhuyinUnits } from "@/components/ZhuyinWord";
 import type React from "react";
 import { MapPin } from "lucide-react";
@@ -389,7 +390,10 @@ export function DexCoverFlow({
       {theme === "museum" && current && (
         <p className="dex-cf__plaque">
           <Zh className="font-semibold">{current.word.headword}</Zh>
-          <span> — {current.word.meaning_ja}</span>
+          <span>
+            {" — "}
+            <ReaderMeaning text={current.word.meaning_ja} />
+          </span>
         </p>
       )}
       {/* **青い点は、どこまで来たかを指す**（2026-09-27「真ん中のままで意味が
@@ -575,7 +579,9 @@ function CardFace({
               {reading}
             </span>
           )}
-          <span className="mt-1 block truncate text-body">{s.word.meaning_ja}</span>
+          <span className="mt-1 block truncate text-body">
+            <ReaderMeaning text={s.word.meaning_ja} />
+          </span>
         </span>
         <span className="mt-2 flex items-center gap-1.5 truncate text-caption text-muted-foreground">
           <span className="shrink-0 tabular-nums">

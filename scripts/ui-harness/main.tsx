@@ -382,30 +382,18 @@ const q = new URLSearchParams(location.search);
  * 「これを見てください」と差し出すことになる。
  */
 const REVIEW_SCENES: Array<{ scene: string; label: string }> = [
-  // 2026-09-28〜29 の依頼（R14・R15）で触った面だけ。**毎回ここを入れ替える**
-  // — 前の依頼の面は残さない（オーナー指示「過去のものは全て削除して」）。R14 の面は
-  // まだ見てもらえていない（プレビューが開けなかった）ので残す。
-  // 先頭は最後に頼まれた物（R15: 図鑑のスライドをパック選びの動画のように）。
+  // 2026-09-29 の依頼（R15・R16）で触った面だけ。**毎回ここを入れ替える**
+  // — 前の依頼の面は残さない（オーナー指示「過去のものは全て削除して」。R14 は取り込み済み）。
+  // 先頭は最後に頼まれた物（R16: 上の帯の右端の本棚）。
+  {
+    scene: "home-shelf",
+    label: "ホーム: 右上の本棚（押すと全画面の棚 → 月を選ぶとその月の最初の日）",
+  },
+  { scene: "dex-drag&list=1", label: "図鑑の縦の一覧: 注音を字の右に（4択・詳細と同じ）" },
   {
     scene: "dex-cards&n=24&at=3",
-    label: "図鑑スライド: 白いカード・淡い青・台なし・手前で大きく・輪になって回る",
+    label: "図鑑スライド（開いた時の既定）: 白いカード・淡い青・輪になって回る",
   },
-  {
-    scene: "chunk-designs",
-    label: "チャンク（決定）: 四角＋でつなぐ・台なし・学ぶ語は入れ替えない",
-  },
-  { scene: "dex-drag", label: "図鑑: 長押しで別の分類へ運ぶ・見出しの長押しで編集" },
-  { scene: "dex-calendar", label: "カレンダー: 青を基調に・日付を押すと地図" },
-  { scene: "home-album", label: "ホームのアルバム: 長押し → 赤バツが写真と一緒に揺れる" },
-  { scene: "three-fx&fx=gallery", label: "図鑑 3D: 下の影なし・写真の列から飛べる" },
-  { scene: "shelf-3d&open=12", label: "本棚の本: ページを押すと片ページ全画面・最後のページ" },
-  { scene: "scan-found", label: "スキャン結果: 2行まで・写真を大きく・「＋ 追加」・写真から" },
-  { scene: "launch-intro", label: "案: アプリを開く動き（作り直し・ばね・ゆっくり再生）" },
-  { scene: "diary-pencil", label: "日記の鉛筆（芯が見える）" },
-  { scene: "three-fx&fx=analyze", label: "分析中（浮いていた輪を消した）" },
-  { scene: "reward-catch", label: "図鑑に着く音（柔らかく）" },
-  { scene: "object-3d", label: "開発中: Pro 3D（Blender の仕上げ・本番には未実装）" },
-  { scene: "voice-face", label: "開発中: 自分の声と顔（本番には未実装）" },
 ];
 
 const explicitScene = q.get("scene");

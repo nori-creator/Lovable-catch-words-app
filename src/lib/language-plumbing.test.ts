@@ -1341,7 +1341,7 @@ describe("読む人の言語で書かれていない解説を出さない", () =
     // 言語が混ざってる」。届いた絵では例文の訳は繁体字なのに
     // 追加例文の訳だけ日本語だった。
     const sheet = codeOnly(read("components/StickerSheet.tsx"));
-    expect(sheet).toMatch(/resolveDisplayWord\([\s\S]{0,220}?\n\s*uiLang,\n\s*\);/);
+    expect(sheet).toMatch(/resolveDisplayWord\([\s\S]{0,300}?\n\s*uiLang,\n\s*\);/);
   });
 
   it("目印の言語が違えば解説を落とす", () => {
@@ -3943,7 +3943,7 @@ describe("N. 下のタブ帯と、札を開く動き", () => {
     expect(at).toBeGreaterThanOrEqual(0);
     const row = src.slice(at, at + 1200);
     expect(row).toMatch(/<ChunkLine/);
-    expect(row).toMatch(/translation=\{chunkTranslation\(chunk\.ja\)\}/);
+    expect(row).toMatch(/translation=\{chunkTranslation\(readerMeaning\(chunk\.ja, uiLang\)\)\}/);
     const rv = codeOnly(read("routes/_authenticated/review.tsx"));
     expect(rv).toMatch(/<ChunkLine/);
     const pills = codeOnly(read("components/ChunkPills.tsx"));
@@ -4988,13 +4988,13 @@ describe("ホームは今日の誌面", () => {
     );
     // 2026-09-24「過去のものが多すぎで画面で確認できないから、過去のものは全て
     // 削除して」: 帯には**今回の依頼の面だけ**。
-    // 2026-09-29 の回（R14）の最後の依頼: 図鑑のスライドを白に・カードの色の案。
-    expect(list.slice(0, list.indexOf("},"))).toMatch(/scene: "dex-cards/);
-    expect(list).toMatch(/scene: "chunk-designs"/);
-    expect(list).toMatch(/scene: "dex-drag"/);
-    expect(list).toMatch(/scene: "scan-found"/);
+    // 2026-09-29 の回（R16）: 上の帯の本棚・縦の一覧の注音・図鑑スライド。
+    expect(list.slice(0, list.indexOf("},"))).toMatch(/scene: "home-shelf"/);
+    expect(list).toMatch(/scene: "dex-drag&list=1"/);
+    expect(list).toMatch(/scene: "dex-cards/);
     // 前の回の面は残さない。
     expect(list).not.toMatch(/\{ scene: "motion-compare"/);
+    expect(list).not.toMatch(/scene: "chunk-designs"/);
     expect(list).not.toMatch(/\{ scene: "album-shelf"/);
     expect(list).not.toMatch(/\{ scene: "scan-pick-designs"/);
     expect(list).not.toMatch(/glass=1/);
@@ -5611,7 +5611,7 @@ describe("単語の詳細は既定で8項目（オーナー指示 2026-09-23）"
       expect([id, new RegExp(`\\$\\{\\s*want\\("${id}"\\)\\s*\\?`).test(ai)]).toEqual([id, true]);
     }
     expect(ai).toMatch(
-      /stripUnrequested\(scrubForeignNotes\(card\.extras \?\? \{\}, explainLang\), data\.sections\)/,
+      /stripUnrequested\(\s*scrubForReader\(scrubForeignNotes\(card\.extras \?\? \{\}, explainLang\), explainLang\),\s*data\.sections,?\s*\)/,
     );
   });
 });
@@ -6083,6 +6083,38 @@ describe("ホームの一番上の本棚（2026-09-29「ホームのアルバム
     expect(shelf).toMatch(/onPageTap: \(side\) => setView\(side\)/);
     expect(codeOnly(read("lib/journal.functions.ts"))).toMatch(
       /export const listMyDiaryMonth = createServerFn\(\{ method: "GET" \}\)/,
+    );
+  });
+});
+
+describe("図鑑は開くといつもスライド（2026-09-29）", () => {
+  it("既定はカード表示で、前に見ていた表示を覚えて戻さない", () => {
+    const dex = codeOnly(read("routes/_authenticated/dex.tsx"));
+    expect(dex).toMatch(/useState<ViewMode>\("cards"\)/);
+    expect(dex).not.toMatch(/localStorage\.getItem\("dex-view"\)/);
+  });
+});
+
+describe("訳・意味は表示言語の物だけ（2026-09-29「例文の訳に中文が混ざってる」）", () => {
+  it("単語の詳細・復習・図鑑は、読む人の言語でない訳・意味を出さない", () => {
+    const card = codeOnly(read("components/WordCard.tsx"));
+    expect(card).toMatch(/readerText\(word\.example_translation, uiLang, word\.example_sentence\)/);
+    expect(card).toMatch(/readerText\(e\.ja, uiLang, e\.zh\)/);
+    expect(card).toMatch(/readerMeaning\(word\.meaning_ja, uiLang\)/);
+    expect(codeOnly(read("routes/_authenticated/review.tsx"))).toMatch(
+      /readerText\(card\.example_translation, uiLang, card\.example_sentence\)/,
+    );
+    expect(codeOnly(read("routes/_authenticated/dex.tsx"))).toMatch(
+      /<ReaderMeaning text=\{s\.word\.meaning_ja\} \/>/,
+    );
+  });
+  it("作る側・貯める側も、読む人の言語でない訳は落とす", () => {
+    const ai = codeOnly(read("lib/ai.functions.ts"));
+    expect(ai).toMatch(
+      /example_translation: readerText\(card\.example_translation, explainLang, card\.example_sentence\)/,
+    );
+    expect(codeOnly(read("lib/word-explanation.functions.ts"))).toMatch(
+      /readerText\(input\.example_translation, key\.explainLang\) \|\| null/,
     );
   });
 });
