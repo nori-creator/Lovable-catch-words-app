@@ -173,25 +173,10 @@ function build(stage: Stage) {
   beam.position.z = ANALYZE_LOOK.lift * 0.6;
   scene.add(beam);
 
-  // AI のレンズ: 虹色に光るガラスの輪（部屋の写り込みで光る）。
-  const lensR = Math.min(view.w, view.h) * 0.12;
-  const lens = new THREE.Mesh(
-    new THREE.TorusGeometry(lensR, lensR * 0.09, 32, 128),
-    new THREE.MeshPhysicalMaterial({
-      color: 0xffffff,
-      metalness: 0.2,
-      roughness: 0.08,
-      clearcoat: 1,
-      clearcoatRoughness: 0.05,
-      iridescence: 1,
-      iridescenceIOR: 1.6,
-      transparent: true,
-      opacity: 0.9,
-      envMapIntensity: 2.2,
-    }),
-  );
-  lens.position.z = 1.1;
-  scene.add(lens);
+  // 前はここに「AI のレンズ」= 虹色のガラスの輪（トーラス）が写真の上を漂っていた。
+  // オーナー指示 2026-09-28 R14「AIの分析中の浮遊する輪っか消して」で外した。
+  // 写真の上の光だまり（`uLens` の熱）はそのまま残す — 輪が無くても「AI が探している」
+  // 場所は、その明るい所で読める。
   const key = new THREE.DirectionalLight(0xffffff, 2.2);
   key.position.set(-3, 5, 6);
   scene.add(key);
@@ -209,12 +194,6 @@ function build(stage: Stage) {
     const lx = Math.sin(t * 0.53) * 0.28 + Math.sin(t * 0.21) * 0.08;
     const ly = Math.sin(t * 0.37 + 1.3) * 0.3;
     uniforms.uLens.value.set(lx, ly);
-    lens.position.x = lx * view.w;
-    lens.position.y = ly * view.h;
-    lens.rotation.x = 0.5 + Math.sin(t * 0.7) * 0.25;
-    lens.rotation.y = t * 0.6;
-    const appear = Math.min(1, t * 1.6);
-    lens.scale.setScalar(0.6 + 0.4 * (1 - Math.pow(1 - appear, 3)));
     // カメラ: ごくゆっくり左右に回る（浮いた点だけが視差でずれる）。
     camera.position.x = Math.sin(t * 0.4) * 0.35;
     camera.position.y = Math.cos(t * 0.31) * 0.2;

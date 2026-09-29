@@ -108,7 +108,13 @@ type Book = {
     p: Spring;
     front: THREE.MeshStandardMaterial;
     back: THREE.MeshStandardMaterial;
+    /** 表（右ページ）・裏（左ページ）の絵。片ページで大きく見せる時に使う。 */
+    recto: Canvas;
+    verso: Canvas;
   }>;
+  /** 表紙の裏の見返し（最初の見開きの左）と、裏表紙の見返し（最後の見開きの右）。 */
+  endFront?: Canvas;
+  endBack?: Canvas;
   /** その本の見開き（1日＝1見開き）。`days` が渡された時だけ。 */
   days: DaySpread[];
   data: MonthBook;
@@ -118,6 +124,8 @@ type Book = {
 
 export type ShelfEvents = {
   onState?: (s: { open: MonthBook | null; page: number; pages: number }) => void;
+  /** 開いた本のページを押した（R14: 押すと片ページを大きく）。 */
+  onPageTap?: (side: "left" | "right") => void;
   /**
    * その月の見開き（1日＝1見開き。左＝その日のアルバム、右＝その日の日記）。
    * 渡すと、本を開いた時に**いちばん新しい日の見開きまで**めくって見せる
@@ -419,8 +427,10 @@ export class ShelfWorld {
       if (mesh.isMesh) mesh.material = coverMat;
     });
     // 見返し（表紙の裏に貼った紙）
+    const endC = paintEndpaper(d.color);
+    b.endFront = endC;
     const endMat = new THREE.MeshStandardMaterial({
-      map: tex(paintEndpaper(d.color), true),
+      map: tex(endC, true),
       roughness: 0.9,
     });
     const end = new THREE.Mesh(new THREE.PlaneGeometry(W - JOINT - 0.004, H - 0.004), endMat);
@@ -449,6 +459,19 @@ export class ShelfWorld {
       "蘋果",
     ];
     const zTop = T / 2 - BOARD - 0.0001; // 紙の束の上面のすぐ上
+    // **最後の見開きの右ページ**（R14「ページの最後に変なものがあるから直して」）。
+    // 前は最後の紙までめくると、紙の束（Blender の Block）の上面がそのまま見え、
+    // 小口の縞の絵が伸びて白い八角形のように写っていた。本物の本と同じく、束の上に
+    // 最後の白いページを1枚敷く（めくれる紙のすぐ下）。
+    const lastC = paintBlank("right");
+    b.endBack = lastC;
+    const lastPage = new THREE.Mesh(
+      new THREE.PlaneGeometry(LEAF_W, LEAF_H),
+      new THREE.MeshStandardMaterial({ map: tex(lastC, true), roughness: 0.9 }),
+    );
+    lastPage.position.set(JOINT + LEAF_W / 2, 0, zTop + 0.00012);
+    lastPage.receiveShadow = true;
+    b.group.children[0].add(lastPage);
     for (let i = 0; i < LEAVES; i++) {
       const geo = new THREE.PlaneGeometry(LEAF_W, LEAF_H, SEG, 1);
       geo.translate(LEAF_W / 2, 0, 0);
@@ -493,7 +516,16 @@ export class ShelfWorld {
       group.add(front, back);
       group.position.set(0.0015 + JOINT - 0.0015, 0, zTop + (LEAVES - i) * 0.00035);
       b.group.children[0].add(group);
-      b.leaves.push({ group, geo, base, p: spring(0.5, 0.9), front: frontMat, back: backMat });
+      b.leaves.push({
+        group,
+        geo,
+        base,
+        p: spring(0.5, 0.9),
+        front: frontMat,
+        back: backMat,
+        recto,
+        verso,
+      });
     }
   }
 
@@ -604,8 +636,11 @@ export class ShelfWorld {
     if (this.active) {
       if (this.open.x < 0.5) return;
       const r = this.canvas.getBoundingClientRect();
-      if (e.clientX > r.left + r.width / 2) this.flip(1);
-      else this.flip(-1);
+      const side = e.clientX > r.left + r.width / 2 ? "right" : "left";
+      // **押したページを片ページで大きく**（R14）。めくるのは払う・矢印の釦で。
+      // 受け取る側が無い時だけ、前と同じく押した側へめくる。
+      if (this.events.onPageTap) this.events.onPageTap(side);
+      else this.flip(side === "right" ? 1 : -1);
       return;
     }
     this.raycaster.setFromCamera(this.toNdc(e), this.camera);
@@ -666,11 +701,29 @@ export class ShelfWorld {
       if (dayIndex !== undefined && i - 1 !== dayIndex) return;
       const c = this.paintRecto(b, i);
       if (!c) return;
+      leaf.recto = c;
       leaf.front.map?.dispose();
       leaf.front.map = tex(c, true);
       leaf.front.needsUpdate = true;
     });
     this.kick();
+  }
+
+  /**
+   * いまの見開きの片側の絵（片ページで大きく見せる用）。左は1つ前の紙の裏
+   * （最初は見返し）、右はいまの紙の表（最後は最後のページ）。
+   */
+  pageCanvas(side: "left" | "right"): Canvas | null {
+    const b = this.active;
+    if (!b) return null;
+    if (side === "left")
+      return this.page > 0 ? b.leaves[this.page - 1].verso : (b.endFront ?? null);
+    return this.page < LEAVES ? b.leaves[this.page].recto : (b.endBack ?? null);
+  }
+
+  /** いまの見開きが何番目か（0＝表紙を開いた所）と、見開きの数。 */
+  get spread(): { at: number; count: number } {
+    return { at: this.page, count: LEAVES + 1 };
   }
 
   /** いま見開いている日（0 始まり）。扉なら -1。 */

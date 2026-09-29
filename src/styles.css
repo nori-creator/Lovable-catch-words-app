@@ -7778,6 +7778,46 @@ html[data-motion="reduce"] .reward-catch__field::after {
 .scan-list__row[data-on] {
   background: color-mix(in oklab, var(--primary) 9%, transparent);
 }
+/* 3つ目から先は箱の中で送る。下端を薄く消して「まだある」と見せる。 */
+.scan-list__scroll[data-more] {
+  mask-image: linear-gradient(to bottom, #000 calc(100% - 14px), transparent);
+}
+/* 候補ごとの「＋ 追加」の札（R14）。押せる範囲は 44px、見た目は 34px。 */
+.scan-add {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  height: 2.125rem;
+  padding: 0 0.875rem 0 0.625rem;
+  border-radius: 999px;
+  font-size: 0.875rem;
+  font-weight: 700;
+  color: var(--primary-foreground);
+  background: linear-gradient(
+    180deg,
+    color-mix(in oklab, var(--primary) 88%, white),
+    var(--primary)
+  );
+  box-shadow:
+    0 6px 14px -6px color-mix(in oklab, var(--primary) 70%, transparent),
+    inset 0 1px 0 rgb(255 255 255 / 0.35);
+  transition: transform 160ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.scan-add::before {
+  content: "";
+  position: absolute;
+  inset: -0.375rem -0.25rem;
+}
+.scan-add:active {
+  transform: scale(0.94);
+}
+.scan-add[data-owned] {
+  color: var(--muted-foreground);
+  background: var(--muted);
+  box-shadow: none;
+  font-weight: 600;
+}
 
 /* 下の列で注目している候補の光。**大きくなって、揺れる**
    （オーナー指示 2026-09-22）。大きさはばねのように少し行き過ぎて止まり、
@@ -7950,7 +7990,14 @@ html[data-motion="reduce"] .dex-day__card {
 .dex-cf__stage {
   /* 図鑑を全画面にした分、カードも大きく（オーナー指示 2026-09-23）。
      高さは画面に収まるよう、縦の余白からも上限を取る。 */
-  --cf-w: min(78vw, 340px, calc((100dvh - 15rem) / 1.48));
+  /* 下のアイコンのバーに被らない高さに収める（R14「図鑑のスライドは下のアイコンの
+     バーに被らせないで」）: 上の操作 9rem＋札の下の舞台 4.25rem＋題と点と写真の列
+     約 10rem＋下のバー 5.75rem＋端末の下の余白 を引いた残りに札を収める。 */
+  --cf-w: min(
+    78vw,
+    340px,
+    max(8rem, calc((100dvh - 29rem - env(safe-area-inset-bottom, 0px)) / 1.48))
+  );
   position: relative;
   /* 下に円の舞台（`.dex-cf__floor`）が覗くぶん、少し高く取る。 */
   height: calc(var(--cf-w) * 1.48 + 4.25rem);
@@ -8023,6 +8070,9 @@ html[data-motion="reduce"] .dex-day__card {
    ステージや円」）。部屋は画面いっぱいに敷き、カードの列だけが光る。 ── */
 .dex-cf {
   --cf-accent: #4ea8ff;
+  /* 一番下（写真の列）が下のアイコンのバーの上で終わるように、バーの高さぶん空ける。
+     小さい画面で縦に送った時も、列がバーの裏に潜らない。 */
+  padding-bottom: calc(5.75rem + env(safe-area-inset-bottom, 0px));
   /* **積み重ねの文脈を作らない。** 作ると、画面いっぱいの部屋（`z-index: -1`）が
      この中で一番下になり、**前に描かれた物（上の操作の板）を覆う**。
      文脈の外に出せば、部屋は画面の一番奥に沈む。 */
@@ -9391,7 +9441,11 @@ html[data-dex-stage="gallery"] {
   pointer-events: none;
 }
 .dex-cf[data-theme="gallery"] .dex-cf__stage {
-  --cf-w: min(50vw, 220px, calc((100dvh - 21rem) / 1.48));
+  --cf-w: min(
+    50vw,
+    220px,
+    max(7.5rem, calc((100dvh - 32.25rem - env(safe-area-inset-bottom, 0px)) / 1.48))
+  );
   perspective: 900px;
   perspective-origin: 50% 42%;
   height: calc(var(--cf-w) * 1.48 + 5.5rem);
@@ -9762,11 +9816,19 @@ html[data-motion="reduce"] .memorial-reveal * {
    バツは写真の右上の角に、中心を角に合わせて置く（`translate(-50%,-50%)`）。
    見た目 24px・当たり 44px（HIG §11）。赤は「消す」の合図だが、札そのものは
    消さない — 押した後に「図鑑には残っています」と言う。 */
+/* 札と同じ位置・大きさ・傾き・揺れを持つ透明な枠。バツはその右上の角に付く。 */
+.album-remove-frame {
+  position: absolute;
+  pointer-events: none;
+}
 .album-remove {
   position: absolute;
+  right: 0;
+  top: 0;
+  pointer-events: auto;
   width: 44px;
   height: 44px;
-  translate: -50% -50%;
+  translate: 50% -50%;
   display: grid;
   place-items: center;
   background: transparent;

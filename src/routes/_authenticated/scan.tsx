@@ -233,6 +233,7 @@ function ScanPage() {
   const [scanStage, setScanStage] = useState<"idle" | "sensing" | "reading" | "matching">("idle");
   const [items, setItems] = useState<DetectedItem[] | null>(null);
   const [snapshot, setSnapshot] = useState<string | null>(null);
+  const photoPickRef = useRef<HTMLInputElement | null>(null);
   /** 撮った写真の元の大きさ。光の点を `object-cover` の写真に合わせて置くのに要る。 */
   const [snapshotSize, setSnapshotSize] = useState<{ w: number; h: number }>({ w: 0, h: 0 });
   /**
@@ -460,136 +461,149 @@ function ScanPage() {
     return c.toDataURL("image/jpeg", 0.82);
   }, [zoom]);
 
-  const doScan = useCallback(async () => {
-    if (scanning) return;
-    unlockAudio();
-    haptic("medium");
-    setError(null);
-    setChip(null);
-    setItems(null);
-    setRankOrder(null);
-    rankAsked.current = false;
-    touchedRef.current = false;
-    setEntries({});
-    setDetectMs(null);
-    setLookupMs(null);
-    setTapToAudioMs(null);
-    const frame = grabFrame();
-    if (!frame) {
-      setError(t("scan.noFrame"));
-      return;
-    }
-    void saveCaptureToPhotoLibrary(frame).then((result) => {
-      if (result === "failed") toast.error(t("cap.photoLibrarySaveFailed"));
-    });
-    setSnapshot(frame);
-    setScanning(true);
-    // KPI: first scan ever (localStorage-deduped).
-    try {
-      if (!localStorage.getItem("kpi-first-scan")) {
-        localStorage.setItem("kpi-first-scan", "1");
-        void logEvent({ data: { kind: "first_scan" } }).catch(() => {});
+  /**
+   * **前に撮った写真からもスキャンする**（オーナー指示 2026-09-28 R14「過去に撮ったもの
+   * でも追加できるように」）。`fromPhoto` を渡すと、カメラの今の絵の代わりにその写真を
+   * 読む。写真は端末にある物なので、写真ライブラリへの保存と今いる場所は使わない
+   * （撮った場所と今の場所は違う）。
+   */
+  const doScan = useCallback(
+    async (fromPhoto?: string) => {
+      if (scanning) return;
+      unlockAudio();
+      haptic("medium");
+      setError(null);
+      setChip(null);
+      setItems(null);
+      setRankOrder(null);
+      rankAsked.current = false;
+      touchedRef.current = false;
+      setEntries({});
+      setDetectMs(null);
+      setLookupMs(null);
+      setTapToAudioMs(null);
+      const frame = typeof fromPhoto === "string" ? fromPhoto : grabFrame();
+      if (!frame) {
+        setError(t("scan.noFrame"));
+        return;
       }
-    } catch {
-      /* ignore */
-    }
-    setScanStage("sensing");
-    // Cycle status text so the wait feels intentional. Cleared in finally.
-    const stageTimer1 = window.setTimeout(() => setScanStage("reading"), 700);
-    const stageTimer2 = window.setTimeout(() => setScanStage("matching"), 1500);
-    const t0 = performance.now();
-    try {
-      // location best-effort (§3.7): warm watchPosition first, then one
-      // patient getCurrentPosition — never block the scan for more than 5s.
-      let lat: number | null = null,
-        lng: number | null = null;
-      const warm = warmPosRef.current;
-      if (warm && Date.now() - warm.at < 2 * 60_000) {
-        lat = warm.lat;
-        lng = warm.lng;
-      } else {
-        // **上限は約束の外でも数える**（`deadline.ts`）。iPhone の Safari は
-        // 位置の許可を聞いている間 `timeout` を数えないので、答えないと
-        // スキャンが「分析中」のまま進まなかった。
-        const pos = await withDeadline(
-          new Promise<GeolocationPosition>((res, rej) => {
-            navigator.geolocation.getCurrentPosition(res, rej, {
-              timeout: 5000,
-              maximumAge: 120_000,
+      if (typeof fromPhoto !== "string") {
+        void saveCaptureToPhotoLibrary(frame).then((result) => {
+          if (result === "failed") toast.error(t("cap.photoLibrarySaveFailed"));
+        });
+      }
+      setSnapshot(frame);
+      setScanning(true);
+      // KPI: first scan ever (localStorage-deduped).
+      try {
+        if (!localStorage.getItem("kpi-first-scan")) {
+          localStorage.setItem("kpi-first-scan", "1");
+          void logEvent({ data: { kind: "first_scan" } }).catch(() => {});
+        }
+      } catch {
+        /* ignore */
+      }
+      setScanStage("sensing");
+      // Cycle status text so the wait feels intentional. Cleared in finally.
+      const stageTimer1 = window.setTimeout(() => setScanStage("reading"), 700);
+      const stageTimer2 = window.setTimeout(() => setScanStage("matching"), 1500);
+      const t0 = performance.now();
+      try {
+        // location best-effort (§3.7): warm watchPosition first, then one
+        // patient getCurrentPosition — never block the scan for more than 5s.
+        let lat: number | null = null,
+          lng: number | null = null;
+        const warm = warmPosRef.current;
+        if (typeof fromPhoto === "string") {
+          // 前の写真: 今の場所は付けない。
+        } else if (warm && Date.now() - warm.at < 2 * 60_000) {
+          lat = warm.lat;
+          lng = warm.lng;
+        } else {
+          // **上限は約束の外でも数える**（`deadline.ts`）。iPhone の Safari は
+          // 位置の許可を聞いている間 `timeout` を数えないので、答えないと
+          // スキャンが「分析中」のまま進まなかった。
+          const pos = await withDeadline(
+            new Promise<GeolocationPosition>((res, rej) => {
+              navigator.geolocation.getCurrentPosition(res, rej, {
+                timeout: 5000,
+                maximumAge: 120_000,
+              });
+            }),
+            5000,
+            null,
+          );
+          if (pos) {
+            lat = pos.coords.latitude;
+            lng = pos.coords.longitude;
+          }
+        }
+        setScanLoc({ lat, lng, name: null });
+        if (lat != null && lng != null) {
+          // 地名(「士林」級)は非同期で追いつかせる — スキャンは待たない。
+          const glat = lat,
+            glng = lng;
+          void geocodeFn({ data: { lat: glat, lng: glng } })
+            .then(({ location_name }) => {
+              if (location_name) {
+                setScanLoc((cur) =>
+                  cur.lat === glat && cur.lng === glng ? { ...cur, name: location_name } : cur,
+                );
+              }
+            })
+            .catch(() => {});
+        }
+
+        const { items } = await detectFn({ data: { imageBase64: frame, lat, lng } });
+        const dt = Math.round(performance.now() - t0);
+        setDetectMs(dt);
+        setItems(items);
+
+        if (items.length > 0) {
+          setScanStage("matching");
+          const tl = performance.now();
+          // **辞書が引けなくても、見つけた語は出す。** 前はここで落ちると、
+          // 見つけた語ごと「検出に失敗しました」になっていた（オーナー報告
+          // 2026-09-23）。読みと意味は AI の答えにも入っているので、それで出す。
+          try {
+            const { entries } = await lookupFn({
+              data: {
+                headwords: items.map((i) => i.headword),
+                language: targetLanguage,
+                explain_lang: uiLang,
+              },
             });
-          }),
-          5000,
-          null,
-        );
-        if (pos) {
-          lat = pos.coords.latitude;
-          lng = pos.coords.longitude;
+            setLookupMs(Math.round(performance.now() - tl));
+            setEntries(entries);
+          } catch (lookupErr) {
+            console.warn("[scan] dictionary lookup failed", lookupErr);
+          }
         }
+      } catch (e) {
+        // 生の英語(`fetch failed` / `PGRST116`)は出さない。日本語で
+        // 使っている人には何も分からないし、対処もできない。
+        // ただし**こちらが日本語で投げたメッセージは通す** — 「1日の利用
+        // 上限に達しました」のような、理由も対処も分かるものまで
+        // 「検出に失敗しました」に潰すと、ユーザーは直らないものを
+        // 押し続けることになる(監査の指摘)。
+        console.error(e);
+        setError(readable(e, t("scan.detectFailed")));
+        haptic("warning");
+      } finally {
+        window.clearTimeout(stageTimer1);
+        window.clearTimeout(stageTimer2);
+        setScanning(false);
+        setScanStage("idle");
+        // Peak-End: reward the wait with a shimmer if anything landed.
+        setTimeout(() => {
+          if ((items?.length ?? 0) > 0 || (Array.isArray(items) && items.length === 0)) {
+            // no-op guard; success sound fires from the items effect below
+          }
+        }, 0);
       }
-      setScanLoc({ lat, lng, name: null });
-      if (lat != null && lng != null) {
-        // 地名(「士林」級)は非同期で追いつかせる — スキャンは待たない。
-        const glat = lat,
-          glng = lng;
-        void geocodeFn({ data: { lat: glat, lng: glng } })
-          .then(({ location_name }) => {
-            if (location_name) {
-              setScanLoc((cur) =>
-                cur.lat === glat && cur.lng === glng ? { ...cur, name: location_name } : cur,
-              );
-            }
-          })
-          .catch(() => {});
-      }
-
-      const { items } = await detectFn({ data: { imageBase64: frame, lat, lng } });
-      const dt = Math.round(performance.now() - t0);
-      setDetectMs(dt);
-      setItems(items);
-
-      if (items.length > 0) {
-        setScanStage("matching");
-        const tl = performance.now();
-        // **辞書が引けなくても、見つけた語は出す。** 前はここで落ちると、
-        // 見つけた語ごと「検出に失敗しました」になっていた（オーナー報告
-        // 2026-09-23）。読みと意味は AI の答えにも入っているので、それで出す。
-        try {
-          const { entries } = await lookupFn({
-            data: {
-              headwords: items.map((i) => i.headword),
-              language: targetLanguage,
-              explain_lang: uiLang,
-            },
-          });
-          setLookupMs(Math.round(performance.now() - tl));
-          setEntries(entries);
-        } catch (lookupErr) {
-          console.warn("[scan] dictionary lookup failed", lookupErr);
-        }
-      }
-    } catch (e) {
-      // 生の英語(`fetch failed` / `PGRST116`)は出さない。日本語で
-      // 使っている人には何も分からないし、対処もできない。
-      // ただし**こちらが日本語で投げたメッセージは通す** — 「1日の利用
-      // 上限に達しました」のような、理由も対処も分かるものまで
-      // 「検出に失敗しました」に潰すと、ユーザーは直らないものを
-      // 押し続けることになる(監査の指摘)。
-      console.error(e);
-      setError(readable(e, t("scan.detectFailed")));
-      haptic("warning");
-    } finally {
-      window.clearTimeout(stageTimer1);
-      window.clearTimeout(stageTimer2);
-      setScanning(false);
-      setScanStage("idle");
-      // Peak-End: reward the wait with a shimmer if anything landed.
-      setTimeout(() => {
-        if ((items?.length ?? 0) > 0 || (Array.isArray(items) && items.length === 0)) {
-          // no-op guard; success sound fires from the items effect below
-        }
-      }, 0);
-    }
-  }, [scanning, grabFrame, detectFn, lookupFn, logEvent, items, t, geocodeFn]);
+    },
+    [scanning, grabFrame, detectFn, lookupFn, logEvent, items, t, geocodeFn],
+  );
 
   // Success chime when items arrive.
   useEffect(() => {
@@ -1029,15 +1043,33 @@ function ScanPage() {
                   }
                 />
                 <div className="capture-actions">
+                  {/* **写真から**: 前に撮った写真を選んでスキャンする（R14）。 */}
                   <CameraLibraryButton
                     photoUrl={lastPhotoUrl}
-                    onOpen={() => void navigate({ to: "/home" })}
+                    onOpen={() => photoPickRef.current?.click()}
+                  />
+                  <input
+                    ref={photoPickRef}
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    aria-hidden
+                    tabIndex={-1}
+                    onChange={(e) => {
+                      const f = e.target.files?.[0];
+                      e.target.value = "";
+                      if (!f) return;
+                      void downscalePhoto(f).then((url) => {
+                        if (url) void doScan(url);
+                        else setError(t("scan.noFrame"));
+                      });
+                    }}
                   />
                   <CameraShutter
                     mode="scan"
                     label={t("scan.button")}
                     busy={!ready || scanning}
-                    onPress={doScan}
+                    onPress={() => void doScan()}
                   />
                   <CameraFlipButton
                     facing={facing}
@@ -1454,7 +1486,30 @@ function useBoxSize(ref: React.RefObject<HTMLDivElement | null>) {
  *  ・出会い方は色だけに頼らない: 持っている語はチェック、再会は字の札。
  */
 /** 候補の1行の高さ（2行: 語と意味。44px の押せる釦が真ん中に収まる）。 */
-const LIST_ROW = 60;
+const LIST_ROW = 56;
+
+/**
+ * 端末の写真を、スキャンに送る大きさ（長い辺 1024px の JPEG）にする。
+ * カメラの絵（`grabFrame`）と同じ大きさにそろえる — 送る量と AI の読み方を変えない。
+ */
+export async function downscalePhoto(file: File): Promise<string | null> {
+  try {
+    const bmp = await createImageBitmap(file, { imageOrientation: "from-image" });
+    const scale = Math.min(1, 1024 / Math.max(bmp.width, bmp.height));
+    const w = Math.round(bmp.width * scale);
+    const h = Math.round(bmp.height * scale);
+    const c = document.createElement("canvas");
+    c.width = w;
+    c.height = h;
+    const ctx = c.getContext("2d");
+    if (!ctx) return null;
+    ctx.drawImage(bmp, 0, 0, w, h);
+    bmp.close();
+    return c.toDataURL("image/jpeg", 0.82);
+  } catch {
+    return null;
+  }
+}
 
 /**
  * **撮った後の候補の一覧**（オーナー指示 2026-09-28 R13「スキャンの単語の候補とスキャン後の
@@ -1521,18 +1576,19 @@ export function ScanCandidateStrip({
       </div>
     );
   }
-  // 3行半まで見せる（半分見える4行目で「下にまだある」と分かる）。
-  const visible = Math.min(items.length, 3.5);
+  // **2行まで**（オーナー指示 2026-09-28 R14「見つかった単語を表示する部分がでかすぎる。
+  // 2つまでにしてスキャンした画面を大きくして」）。3つ目からは箱の中を縦に送る。
+  // 下にまだある時は、下端を薄く消して「続きがある」と見せる。
+  const visible = Math.min(items.length, 2);
+  const more = items.length > 2;
   return (
     <div className="scan-list" data-scan-strip>
-      <div className="flex items-baseline justify-between px-5 pb-1">
-        <h2 className="text-footnote font-semibold text-muted-foreground">{t("scan.found")}</h2>
-        <span className="text-caption tabular-nums text-muted-foreground">{items.length}</span>
-      </div>
+      <h2 className="sr-only">{t("scan.found")}</h2>
       <ul
         ref={scrollerRef}
         aria-label={t("scan.found")}
         className="scan-list__scroll"
+        data-more={more || undefined}
         style={{ maxHeight: LIST_ROW * visible }}
       >
         {items.map((it) => {
@@ -1586,7 +1642,12 @@ export function ScanCandidateStrip({
                   </span>
                 </span>
               </button>
-              {/* **行ごとの追加**（各候補の右）。持っている語はチェック。 */}
+              {/*
+                **行ごとの追加**（R14「図鑑に追加するボタンを工夫して」）。丸い＋だけだと
+                何が起きるか読めなかったので、**字の付いた札**にした: 「＋ 追加」。
+                押すと札が小さく沈んで、図鑑の小さな本の印が跳ねる（押した手応え）。
+                持っている語は「✓ 取得済み」の控えめな札（押すと同じ流れで開く）。
+              */}
               <button
                 type="button"
                 onClick={() => onOpen(it)}
@@ -1595,17 +1656,15 @@ export function ScanCandidateStrip({
                     ? `${it.headword} ${t("scan.owned")}`
                     : `${it.headword} ${t("scan.addToDex")}`
                 }
-                className={`press-in mr-3 grid h-11 w-11 shrink-0 place-items-center rounded-full ${
-                  st === "owned"
-                    ? "bg-muted text-muted-foreground"
-                    : "bg-primary text-primary-foreground shadow-md shadow-primary/25"
-                }`}
+                className="scan-add press-in mr-3 shrink-0"
+                data-owned={st === "owned" || undefined}
               >
                 {st === "owned" ? (
-                  <Check className="h-5 w-5" aria-hidden />
+                  <Check className="h-4 w-4" aria-hidden />
                 ) : (
-                  <Plus className="h-5 w-5" aria-hidden />
+                  <Plus className="h-4 w-4" aria-hidden strokeWidth={2.75} />
                 )}
+                <span>{st === "owned" ? t("scan.owned") : t("scan.addShort")}</span>
               </button>
             </li>
           );

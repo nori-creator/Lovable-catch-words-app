@@ -130,6 +130,13 @@ export function Shelf3DScene({ q }: { q: URLSearchParams }) {
   const fontRef = useRef(font);
   const imgs = useRef<Array<HTMLImageElement | null>>([]);
   const [writing, setWriting] = useState<string | null>(null);
+  /**
+   * **見開き／片ページ**（オーナー指示 2026-09-28 R14「ページをタップしたら片ページが
+   * 全画面で見えるように。デフォルトは両面が見え、タップすると片面だけが見える。
+   * 切り替えもできるように」）。"spread" が既定。
+   */
+  const [view, setView] = useState<"spread" | "left" | "right">("spread");
+  const [pageUrl, setPageUrl] = useState<string | null>(null);
 
   useEffect(() => {
     const el = ref.current;
@@ -137,7 +144,11 @@ export function Shelf3DScene({ q }: { q: URLSearchParams }) {
     let w: ShelfWorld;
     try {
       w = new ShelfWorld(el, MONTHS, {
-        onState: setState,
+        onState: (st) => {
+          setState(st);
+          if (!st.open) setView("spread");
+        },
+        onPageTap: (side) => setView(side),
         days: (b) => fixtureDays(b, imgs.current),
         diaryFont: () => fontRef.current,
       });
@@ -200,6 +211,34 @@ export function Shelf3DScene({ q }: { q: URLSearchParams }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // 片ページの絵（見開きの片側の canvas をそのまま大きく見せる）。
+  useEffect(() => {
+    if (view === "spread") {
+      setPageUrl(null);
+      return;
+    }
+    const c = world.current?.pageCanvas(view);
+    setPageUrl(c ? c.toDataURL("image/jpeg", 0.92) : null);
+  }, [view, state.page, font, writing]);
+
+  /** 片ページで次・前へ: 左 → 右 → （めくって）次の左 …。 */
+  const stepSingle = (dir: 1 | -1) => {
+    const w = world.current;
+    if (!w) return;
+    const { at, count } = w.spread;
+    if (dir === 1) {
+      if (view === "left") setView("right");
+      else if (at < count - 1) {
+        w.flip(1);
+        setView("left");
+      }
+    } else if (view === "right") setView("left");
+    else if (at > 0) {
+      w.flip(-1);
+      setView("right");
+    }
+  };
+
   const days = world.current?.openDays ?? [];
   const dayIndex = state.open ? state.page - 1 : -1;
   const day = dayIndex >= 0 ? days[dayIndex] : undefined;
@@ -234,8 +273,129 @@ export function Shelf3DScene({ q }: { q: URLSearchParams }) {
     fontSize: 14,
   };
 
+  const arrow: React.CSSProperties = {
+    ...btn,
+    position: "absolute",
+    top: "42%",
+    width: 44,
+    height: 44,
+    padding: 0,
+    fontSize: 26,
+    lineHeight: "40px",
+  };
+  const seg = (on: boolean): React.CSSProperties => ({
+    minHeight: 36,
+    padding: "0 14px",
+    borderRadius: 999,
+    border: 0,
+    fontSize: 13,
+    fontWeight: 700,
+    background: on ? "#fff" : "transparent",
+    color: on ? "#1d1a16" : "#fff",
+  });
+
   return (
     <div className="space-y-2 pb-28">
+      {/* 片ページ（全画面）。押すと見開きに戻る。上で見開き／片ページを切り替え。 */}
+      {state.open && view !== "spread" && (
+        <div
+          role="dialog"
+          aria-label="片ページ"
+          style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 200,
+            background: "radial-gradient(120% 90% at 50% 40%, #3a322a, #14110e)",
+            display: "flex",
+            flexDirection: "column",
+          }}
+        >
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              padding: "calc(env(safe-area-inset-top) + 10px) 12px 8px",
+            }}
+          >
+            <span style={{ color: "#fff", fontWeight: 700, fontSize: 15 }}>
+              {state.open.y}年{state.open.m}月{day ? ` · ${day.d}日` : ""}
+            </span>
+            <div
+              role="radiogroup"
+              aria-label="ページの見せ方"
+              style={{
+                display: "flex",
+                gap: 2,
+                padding: 3,
+                borderRadius: 999,
+                background: "rgb(255 255 255 / .16)",
+              }}
+            >
+              <button
+                type="button"
+                role="radio"
+                aria-checked={false}
+                onClick={() => setView("spread")}
+                style={seg(false)}
+              >
+                見開き
+              </button>
+              <button type="button" role="radio" aria-checked style={seg(true)}>
+                片ページ
+              </button>
+            </div>
+          </div>
+          <button
+            type="button"
+            aria-label="見開きに戻る"
+            onClick={() => setView("spread")}
+            style={{
+              flex: 1,
+              minHeight: 0,
+              border: 0,
+              background: "transparent",
+              padding: "8px 16px",
+              display: "grid",
+              placeItems: "center",
+            }}
+          >
+            {pageUrl && (
+              <img
+                key={pageUrl.length + view}
+                src={pageUrl}
+                alt=""
+                style={{
+                  maxWidth: "100%",
+                  maxHeight: "100%",
+                  borderRadius: view === "left" ? "10px 3px 3px 10px" : "3px 10px 10px 3px",
+                  boxShadow: "0 30px 60px -20px rgb(0 0 0 / .7), 0 2px 6px rgb(0 0 0 / .35)",
+                  animation: "single-page-in 280ms cubic-bezier(.2,.8,.2,1) both",
+                }}
+              />
+            )}
+          </button>
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              padding: "8px 16px calc(env(safe-area-inset-bottom) + 18px)",
+            }}
+          >
+            <button type="button" onClick={() => stepSingle(-1)} style={btn}>
+              ‹ 前のページ
+            </button>
+            <span style={{ color: "rgb(255 255 255 / .7)", fontSize: 13 }}>
+              {view === "left" ? "左のページ" : "右のページ"}
+            </span>
+            <button type="button" onClick={() => stepSingle(1)} style={btn}>
+              次のページ ›
+            </button>
+          </div>
+          <style>{`@keyframes single-page-in{from{opacity:0;transform:scale(.94)}to{opacity:1;transform:none}}`}</style>
+        </div>
+      )}
       <div
         style={{
           position: "relative",
@@ -296,6 +456,27 @@ export function Shelf3DScene({ q }: { q: URLSearchParams }) {
               {state.open.y}年{state.open.m}月{day ? ` · ${day.d}日` : ""}
             </span>
           </div>
+        )}
+        {/* 見開きでめくる釦（押すとページは片ページで大きく開くので、めくりは払うかここで） */}
+        {state.open && view === "spread" && (
+          <>
+            <button
+              type="button"
+              aria-label="前のページ"
+              onClick={() => world.current?.flip(-1)}
+              style={{ ...arrow, left: 6 }}
+            >
+              ‹
+            </button>
+            <button
+              type="button"
+              aria-label="次のページ"
+              onClick={() => world.current?.flip(1)}
+              style={{ ...arrow, right: 6 }}
+            >
+              ›
+            </button>
+          </>
         )}
         {state.open && day && (
           <div
@@ -410,8 +591,9 @@ export function Shelf3DScene({ q }: { q: URLSearchParams }) {
         )}
       </div>
       <p className="text-caption leading-relaxed text-muted-foreground">
-        本を押すと手元に寄って表紙が開きます。表紙は硬い板のまま回り、中の紙は指に付いて柔らかくめくれます（右半分を押す・左へ払う＝次）。
-        形は Blender で作り、three.js で光と影を付けています。
+        本を押すと手元に寄って表紙が開きます。表紙は硬い板のまま回り、中の紙は指に付いて柔らかくめくれます（左へ払う・右の
+        › ＝次）。ページを押すと、そのページだけを全画面で見られます（上の「見開き」で戻る）。 形は
+        Blender で作り、three.js で光と影を付けています。
       </p>
     </div>
   );

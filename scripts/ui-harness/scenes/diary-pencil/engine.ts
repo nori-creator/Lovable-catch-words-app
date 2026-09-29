@@ -358,6 +358,17 @@ function makePencil() {
   const group = new THREE.Group();
   const L = 0.165;
   const R = 0.0038;
+  // 芯（R14「日記の鉛筆芯が出てないから鉛筆の芯を再現して」）。前は芯の円すいが
+  // 削った木の中に埋まっていて、先の 2mm だけが木と同じ太さで覗いていた — 遠目には
+  // 木の先が尖っているだけに見えた。本物の削った鉛筆に合わせる:
+  //  ・黒鉛の芯は直径 2mm、木から **6.5mm** 出る（削り器で削った長さ）
+  //  ・削った木の円すいは 19mm、先は芯と同じ太さで終わる
+  //  ・芯は鈍い金属のような光（黒鉛は光を少し返す）で、先ほど細く、書いて丸くなった先
+  //  ・木の切り口には芯の黒い輪が見える（中心を通る細い円柱で表す）
+  const LEAD = 0.0065; // 芯が出ている長さ
+  const CONE = 0.019; // 削った木の長さ
+  const RL = 0.00102; // 芯の半径
+  const T = LEAD + CONE; // 塗りの胴が始まる高さ
   const body = new THREE.Mesh(
     new THREE.CylinderGeometry(R, R, L, 6),
     new THREE.MeshPhysicalMaterial({
@@ -367,29 +378,41 @@ function makePencil() {
       clearcoatRoughness: 0.2,
     }),
   );
-  body.position.y = 0.021 + L / 2;
+  body.position.y = T + L / 2;
   const wood = new THREE.Mesh(
-    new THREE.CylinderGeometry(R, 0.0011, 0.019, 18),
-    new THREE.MeshStandardMaterial({ color: 0xdcb88a, roughness: 0.85 }),
+    new THREE.CylinderGeometry(R, RL * 1.04, CONE, 24, 1, true),
+    new THREE.MeshStandardMaterial({ color: 0xdcb88a, roughness: 0.85, side: THREE.DoubleSide }),
   );
-  wood.position.y = 0.0115;
-  const lead = new THREE.Mesh(
-    new THREE.ConeGeometry(0.0011, 0.004, 12),
-    new THREE.MeshStandardMaterial({ color: 0x2a2a2e, roughness: 0.35, metalness: 0.6 }),
+  wood.position.y = LEAD + CONE / 2;
+  // 木の中を通る芯（切り口に黒い輪として見える）。
+  const core = new THREE.Mesh(
+    new THREE.CylinderGeometry(RL, RL, CONE, 12),
+    new THREE.MeshStandardMaterial({ color: 0x2b2b30, roughness: 0.4, metalness: 0.5 }),
   );
-  lead.rotation.x = Math.PI;
-  lead.position.y = 0.002;
+  core.position.y = LEAD + CONE / 2;
+  // 出ている芯: 根元は芯の太さ、先は 0.25mm に丸まった円すい（書いた後の先）。
+  const graphite = new THREE.MeshPhysicalMaterial({
+    color: 0x45464d,
+    roughness: 0.26,
+    metalness: 0.55,
+    clearcoat: 0.3,
+    clearcoatRoughness: 0.35,
+  });
+  const lead = new THREE.Mesh(new THREE.CylinderGeometry(RL, 0.00025, LEAD, 16), graphite);
+  lead.position.y = LEAD / 2;
+  const leadTip = new THREE.Mesh(new THREE.SphereGeometry(0.00025, 10, 8), graphite);
+  leadTip.position.y = 0;
   const ferrule = new THREE.Mesh(
     new THREE.CylinderGeometry(R * 1.04, R * 1.04, 0.011, 24),
     new THREE.MeshStandardMaterial({ color: 0xc9b37a, roughness: 0.3, metalness: 0.9 }),
   );
-  ferrule.position.y = 0.021 + L + 0.0055;
+  ferrule.position.y = T + L + 0.0055;
   const eraser = new THREE.Mesh(
     new THREE.CylinderGeometry(R * 0.98, R * 0.98, 0.008, 24),
     new THREE.MeshStandardMaterial({ color: 0xe78e8e, roughness: 0.9 }),
   );
-  eraser.position.y = 0.021 + L + 0.015;
-  for (const m of [body, wood, lead, ferrule, eraser]) {
+  eraser.position.y = T + L + 0.015;
+  for (const m of [body, wood, core, lead, leadTip, ferrule, eraser]) {
     m.castShadow = true;
     group.add(m);
   }

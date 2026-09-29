@@ -1,6 +1,5 @@
 import { markFlown } from "@/lib/catch-flight";
 import { Sound } from "@/lib/sound-engine";
-import { playSfx, preloadSfx } from "@/lib/sfx-files";
 import { Score, SCORE } from "@/lib/celebration-score";
 import { haptic } from "@/lib/haptics";
 import type { LandingRunner } from "./types";
@@ -104,7 +103,6 @@ export const v5reward: LandingRunner = async ({
   // voice end: glint 180ms + 280ms afterglow; ascent 320ms; drop 240ms; bounce 560ms.
   root.dataset.stage = "grip";
   // 着地の音（録った「シュッ→ドン」）を先に読み解いておく。着地まで2秒以上ある。
-  void preloadSfx(["catch-impact"]);
   // 弾ける瞬間の 3D の紙吹雪も、ここで読み始める（three.js は重いので、この演出の
   // 時にだけ読む）。0.6 秒後の「弾ける」には間に合う。
   const confetti = import("@/components/three/confetti3d").catch(() => null);
@@ -294,11 +292,10 @@ export const v5reward: LandingRunner = async ({
       ).finished,
       ...backgroundMotion,
     ]);
-    // 落ち始めに録った「シュッ→ドン」を鳴らす — 素材の山（ドン）は頭から 0.25 秒、
-    // 落ちる動きは 0.24 秒なので、**着いた絵と同じ瞬間に音が着く**。読めていなければ
-    // 今まで通り合成の音。
-    const recordedImpact = playSfx("catch-impact");
-    if (!recordedImpact) Sound.itemDrop();
+    // 落ちる間は軽い「ひゅっ」だけ。着いた瞬間に柔らかい音（`Sound.softLand`）。
+    // 前は録った「シュッ→ドン」を鳴らしていたが、ドスンと強すぎた（オーナー指示
+    // 2026-09-28 R14「もっと柔らかく着地する音に」）。
+    Sound.itemDrop();
     await handoffImage.animate(
       [
         { transform: `translate(${apexX}px,${apexY}px) scale(.82) rotate(-5deg)` },
@@ -308,9 +305,9 @@ export const v5reward: LandingRunner = async ({
     ).finished;
 
     handoff.dataset.stage = "impact";
-    if (!recordedImpact) Sound.shelfLand();
+    Sound.softLand();
     Score.land();
-    haptic("heavy");
+    haptic("light");
     /**
      * **着地した瞬間に、本物の札へ入れ替える**（オーナー指示 2026-09-28「着地すると
      * 同時に図鑑に追加されるタイミング画像が少し縮むようなバウンス…一連にして」）。

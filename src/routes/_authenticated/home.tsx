@@ -1974,27 +1974,47 @@ export function DayCollage({
                   )}
                 </button>
                 {/* **赤いバツ＝アルバムから外す**（オーナー指示 2026-09-28）。写真の右上の角。
-                  札の中に入れると「押せる物の中の押せる物」になるので、札の隣に置き、
-                  位置だけ札の右上の角に合わせる。図鑑からは消えない（下の「外した写真」
-                  から戻せる）。 */}
+                  札の中に入れると「押せる物の中の押せる物」になるので、札の隣に置く。
+                  **札と一体に揺れる**（R14「画像がゆらゆら揺れてるのに、赤は独立してる
+                  のが違和感。画像にくっつけて」）: 札と同じ位置・大きさ・傾き・揺れ
+                  （同じ `album-editing` と同じ位相の変数）を持つ透明な枠を重ね、
+                  バツはその枠の右上の角に付ける。枠自体は押せない（下の札を塞がない）。
+                  図鑑からは消えない（下の「外した写真」から戻せる）。 */}
                 {editing && live?.id !== s.id && (
-                  <button
-                    type="button"
-                    className="album-remove"
-                    aria-label={t("album.hide", { word: s.word.headword })}
-                    onPointerDown={(e) => e.stopPropagation()}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      hideFromAlbum(s.id, s.word.headword);
-                    }}
-                    style={{
-                      left: `calc(${place.x * 100}% + ${px.w / 2}px)`,
-                      top: `${place.y * board.w - px.h / 2}px`,
-                      zIndex: 70,
-                    }}
+                  <span
+                    aria-hidden={false}
+                    className="album-remove-frame album-editing"
+                    style={
+                      {
+                        left: `${place.x * 100}%`,
+                        top: `${place.y * board.w}px`,
+                        width: `${px.w}px`,
+                        height: `${px.h}px`,
+                        maxWidth: "100%",
+                        maxHeight: "100%",
+                        translate: "-50% -50%",
+                        rotate: `${place.rot}deg`,
+                        zIndex: 70,
+                        "--jiggle-delay": `${jiggleStyle(s.id).delayMs}ms`,
+                        "--jiggle-dur": `${jiggleStyle(s.id).durationMs}ms`,
+                        "--jiggle-rot": `${JIGGLE.rotateDeg}deg`,
+                        "--jiggle-lift": `${JIGGLE.liftPx}px`,
+                      } as React.CSSProperties
+                    }
                   >
-                    <X className="h-3.5 w-3.5" strokeWidth={3} aria-hidden />
-                  </button>
+                    <button
+                      type="button"
+                      className="album-remove"
+                      aria-label={t("album.hide", { word: s.word.headword })}
+                      onPointerDown={(e) => e.stopPropagation()}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        hideFromAlbum(s.id, s.word.headword);
+                      }}
+                    >
+                      <X className="h-3.5 w-3.5" strokeWidth={3} aria-hidden />
+                    </button>
+                  </span>
                 )}
               </Fragment>
             );

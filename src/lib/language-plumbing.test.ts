@@ -5885,7 +5885,8 @@ describe("キャッチの祝福の BGM（オーナー指示 2026-09-23）", () =
     expect(v5).toMatch(/root\.dataset\.stage = "lift";\s*Score\.build\(\);/);
     expect(v5).toMatch(/root\.dataset\.stage = "break";\s*haptic\("success"\);\s*Score\.hit\(\);/);
     expect(v5).toMatch(/root\.dataset\.stage = "reveal";\s*Score\.resolve\(\);/);
-    expect(v5).toMatch(/Sound\.shelfLand\(\);\s*Score\.land\(\);/);
+    // 着地は柔らかい音（R14「ドスンと強すぎる」）→ 着地の和音。
+    expect(v5).toMatch(/Sound\.softLand\(\);\s*Score\.land\(\);/);
   });
 
   it("語は打撃の後に、BGM を下げてから読む（発音を聞き取れることが先）", () => {

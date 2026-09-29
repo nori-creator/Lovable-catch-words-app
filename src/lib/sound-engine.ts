@@ -252,6 +252,22 @@ export const Sound = {
     tone(1568, 0.3, { type: "sine", gain: 0.1, delay: 0.1 });
     tone(2349, 0.3, { type: "sine", gain: 0.06, delay: 0.15 });
   },
+  /**
+   * **図鑑に柔らかく着く音**（オーナー指示 2026-09-28 R14「図鑑に追加するときの効果音が
+   * ドスンと強すぎる。もっと柔らかく着地する音に変えて」）。
+   *
+   * 前は録った「シュッ→ドン」（低音の山が強い）と、木の「コッ」を重ねていた。いまは:
+   *  ・低い芯は 300→190Hz の短い丸い音（ドンの 60Hz の地響きは入れない）
+   *  ・紙が触れる「ふっ」を高すぎない帯域の息の音で（2kHz より上を切る）
+   *  ・最後に小さく高い2音の「きらり」— 集めた、が耳で分かる
+   * 全体の大きさは前の半分以下。羽根が紙の上に置かれる程度。
+   */
+  softLand() {
+    tone(300, 0.16, { type: "sine", from: 300, to: 190, gain: 0.11 });
+    noise(0.09, { hp: 280, lp: 1900, gain: 0.03 });
+    tone(1760, 0.34, { type: "sine", gain: 0.035, delay: 0.05 });
+    tone(2637, 0.4, { type: "sine", gain: 0.018, delay: 0.1 });
+  },
   /** Shelf landing — a soft wooden "clack" as a card seats into the cabinet. */
   shelfLand() {
     tone(118, 0.13, { type: "triangle", from: 176, to: 86, gain: 0.24 });

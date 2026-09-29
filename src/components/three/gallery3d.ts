@@ -69,7 +69,7 @@ export function createGallery3d(
     z: 5.8,
     alpha: false,
     background: "#f5f3ef",
-    shadows: true,
+    shadows: false,
     environment: true,
   });
   if (!stage) return null;
@@ -90,7 +90,8 @@ function build(stage: Stage, items: GalleryItem[], opts: { onReady?: () => void 
   );
   floor.rotation.x = -Math.PI / 2;
   floor.position.y = -FRAME_H / 2 - 0.34;
-  floor.receiveShadow = true;
+  // 床に落ちる作品の影は出さない（オーナー指示 2026-09-28 R14「図鑑の3Dは下の影を消して」）。
+  // スポットライトの光の輪だけが床に残る。
   scene.add(floor);
   // 奥の壁（霧で溶ける）。
   const wall = new THREE.Mesh(
@@ -106,10 +107,7 @@ function build(stage: Stage, items: GalleryItem[], opts: { onReady?: () => void 
   const spot = new THREE.SpotLight(0xfff4e6, 38, 12, 0.36, 0.75, 1.6);
   spot.position.set(0.4, 3.6, 2.2);
   spot.target.position.set(0, -0.2, 0);
-  spot.castShadow = true;
-  spot.shadow.mapSize.set(1024, 1024);
-  spot.shadow.radius = 10;
-  spot.shadow.bias = -0.0004;
+  spot.castShadow = false;
   scene.add(spot, spot.target);
 
   const loader = new THREE.TextureLoader();
@@ -136,7 +134,6 @@ function build(stage: Stage, items: GalleryItem[], opts: { onReady?: () => void 
   const pieces: Piece[] = items.map((it, i) => {
     const group = new THREE.Group();
     const box = new THREE.Mesh(frameGeo, frameMat);
-    box.castShadow = true;
     box.userData.index = i;
     group.add(box);
     const photoMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.38 });

@@ -327,38 +327,104 @@ function GalleryView() {
           bring(center);
         }}
       />
+      {/*
+        **元の画像の小さい版を横に並べる**（オーナー指示 2026-09-28 R14「元あった画像の
+        小さいバージョンを横に並べて、そこタップしたらその画像に飛べるように」）。
+        前は点だけだった。いまは写真そのものの列で、押すとその作品が真ん中へ滑ってくる。
+        真ん中の作品は青い枠。列は真ん中の作品が見える所まで自動で送る。
+      */}
       <div
         style={{
           position: "absolute",
           left: 0,
           right: 0,
-          bottom: "calc(28px + env(safe-area-inset-bottom))",
+          bottom: "calc(20px + env(safe-area-inset-bottom))",
           textAlign: "center",
           color: "#1d1d1f",
-          pointerEvents: "none",
         }}
       >
-        <div style={{ fontSize: 13, color: "#6e6e73" }}>
+        <div style={{ fontSize: 13, color: "#6e6e73", marginBottom: 8 }}>
           {center + 1} / {n}
         </div>
-        <div style={{ display: "flex", gap: 6, justifyContent: "center", marginTop: 8 }}>
-          {GALLERY_ITEMS.map((g, i) => (
-            <span
-              key={g.id}
-              style={{
-                width: i === center ? 18 : 6,
-                height: 6,
-                borderRadius: 3,
-                background: i === center ? "#0a84ff" : "rgba(0,0,0,0.2)",
-                transition: "width 240ms cubic-bezier(0.32,0.72,0,1)",
-              }}
-            />
-          ))}
-        </div>
+        <ThumbStrip items={GALLERY_ITEMS} center={center} onPick={(i) => bring(i)} />
         <span style={{ position: "absolute", width: 1, height: 1, overflow: "hidden" }}>
           {item?.word}
         </span>
       </div>
+    </div>
+  );
+}
+
+/** 下の小さい写真の列。押すとその作品へ。44px 以上の押せる大きさ。 */
+function ThumbStrip({
+  items,
+  center,
+  onPick,
+}: {
+  items: GalleryItem[];
+  center: number;
+  onPick: (i: number) => void;
+}) {
+  const row = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const el = row.current?.children[center] as HTMLElement | undefined;
+    el?.scrollIntoView({ behavior: "smooth", inline: "center", block: "nearest" });
+  }, [center]);
+  return (
+    <div
+      ref={row}
+      role="tablist"
+      aria-label="作品の一覧"
+      style={{
+        display: "flex",
+        gap: 8,
+        overflowX: "auto",
+        padding: "6px 16px",
+        scrollbarWidth: "none",
+        scrollSnapType: "x proximity",
+      }}
+    >
+      {items.map((g, i) => {
+        const on = i === center;
+        return (
+          <button
+            key={g.id}
+            type="button"
+            role="tab"
+            aria-selected={on}
+            aria-label={g.word}
+            onClick={() => onPick(i)}
+            style={{
+              flex: "0 0 auto",
+              width: 48,
+              height: 48,
+              padding: 0,
+              borderRadius: 10,
+              overflow: "hidden",
+              border: 0,
+              background: "#fff",
+              scrollSnapAlign: "center",
+              boxShadow: on
+                ? "0 0 0 2.5px #0a84ff, 0 6px 14px -6px rgba(10,132,255,.6)"
+                : "0 0 0 1px rgba(0,0,0,.08), 0 2px 6px -2px rgba(0,0,0,.2)",
+              transform: on ? "translateY(-3px) scale(1.06)" : "none",
+              opacity: on ? 1 : 0.78,
+              transition:
+                "transform 260ms cubic-bezier(.32,.72,0,1), box-shadow 200ms, opacity 200ms",
+            }}
+          >
+            {g.image ? (
+              <img
+                src={g.image}
+                alt=""
+                style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
+              />
+            ) : (
+              <span style={{ fontSize: 15, fontWeight: 700, color: "#1d1d1f" }}>{g.word}</span>
+            )}
+          </button>
+        );
+      })}
     </div>
   );
 }

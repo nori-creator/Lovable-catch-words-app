@@ -9,6 +9,7 @@ import { useState } from "react";
 import { DexCoverFlow } from "@/components/DexCoverFlow";
 import { memoryBadgeMap } from "@/lib/memory-badge";
 import { FIXTURES, makeSticker } from "./home";
+import { TabBarScene } from "./tabbar";
 
 export function DexCardsScene({ q }: { q: URLSearchParams }) {
   const n = Math.max(FIXTURES.length, Number(q.get("n") ?? 0));
@@ -25,7 +26,7 @@ export function DexCardsScene({ q }: { q: URLSearchParams }) {
   );
   const at = Number(q.get("at") ?? 0);
   const [theme, setTheme] = useState<Theme>(
-    THEMES.find((o) => o.key === q.get("theme"))?.key ?? "gallery",
+    THEMES.find((o) => o.key === q.get("theme"))?.key ?? "stage",
   );
   return (
     <div className="px-4">
@@ -64,13 +65,17 @@ export function DexCardsScene({ q }: { q: URLSearchParams }) {
         initialIndex={at}
         theme={theme}
       />
+      {/* **本物の下のバー**（R14「図鑑のスライドは下のアイコンのバーに被らせないで」
+          「下の小さい画像と…アイコンのバーが被ってる」）。バーを置かないと、
+          写真の列がバーの裏に潜っていても、この面では見えない。 */}
+      {q.get("bar") !== "0" && <TabBarScene />}
     </div>
   );
 }
 
 const THEMES = [
-  { key: "gallery", label: "白い展示室（既定）" },
-  { key: "stage", label: "A 暗い舞台" },
+  { key: "stage", label: "暗い舞台（本番）" },
+  { key: "gallery", label: "白い展示室" },
   { key: "category", label: "B 分類の色" },
   { key: "motion", label: "C 分類の動き" },
   { key: "museum", label: "D 美術館" },
