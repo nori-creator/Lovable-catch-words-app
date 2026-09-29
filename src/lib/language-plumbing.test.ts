@@ -4175,16 +4175,22 @@ describe("N. 下のタブ帯と、札を開く動き", () => {
    * 絵柄は決め打ちの記号ではなく、**いちばん新しく捕まえた1枚**。押すと
    * ホーム（アルバム）へ。端末の写真フォルダは開かない。
    */
-  it("「写真」はアプリの中の写真を出す（端末の写真は開かない）", () => {
+  it("左下の「写真」は端末の写真を選んで分析する（R17、どのモードでも同じ）", () => {
     const cap = codeOnly(read("routes/_authenticated/capture.tsx"));
-    // アプリの札から、写真を持っているいちばん新しい1枚を選ぶ。
+    // 絵柄はいちばん新しく捕まえた1枚のまま。
     expect(cap).toMatch(/queryKey: \["stickers"\]/);
     expect(cap).toMatch(/const url = stickerPhotoUrl\(s, \{ thumb: true \}\);/);
-    expect(cap).toMatch(/onOpenLibrary=\{\(\) => void navigate\(\{ to: "\/home" \}\)\}/);
-    // 端末の写真を選ばせる道を、この釦に付けない。
+    // 押すと端末の写真を選ぶ口が開き、撮った写真と同じ道で分析する。
     const at = cap.indexOf("<CameraLibraryButton");
     expect(at).toBeGreaterThanOrEqual(0);
-    expect(cap.slice(at, at + 300)).not.toMatch(/input|accept=|capture=/);
+    expect(cap.slice(at, at + 200)).toMatch(
+      /onOpen=\{\(\) => libraryInputRef\.current\?\.click\(\)\}/,
+    );
+    expect(cap).toMatch(/if \(file\) onObjectFile\(file\);/);
+    expect(cap).not.toMatch(/onOpenLibrary/);
+    // スキャンの画面も同じ位置で端末の写真を選ぶ。
+    const scan = codeOnly(read("routes/_authenticated/scan.tsx"));
+    expect(scan).toMatch(/onOpen=\{\(\) => photoPickRef\.current\?\.click\(\)\}/);
   });
 
   /**
@@ -4378,8 +4384,8 @@ describe("N. 下のタブ帯と、札を開く動き", () => {
     // 2026-09-27「検索モードのマイクを消して、カメラロールから画像で検索するボタンを追加して」。
     const cap = codeOnly(read("routes/_authenticated/capture.tsx"));
     expect(cap).not.toMatch(/useVoiceInput\(\{/);
-    expect(cap).toMatch(/onClick=\{\(\) => libraryInputRef\.current\?\.click\(\)\}/);
-    expect(cap).toMatch(/aria-label=\{t\("capture\.searchByImage"\)\}/);
+    // R17: 検索の横の写真の釦は消し、左下の「写真」1つにまとめた。
+    expect(cap).not.toMatch(/aria-label=\{t\("capture\.searchByImage"\)\}/);
   });
 
   /**

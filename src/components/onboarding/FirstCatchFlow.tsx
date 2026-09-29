@@ -417,7 +417,6 @@ export function FirstCatchFlow({
                 setTypedWord={() => {}}
                 onSearch={() => {}}
                 onOpenScan={() => {}}
-                onOpenLibrary={() => {}}
                 error={null}
               />
             ))}
