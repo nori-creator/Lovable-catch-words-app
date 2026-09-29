@@ -290,17 +290,23 @@ const SCENES: Record<string, ((p: { q: URLSearchParams }) => ReactNode) | undefi
  * 見出しの下敷きになって消えていた。実物と同じ箱を置いて初めて、
  * sticky の止まる位置が実物と同じになる。
  */
-function Frame({ children }: { children: ReactNode }) {
+function Frame({ children, immersive = false }: { children: ReactNode; immersive?: boolean }) {
   return (
     // 実物の `AppShell` と同じ印（図鑑のスライドが地を透かす目印）。
     <div data-app-shell="" className="min-h-screen bg-background">
-      <header className="scroll-edge sticky top-0 z-30 bg-background/70 pt-[env(safe-area-inset-top)] backdrop-blur-xl backdrop-saturate-150">
-        <div className="mx-auto flex min-h-[var(--app-header-h)] max-w-3xl items-center px-4 py-3">
-          <div className="h-8 w-8 rounded-xl bg-primary" />
-          <span className="ml-2 text-body font-semibold tracking-[-0.02em]">CatchWords</span>
-        </div>
-      </header>
-      <main className="mx-auto max-w-3xl px-4 py-4">{children}</main>
+      {/* 図鑑は本番で上の帯を出さない（`AppShell immersive`）。ここで帯を置くと、札の位置が
+          本番より 72px 下にずれて「下の写真の列がバーに被る」かを正しく測れない（R17）。 */}
+      {!immersive && (
+        <header className="scroll-edge sticky top-0 z-30 bg-background/70 pt-[env(safe-area-inset-top)] backdrop-blur-xl backdrop-saturate-150">
+          <div className="mx-auto flex min-h-[var(--app-header-h)] max-w-3xl items-center px-4 py-3">
+            <div className="h-8 w-8 rounded-xl bg-primary" />
+            <span className="ml-2 text-body font-semibold tracking-[-0.02em]">CatchWords</span>
+          </div>
+        </header>
+      )}
+      <main className={immersive ? "mx-auto max-w-3xl px-4" : "mx-auto max-w-3xl px-4 py-4"}>
+        {children}
+      </main>
       {/* 下のタブ帯の**占める高さ**も置く。**置かないと嘘になる。**
           答え合わせの面は画面下端に貼り付いて、この帯のぶんだけ上に浮く。
           帯が無いページで撮ると浮く位置が変わり、何が覆われるかも変わる。
@@ -346,6 +352,9 @@ function Frame({ children }: { children: ReactNode }) {
  * なる。逆に、バーがある画面で枠を外すと sticky の止まる位置が変わる。
  * どちらも「別の画面を見ている」なので、場面ごとに決める。
  */
+/** 本番で上の帯を出さない画面（`AppShell immersive`）。 */
+const IMMERSIVE = new Set(["dex-cards", "dex-drag"]);
+
 const BARE = new Set([
   "first-catch",
   "auth",
@@ -533,7 +542,7 @@ createRoot(document.getElementById("root")!).render(
       {BARE.has(wanted) ? (
         <Scene q={q} />
       ) : (
-        <Frame>
+        <Frame immersive={IMMERSIVE.has(wanted)}>
           <Scene q={q} />
         </Frame>
       )}
