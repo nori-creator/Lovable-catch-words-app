@@ -9367,141 +9367,131 @@ html[data-motion="reduce"] .magic-wait::after {
  * 壁と床の境目（奥行きの手がかり）、真ん中の作品に上から落ちる光、白い台座。
  * ------------------------------------------------------------------------- */
 html[data-dex-stage="gallery"] {
-  background: #ffffff;
+  background: #e9f0fa;
 }
+/* ---------------------------------------------------------------------------
+ * 図鑑のスライド — 淡い青の空間で白いカードが輪になって回る（R15、2026-09-29）。
+ * オーナー指示「カードは白に。添付の画像を参考に背景の色を少し淡い青に。カードの下の
+ * 変な台を削除。カードをもう少し手前に持ってきて大きく。添付の動画を再現」（参考は
+ * カードゲームのパック選び: 真ん中が正面・手前、左右は輪に沿って奥へ、床に映り込み、
+ * 空間に小さな光の粒）。置き場所は `carouselPose`、ここは色・光・映り込み。
+ * ------------------------------------------------------------------------- */
 .dex-cf[data-theme="gallery"] .dex-cf__backdrop {
-  /* **白い部屋**（R14「図鑑のスライドは背景白にして」）。四隅だけごくわずかに落とす
-     （完全な平面だと奥行きが消える）。 */
-  background: radial-gradient(130% 80% at 50% 32%, #ffffff 0%, #ffffff 60%, #f4f4f6 100%);
-}
-/* ── カードの色（`cardTone`）。白い部屋の上で白いカードが溶けないように、地の色と縁を持たせる。 ── */
-.dex-cf[data-theme="gallery"][data-card] .dex-cf__card {
-  background: var(--cf-card-bg);
-  color: var(--cf-card-fg);
-  border-radius: 10px;
-  box-shadow:
-    0 0 0 1px var(--cf-card-edge),
-    0 2px 6px rgb(0 0 0 / 0.06),
-    0 26px 40px -22px rgb(0 0 0 / 0.38);
-}
-.dex-cf[data-card] .dex-cf__card .text-muted-foreground {
-  color: var(--cf-card-sub);
-}
-.dex-cf[data-card="blue"] {
-  --cf-card-bg: #eef4ff;
-  --cf-card-fg: #10213d;
-  --cf-card-sub: #4a5d7c;
-  --cf-card-edge: rgb(10 108 255 / 0.28);
-}
-.dex-cf[data-card="ivory"] {
-  --cf-card-bg: #fbf5e9;
-  --cf-card-fg: #2b2419;
-  --cf-card-sub: #6d614e;
-  --cf-card-edge: rgb(120 92 50 / 0.26);
-}
-.dex-cf[data-card="category"] {
-  --cf-card-bg: color-mix(in oklab, var(--cf-accent) 14%, #ffffff);
-  --cf-card-fg: #1d1d1f;
-  --cf-card-sub: color-mix(in oklab, var(--cf-accent) 45%, #3a3a3c);
-  --cf-card-edge: color-mix(in oklab, var(--cf-accent) 40%, transparent);
-}
-.dex-cf[data-card="ink"] {
-  --cf-card-bg: #16213a;
-  --cf-card-fg: #ffffff;
-  --cf-card-sub: #b9c4da;
-  --cf-card-edge: rgb(0 0 0 / 0.4);
-}
-.dex-cf__gallery-floor {
-  position: absolute;
-  left: -50%;
-  right: -50%;
-  top: calc(1.5rem + var(--cf-w) * 1.48 * 0.86 + 3.2rem);
-  bottom: 0;
-  /* 床は手前へ向かって部屋の地に溶ける（舞台の下端で線が出ない）。 */
+  /* 上は少し濃い淡青 → 真ん中は明るく → カードの足もとは白く光る床 → 下は淡青へ戻る。 */
   background:
-    linear-gradient(180deg, rgb(0 0 0 / 0.07), transparent 8px),
-    linear-gradient(180deg, #e4e0d8, rgb(236 233 227 / 0.6) 55%, transparent 100%);
-  pointer-events: none;
+    radial-gradient(70% 22% at 50% 62%, rgb(255 255 255 / 0.95), rgb(255 255 255 / 0) 70%),
+    linear-gradient(180deg, #d6e3f5 0%, #e6eefa 34%, #f4f8fd 58%, #ffffff 64%, #e8f0fb 100%);
+}
+.dex-cf__spark {
+  /* 光の粒。ゆっくり瞬く（大きさ 3px、上下に少し漂う）。 */
+  position: absolute;
+  width: 3px;
+  height: 3px;
+  border-radius: 9999px;
+  background: #fff;
+  box-shadow:
+    0 0 6px 2px rgb(255 255 255 / 0.9),
+    0 0 14px 4px rgb(120 170 255 / 0.35);
+  opacity: 0;
+  animation: dex-cf-spark 4.2s ease-in-out infinite;
+}
+@keyframes dex-cf-spark {
+  0%,
+  100% {
+    opacity: 0;
+    translate: 0 4px;
+  }
+  45% {
+    opacity: 0.95;
+    translate: 0 -3px;
+  }
+}
+html[data-motion="reduce"] .dex-cf__spark {
+  animation: none;
+  opacity: 0.6;
 }
 .dex-cf[data-theme="gallery"] .dex-cf__stage {
+  /* **手前で大きく**（R15）。真ん中の札は奥へ下げない（z = 0）。高さは下のバーに
+     被らない範囲で: 上の操作 9rem＋札の上 1rem＋札＋映り込み（札の 0.18）＋点と写真の列
+     約 6.25rem＋下のバー 5.75rem＋端末の下の余白 を引いた残り。 */
   --cf-w: min(
-    50vw,
-    220px,
-    max(7.5rem, calc((100dvh - 32.25rem - env(safe-area-inset-bottom, 0px)) / 1.48))
+    72vw,
+    310px,
+    max(8rem, calc((100dvh - 22rem - env(safe-area-inset-bottom, 0px)) / (1.48 * 1.18)))
   );
-  perspective: 900px;
-  perspective-origin: 50% 42%;
-  height: calc(var(--cf-w) * 1.48 + 5.5rem);
+  perspective: 1000px;
+  perspective-origin: 50% 45%;
+  height: calc(1rem + var(--cf-w) * 1.48 * 1.18);
 }
 .dex-cf[data-theme="gallery"] .dex-cf__stage::before {
   display: none;
 }
-.dex-cf__wall-light {
-  /* 真ん中の作品の後ろの壁に落ちる、上からの光の輪。 */
-  position: absolute;
-  left: 50%;
-  top: -1rem;
-  width: calc(var(--cf-w) * 1.9);
-  height: calc(var(--cf-w) * 1.8);
-  translate: -50% 0;
-  background: radial-gradient(
-    50% 55% at 50% 40%,
-    rgb(255 248 232 / 0.95),
-    rgb(255 244 222 / 0.35) 55%,
-    transparent 75%
-  );
-  pointer-events: none;
+.dex-cf[data-theme="gallery"] .dex-cf__slot {
+  top: 1rem;
 }
-.dex-cf__plinth {
-  /* 作品の下の白い台座（奥にあるので小さく、上面が明るい）。 */
+.dex-cf__glow {
+  /* 真ん中の札の足もとに落ちる白い光（台の代わり。形の無い光だけ）。 */
   position: absolute;
   left: 50%;
-  top: calc(1.5rem + var(--cf-w) * 1.48 * 0.86);
-  width: calc(var(--cf-w) * 0.78);
-  height: 3.2rem;
+  top: calc(1rem + var(--cf-w) * 1.48 - var(--cf-w) * 0.12);
+  width: calc(var(--cf-w) * 2.2);
+  height: calc(var(--cf-w) * 0.5);
   translate: -50% 0;
-  background: linear-gradient(180deg, #ffffff 0 18%, #eeebe6 18%, #e2ded7 100%);
-  box-shadow:
-    0 14px 22px -10px rgb(0 0 0 / 0.22),
-    inset 0 -1px 0 rgb(0 0 0 / 0.05);
-  border-radius: 2px;
+  background: radial-gradient(closest-side, rgb(255 255 255 / 0.95), rgb(255 255 255 / 0));
   pointer-events: none;
-  z-index: 0;
 }
 .dex-cf[data-theme="gallery"] .dex-cf__card {
-  /* 額装: 白いマットと細い縁。角は小さく（作品らしく）。 */
-  border-radius: 6px;
+  /* **白いカード**（R15）。淡い青の空間から浮くよう、縁に細い線と柔らかい影。 */
+  background: #ffffff;
+  color: #1d1d1f;
+  border-radius: 14px;
   box-shadow:
-    0 0 0 6px #fff,
-    0 0 0 7px rgb(0 0 0 / 0.08),
-    0 26px 40px -22px rgb(0 0 0 / 0.45);
+    0 0 0 1px rgb(40 80 140 / 0.1),
+    0 2px 6px rgb(40 70 120 / 0.08),
+    0 24px 36px -20px rgb(40 70 120 / 0.35);
 }
-.dex-cf__lot {
-  display: grid;
-  justify-items: center;
-  gap: 1px;
-  margin: 0.1rem auto 0.2rem;
-  text-align: center;
-  color: #2b2724;
+.dex-cf[data-theme="gallery"] .dex-cf__card .text-muted-foreground {
+  color: #5f6b7d;
 }
-.dex-cf__lot-no {
-  font-size: 11px;
-  letter-spacing: 0.22em;
-  color: #8c857b;
-  font-variant-numeric: tabular-nums;
+.dex-cf__gloss {
+  /* 光の筋。札が回ると面を横切る（位置は `DexCoverFlow` が毎フレーム書く）。
+     自分の層を持つので、動いても札の中身は描き直さない。 */
+  position: absolute;
+  inset: -10% -60%;
+  background: linear-gradient(
+    105deg,
+    transparent 38%,
+    rgb(255 255 255 / 0.55) 47%,
+    rgb(255 255 255 / 0.14) 53%,
+    transparent 62%
+  );
+  /* 最初の1コマから面の外に（JS が書く前に筋が真ん中に出ない）。 */
+  transform: translate3d(45%, 0, 0);
+  pointer-events: none;
+  will-change: transform;
 }
-.dex-cf__lot-title {
-  font-size: var(--text-title);
-  font-weight: 700;
-  line-height: 1.2;
+.dex-cf:not([data-theme="gallery"]) .dex-cf__gloss {
+  display: none;
 }
-.dex-cf__lot-sub {
-  font-size: var(--text-footnote);
-  color: #57514a;
+.dex-cf__mirror {
+  /* 床への映り込み: 札の真下に、上下を返した札。足もとだけ淡く見え、すぐ消える。 */
+  position: absolute;
+  left: 0;
+  top: calc(100% + 3px);
+  width: 100%;
+  height: 100%;
+  transform: scaleY(-1);
+  opacity: 0.22;
+  -webkit-mask-image: linear-gradient(to top, #000 0%, transparent 24%);
+  mask-image: linear-gradient(to top, #000 0%, transparent 24%);
+  pointer-events: none;
 }
-.dex-cf__lot-meta {
-  font-size: 11px;
-  color: #8c857b;
+.dex-cf[data-theme="gallery"] .dex-cf__mirror .dex-cf__card {
+  /* 映りには影を付けない（本体の影と重なって足もとが濁る）。 */
+  box-shadow: none;
+  background: #ffffff;
+  color: #1d1d1f;
+  border-radius: 14px;
 }
 .dex-cf[data-theme="gallery"] .dex-cf__dot {
   background: rgb(0 0 0 / 0.18);

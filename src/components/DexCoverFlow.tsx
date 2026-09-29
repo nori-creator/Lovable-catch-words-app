@@ -19,9 +19,11 @@ import {
 import { localeOf, useT, useUiLang } from "@/lib/i18n";
 import { neutralReadings, useReadingText } from "@/lib/phonetic";
 import {
+  CAROUSEL_REACH,
+  CAROUSEL_STEP,
   COVER_STEP,
+  carouselPose,
   coverFlowPose,
-  galleryPose,
   poseTransform,
   progressDots,
   settleIndex,
@@ -53,7 +55,6 @@ export function DexCoverFlow({
   initialIndex = 0,
   onBrowse,
   theme = "gallery",
-  cardTone = "blue",
 }: {
   stickers: StickerWithWord[];
   onOpen: (id: string) => void;
@@ -64,20 +65,13 @@ export function DexCoverFlow({
    *  ・`category` … 舞台の光と背景の色が、真ん中のカードの分類の色になる
    *  ・`motion`   … `category` に、分類ごとの小さな動き（湯気・葉・雨…）
    *  ・`museum`   … 美術館。暗い壁、上からの光、カードの下に小さな札
-   *  ・`gallery`  … **白い展示室（既定。R14「背景白にして」で本番もこれ）**。作品は奥の台座の上、
-   *                  左右の作品は壁ぞいに奥へ。下にオークションの札（番号・名・日・所）
+   *  ・`gallery`  … **淡い青の空間に白いカードが輪になって回る（既定・本番）**。
+   *                  R15「カードは白に」「背景を少し淡い青に」「カードの下の台を削除」
+   *                  「カードを手前で大きく」「添付の動画（パック選び）を再現」。
+   *                  真ん中が正面・手前、左右は輪に沿って奥へ回り込む（`carouselPose`）。
+   *                  床に淡く映り込み、回ると光の筋がカードの面を横切る
    */
   theme?: "stage" | "category" | "motion" | "museum" | "gallery";
-  /**
-   * **カードの色**（オーナー指示 2026-09-28 R14「図鑑のスライドは背景白にして。
-   * カードと背景が同じ色で見にくいから、カードの色を少し調整して。色のデザイン案だして」）。
-   * 白い部屋の上で白いカードが溶けていたので、カードに地の色を持たせる。
-   *  ・`blue`     … アプリの青をごく薄く（既定）。縁に細い青の線
-   *  ・`ivory`    … 生成りの紙（温かい白）。縁は薄い茶
-   *  ・`category` … 真ん中のカードの分類の色をごく薄く
-   *  ・`ink`      … 濃紺の額（白い部屋の中でいちばん締まる）
-   */
-  cardTone?: "blue" | "ivory" | "category" | "ink";
   /** 札の id → 記憶の印。雛形は通信できないので、こちらで渡す。 */
   memory?: Map<string, MemoryBadgeInfo>;
   /** 最初に真ん中へ置く札（雛形で送った途中の形を見るため）。 */
@@ -119,14 +113,17 @@ export function DexCoverFlow({
   const step = useRef(1);
   const offset = useRef(0);
   const hidden = useRef<boolean[]>([]);
+  /** カードの幅（px）。輪の置き場所はカードの幅を 1 として決まる。 */
+  const cardW = useRef(1);
   const paint = useCallback((x: number) => {
     offset.current = x;
     const s = step.current;
     const reduced = motionReducedNow();
+    const ring = themeRef.current === "gallery";
     cardRefs.current.forEach((el, i) => {
       if (!el) return;
       const rel = (i * s - x) / s;
-      const far = Math.abs(rel) > 5;
+      const far = Math.abs(rel) > (ring ? CAROUSEL_REACH : 5);
       if (far) {
         if (!hidden.current[i]) {
           hidden.current[i] = true;
@@ -138,11 +135,26 @@ export function DexCoverFlow({
         hidden.current[i] = false;
         el.style.visibility = "";
       }
-      const pose =
-        themeRef.current === "gallery" ? galleryPose(rel, reduced) : coverFlowPose(rel, reduced);
+      if (ring) {
+        const w = cardW.current;
+        const p = carouselPose(rel, reduced);
+        el.style.transform = `translate3d(${(p.x * w).toFixed(2)}px,0,${(p.z * w).toFixed(1)}px) rotateY(${p.rotateY.toFixed(2)}deg)`;
+        el.style.zIndex = String(p.zIndex);
+        el.style.opacity = p.opacity < 1 ? p.opacity.toFixed(3) : "";
+        // 光の筋: 真ん中に止まっている間は面の外（右の縁の先）に居て、札が真ん中を
+        // 通り過ぎる間だけ面を右から左へ横切る（パックの箔が光を拾う見え方）。
+        // 筋は自分の層を持つので、動かしても札を描き直さない。
+        const gloss = el.querySelector<HTMLElement>(".dex-cf__gloss");
+        if (gloss) {
+          const sweep = 45 - Math.min(1.2, Math.abs(rel)) * 75;
+          gloss.style.transform = `translate3d(${sweep.toFixed(1)}%,0,0)`;
+        }
+        return;
+      }
+      const pose = coverFlowPose(rel, reduced);
       el.style.transform = `translate3d(${(i * s - x).toFixed(2)}px,0,0) ${poseTransform(pose)}`;
       el.style.zIndex = String(pose.zIndex);
-      el.style.opacity = "opacity" in pose ? (pose.opacity as number).toFixed(3) : "";
+      el.style.opacity = "";
     });
     const c = Math.max(0, Math.min(countRef.current - 1, Math.round(x / s)));
     setCenter((prev) => (prev === c ? prev : c));
@@ -156,7 +168,11 @@ export function DexCoverFlow({
 
   const measure = useCallback(() => {
     const first = cardRefs.current.find(Boolean);
-    step.current = Math.max(1, (first?.offsetWidth ?? 1) * COVER_STEP);
+    cardW.current = Math.max(1, first?.offsetWidth ?? 1);
+    step.current = Math.max(
+      1,
+      cardW.current * (themeRef.current === "gallery" ? CAROUSEL_STEP : COVER_STEP),
+    );
   }, []);
   useLayoutEffect(() => {
     // 絞り込みで札が変わったら、前の札の控えを残さず先頭（または指定の札）から。
@@ -166,7 +182,7 @@ export function DexCoverFlow({
     const start = Math.max(0, Math.min(stickers.length - 1, initialIndex)) * step.current;
     spring.current?.set(start, 0);
     paint(start);
-  }, [measure, paint, stickers, initialIndex]);
+  }, [measure, paint, stickers, initialIndex, theme]);
   useEffect(() => {
     const onResize = () => {
       measure();
@@ -320,13 +336,20 @@ export function DexCoverFlow({
       aria-label={t("dex.cards")}
       className="dex-cf -mx-4"
       data-theme={theme}
-      data-card={cardTone}
       data-room={room}
       style={{ "--cf-accent": ROOM_ACCENT[room] } as React.CSSProperties}
     >
       {/* 暗い部屋（画面いっぱい）。分類の色・動きは `data-room` で変わる。 */}
       <div className="dex-cf__backdrop" aria-hidden="true">
         {theme === "motion" && <span className="dex-cf__motes" />}
+        {theme === "gallery" &&
+          SPARKS.map(([l, t, d], k) => (
+            <span
+              key={k}
+              className="dex-cf__spark"
+              style={{ left: `${l}%`, top: `${t}%`, animationDelay: `${d}s` }}
+            />
+          ))}
       </div>
       <div
         ref={stageRef}
@@ -344,13 +367,9 @@ export function DexCoverFlow({
         tabIndex={0}
         className="dex-cf__stage"
       >
-        {/* 真ん中のカードが立つ円の舞台（展示室では台座と壁の光）。 */}
+        {/* 真ん中のカードが立つ所。白い空間では台を置かず、足もとの光だけ（R15「台を削除」）。 */}
         {theme === "gallery" ? (
-          <>
-            <span className="dex-cf__gallery-floor" aria-hidden="true" />
-            <span className="dex-cf__wall-light" aria-hidden="true" />
-            <span className="dex-cf__plinth" aria-hidden="true" />
-          </>
+          <span className="dex-cf__glow" aria-hidden="true" />
         ) : (
           <span className="dex-cf__floor" aria-hidden="true" />
         )}
@@ -360,24 +379,13 @@ export function DexCoverFlow({
             sticker={s}
             index={i}
             isCenter={i === center}
+            mirror={theme === "gallery" && Math.abs(i - center) <= 3}
             mem={memoryById.get(s.id)}
             onPress={pressCard}
             setRef={setCardRef}
           />
         ))}
       </div>
-      {theme === "gallery" && current && (
-        // オークションの作品札: 番号・作品名（語と意味）・いつ・どこで。
-        <div className="dex-cf__lot">
-          <span className="dex-cf__lot-no">LOT {String(center + 1).padStart(3, "0")}</span>
-          <Zh className="dex-cf__lot-title">{current.word.headword}</Zh>
-          <span className="dex-cf__lot-sub">{current.word.meaning_ja}</span>
-          <span className="dex-cf__lot-meta">
-            {lotDate(current.taken_at, locale)}
-            {current.location_name ? ` · ${current.location_name}` : ""}
-          </span>
-        </div>
-      )}
       {theme === "museum" && current && (
         <p className="dex-cf__plaque">
           <Zh className="font-semibold">{current.word.headword}</Zh>
@@ -467,6 +475,7 @@ const CoverCard = memo(function CoverCard({
   sticker: s,
   index: i,
   isCenter,
+  mirror,
   mem,
   onPress,
   setRef,
@@ -474,9 +483,47 @@ const CoverCard = memo(function CoverCard({
   sticker: StickerWithWord;
   index: number;
   isCenter: boolean;
+  /** 床への映り込みを描くか（真ん中から 3 枚以内だけ。遠い札まで写真を2重に読まない）。 */
+  mirror: boolean;
   mem: MemoryBadgeInfo | undefined;
   onPress: (i: number, id: string) => void;
   setRef: (i: number, el: HTMLDivElement | null) => void;
+}) {
+  return (
+    <div ref={(el) => setRef(i, el)} className="dex-cf__slot">
+      <button
+        type="button"
+        onClick={() => onPress(i, s.id)}
+        aria-label={`${s.word.headword} ${s.word.meaning_ja}`}
+        aria-current={isCenter || undefined}
+        className="dex-cf__card flex h-full w-full flex-col overflow-hidden rounded-[22px] bg-card text-left ring-1 ring-border"
+      >
+        <CardFace sticker={s} index={i} mem={mem} />
+        <span className="dex-cf__gloss" aria-hidden="true" />
+      </button>
+      {/* **床への映り込み**（R15 参考動画）。カードの面をもう1枚、上下を返して足もとに置く。
+          札と同じ層の中なので、送っても描き直さない（前の `-webkit-box-reflect` は
+          傾きのたびに映りを描き直してカクついた — 2026-09-23）。 */}
+      {mirror && (
+        <div className="dex-cf__mirror" aria-hidden="true" inert>
+          <div className="dex-cf__card flex h-full w-full flex-col overflow-hidden text-left">
+            <CardFace sticker={s} index={i} mem={mem} />
+          </div>
+        </div>
+      )}
+    </div>
+  );
+});
+
+/** カードの中身（写真・語・読み・意味・日付と場所）。本体と映り込みで同じものを描く。 */
+function CardFace({
+  sticker: s,
+  index: i,
+  mem,
+}: {
+  sticker: StickerWithWord;
+  index: number;
+  mem: MemoryBadgeInfo | undefined;
 }) {
   const t = useT();
   const locale = localeOf(useUiLang());
@@ -492,76 +539,77 @@ const CoverCard = memo(function CoverCard({
   const zhuyinUnits = useZhuyinUnits(s.word.language, s.word.headword, s.word.reading_zhuyin);
   const date = new Date(s.taken_at);
   return (
-    <div ref={(el) => setRef(i, el)} className="dex-cf__slot">
-      <button
-        type="button"
-        onClick={() => onPress(i, s.id)}
-        aria-label={`${s.word.headword} ${s.word.meaning_ja}`}
-        aria-current={isCenter || undefined}
-        className="dex-cf__card flex h-full w-full flex-col overflow-hidden rounded-[22px] bg-card text-left ring-1 ring-border"
-      >
-        <span className="relative block h-[64%] w-full overflow-hidden bg-secondary">
-          {photo ? (
-            <CachedImg
-              src={photo}
-              alt=""
-              loading={i < 4 ? "eager" : "lazy"}
-              decoding="async"
-              className="h-full w-full object-cover"
+    <>
+      <span className="relative block h-[64%] w-full overflow-hidden bg-secondary">
+        {photo ? (
+          <CachedImg
+            src={photo}
+            alt=""
+            loading={i < 4 ? "eager" : "lazy"}
+            decoding="async"
+            className="h-full w-full object-cover"
+          />
+        ) : (
+          <Zh className="grid h-full w-full place-items-center text-hero font-bold text-muted-foreground">
+            {s.word.headword}
+          </Zh>
+        )}
+        <span className="absolute left-2 top-2 rounded-full bg-black/55 px-2 py-0.5 text-caption font-semibold text-white">
+          {categoryEmoji(cat)} {t(`cat.${cat}`)}
+        </span>
+        {mem && <MemoryBadge info={mem} className="absolute right-2 top-2" />}
+      </span>
+      <span className="flex min-h-0 flex-1 flex-col justify-between p-3.5">
+        <span className="block min-w-0">
+          {zhuyinUnits ? (
+            <ZhuyinWord
+              units={zhuyinUnits}
+              lang={s.word.language}
+              className="block text-title font-bold leading-tight"
             />
           ) : (
-            <Zh className="grid h-full w-full place-items-center text-hero font-bold text-muted-foreground">
-              {s.word.headword}
-            </Zh>
+            <Zh className="block truncate text-title font-bold leading-tight">{s.word.headword}</Zh>
           )}
-          <span className="absolute left-2 top-2 rounded-full bg-black/55 px-2 py-0.5 text-caption font-semibold text-white">
-            {categoryEmoji(cat)} {t(`cat.${cat}`)}
-          </span>
-          {mem && <MemoryBadge info={mem} className="absolute right-2 top-2" />}
-        </span>
-        <span className="flex min-h-0 flex-1 flex-col justify-between p-3.5">
-          <span className="block min-w-0">
-            {zhuyinUnits ? (
-              <ZhuyinWord
-                units={zhuyinUnits}
-                lang={s.word.language}
-                className="block text-title font-bold leading-tight"
-              />
-            ) : (
-              <Zh className="block truncate text-title font-bold leading-tight">
-                {s.word.headword}
-              </Zh>
-            )}
-            {reading && !zhuyinUnits && (
-              <span className="mt-0.5 block truncate text-footnote text-muted-foreground">
-                {reading}
-              </span>
-            )}
-            <span className="mt-1 block truncate text-body">{s.word.meaning_ja}</span>
-          </span>
-          <span className="mt-2 flex items-center gap-1.5 truncate text-caption text-muted-foreground">
-            <span className="shrink-0 tabular-nums">
-              {Number.isNaN(date.getTime())
-                ? ""
-                : date.toLocaleDateString(locale, { month: "short", day: "numeric" })}
+          {reading && !zhuyinUnits && (
+            <span className="mt-0.5 block truncate text-footnote text-muted-foreground">
+              {reading}
             </span>
-            {s.location_name && (
-              <>
-                <MapPin className="h-3 w-3 shrink-0" aria-hidden />
-                <span className="truncate">{s.location_name}</span>
-              </>
-            )}
-          </span>
+          )}
+          <span className="mt-1 block truncate text-body">{s.word.meaning_ja}</span>
         </span>
-      </button>
-    </div>
+        <span className="mt-2 flex items-center gap-1.5 truncate text-caption text-muted-foreground">
+          <span className="shrink-0 tabular-nums">
+            {Number.isNaN(date.getTime())
+              ? ""
+              : date.toLocaleDateString(locale, { month: "short", day: "numeric" })}
+          </span>
+          {s.location_name && (
+            <>
+              <MapPin className="h-3 w-3 shrink-0" aria-hidden />
+              <span className="truncate">{s.location_name}</span>
+            </>
+          )}
+        </span>
+      </span>
+    </>
   );
-});
-
-/** 作品札の日付（年月日）。 */
-function lotDate(iso: string, locale: string): string {
-  const d = new Date(iso);
-  return Number.isNaN(d.getTime())
-    ? ""
-    : d.toLocaleDateString(locale, { year: "numeric", month: "short", day: "numeric" });
 }
+
+/**
+ * 淡い青の空間に浮かぶ小さな光の粒（参考画像の背景）。位置は固定の表（毎回同じ場所、
+ * 乱数で描き直さない）。[左 %, 上 %, 瞬きの遅れ 秒]。
+ */
+const SPARKS: ReadonlyArray<readonly [number, number, number]> = [
+  [8, 14, 0],
+  [22, 30, 1.6],
+  [37, 9, 0.8],
+  [52, 22, 2.4],
+  [66, 12, 1.1],
+  [81, 27, 0.3],
+  [92, 8, 1.9],
+  [14, 44, 2.8],
+  [88, 46, 0.6],
+  [30, 56, 2.1],
+  [72, 58, 1.4],
+  [46, 40, 3.1],
+];

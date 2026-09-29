@@ -4990,9 +4990,9 @@ describe("ホームは今日の誌面", () => {
     // 削除して」: 帯には**今回の依頼の面だけ**。
     // 2026-09-29 の回（R14）の最後の依頼: 図鑑のスライドを白に・カードの色の案。
     expect(list.slice(0, list.indexOf("},"))).toMatch(/scene: "dex-cards/);
-    expect(list).toMatch(/\{ scene: "chunk-designs"/);
-    expect(list).toMatch(/\{ scene: "dex-drag"/);
-    expect(list).toMatch(/\{ scene: "scan-found"/);
+    expect(list).toMatch(/scene: "chunk-designs"/);
+    expect(list).toMatch(/scene: "dex-drag"/);
+    expect(list).toMatch(/scene: "scan-found"/);
     // 前の回の面は残さない。
     expect(list).not.toMatch(/\{ scene: "motion-compare"/);
     expect(list).not.toMatch(/\{ scene: "album-shelf"/);
@@ -5624,6 +5624,25 @@ describe("図鑑のカード表示と、詳細の写真の横送り（オーナ�
   it("図鑑の表示に「カード」があり、絞り込んだ後の札を受け取る", () => {
     expect(dex).toMatch(/\["cards", GalleryHorizontal, t\("dex\.cards"\)\]/);
     expect(dex).toMatch(/<DexCoverFlow[\s\S]*?stickers=\{filtered\}[\s\S]*?onOpen=\{setOpenId\}/);
+  });
+
+  it("R15: 白いカードが淡い青の空間で輪になって回る。台は置かない・手前で大きく・床に映る", () => {
+    const css = read("styles.css");
+    // 本番の既定（gallery）は輪の置き方。1:1 で指に付く送りの幅も輪に合わせる。
+    expect(cf).toMatch(/theme = "gallery"/);
+    expect(cf).toMatch(/const p = carouselPose\(rel, reduced\);/);
+    expect(cf).toMatch(/themeRef\.current === "gallery" \? CAROUSEL_STEP : COVER_STEP/);
+    // 「カードの下の変な台を削除」: 台座・床板・壁の光・作品札を描かない。
+    expect(cf).not.toMatch(/dex-cf__plinth|dex-cf__gallery-floor|dex-cf__wall-light|dex-cf__lot/);
+    expect(css).not.toMatch(/\.dex-cf__plinth|\.dex-cf__gallery-floor|\.dex-cf__wall-light/);
+    // 「カードは白に」「背景を少し淡い青に」。
+    expect(css).toMatch(
+      /\.dex-cf\[data-theme="gallery"\] \.dex-cf__card \{[^}]*background: #ffffff;/,
+    );
+    expect(css).toMatch(/html\[data-dex-stage="gallery"\] \{\s*background: #e9f0fa;/);
+    // 映り込みは札と同じ層の中（傾きのたびに描き直す box-reflect は使わない）。
+    expect(cf).toMatch(/className="dex-cf__mirror" aria-hidden="true" inert/);
+    expect(css).not.toMatch(/\.dex-cf[^{}]*\{[^}]*-webkit-box-reflect:/);
   });
 
   it("傾きは送った位置から毎フレーム決める（指に吸い付く）。真ん中を押すと詳細、脇は真ん中へ", () => {
