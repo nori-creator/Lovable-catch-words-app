@@ -1,4 +1,3 @@
-import { useState } from "react";
 import { ChunkLine, ChunkLegend } from "@/components/ChunkPills";
 import type { ChunkPart } from "@/lib/extras";
 import { readySpeech } from "../speech";
@@ -99,49 +98,9 @@ const REVIEW_CHUNKS: Sample[] = [
 const speech = (c: Sample) => c.parts.map((p) => p.text).join("");
 readySpeech([...WORD_CHUNKS, ...REVIEW_CHUNKS].map(speech));
 
-/** R14 の形の案。A が本番の既定（四角＋でつなぐ）。 */
-const LOOKS = [
-  { key: "boxes", label: "A 四角＋台（既定）" },
-  { key: "focus", label: "B 学ぶ語だけ四角" },
-  { key: "marker", label: "C 学ぶ語だけ蛍光ペン" },
-  { key: "bracket", label: "D 学ぶ語だけ四角＋括り線" },
-  { key: "capsule", label: "E 1本のカプセル（前）" },
-] as const;
-type Look = (typeof LOOKS)[number]["key"];
-
-export function ChunkDesignsScene({ q }: { q?: URLSearchParams }) {
-  const [look, setLook] = useState<Look>(
-    LOOKS.find((l) => l.key === q?.get("look"))?.key ?? "boxes",
-  );
+export function ChunkDesignsScene() {
   return (
     <div style={{ padding: "12px 16px 96px", display: "grid", gap: 16 }}>
-      <div
-        role="radiogroup"
-        aria-label="チャンクの形の案"
-        style={{ display: "flex", flexWrap: "wrap", gap: 6 }}
-      >
-        {LOOKS.map((l) => (
-          <button
-            key={l.key}
-            type="button"
-            role="radio"
-            aria-checked={look === l.key}
-            onClick={() => setLook(l.key)}
-            style={{
-              minHeight: 40,
-              padding: "0 12px",
-              borderRadius: 999,
-              border: "1px solid rgba(0,0,0,.12)",
-              background: look === l.key ? "#0a84ff" : "#fff",
-              color: look === l.key ? "#fff" : "#111",
-              fontWeight: 600,
-              fontSize: 13,
-            }}
-          >
-            {l.label}
-          </button>
-        ))}
-      </div>
       <p style={{ margin: 0, fontSize: 12, color: "#6e6e73" }}>
         点線の四角（▾）を押すと、ネイティブがよく入れる語が並び、送って選べます。学ぶ語（{WORD}
         ）は入れ替えません。
@@ -156,7 +115,6 @@ export function ChunkDesignsScene({ q }: { q?: URLSearchParams }) {
                 translation={c.ja}
                 lang="zh-TW"
                 headword={WORD}
-                look={look}
                 speakText={speech(c)}
                 onSpeak={() => {}}
               />
@@ -178,7 +136,6 @@ export function ChunkDesignsScene({ q }: { q?: URLSearchParams }) {
               translation={c.ja}
               lang="zh-TW"
               headword={REVIEW_WORD}
-              look={look}
               speakText={speech(c)}
               onSpeak={() => {}}
             />

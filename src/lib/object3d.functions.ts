@@ -4,6 +4,7 @@ import { z } from "zod";
 import { isProUser, logUsage } from "./ai-provider.server";
 import {
   TRIPO_BASE_URL,
+  readTripoKey,
   object3dAllowed,
   pickGlbUrl,
   readObject3dConfig,
@@ -82,7 +83,7 @@ export const startObject3d = createServerFn({ method: "POST" })
     const { supabase, userId } = context;
     if (!object3dAllowed({ isPro: await isProUser(userId) }))
       return { status: "pro_only" as const };
-    const key = process.env.TRIPO_API_KEY?.trim();
+    const key = readTripoKey(process.env)?.key;
     if (!key) return { status: "unavailable" as const };
     try {
       const b64 = data.image.slice(data.image.indexOf(",") + 1);
@@ -130,7 +131,7 @@ export const checkObject3d = createServerFn({ method: "POST" })
     z.object({ taskId: z.string().regex(/^[A-Za-z0-9_-]{6,80}$/) }).parse(d),
   )
   .handler(async ({ data }) => {
-    const key = process.env.TRIPO_API_KEY?.trim();
+    const key = readTripoKey(process.env)?.key;
     if (!key) return { status: "failed" as const, progress: 0 };
     try {
       const r = await fetch(`${TRIPO_BASE_URL}/task/${data.taskId}`, {

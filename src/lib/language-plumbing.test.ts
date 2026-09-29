@@ -3955,22 +3955,22 @@ describe("N. 下のタブ帯と、札を開く動き", () => {
     // 札を1つ押すとその語が鳴る — 呼び出し側が渡さなくても、ここが鳴らす
     // （復習の解説は渡していなかったので、押しても鳴らなかった）。
     expect(line).toMatch(/onSpeak=\{onSpeak \?\? \(\(text\) => void pronounce\(text\)\)\}/);
-    // 形は公式の1つだけ（2026-09-27「F にして」）。案を切り替える仕組みは残さない。
+    // 形は1つだけ（案を切り替える仕組みは残さない）。**語ごとの四角を「＋」でつなぎ、
+    // 台は付けない**（オーナー決定 2026-09-29「規定のものから台を取り除いて、それで決定して」）。
     expect(fs.existsSync(path.join(root, "lib/chunk-design.ts"))).toBe(false);
-    expect(pills).toMatch(/chunk-set chunk-set--formula/);
-    expect(pills).toMatch(/chunk-slot/);
-    // 既定は**語ごとの四角を「＋」でつなぐ**（2026-09-28 R14「連結ではなく、それぞれの
-    // 単語を四角で囲って＋でつなぐものにして」）。1本のカプセルは案 D として残す。
-    expect(pills).toMatch(/look = "boxes"/);
+    expect(pills).toMatch(/"chunk-set chunk-set--boxes"/);
+    expect(pills).not.toMatch(/\blook\b/);
     expect(pills).toMatch(/className="chunk-plus"/);
-    expect(pills).toMatch(/className="chunk-joint"/);
+    expect(pills).toMatch(/chunk-slot/);
     // 学ぶ語は入れ替えさせない（R14）。
     expect(pills).toMatch(/!target && \(c\.alts\?\.length \?\? 0\) > 0/);
     const css = read("styles.css");
-    const cap = css.slice(css.indexOf(".chunk-set--formula {"));
-    const block = cap.slice(0, cap.indexOf("}"));
-    expect(block).toMatch(/gap: 0;/);
-    expect(block).toMatch(/overflow: hidden;/);
+    const boxes = css.slice(css.indexOf(".chunk-set--boxes {"));
+    const block = boxes.slice(0, boxes.indexOf("}"));
+    // 台（背景・枠の影）は無い。
+    expect(block).not.toMatch(/background/);
+    expect(block).not.toMatch(/box-shadow/);
+    expect(css).not.toMatch(/chunk-set--formula|chunk-set--lite/);
     // 入れ替える所にも具体語を入れる（「人」「someone」にしない）。
     const ai = codeOnly(read("lib/ai.functions.ts"));
     expect(ai).toMatch(/いちばんよく入れる具体語を1つだけ入れて/);
@@ -5001,6 +5001,10 @@ describe("ホームは今日の誌面", () => {
     expect(main).not.toMatch(/dataset\.glass/);
     expect(read("styles.css")).not.toMatch(/data-glass/);
     expect((list.match(/\{ scene: "/g) ?? []).length).toBeLessThanOrEqual(40);
+    // 先頭に条件（`&n=24` など）が付いていても、何も付けずに開いた時に場面が見つかる
+    // （2026-09-29「netlify の画面が見れない」— 名前ごと探して unknown scene になっていた）。
+    expect(main).toMatch(/new URLSearchParams\(`scene=\$\{REVIEW_SCENES\[0\]\.scene\}`\)/);
+    expect(main).not.toMatch(/const wanted = explicitScene \?\? REVIEW_SCENES\[0\]\.scene;/);
     expect(list).not.toMatch(/scene: "tts-voices"/);
     // 何も付けずに開いた人には帯を出す（無いと先頭の1画面しか見られない）。
     expect(main).toMatch(/const showReviewBar = q\.get\("review"\) === "1" \|\| !explicitScene;/);

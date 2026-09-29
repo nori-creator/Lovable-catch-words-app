@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   isAllowedModelUrl,
+  readTripoKey,
   object3dAllowed,
   pickGlbUrl,
   readObject3dConfig,
@@ -85,5 +86,20 @@ describe("撮った物を 3D で手に入れる（Pro）", () => {
     expect(isAllowedModelUrl("http://tripo3d.ai/m.glb")).toBe(false);
     expect(isAllowedModelUrl("https://tripo3d.ai.evil.com/m.glb")).toBe(false);
     expect(isAllowedModelUrl("https://tripo-data.evil.com/m.glb")).toBe(false);
+  });
+});
+
+describe("readTripoKey（Secrets の名前が違っても鍵を見つける）", () => {
+  it("TRIPO_API_KEY を最初に見る", () => {
+    expect(readTripoKey({ TRIPO_API_KEY: " tsk_a ", TRIPO_KEY: "tsk_b" })).toEqual({
+      key: "tsk_a",
+      source: "TRIPO_API_KEY",
+    });
+  });
+  it("別の名前でも拾い、名前を返す", () => {
+    expect(readTripoKey({ TRIPO3D_API_KEY: "tsk_c" })?.source).toBe("TRIPO3D_API_KEY");
+  });
+  it("空なら null", () => {
+    expect(readTripoKey({ TRIPO_API_KEY: "  " })).toBeNull();
   });
 });

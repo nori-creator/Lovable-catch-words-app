@@ -103,6 +103,29 @@ export const OBJECT3D_PROVIDER_LABEL: Record<Object3dProvider, string> = {
 
 export const TRIPO_BASE_URL = "https://api.tripo3d.ai/v2/openapi";
 
+/**
+ * **Tripo の鍵を探す**（オーナー報告 2026-09-29「TRIPO ai の api を lovable に追加した」）。
+ * Lovable の Secrets に入れた名前が分からないので、よく付けられる名前を順に見る。
+ * 返すのは値と**見つけた名前**。値はサーバの中だけで使い、画面・記録には名前だけを出す。
+ */
+export const TRIPO_KEY_NAMES = [
+  "TRIPO_API_KEY",
+  "TRIPO3D_API_KEY",
+  "TRIPO_AI_API_KEY",
+  "TRIPOAI_API_KEY",
+  "TRIPO_KEY",
+  "TRIPO_SECRET_KEY",
+] as const;
+export function readTripoKey(
+  env: Record<string, string | undefined>,
+): { key: string; source: string } | null {
+  for (const name of TRIPO_KEY_NAMES) {
+    const v = (env[name] ?? "").trim();
+    if (v) return { key: v, source: name };
+  }
+  return null;
+}
+
 /** Tripo に頼む仕事の中身。下書き（速い・色なし）と仕上げ（色と質感）。 */
 export function tripoTaskBody(imageToken: string, kind: "preview" | "final") {
   const file = { type: "png", file_token: imageToken };

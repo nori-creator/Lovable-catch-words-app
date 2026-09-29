@@ -387,7 +387,7 @@ const REVIEW_SCENES: Array<{ scene: string; label: string }> = [
     scene: "dex-cards&n=24&at=3",
     label: "図鑑スライド: 白い部屋・カードの色 A〜D・下のバーに被らない",
   },
-  { scene: "chunk-designs", label: "チャンク: 四角＋でつなぐ（A〜D の案・学ぶ語は入れ替えない）" },
+  { scene: "chunk-designs", label: "チャンク（決定）: 四角＋でつなぐ・台なし・学ぶ語は入れ替えない" },
   { scene: "dex-drag", label: "図鑑: 長押しで別の分類へ運ぶ・見出しの長押しで編集" },
   { scene: "dex-calendar", label: "カレンダー: 青を基調に・日付を押すと地図" },
   { scene: "home-album", label: "ホームのアルバム: 長押し → 赤バツが写真と一緒に揺れる" },
@@ -414,7 +414,18 @@ const explicitScene = q.get("scene");
 // 帯が無いと先頭の1画面しか見られない（オーナー報告 2026-09-24「netlify が
 // 見れない」）。名指しの `?scene=` は検査用なので出さない（帯を測らない）。
 const showReviewBar = q.get("review") === "1" || !explicitScene;
-const wanted = explicitScene ?? REVIEW_SCENES[0].scene;
+/**
+ * **何も付けずに開いた時は、先頭の見比べの場面を開く。** 先頭には `dex-cards&n=24&at=3` の
+ * ように条件が付くことがある。前はこれを丸ごと場面の名前として探していたので、
+ * 「unknown scene」だけの白い画面になっていた（オーナー報告 2026-09-29「netlify の画面が
+ * 見れない」）。名前と条件に分け、条件は `q` に足す（自分で付けた条件が優先）。
+ */
+if (!explicitScene) {
+  new URLSearchParams(`scene=${REVIEW_SCENES[0].scene}`).forEach((v, k) => {
+    if (!q.has(k)) q.set(k, v);
+  });
+}
+const wanted = q.get("scene") ?? "";
 document.documentElement.style.setProperty(
   "--first-viewport-height",
   showReviewBar ? "calc(100dvh - 42px)" : "100dvh",

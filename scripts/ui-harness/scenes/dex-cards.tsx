@@ -25,9 +25,7 @@ export function DexCardsScene({ q }: { q: URLSearchParams }) {
     })),
   );
   const at = Number(q.get("at") ?? 0);
-  const [theme, setTheme] = useState<Theme>(
-    THEMES.find((o) => o.key === q.get("theme"))?.key ?? "gallery",
-  );
+  const [theme] = useState<Theme>(THEMES.find((o) => o.key === q.get("theme"))?.key ?? "gallery");
   const [tone, setTone] = useState<Tone>(TONES.find((o) => o.key === q.get("card"))?.key ?? "blue");
   return (
     <div className="px-4">
@@ -35,7 +33,14 @@ export function DexCardsScene({ q }: { q: URLSearchParams }) {
       <div
         role="radiogroup"
         aria-label="カードの色の案"
-        style={{ display: "flex", gap: 6, flexWrap: "wrap", padding: "4px 0 4px" }}
+        style={{
+          display: "flex",
+          gap: 6,
+          overflowX: "auto",
+          whiteSpace: "nowrap",
+          padding: "4px 0 6px",
+          scrollbarWidth: "none",
+        }}
       >
         {TONES.map((o) => (
           <button
@@ -45,6 +50,7 @@ export function DexCardsScene({ q }: { q: URLSearchParams }) {
             aria-checked={tone === o.key}
             onClick={() => setTone(o.key)}
             style={{
+              flex: "0 0 auto",
               minHeight: 40,
               padding: "0 10px",
               borderRadius: 999,
@@ -72,34 +78,9 @@ export function DexCardsScene({ q }: { q: URLSearchParams }) {
           </button>
         ))}
       </div>
-      {/* 背景の案（2026-09-27「カテゴリー別の背景やアニメの案を複数」）。
-          A が本番の既定。ほかは押して見比べる。 */}
-      <div
-        role="radiogroup"
-        aria-label="背景の案"
-        style={{ display: "flex", gap: 6, flexWrap: "wrap", padding: "4px 0 8px" }}
-      >
-        {THEMES.map((o) => (
-          <button
-            key={o.key}
-            type="button"
-            role="radio"
-            aria-checked={theme === o.key}
-            onClick={() => setTheme(o.key)}
-            style={{
-              minHeight: 44,
-              padding: "0 12px",
-              borderRadius: 999,
-              border: "1px solid rgba(0,0,0,0.12)",
-              background: theme === o.key ? "#0a84ff" : "rgba(255,255,255,0.8)",
-              color: theme === o.key ? "#fff" : "#111",
-              fontWeight: 600,
-            }}
-          >
-            {o.label}
-          </button>
-        ))}
-      </div>
+      {/* 背景は白い部屋に決定（R14）。ほかの背景は `?theme=stage` などで見られる。
+          案のボタンを縦に積むと、本番より上が高くなり写真の列が下のバーに隠れて見えた
+          ので、色の案だけを1行（横に送る）に置く。 */}
       <DexCoverFlow
         stickers={items}
         onOpen={() => {}}
