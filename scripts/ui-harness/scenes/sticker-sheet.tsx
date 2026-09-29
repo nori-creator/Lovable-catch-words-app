@@ -118,6 +118,7 @@ export function StickerSheetScene({ q }: { q: URLSearchParams }) {
               : null
           }
           isPro={variant === "pro"}
+          canMake3d={variant === "pro"}
           flipped={flipped}
           setFlipped={setFlipped}
           hasSelfie

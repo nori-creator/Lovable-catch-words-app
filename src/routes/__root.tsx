@@ -10,6 +10,7 @@ import {
 } from "@tanstack/react-router";
 import { useEffect, type ReactNode } from "react";
 import { initPwa } from "@/lib/pwa";
+import { initChunkRecovery, isChunkLoadError, reloadOnceForChunkError } from "@/lib/chunk-reload";
 
 import appCss from "../styles.css?url";
 // 見た目パック。すべてのセレクタが [data-ui-pack] の下にあるので、
@@ -55,6 +56,11 @@ function ErrorComponent({ error: caught, reset }: { error: unknown; reset: () =>
   useEffect(() => {
     reportLovableError(error, { boundary: "tanstack_root_error_component" });
   }, [error]);
+  // 画面の部品を取りに行けなかっただけなら、1回だけ読み直して立ち直る（`lib/chunk-reload.ts`）。
+  const chunk = isChunkLoadError(error);
+  useEffect(() => {
+    if (chunk) reloadOnceForChunkError();
+  }, [chunk]);
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
@@ -63,9 +69,19 @@ function ErrorComponent({ error: caught, reset }: { error: unknown; reset: () =>
           {t("root.loadFailed")}
         </h1>
         <p className="mt-2 text-body text-muted-foreground">{t("root.loadFailedHint")}</p>
+        {/* **何が起きたかを画面に残す**（オーナー報告 2026-09-29 の画面には理由が無く、
+            開発者の手元で再現するまで原因が分からなかった）。 */}
+        <details className="mt-3 text-left text-caption text-muted-foreground">
+          <summary className="cursor-pointer text-center">{t("root.errorDetail")}</summary>
+          <p className="mt-1 break-all">{error.message}</p>
+        </details>
         <div className="mt-6 flex flex-wrap justify-center gap-2">
           <button
             onClick={() => {
+              if (chunk) {
+                window.location.reload();
+                return;
+              }
               router.invalidate();
               reset();
             }}
@@ -232,6 +248,7 @@ function RootComponent() {
     initUiPack();
     // スマホにアプリとして入れる準備（インストールの合図・サービスワーカー。`lib/pwa.ts`）。
     initPwa();
+    initChunkRecovery();
   }, []);
 
   /**

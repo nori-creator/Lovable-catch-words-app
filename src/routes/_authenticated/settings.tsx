@@ -19,6 +19,7 @@ import {
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { InstallAppCard } from "@/components/InstallApp";
+import { SafeSection } from "@/components/SafeSection";
 import { AppShell } from "@/components/AppShell";
 import { LoadFailed } from "@/components/LoadFailed";
 import {
@@ -35,6 +36,7 @@ import {
   setImageGenerationSettings,
 } from "@/lib/admin.functions";
 import { testImageGeneration } from "@/lib/images.functions";
+import { DEFAULT_HIGGSFIELD_IMAGE_MODEL } from "@/lib/image-provider";
 import {
   diagnoseGeminiTts,
   getTtsVoiceAdmin,
@@ -134,7 +136,9 @@ export function SettingsCard({ title, children }: { title: string; children: Rea
      * 6段の階調は既にあったので、footnote(13px)を当てるだけで足りる。 */
     <section>
       <h3 className="mb-1.5 px-1 text-footnote font-semibold text-muted-foreground">{title}</h3>
-      <div className="rounded-2xl border border-border bg-card p-4">{children}</div>
+      <div className="rounded-2xl border border-border bg-card p-4">
+        <SafeSection name={title}>{children}</SafeSection>
+      </div>
     </section>
   );
 }
@@ -928,12 +932,21 @@ function SettingsPage() {
           </div>
         </SettingsCard>
 
-        <SoundAndHapticsPanel />
+        {/* 欄ごとに受け止める（`SafeSection`）。1つ壊れても設定の画面ごとは落とさない。 */}
+        <SafeSection name="sound">
+          <SoundAndHapticsPanel />
+        </SafeSection>
 
-        <ProPlanCard />
+        <SafeSection name="pro">
+          <ProPlanCard />
+        </SafeSection>
 
-        <AdminOnlySection />
-        <AdminOnlyDeveloperPanel />
+        <SafeSection name="admin">
+          <AdminOnlySection />
+        </SafeSection>
+        <SafeSection name="developer">
+          <AdminOnlyDeveloperPanel />
+        </SafeSection>
 
         <Button
           variant="outline"
@@ -956,7 +969,9 @@ function SettingsPage() {
           <LogOut className="mr-2 h-4 w-4" /> {t("settings.signout")}
         </Button>
 
-        <DangerZone />
+        <SafeSection name="danger">
+          <DangerZone />
+        </SafeSection>
       </div>
     </AppShell>
   );
@@ -1680,12 +1695,24 @@ function AdminOnlySection() {
       {/* **配色デザインは開発者の欄に戻した**（オーナー指示 2026-09-23 2回目
           「設定の配色デザインはやっぱり開発者の私だけが見えるように戻して」）。
           名前は「画面の明るさ」と区別できる「配色デザイン」のまま。 */}
-      <UiThemePicker />
-      <AiModelPanel />
-      <ImageGenerationPanel />
-      <TtsVoicePanel />
-      <ImageGenTestPanel />
-      <AdsPanel />
+      <SafeSection name="ui-theme">
+        <UiThemePicker />
+      </SafeSection>
+      <SafeSection name="ai-models">
+        <AiModelPanel />
+      </SafeSection>
+      <SafeSection name="image-generation">
+        <ImageGenerationPanel />
+      </SafeSection>
+      <SafeSection name="tts-voice">
+        <TtsVoicePanel />
+      </SafeSection>
+      <SafeSection name="image-test">
+        <ImageGenTestPanel />
+      </SafeSection>
+      <SafeSection name="ads">
+        <AdsPanel />
+      </SafeSection>
     </div>
   );
 }
@@ -2046,6 +2073,17 @@ const IMAGE_OPTIONS = [
     defaultModel: "gemini-2.5-flash-image",
   },
   { id: "openai", label: "OpenAI", key: "OPENAI_API_KEY", defaultModel: "gpt-image-1-mini" },
+  /**
+   * **Higgsfield も選択肢に置く**（オーナー報告 2026-09-29「設定のボタンを押すとこのエラーが
+   * 出る」）。サーバは Higgsfield の鍵があると既定でここを返す（`readImageConfig`）のに、
+   * 一覧に無かったので `option` が空になり、**開発者の設定画面が丸ごと落ちていた**。
+   */
+  {
+    id: "higgsfield",
+    label: "Higgsfield",
+    key: "HIGGSFIELD_API_KEY / HIGGSFIELD_API_SECRET",
+    defaultModel: DEFAULT_HIGGSFIELD_IMAGE_MODEL,
+  },
   { id: "off", label: "画像生成を停止", key: "", defaultModel: "" },
 ] as const;
 type ImageOption = (typeof IMAGE_OPTIONS)[number]["id"];
@@ -2074,7 +2112,8 @@ export function ImageGenerationPanel({ previewData }: { previewData?: ImagePrevi
     setProvider(data.effective.provider as ImageOption);
     setModel(data.effective.model);
   }, [data]);
-  const option = IMAGE_OPTIONS.find((o) => o.id === provider)!;
+  // 知らない名前が来ても落とさない（一覧に無い提供元は「Lovable AI」の欄で見せる）。
+  const option = IMAGE_OPTIONS.find((o) => o.id === provider) ?? IMAGE_OPTIONS[0];
   const keyPresent = provider === "off" || Boolean(data?.keys[provider]);
   async function save() {
     setSaving(true);
@@ -2112,7 +2151,7 @@ export function ImageGenerationPanel({ previewData }: { previewData?: ImagePrevi
           onChange={(e) => {
             const next = e.target.value as ImageOption;
             setProvider(next);
-            setModel(IMAGE_OPTIONS.find((o) => o.id === next)!.defaultModel);
+            setModel(IMAGE_OPTIONS.find((o) => o.id === next)?.defaultModel ?? "");
           }}
           className="min-h-11 w-full rounded-xl border border-input bg-background px-3 text-field"
         >

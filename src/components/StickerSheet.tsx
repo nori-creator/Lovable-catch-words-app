@@ -7,6 +7,7 @@ import { hasOwnPhoto, pickStickerPhoto, stickerPhotoUrl } from "@/lib/sticker-ph
 import { useEffect, useMemo, useReducer, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
+import { checkIsAdmin } from "@/lib/admin.functions";
 import {
   X,
   MapPin,
@@ -243,6 +244,18 @@ export function StickerSheet({ stickerId, onClose, openPhotoPicker, from, local 
   /** 表に出す1枚。役も見るので URL だけでなく組で持つ。 */
   const hero = pickStickerPhoto(s);
   const isPro = (profile as { plan?: string } | null | undefined)?.plan === "pro";
+  /**
+   * **3D は開発者だけ**（オーナー指示 2026-09-29「私以外は 3D モデル機能使えないようにして」）。
+   * Pro かどうかでは出さない。サーバ側（`object3dAllowed`）でも開発者か確かめる。
+   */
+  const adminFn = useServerFn(checkIsAdmin);
+  const { data: adm } = useQuery({
+    queryKey: ["is-admin"],
+    queryFn: () => adminFn(),
+    staleTime: 300_000,
+    enabled: !local,
+  });
+  const canMake3d = adm?.isAdmin === true;
   // 母語。発音のコツと語順の説明はこれで中身が変わるので、
   // 変えたら解説を作り直す(下の useEffect)。
   const nativeLang =
@@ -820,6 +833,7 @@ export function StickerSheet({ stickerId, onClose, openPhotoPicker, from, local 
             // 返事がまだ（端末にも無い）間は、古い解説を出さない。後から差し替わるので。
             explanationPending={explanation === undefined}
             isPro={isPro}
+            canMake3d={canMake3d}
             flipped={flipped}
             setFlipped={setFlipped}
             hasSelfie={hasSelfie}
@@ -904,6 +918,7 @@ export function StickerSheetBody({
   explanation,
   explanationPending = false,
   isPro,
+  canMake3d,
   flipped,
   setFlipped,
   hasSelfie,
@@ -942,6 +957,8 @@ export function StickerSheetBody({
   /** その人向けの解説の返事を待っている間（古い解説を出さない）。 */
   explanationPending?: boolean;
   isPro: boolean;
+  /** 3D の釦を出すか（開発者だけ）。 */
+  canMake3d: boolean;
   /** 写真の裏(自撮り)を見ているか。 */
   flipped: boolean;
   setFlipped: Dispatch<SetStateAction<boolean>>;
@@ -1185,14 +1202,14 @@ export function StickerSheetBody({
         {/* **Pro: 写真を 3D にする**（R17「課金ユーザーは単語の詳細に３Dモデル化する専用の
             ボタンを表示し、タップしたら単語の詳細の画像が3Dモデル化する」）。表の面を見ている
             時だけ。押すと写真の枠の中で 3D が組み上がり、指で回せる。 */}
-        {isPro && !flipped && !show3d && (
+        {canMake3d && !flipped && !show3d && (
           <Object3DButton
             stickerId={s.id}
             imageUrl={object3dSource}
             onOpen={() => setShow3d(true)}
           />
         )}
-        {isPro && show3d && object3dSource && (
+        {canMake3d && show3d && object3dSource && (
           <Object3DLayer
             stickerId={s.id}
             imageUrl={object3dSource}

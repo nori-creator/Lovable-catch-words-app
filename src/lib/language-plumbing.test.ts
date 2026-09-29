@@ -3509,9 +3509,12 @@ describe("N. 下のタブ帯と、札を開く動き", () => {
    * タブの横払いと同じ指の動きなので、両方が取ると**撮り方を変えたつもりで
    * 復習の画面へ飛ぶ**。カメラの中ではタブ側を止める。
    */
-  it("カメラの中では、タブの横払いを止める", () => {
+  it("横に払ってもタブは移らない（どの画面でも。2026-09-29「横のアイコンのページに移る機能消して」）", () => {
     const shell = codeOnly(read("components/AppShell.tsx"));
-    expect(shell).toMatch(/enabled: !onCameraScreen,/);
+    expect(shell).not.toMatch(/useTabSwipe\(/);
+    expect(shell).toMatch(/const progress = 0;/);
+    // タブ以外の画面の「左端から払って戻る」は残す。
+    expect(shell).toMatch(/useSwipeBack\(\{ enabled: tabIndex < 0/);
     expect(shell).toMatch(/const onCameraScreen = atPath\("\/capture"\) \|\| atPath\("\/scan"\);/);
   });
 
@@ -5005,8 +5008,10 @@ describe("ホームは今日の誌面", () => {
     );
     // 2026-09-24「過去のものが多すぎで画面で確認できないから、過去のものは全て
     // 削除して」: 帯には**今回の依頼の面だけ**。
-    // 2026-09-29 の回（スマホにアプリとして入れる）: 案内の面だけ。
-    expect(list.slice(0, list.indexOf("},"))).toMatch(/scene: "install-app"/);
+    // 2026-09-29 夜の回（R22）: 本棚・候補・画像生成の欄。
+    expect(list.slice(0, list.indexOf("},"))).toMatch(/scene: "home-shelf"/);
+    expect(list).toMatch(/scene: "candidate-picker"/);
+    expect(list).not.toMatch(/scene: "install-app"/);
     expect(list).not.toMatch(/scene: "tts-voices"/);
     expect(list).not.toMatch(/scene: "capture-object&mode=search"/);
     // 前の回の面は残さない。
@@ -6134,7 +6139,9 @@ describe("ホームの一番上の本棚（2026-09-29「ホームのアルバム
     expect(snap).toMatch(/SHELF_PLACEHOLDER = "\/shelf\/room-a-empty\.webp"/);
     expect(fs.existsSync(path.join(process.cwd(), "public/shelf/room-a-empty.webp"))).toBe(true);
     expect(shelf).toMatch(/src=\{snap \?\? SHELF_PLACEHOLDER\}/);
-    expect(shelf).toMatch(/world\.current\?\.snapshot\(\)/);
+    // 撮るのは中身が変わった時だけ、画面を止めずに（toBlob）。2026-09-29「アプリ全体がカクカク」
+    expect(shelf).toMatch(/world\.current\s*\?\.snapshotBlob\(\)/);
+    expect(shelf).toMatch(/shelfSnapshotSig\(\) === `\$\{room\}:\$\{monthSig\}`/);
     // 平らな仮の棚はやめた。
     expect(shelf).not.toMatch(/home-shelf__proxy/);
   });
@@ -6292,16 +6299,96 @@ describe("同じ人の SIGNED_IN で全部を読み直さない（R17 4択の差
 });
 
 describe("Pro: 単語の詳細の写真を 3D にする（R17）", () => {
-  it("Pro の人にだけボタンを出し、作った形は端末に置いて作り直さない", () => {
+  it("開発者にだけボタンを出し、作った形は端末に置いて作り直さない", () => {
     const sheet = codeOnly(read("components/StickerSheet.tsx"));
-    expect(sheet).toMatch(/\{isPro && !flipped && !show3d && \(/);
-    expect(sheet).toMatch(/\{isPro && show3d && object3dSource && \(/);
+    // 2026-09-29 オーナー指示「私以外は 3D モデル機能使えないようにして」。Pro では出さない。
+    expect(sheet).toMatch(/const canMake3d = adm\?\.isAdmin === true;/);
+    expect(sheet).toMatch(/\{canMake3d && !flipped && !show3d && \(/);
+    expect(sheet).toMatch(/\{canMake3d && show3d && object3dSource && \(/);
     const hero = codeOnly(read("components/Object3DHero.tsx"));
     expect(hero).toMatch(/const cached = await readCached\(stickerId\);/);
     expect(hero).toMatch(/await c\.put\(/);
-    // サーバ側でも Pro か確かめる（画面の条件だけに頼らない）。
-    expect(codeOnly(read("lib/object3d.functions.ts"))).toMatch(
-      /if \(!object3dAllowed\(\{ isPro: await isProUser\(userId\) \}\)\)/,
+    // サーバ側でも開発者か確かめる（画面の条件だけに頼らない）。2つの入口の両方で。
+    const fns = codeOnly(read("lib/object3d.functions.ts"));
+    expect(fns.match(/if \(!object3dAllowed\(\{ isAdmin: Boolean\(isAdmin\) \}\)\)/g)?.length).toBe(
+      2,
     );
+    expect(fns).not.toMatch(/isProUser/);
+  });
+});
+
+describe("R22（2026-09-29 オーナー報告: 設定で止まる・演出・3D・日記）", () => {
+  it("画像生成の欄は Higgsfield を知っている（知らないと開発者の設定が丸ごと落ちた）", () => {
+    const settings = codeOnly(read("routes/_authenticated/settings.tsx"));
+    expect(settings).toMatch(/id: "higgsfield",/);
+    // 一覧に無い名前が来ても落とさない。
+    expect(settings).toMatch(
+      /IMAGE_OPTIONS\.find\(\(o\) => o\.id === provider\) \?\? IMAGE_OPTIONS\[0\]/,
+    );
+    expect(settings).not.toMatch(/IMAGE_OPTIONS\.find\(\(o\) => o\.id === provider\)!/);
+    const admin = codeOnly(read("lib/admin.functions.ts"));
+    expect(admin).toMatch(/higgsfield: Boolean\(readHiggsfieldCredentials\(process\.env\)\)/);
+    expect(admin).toMatch(
+      /z\.enum\(\["lovable", "openrouter", "google", "openai", "higgsfield", "off"\]\)/,
+    );
+  });
+
+  it("設定の欄は1つずつ受け止める（1つ壊れても画面ごと落とさない）", () => {
+    const settings = codeOnly(read("routes/_authenticated/settings.tsx"));
+    expect(settings).toMatch(/<SafeSection name=\{title\}>\{children\}<\/SafeSection>/);
+    for (const name of ["ai-models", "image-generation", "tts-voice", "admin", "pro"])
+      expect(settings).toContain(`<SafeSection name="${name}">`);
+  });
+
+  it("写真→詳細の広がりは、小さな丸い釦の丸みを拾わない（楕円にならない）", () => {
+    const hero = codeOnly(read("components/use-hero-reveal.ts"));
+    expect(hero).toMatch(/const isFrame = \(node: Element\) =>/);
+    expect(hero).toMatch(
+      /endRadius = Math\.min\(endRadius, Math\.min\(last\.width, last\.height\) \/ 2\)/,
+    );
+  });
+
+  it("候補を選んだ時は「AI が分析中」を出さない", () => {
+    const cap = codeOnly(read("routes/_authenticated/capture.tsx"));
+    expect(cap).toMatch(
+      /if \(!hint\) \{\s*setWaitKind\("cutout"\);\s*setStep\("processing"\);\s*\}/,
+    );
+  });
+
+  it("候補の注音は見出しと同じ比（下限 11px を外す）", () => {
+    const picker = codeOnly(read("components/CandidatePicker.tsx"));
+    expect(picker.match(/zy-word--balanced/g)?.length).toBeGreaterThanOrEqual(2);
+  });
+
+  it("本を閉じる: canvas の大きさを変えずに切り抜いて滑らせ、終わりで全画面へ戻らない", () => {
+    const shelf = codeOnly(read("components/HomeShelf.tsx"));
+    expect(shelf).toMatch(/clipPath:/);
+    expect(shelf).toMatch(/fill: "forwards"/);
+    expect(shelf).toMatch(/flushSync\(/);
+    expect(shelf).toMatch(/full && !state\.open && !closing/);
+  });
+
+  it("片ページでも日記を書ける／書く欄の罫線と字の行は同じ物差し", () => {
+    const shelf = codeOnly(read("components/HomeShelf.tsx"));
+    expect(shelf).toMatch(/onWrite=\{day \? \(\) => setWriting\(day\.diary\) : undefined\}/);
+    const css = read("styles.css");
+    const at = css.indexOf(".home-shelf__textarea {");
+    const body = css.slice(at, css.indexOf("\n}", at));
+    expect(body).toMatch(/line-height: var\(--rule\)/);
+    expect(body).toMatch(/background-size: 100% var\(--rule\)/);
+    expect(body).toMatch(/padding: 0 12px/);
+  });
+
+  it("3D の描画の輪は、何も動かない時は止まる（空回りしない）", () => {
+    const engine = codeOnly(read("components/shelf3d/engine.ts"));
+    expect(engine).toMatch(/private wake\(\)/);
+    expect(engine).toMatch(/\+\+this\.idleFrames > 45/);
+  });
+
+  it("棚の CSS は1組だけ（重なった古い組・帯の外の canvas のぼかしが無い）", () => {
+    const css = read("styles.css");
+    expect(css.match(/^\.home-shelf__stage\[data-full\] \{/gm)?.length).toBe(1);
+    expect(css).not.toMatch(/\.home-shelf__proxy/);
+    expect(css).not.toMatch(/^\.home-shelf__canvas \{\s*mask-image/m);
   });
 });

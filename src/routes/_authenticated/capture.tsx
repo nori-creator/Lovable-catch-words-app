@@ -860,8 +860,17 @@ function CapturePage() {
     setSelectedHead(head);
     // キャッチ演出の「空中のタメ」で待たせずに鳴らせるよう、ここで先に取る。
     pronounce.prefetch(head);
-    setWaitKind("cutout");
-    setStep("processing");
+    /**
+     * **候補を選んだ時は「AI が分析中」を出さない**（オーナー報告 2026-09-29「候補を選んだあとに
+     * 謎の AI が分析中のアニメーションが一瞬映る。消して。そのままステッカーの画面に移行して」）。
+     * 候補（`hint`）には読み・意味が入っていてカードはすぐ出せる。待つのは「もう持っている語か」
+     * の確認（1往復）だけなので、その間は今の画面のまま待ち、終わったらカードへ直接移る。
+     * 候補が無い時（打った語など）はカードを作る間を待つので、今までどおり演出を出す。
+     */
+    if (!hint) {
+      setWaitKind("cutout");
+      setStep("processing");
+    }
     const startedAt = Date.now();
 
     // タップした瞬間に切り抜きを始める。失敗しても写真のまま進める

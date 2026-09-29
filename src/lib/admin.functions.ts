@@ -160,7 +160,7 @@ export const searchDictionaryEntries = createServerFn({ method: "GET" })
 
 /** 画像生成専用の切替。キーそのものはサーバの Secrets にだけ置く。 */
 const ImageSettingsInput = z.object({
-  provider: z.enum(["lovable", "openrouter", "google", "openai", "off"]),
+  provider: z.enum(["lovable", "openrouter", "google", "openai", "higgsfield", "off"]),
   model: z
     .string()
     .trim()
@@ -182,7 +182,7 @@ export const getImageGenerationSettings = createServerFn({ method: "GET" })
       .eq("key", "image_generation")
       .maybeSingle();
     if (error) throw new Error(error.message);
-    const { resolveImageConfig } = await import("./image-provider");
+    const { resolveImageConfig, readHiggsfieldCredentials } = await import("./image-provider");
     const override = (data as { value?: { provider?: string; model?: string } } | null)?.value;
     return {
       override: override ?? null,
@@ -192,6 +192,7 @@ export const getImageGenerationSettings = createServerFn({ method: "GET" })
         openrouter: Boolean(process.env.OPENROUTER_API_KEY),
         google: Boolean(process.env.GEMINI_API_KEY),
         openai: Boolean(process.env.OPENAI_API_KEY),
+        higgsfield: Boolean(readHiggsfieldCredentials(process.env)),
       },
     };
   });

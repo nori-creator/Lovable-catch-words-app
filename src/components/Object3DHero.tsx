@@ -24,7 +24,7 @@ type State =
   | { k: "idle" }
   | { k: "making"; progress: number }
   | { k: "ready"; url: string }
-  | { k: "error"; reason: "unavailable" | "failed" | "pro_only" };
+  | { k: "error"; reason: "unavailable" | "failed" | "pro_only"; detail?: string };
 
 export function Object3DButton({
   stickerId,
@@ -85,13 +85,16 @@ export function Object3DLayer({
         return;
       }
       setState({ k: "making", progress: 0 });
-      const image = await toDataUrl(imageUrl).catch(() => null);
+      const image = await toPngDataUrl(imageUrl).catch(() => null);
       if (!alive) return;
       if (!image) {
-        setState({ k: "error", reason: "failed" });
+        setState({ k: "error", reason: "failed", detail: "image" });
         return;
       }
-      const res = await start({ data: { image } }).catch(() => ({ status: "failed" as const }));
+      const res = await start({ data: { image } }).catch((e: unknown) => ({
+        status: "failed" as const,
+        reason: e instanceof Error ? e.message : String(e),
+      }));
       if (!alive) return;
       if (res.status !== "started") {
         setState({
@@ -102,6 +105,7 @@ export function Object3DLayer({
               : res.status === "unavailable"
                 ? "unavailable"
                 : "failed",
+          detail: "reason" in res ? res.reason : undefined,
         });
         return;
       }
@@ -118,7 +122,11 @@ export function Object3DLayer({
           return;
         }
         if (st.status === "failed") {
-          setState({ k: "error", reason: "failed" });
+          setState({
+            k: "error",
+            reason: "failed",
+            detail: "reason" in st ? (st as { reason?: string }).reason : undefined,
+          });
           return;
         }
         setState({ k: "making", progress: Number((st as { progress?: number }).progress ?? 0) });
@@ -158,7 +166,7 @@ export function Object3DLayer({
         ? t("object3d.unavailable")
         : state.reason === "pro_only"
           ? t("object3d.proOnly")
-          : t("object3d.failed")
+          : `${t("object3d.failed")}${state.detail ? `（${state.detail}）` : ""}`
       : null;
 
   return (
@@ -226,15 +234,24 @@ async function storeModel(stickerId: string, modelUrl: string): Promise<string> 
   return URL.createObjectURL(blob);
 }
 
-/** 絵を data URL にする（サーバへ送る形）。 */
-async function toDataUrl(url: string): Promise<string> {
-  if (url.startsWith("data:")) return url;
+/**
+ * 絵を **本物の PNG の** data URL にする（サーバへ送る形）。
+ *
+ * 切り抜きの絵は端末や保管庫では WebP / JPEG のことがある。前は中身をそのまま送り、
+ * Tripo には「PNG」と名乗っていた — 中身と名乗りが違うと Tripo は受け取らない
+ * （オーナー報告 2026-09-29「3D のボタン押してもエラー」の疑い）。ここで描き直して PNG にそろえ、
+ * 大きすぎる絵は長い辺 1024px に縮める（送る量を抑える。3D の形には十分）。
+ */
+async function toPngDataUrl(url: string): Promise<string> {
   const r = await fetch(url);
+  if (!r.ok) throw new Error(`image HTTP ${r.status}`);
   const blob = await r.blob();
-  return new Promise((ok, ng) => {
-    const fr = new FileReader();
-    fr.onload = () => ok(String(fr.result));
-    fr.onerror = () => ng(fr.error);
-    fr.readAsDataURL(blob);
-  });
+  const bmp = await createImageBitmap(blob);
+  const scale = Math.min(1, 1024 / Math.max(bmp.width, bmp.height));
+  const c = document.createElement("canvas");
+  c.width = Math.max(1, Math.round(bmp.width * scale));
+  c.height = Math.max(1, Math.round(bmp.height * scale));
+  c.getContext("2d")?.drawImage(bmp, 0, 0, c.width, c.height);
+  bmp.close();
+  return c.toDataURL("image/png");
 }
