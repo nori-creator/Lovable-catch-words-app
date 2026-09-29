@@ -97,3 +97,31 @@ export function withDegreeAdverb(parts: ChunkPart[], language?: string | null): 
 export function tidyUsageParts(parts: ChunkPart[], language?: string | null): ChunkPart[] {
   return withDegreeAdverb(parts, language);
 }
+
+/**
+ * **語を入れ替えた型の訳**（R20「点線のなかのほかの単語をタップしたら、もとの単語と同じように
+ * 訳が表示され」）。訳の中で元の語に当たる所を、入れ替えた語の意味に差し替える。
+ *
+ * 元の語に当たる所は、① その語の意味（`part.ja`。新しいカード）、② 語そのもの（「豆干の滷味を
+ * 買う」のように訳にも同じ字で出る語）の順に探す。見つからない時は訳を作り替えず、
+ * 「元の訳（元の語 → 入れ替えた語: 意味）」の形で、何を替えたかが分かるように出す。
+ */
+export function swappedTranslation(
+  translation: string | null | undefined,
+  parts: ChunkPart[],
+  pick: Record<number, number>,
+): string {
+  let out = (translation ?? "").trim();
+  const notes: string[] = [];
+  for (const [key, k] of Object.entries(pick)) {
+    const i = Number(key);
+    const part = parts[i];
+    const alt = k >= 0 ? part?.alts?.[k] : undefined;
+    if (!part || !alt) continue;
+    const to = (alt.ja || alt.text).trim();
+    const from = [part.ja?.trim(), part.text.trim()].find((f) => f && out.includes(f));
+    if (from) out = out.replace(from, to);
+    else notes.push(`${part.text} → ${alt.text}${alt.ja ? `: ${alt.ja}` : ""}`);
+  }
+  return notes.length ? `${out}（${notes.join("、")}）` : out;
+}

@@ -155,6 +155,8 @@ export type ShelfEvents = {
   onBookTap?: (b: MonthBook, open: () => void) => void;
   /** 開いた本のページを押した（R14: 押すと片ページを大きく）。 */
   onPageTap?: (side: "left" | "right") => void;
+  /** 片ページで、指で払って隣のページ（同じ見開きの左右）へ横に移った（R20）。 */
+  onFocusSide?: (side: "left" | "right") => void;
   /**
    * その月の見開き（1日＝1見開き。左＝その日のアルバム、右＝その日の日記）。
    * 渡すと、本を開いた時に**いちばん新しい日の見開きまで**めくって見せる
@@ -783,29 +785,86 @@ export class ShelfWorld {
   }
 
   private down: { x: number; y: number; t: number } | null = null;
+  /**
+   * 片ページで押した所。**向きが決まるまで紙を掴まない**（R20「左ページにフォーカスすると
+   * 右のページが見れない。左ページでスワイプしたら右にスライドするアニメーションで右ページに
+   * 移って。逆も然り」）:
+   *  - 左ページで左へ払う／右ページで右へ払う → 同じ見開きの反対のページへ**横に滑る**（`pan`）
+   *  - 右ページで左へ払う／左ページで右へ払う → 見開きと同じ紙を**めくる**（`drag`）
+   * 読む順（左 → 右 → めくって次の左 …）どおりに進み、どのページにも行ける。
+   */
+  private pending: { x: number; y: number } | null = null;
+  private pan: {
+    from: "left" | "right";
+    to: "left" | "right";
+    x0: number;
+    t: number;
+    lastX: number;
+    v: number;
+    p: number;
+  } | null = null;
+
+  private centerOf(side: "left" | "right") {
+    return side === "left" ? JOINT - LEAF_W / 2 : JOINT + LEAF_W / 2;
+  }
+
+  private grabLeaf(rightSide: boolean, x0: number) {
+    if (!this.active) return;
+    const leaf = rightSide ? this.page : this.page - 1;
+    if (leaf < 0 || leaf >= this.active.leaves.length) return;
+    const l = this.active.leaves[leaf];
+    this.drag = { leaf, x0, p0: l.p.x, vx: 0, t: performance.now(), lastX: x0 };
+  }
+
   pointerDown(e: PointerEvent) {
     this.down = { x: e.clientX, y: e.clientY, t: performance.now() };
+    this.pending = null;
+    this.pan = null;
     if (this.active && this.open.x > 0.85) {
       const r = this.canvas.getBoundingClientRect();
-      // 片ページの時は、寄っているページの紙を掴む（画面の左右どちらを押したかではなく）。
       const one = this.single;
-      const rightSide = one ? one === "right" : e.clientX > r.left + r.width / 2;
-      const leaf = one === "cover" ? -1 : rightSide ? this.page : this.page - 1;
-      if (leaf >= 0 && leaf < this.active.leaves.length) {
-        const l = this.active.leaves[leaf];
-        this.drag = {
-          leaf,
-          x0: e.clientX,
-          p0: l.p.x,
-          vx: 0,
-          t: performance.now(),
-          lastX: e.clientX,
-        };
+      if (one === "left" || one === "right") {
+        this.pending = { x: e.clientX, y: e.clientY };
+        return;
       }
+      if (one === "cover") return;
+      this.grabLeaf(e.clientX > r.left + r.width / 2, e.clientX);
     }
   }
 
   pointerMove(e: PointerEvent) {
+    if (this.pending && this.active) {
+      const dx = e.clientX - this.pending.x;
+      const dy = e.clientY - this.pending.y;
+      if (Math.abs(dx) < 6 || Math.abs(dx) < Math.abs(dy)) return;
+      const one = this.single;
+      const x0 = this.pending.x;
+      this.pending = null;
+      if ((one === "left" && dx < 0) || (one === "right" && dx > 0)) {
+        const to = one === "left" ? "right" : "left";
+        this.pan = { from: one, to, x0, t: performance.now(), lastX: x0, v: 0, p: 0 };
+      } else if (one === "left" || one === "right") {
+        this.grabLeaf(one === "right", x0);
+      }
+    }
+    if (this.pan) {
+      const r = this.canvas.getBoundingClientRect();
+      const pn = this.pan;
+      const sign = pn.to === "right" ? -1 : 1;
+      const span = r.width * 0.9;
+      const now = performance.now();
+      const dt = Math.max(1, now - pn.t) / 1000;
+      pn.v = pn.v * 0.6 + ((sign * (e.clientX - pn.lastX)) / span / dt) * 0.4;
+      pn.t = now;
+      pn.lastX = e.clientX;
+      // 指に 1:1（行き過ぎは少しだけ抵抗）
+      const raw = (sign * (e.clientX - pn.x0)) / span;
+      pn.p = raw < 0 ? raw * 0.25 : raw > 1 ? 1 + (raw - 1) * 0.25 : raw;
+      const a = this.centerOf(pn.from);
+      this.fcx = this.tcx = a + (this.centerOf(pn.to) - a) * pn.p;
+      this.dirty = true;
+      return;
+    }
     if (!this.drag || !this.active) return;
     const r = this.canvas.getBoundingClientRect();
     const l = this.active.leaves[this.drag.leaf];
@@ -828,6 +887,12 @@ export class ShelfWorld {
   /** 画面が縦に送られて指が取られた（押した・払ったとは数えない）。 */
   pointerCancel() {
     this.down = null;
+    this.pending = null;
+    if (this.pan) {
+      this.tcx = this.centerOf(this.pan.from);
+      this.pan = null;
+      this.kick();
+    }
     if (this.drag && this.active) {
       const l = this.active.leaves[this.drag.leaf];
       l.p.target = l.p.x > 0.5 ? 1 : 0;
@@ -839,6 +904,16 @@ export class ShelfWorld {
   pointerUp(e: PointerEvent) {
     const d = this.down;
     this.down = null;
+    this.pending = null;
+    if (this.pan) {
+      // 離した速さも見て、隣のページへ移るか元へ戻るかを決める（残りは滑らかに寄る）。
+      const pn = this.pan;
+      this.pan = null;
+      const go = pn.p + pn.v * 0.18 > 0.4;
+      this.setFocus(go ? pn.to : pn.from);
+      if (go) this.events.onFocusSide?.(pn.to);
+      return;
+    }
     const moved = d ? Math.hypot(e.clientX - d.x, e.clientY - d.y) : 99;
     // 表紙を閉じて持っている時に左へ払う → 表紙を開く。最初の見開きで右へ払う → 表紙へ戻る。
     if (
@@ -1385,6 +1460,24 @@ export class ShelfWorld {
       o.x = o.target - span * 0.035 * Math.exp(-u * 16) * Math.sin(u * 38);
     }
     return true;
+  }
+
+  /**
+   * **いまの棚の絵**（R20「アプリを開いた時に早く表示したい。端末内にデータを入れとくのでもいい」）。
+   * 端末に置いておき、次に開いた時は 3D の支度（three.js の読み込み・形・字の絵）を待たずに
+   * この絵を先に出す。本を開いている間は撮らない。`books: false` は本を抜いた空の棚
+   * （初めての人に出す同梱の絵を作る時だけ使う）。
+   */
+  snapshot(opts: { books?: boolean } = {}): string | null {
+    if (this.active || this.disposed) return null;
+    const hide = opts.books === false;
+    if (hide) for (const b of this.books) b.group.visible = false;
+    this.renderer.render(this.scene, this.camera);
+    // 描いた直後（同じ処理の中）に読む。描画の器は次の描画で消えるため。
+    const url = this.canvas.toDataURL("image/webp", 0.86);
+    if (hide) for (const b of this.books) b.group.visible = true;
+    this.dirty = true;
+    return url;
   }
 
   dispose() {

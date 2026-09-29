@@ -2926,6 +2926,13 @@ describe("キャッチの報酬演出", () => {
     expect(serverBranch.slice(0, 120)).toMatch(/resolve\(DEFAULT_THEME\)/);
   });
 
+  it("既定はライト。ダークは本人が設定で選んだ時だけ（R20）", () => {
+    const tp = codeOnly(read("components/theme-provider.tsx"));
+    expect(tp).toMatch(/export const DEFAULT_THEME: Theme = "light";/);
+    // 控えに書くのは設定の釦を押した時（`setTheme`）だけ。
+    expect(tp.match(/localStorage\.setItem\(THEME_STORAGE_KEY/g)?.length).toBe(1);
+  });
+
   /**
    * 動きの曲線と、その出所。
    *
@@ -4998,10 +5005,11 @@ describe("ホームは今日の誌面", () => {
     );
     // 2026-09-24「過去のものが多すぎで画面で確認できないから、過去のものは全て
     // 削除して」: 帯には**今回の依頼の面だけ**。
-    // 2026-09-29 の回（R17）: 部屋に置いた本棚（A〜D）・チャンク・撮る画面の左下の「写真」。
+    // 2026-09-29 の回（R20）: 開いた瞬間の本棚・台湾の声の聞き比べ・チャンクの差し替え。
     expect(list.slice(0, list.indexOf("},"))).toMatch(/scene: "home-shelf"/);
+    expect(list).toMatch(/scene: "tts-voices"/);
     expect(list).toMatch(/scene: "chunk-designs"/);
-    expect(list).toMatch(/scene: "capture-object&mode=search"/);
+    expect(list).not.toMatch(/scene: "capture-object&mode=search"/);
     // 前の回の面は残さない。
     expect(list).not.toMatch(/\{ scene: "motion-compare"/);
     expect(list).not.toMatch(/scene: "dex-drag&list=1"/);
@@ -5015,7 +5023,7 @@ describe("ホームは今日の誌面", () => {
     // （2026-09-29「netlify の画面が見れない」— 名前ごと探して unknown scene になっていた）。
     expect(main).toMatch(/new URLSearchParams\(`scene=\$\{REVIEW_SCENES\[0\]\.scene\}`\)/);
     expect(main).not.toMatch(/const wanted = explicitScene \?\? REVIEW_SCENES\[0\]\.scene;/);
-    expect(list).not.toMatch(/scene: "tts-voices"/);
+    expect(list).not.toMatch(/scene: "sticker-sheet&variant=pro"/);
     // 何も付けずに開いた人には帯を出す（無いと先頭の1画面しか見られない）。
     expect(main).toMatch(/const showReviewBar = q\.get\("review"\) === "1" \|\| !explicitScene;/);
   });
@@ -6119,6 +6127,24 @@ describe("ホームの一番上の本棚（2026-09-29「ホームのアルバム
     expect(engine).toMatch(/setFocus\(side: "spread" \| "left" \| "right" \| "cover"\) \{/);
     expect(shelf).not.toMatch(/home-shelf__single-img/);
     expect(shelf).not.toMatch(/pageCanvas/);
+  });
+
+  it("R20: 開いた瞬間は端末に置いた棚の絵（無ければ同梱の空の棚）を出し、3D が描けたら差し替える", () => {
+    const snap = codeOnly(read("components/shelf3d/snapshot.ts"));
+    expect(snap).toMatch(/caches\.open\(CACHE\)/);
+    expect(snap).toMatch(/SHELF_PLACEHOLDER = "\/shelf\/room-a-empty\.webp"/);
+    expect(fs.existsSync(path.join(process.cwd(), "public/shelf/room-a-empty.webp"))).toBe(true);
+    expect(shelf).toMatch(/src=\{snap \?\? SHELF_PLACEHOLDER\}/);
+    expect(shelf).toMatch(/world\.current\?\.snapshot\(\)/);
+    // 平らな仮の棚はやめた。
+    expect(shelf).not.toMatch(/home-shelf__proxy/);
+  });
+
+  it("R20: 片ページの左で左へ払うと右ページへ横に滑る（逆も）。めくるのは右→次の左", () => {
+    const engine = codeOnly(read("components/shelf3d/engine.ts"));
+    expect(engine).toMatch(/\(one === "left" && dx < 0\) \|\| \(one === "right" && dx > 0\)/);
+    expect(engine).toMatch(/this\.events\.onFocusSide\?\.\(pn\.to\)/);
+    expect(shelf).toMatch(/onFocusSide: \(side\) => setView\(side\)/);
   });
 
   it("R17: 日記を書く・書き直すと鉛筆で書き込む（押せば書き上げて戻る）", () => {

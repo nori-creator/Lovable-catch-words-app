@@ -9,18 +9,21 @@
  */
 import { findKey } from "./ai-provider.server";
 import {
-  azureSsml,
+  azureSpeech,
+  diagnoseGeminiWith,
+  geminiSpeech,
+  ttsPost,
+  type SynthesizedAudio,
+} from "./tts-synth";
+import {
   choiceFor,
   elevenLabsBody,
-  geminiAudioFrom,
-  geminiBody,
   hexToBytes,
   isVoiceLocked,
   minimaxBody,
   providerInfo,
   voiceTag,
   type GeminiDiagnosis,
-  type GeminiVoiceInfo,
   type TtsChoice,
   type TtsVoiceConfig,
 } from "./tts-providers";
@@ -81,20 +84,9 @@ export function providerKeysPresent(id: string): boolean {
   return info.keyEnvs.every((k) => Boolean(process.env[k]));
 }
 
-const TIMEOUT_MS = 6000;
-/** Gemini は文を読み終えてから返すので、Azure などより余裕を持たせる。 */
-const GEMINI_TIMEOUT_MS = 12_000;
+const post = ttsPost;
 
-async function post(url: string, init: RequestInit, timeoutMs = TIMEOUT_MS): Promise<Response> {
-  const res = await fetch(url, { ...init, signal: AbortSignal.timeout(timeoutMs) });
-  if (!res.ok) {
-    const body = await res.text().catch(() => "");
-    throw new Error(`TTS ${res.status} ${body.slice(0, 160)}`);
-  }
-  return res;
-}
-
-export type SynthesizedAudio = { bytes: Uint8Array; mime: string };
+export type { SynthesizedAudio } from "./tts-synth";
 
 /** 一時的な失敗（混雑・圏外・時間切れ）か。 */
 function isTransient(e: unknown): boolean {
@@ -144,18 +136,12 @@ async function synthesizeOnce(
     // 鍵の名前は別名も見る（`findKey("google")`）。値は表に出さない。
     const key = findKey("google");
     if (!key) throw new Error("TTS key missing: GEMINI_API_KEY");
-    const model = choice.model || info.models[0];
-    const res = await post(
-      `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`,
-      {
-        method: "POST",
-        // 鍵は URL ではなく見出しに置く（URL はログに残りやすい）。
-        headers: { "x-goog-api-key": key.value, "Content-Type": "application/json" },
-        body: JSON.stringify(geminiBody(text, choice.voice)),
-      },
-      GEMINI_TIMEOUT_MS,
-    );
-    return geminiAudioFrom(await res.json());
+    return geminiSpeech({
+      key: key.value,
+      model: choice.model || info.models[0],
+      voice: choice.voice,
+      text,
+    });
   }
   const missing = info.keyEnvs.filter((k) => !process.env[k]);
   if (missing.length) throw new Error(`TTS key missing: ${missing.join(", ")}`);
@@ -171,19 +157,14 @@ async function synthesizeMp3Provider(
   const info = providerInfo(choice.provider)!;
 
   if (choice.provider === "azure") {
-    // https://<region>.tts.speech.microsoft.com/cognitiveservices/v1
-    const region = process.env.AZURE_SPEECH_REGION!;
-    const res = await post(`https://${region}.tts.speech.microsoft.com/cognitiveservices/v1`, {
-      method: "POST",
-      headers: {
-        "Ocp-Apim-Subscription-Key": process.env.AZURE_SPEECH_KEY!,
-        "Content-Type": "application/ssml+xml",
-        "X-Microsoft-OutputFormat": "audio-24khz-48kbitrate-mono-mp3",
-        "User-Agent": "catchwords",
-      },
-      body: azureSsml(text, choice.voice, speed),
+    const made = await azureSpeech({
+      key: process.env.AZURE_SPEECH_KEY!,
+      region: process.env.AZURE_SPEECH_REGION!,
+      voice: choice.voice,
+      text,
+      speed,
     });
-    return new Uint8Array(await res.arrayBuffer());
+    return made.bytes;
   }
 
   if (choice.provider === "elevenlabs") {
@@ -236,73 +217,7 @@ async function synthesizeMp3Provider(
 
 // ---- 診断（開発者だけ。鍵の値は返さない・課金しない） -----------------------------
 
-const GEMINI_BASE = "https://generativelanguage.googleapis.com/v1beta";
-
-/** 返事の1件から、画面に出す最小の項目だけ取る（形が違っても落ちない）。 */
-export function readGeminiVoice(raw: unknown): GeminiVoiceInfo | null {
-  const v = raw as Record<string, unknown> | null;
-  if (!v || typeof v !== "object") return null;
-  const str = (k: string[]) => {
-    for (const key of k) if (typeof v[key] === "string" && v[key]) return v[key] as string;
-    return "";
-  };
-  const id = str(["name", "voiceName", "voice_name", "id"]);
-  if (!id) return null;
-  const langs = (v.languageCodes ?? v.language_codes ?? v.languages) as unknown;
-  return {
-    id: id.replace(/^voices\//, ""),
-    name: str(["displayName", "display_name", "title"]) || id.replace(/^voices\//, ""),
-    gender: str(["gender", "genderPresentation"]),
-    accent: str(["accent"]),
-    languages: Array.isArray(langs) ? langs.filter((x): x is string => typeof x === "string") : [],
-  };
-}
-
-/**
- * Gemini の TTS が使えるかを、**課金の無い問い合わせだけ**で確かめる:
- * ① 鍵が在るか（名前だけ）、② 3.8 の2つのモデルが見えるか、③ 拡張の声のライブラリに
- * 台湾（zh-TW）の声が男女それぞれ在るか。実際に鳴らすのは「試しに鳴らす」（少額の課金）。
- */
+/** 診断の中身は `tts-synth.ts`（確認用ページの聞き比べと同じ）。鍵は Lovable の Secrets。 */
 export async function diagnoseGemini(): Promise<GeminiDiagnosis> {
-  const key = findKey("google");
-  const out: GeminiDiagnosis = {
-    keyPresent: key !== null,
-    keyEnv: key?.env ?? null,
-    models: [],
-    voices: { female: [], male: [] },
-    voicesError: null,
-  };
-  if (!key) return out;
-  const headers = { "x-goog-api-key": key.value };
-  const get = (path: string) =>
-    fetch(`${GEMINI_BASE}${path}`, { headers, signal: AbortSignal.timeout(10_000) });
-  const models = providerInfo("gemini")?.models ?? [];
-  out.models = await Promise.all(
-    models.map(async (id) => {
-      try {
-        const r = await get(`/models/${encodeURIComponent(id)}`);
-        return { id, ok: r.ok, status: r.status };
-      } catch {
-        return { id, ok: false, status: 0 };
-      }
-    }),
-  );
-  for (const gender of ["female", "male"] as const) {
-    try {
-      const r = await get(`/voices?language_code=zh-TW&gender=${gender}&page_size=50`);
-      if (!r.ok) {
-        const body = await r.text().catch(() => "");
-        out.voicesError = `HTTP ${r.status} ${body.slice(0, 140).replace(/\s+/g, " ")}`;
-        continue;
-      }
-      const json = (await r.json()) as { voices?: unknown[] };
-      out.voices[gender] = (json.voices ?? [])
-        .map(readGeminiVoice)
-        .filter((x): x is GeminiVoiceInfo => x !== null)
-        .slice(0, 50);
-    } catch (e) {
-      out.voicesError = e instanceof Error ? e.message.slice(0, 140) : "voices request failed";
-    }
-  }
-  return out;
+  return diagnoseGeminiWith(findKey("google"));
 }

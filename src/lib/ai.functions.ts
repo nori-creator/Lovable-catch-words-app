@@ -458,7 +458,7 @@ pos は ${cardProfile.chunkRoles.join(" / ")} を使う。
 
 ${
   want("usage_chunks")
-    ? `- usage_chunks: ネイティブが「${data.headword}」を**実際にいちばん高い頻度で**組み合わせて使う型を3〜5個。各 {parts:[{text,pos,slot,alts}], ja:その型の自然な訳だけ(${NL}。説明・注釈・括弧書きは書かない)}。
+    ? `- usage_chunks: ネイティブが「${data.headword}」を**実際にいちばん高い頻度で**組み合わせて使う型を3〜5個。各 {parts:[{text,pos,slot,ja,alts}], ja:その型の自然な訳だけ(${NL}。説明・注釈・括弧書きは書かない)}。
   ${formulaChunkRule(cardProfile.code)}
   **厳選する。思いつく組み合わせを並べない。** その語で口を開いたときに最初に出る形だけを、頻度の高い順に。
   ${specificChunkRule(data.headword, levelGoal)}
@@ -539,7 +539,7 @@ ${data.hintCategory ? `カテゴリのヒント: ${data.hintCategory}` : ""}`;
       `category_key / new_shelf / example_sentence / example_translation / ` +
       `extras{ ` +
       [
-        want("usage_chunks") && "usage_chunks[{parts:[{text,pos,slot,alts?:[{text,ja}]}],ja}]",
+        want("usage_chunks") && "usage_chunks[{parts:[{text,pos,slot,ja?,alts?:[{text,ja}]}],ja}]",
         "example_chunks[{text,pos}]",
         want("examples_extra") && "examples_extra[{zh,ja,scene,chunks:[{text,pos}]}]",
         "usage_context, frequency_level, register_tag, register_scale, encounter_labels[{kind,label}]",
@@ -950,6 +950,8 @@ function formulaChunkRule(code: string): string {
       : `冠詞・前置詞・語形変化を省かない（✗ argue with boyfriend → ○ argue with + my boyfriend）。`) +
     `\nslot: true のパーツには alts も付ける: ネイティブがそこに**実際によく入れるほかの具体語**を` +
     `頻度の高い順に4〜6個、[{text, ja: その語の意味（解説の言語で、短く）}]。` +
+    `slot: true のパーツ自身にも ja（その語の意味。型の訳 ja の中で**その語に当たる部分と同じ書き方**）を付ける` +
+    `（例: {text:"男朋友", ja:"彼氏"} と 型の訳「彼氏と喧嘩する」）。` +
     `どれを入れても型ぜんぶが自然に言える語だけ（例: 跟＋男朋友＋吵架 → 女朋友・朋友・同事・爸媽・室友）。` +
     `\n型ぜんぶを続けて読んでも、そのまま自然に言える形にする。＋ などの記号はパーツに入れない。`
   );
@@ -1159,7 +1161,7 @@ async function runSectionRegen(
       }),
     },
     usage_chunks: {
-      prompt: `${base}\nネイティブが「${head}」を**実際にいちばん高い頻度で**組み合わせて使う型を4〜5個。**厳選する。思いつく組み合わせを並べない。**\n${formulaChunkRule(regenProfile.code)}\n${specificChunkRule(head, regenLevelGoal)}\n**短くする**: ${regenProfile.chunkPrompt.lengthRule}\nそのまま声に出せる形にする。${regenProfile.chunkPrompt.styleRule}\n${learnerL1}が崩しやすい型を優先する。\n${l1Gram}\n${chunkRule(word.language as string | null)}\nja はその型の自然な訳だけ（説明・注釈・括弧書きは書かない）。\n{"usage_chunks":[{"parts":[{"text":"","pos":"","slot":false,"alts":[{"text":"","ja":""}]}],"ja":"訳"}]}`,
+      prompt: `${base}\nネイティブが「${head}」を**実際にいちばん高い頻度で**組み合わせて使う型を4〜5個。**厳選する。思いつく組み合わせを並べない。**\n${formulaChunkRule(regenProfile.code)}\n${specificChunkRule(head, regenLevelGoal)}\n**短くする**: ${regenProfile.chunkPrompt.lengthRule}\nそのまま声に出せる形にする。${regenProfile.chunkPrompt.styleRule}\n${learnerL1}が崩しやすい型を優先する。\n${l1Gram}\n${chunkRule(word.language as string | null)}\nja はその型の自然な訳だけ（説明・注釈・括弧書きは書かない）。\n{"usage_chunks":[{"parts":[{"text":"","pos":"","slot":false,"ja":"","alts":[{"text":"","ja":""}]}],"ja":"訳"}]}`,
       schema: z.object({
         usage_chunks: z
           .array(

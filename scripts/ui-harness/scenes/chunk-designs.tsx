@@ -21,6 +21,7 @@ const WORD_CHUNKS: Sample[] = [
         text: "男朋友",
         pos: "N",
         slot: true,
+        ja: "彼氏",
         alts: [
           { text: "女朋友", ja: "彼女" },
           { text: "朋友", ja: "友だち" },
@@ -140,7 +141,18 @@ const LUWEI_CHUNKS: Sample[] = [
   },
 ];
 const speech = (c: Sample) => c.parts.map((p) => p.text).join("");
-readySpeech([...WORD_CHUNKS, ...REVIEW_CHUNKS, ...LUWEI_CHUNKS].map(speech));
+/** 入れ替えた形（語だけ・型ぜんぶ）も、本番で先に作っておくのと同じく鳴らせる状態にする。 */
+const swapped = (c: Sample) =>
+  c.parts.flatMap((p, i) =>
+    (p.alts ?? []).flatMap((a) => [
+      a.text,
+      p.text,
+      c.parts.map((q, j) => (j === i ? a.text : q.text)).join(""),
+    ]),
+  );
+readySpeech(
+  [...WORD_CHUNKS, ...REVIEW_CHUNKS, ...LUWEI_CHUNKS].flatMap((c) => [speech(c), ...swapped(c)]),
+);
 
 export function ChunkDesignsScene() {
   return (
@@ -163,7 +175,7 @@ export function ChunkDesignsScene() {
         </div>
       </section>
       <p style={{ margin: 0, fontSize: 12, color: "#6e6e73" }}>
-        点線の四角（▾）を押すと、ネイティブがよく入れる語が縦の輪に並び、回して止めた語で型ぜんぶが鳴ります。学ぶ語（
+        点線の四角（▾）を押すとその語が鳴り、ネイティブがよく入れる語が縦の輪に並びます。回して止めた語、または押した語だけが鳴り、訳もその語に替わります（押すと輪は閉じます）。右端のボタンは入れ替えた型ぜんぶを読みます。学ぶ語（
         {WORD}
         ）は入れ替えません。
       </p>

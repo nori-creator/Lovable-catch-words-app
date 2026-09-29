@@ -391,22 +391,15 @@ const q = new URLSearchParams(location.search);
  * 「これを見てください」と差し出すことになる。
  */
 const REVIEW_SCENES: Array<{ scene: string; label: string }> = [
-  // 2026-09-29 の依頼（R17）で触った面だけ。**毎回ここを入れ替える**
+  // 2026-09-29 の依頼（R20）で触った面だけ。**毎回ここを入れ替える**
   // — 前の依頼の面は残さない（オーナー指示「過去のものは全て削除して」）。
-  // 先頭は最後に頼まれた物（R17: 部屋に置いた大きな本棚。A〜D を下で切り替え）。
+  // 先頭は最後に頼まれた物（R20: 開いた瞬間の本棚・片ページの横移動）。
   {
     scene: "home-shelf",
-    label: "ホーム: 本棚とアルバムが1枚の壁 → 本を押す → 見開き・片ページ・めくり",
+    label: "ホーム: 開いた瞬間の本棚 → 本を押す → 片ページで左右に払う",
   },
-  { scene: "chunk-designs", label: "チャンク: 点線は入れ替えられる物だけ・很・縦の輪" },
-  {
-    scene: "sticker-sheet&variant=pro",
-    label: "単語の詳細（Pro）: 写真の左下の「3D」（生成は本番のみ。ここでは失敗表示）",
-  },
-  {
-    scene: "capture-object&mode=search",
-    label: "撮る画面: 左下の「写真」で端末の写真を分析（検索の横の釦は削除）",
-  },
+  { scene: "tts-voices", label: "台湾の声: Azure と Gemini を聞き比べ・アプリの設定画面" },
+  { scene: "chunk-designs", label: "チャンク: 点線の語を替えると訳・語の発音・全体の発音" },
 ];
 
 const explicitScene = q.get("scene");

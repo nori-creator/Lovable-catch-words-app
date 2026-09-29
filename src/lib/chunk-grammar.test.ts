@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isSwappableSlot, tidyUsageParts } from "./chunk-grammar";
+import { isSwappableSlot, swappedTranslation, tidyUsageParts } from "./chunk-grammar";
 import { chunkSpeechText } from "./extras";
 
 const alts = [{ text: "煮", ja: "煮る" }];
@@ -80,5 +80,47 @@ describe("tidyUsageParts（ネイティブが言う形に）", () => {
         "zh-TW",
       ),
     ).toBe("滷味很入味");
+  });
+});
+
+describe("swappedTranslation（語を入れ替えた型の訳。R20）", () => {
+  const boyfriend = [
+    { text: "跟", pos: "Prep" },
+    {
+      text: "男朋友",
+      pos: "N",
+      slot: true,
+      ja: "彼氏",
+      alts: [
+        { text: "女朋友", ja: "彼女" },
+        { text: "同事", ja: "同僚" },
+      ],
+    },
+    { text: "吵架", pos: "V" },
+  ];
+  it("元の語の意味（ja）を、入れ替えた語の意味に差し替える", () => {
+    expect(swappedTranslation("彼氏と喧嘩する", boyfriend, { 1: 0 })).toBe("彼女と喧嘩する");
+    expect(swappedTranslation("彼氏と喧嘩する", boyfriend, { 1: 1 })).toBe("同僚と喧嘩する");
+  });
+  it("元に戻した（-1）時は元の訳", () => {
+    expect(swappedTranslation("彼氏と喧嘩する", boyfriend, { 1: -1 })).toBe("彼氏と喧嘩する");
+  });
+  it("ja の無い古いカード: 訳に同じ字が出ていればそこを差し替える", () => {
+    const luwei = [
+      { text: "買", pos: "V" },
+      { text: "豆干", pos: "N", slot: true, alts: [{ text: "海帶", ja: "昆布" }] },
+      { text: "滷味", pos: "N" },
+    ];
+    expect(swappedTranslation("豆干の滷味を買う", luwei, { 1: 0 })).toBe("昆布の滷味を買う");
+  });
+  it("訳の中に見つからない時は作り替えず、何を替えたかを添える", () => {
+    const old = [
+      { text: "跟", pos: "Prep" },
+      { text: "男朋友", pos: "N", slot: true, alts: [{ text: "女朋友", ja: "彼女" }] },
+      { text: "吵架", pos: "V" },
+    ];
+    expect(swappedTranslation("彼氏と喧嘩する", old, { 1: 0 })).toBe(
+      "彼氏と喧嘩する（男朋友 → 女朋友: 彼女）",
+    );
   });
 });

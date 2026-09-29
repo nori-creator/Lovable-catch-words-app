@@ -35,6 +35,7 @@ export function TtsVoiceForm({
   onTry,
   onSave,
   onDiagnose,
+  defaultOpen = false,
 }: {
   data: TtsVoiceAdminData | undefined;
   onTry: (
@@ -47,6 +48,8 @@ export function TtsVoiceForm({
     taiwan: TaiwanVoice | null,
   ) => Promise<void>;
   onDiagnose?: () => Promise<GeminiDiagnosis>;
+  /** 最初から開いておく（確認用ページ）。 */
+  defaultOpen?: boolean;
 }) {
   const t = useT();
   type Draft = { provider: string; voice: string; model: string };
@@ -141,7 +144,7 @@ export function TtsVoiceForm({
   }
 
   return (
-    <details className="rounded-2xl border border-border bg-card p-4">
+    <details open={defaultOpen} className="rounded-2xl border border-border bg-card p-4">
       <summary className="cursor-pointer list-none text-body font-semibold [&::-webkit-details-marker]:hidden">
         {t("settings.ttsSwitch")}
       </summary>

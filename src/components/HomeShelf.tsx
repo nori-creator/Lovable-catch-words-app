@@ -22,6 +22,12 @@ import type { DaySpread } from "@/components/shelf3d/textures";
 import type { RoomId } from "@/components/shelf3d/room";
 import type { PencilDiary } from "@/components/diary-pencil/engine";
 import { prewarmShelf } from "@/components/shelf3d/prewarm";
+import {
+  SHELF_PLACEHOLDER,
+  hasShelfSnapshot,
+  readShelfSnapshot,
+  saveShelfSnapshot,
+} from "@/components/shelf3d/snapshot";
 
 // ホームの塊を読んだ瞬間に、3D の塊と棚の 3 ファイルを並べて取りに行く（`prewarm.ts`）。
 prewarmShelf();
@@ -105,6 +111,8 @@ export function HomeShelf({
   const daysOf = useRef(new Map<MonthBook, DaySpread[]>());
   const [ready, setReady] = useState(false);
   const [failed, setFailed] = useState(false);
+  /** 端末に置いた棚の絵（undefined = まだ読んでいる、null = 無い）。 */
+  const [snap, setSnap] = useState<string | null | undefined>(undefined);
   const [busy, setBusy] = useState(false);
   const [full, setFull] = useState(false);
   const fullRef = useRef(false);
@@ -224,6 +232,35 @@ export function HomeShelf({
     ]).catch(() => undefined);
   }, []);
 
+  // 端末に置いた棚の絵を読む（ふつう数十ミリ秒）。
+  useLayoutEffect(() => {
+    let alive = true;
+    // 絵が無い人は同梱の絵をすぐ。ある人は読み終えるまで待つ（遅い端末でも 400ms まで）。
+    const fallback = window.setTimeout(
+      () => alive && setSnap((v) => (v === undefined ? null : v)),
+      hasShelfSnapshot() ? 400 : 0,
+    );
+    void readShelfSnapshot().then((url) => {
+      if (!alive) return;
+      window.clearTimeout(fallback);
+      setSnap((v) => (v === undefined || url ? url : v));
+    });
+    return () => {
+      alive = false;
+      window.clearTimeout(fallback);
+    };
+  }, []);
+
+  // 3D が描けたら、今の棚を撮って端末に置く（次に開いた時に先に出す）。本の数が変わった時も撮り直す。
+  useEffect(() => {
+    if (!ready) return;
+    const id = window.setTimeout(() => {
+      const url = world.current?.snapshot();
+      if (url) void saveShelfSnapshot(url);
+    }, 1200);
+    return () => window.clearTimeout(id);
+  }, [ready, monthSig]);
+
   // ---- 3D の棚を組み立てる（ホームを描いた後の手の空いた時に） -----------------
   useEffect(() => {
     if (!months.length) return;
@@ -259,6 +296,8 @@ export function HomeShelf({
             },
             // 見開きで押した側のページへ寄る。寄っている時に押したら見開きへ戻る。
             onPageTap: (side) => setView(viewRef.current === "spread" ? side : "spread"),
+            // 片ページで払って、同じ見開きの反対のページへ横に移った（R20）。
+            onFocusSide: (side) => setView(side),
             onBookTap: (b, open) => {
               setBusy(true);
               void prepare(b)
@@ -438,15 +477,17 @@ export function HomeShelf({
         >
           <span aria-hidden className="home-shelf__room" />
           <canvas ref={canvasRef} data-home-shelf className="home-shelf__canvas" />
-          {/* 3D が届くまでの仮の棚（同じ色の背）。帯が空いて見えないように。 */}
-          {!ready && (
-            <div className="home-shelf__proxy" aria-hidden="true">
-              <div className="home-shelf__proxy-shelf">
-                {months.map((m) => (
-                  <span key={m.key} style={{ background: m.color }} />
-                ))}
-              </div>
-            </div>
+          {/* **3D より先に出す棚の絵**（R20）。前に開いた時にこの端末で撮った絵、無ければ
+              アプリに同梱の空の棚。3D が描けたら、同じ位置のまま消える（絵と 3D はほぼ同じ）。 */}
+          {snap !== undefined && !state.open && (
+            <img
+              src={snap ?? SHELF_PLACEHOLDER}
+              alt=""
+              aria-hidden
+              draggable={false}
+              className="home-shelf__snap"
+              data-gone={ready || undefined}
+            />
           )}
           {full && !state.open && (
             <div className="home-shelf__top">

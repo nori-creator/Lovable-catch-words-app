@@ -14,7 +14,7 @@ import { normalizeTargetLanguage } from "@/lib/target-lang";
 import { Term } from "@/components/Term";
 import { PronounceButton } from "@/components/PronounceButton";
 import type { ChunkPart } from "@/lib/extras";
-import { isSwappableSlot, tidyUsageParts } from "@/lib/chunk-grammar";
+import { isSwappableSlot, swappedTranslation, tidyUsageParts } from "@/lib/chunk-grammar";
 
 /**
  * 文のパーツ(チャンク)を品詞色分けの札で並べる共通コンポーネント。
@@ -248,12 +248,16 @@ export function ChunkLine({
       .filter(Boolean)
       .join(sep);
   const slot = open != null ? parts[open] : null;
-  const choices = slot ? [{ text: slot.text, ja: "" }, ...(slot.alts ?? [])] : [];
+  const choices = slot ? [{ text: slot.text, ja: slot.ja ?? "" }, ...(slot.alts ?? [])] : [];
   // 開いた列の型ぜんぶを先に作っておく（押した瞬間に鳴る）。
-  usePrefetchSpeech(open != null ? choices.map((c) => phraseWith(open, c.text)) : [], {
-    language: lang ?? undefined,
-    enabled: open != null,
-  });
+  // 選んだ語だけ（輪を止めた時）と、型ぜんぶ（右端）の両方。
+  usePrefetchSpeech(
+    open != null ? choices.flatMap((c) => [c.text, phraseWith(open, c.text)]) : [],
+    {
+      language: lang ?? undefined,
+      enabled: open != null,
+    },
+  );
   const hasPick = Object.keys(pick).length > 0;
   if (!parts.length) return null;
   return (
@@ -264,11 +268,20 @@ export function ChunkLine({
           size="md"
           lang={lang}
           onSpeak={onSpeak ?? ((text) => void pronounce(text))}
-          onSlot={(i) => setOpen((o) => (o === i ? null : i))}
+          onSlot={(i) => {
+            // 点線の札を押す: 輪を開け閉めし、**いま入っている語だけ**を鳴らす（R20）。
+            setOpen((o) => (o === i ? null : i));
+            void pronounce(shown[i]?.text ?? "");
+          }}
           openSlot={open}
           fixedText={headword}
         />
-        {translation && !hasPick ? <p className="chunk-line__translation">{translation}</p> : null}
+        {/* 語を入れ替えても、元の語と同じように訳を出す（入れ替えた語の意味に差し替える。R20）。 */}
+        {translation ? (
+          <p className="chunk-line__translation">
+            {hasPick ? swappedTranslation(translation, parts, pick) : translation}
+          </p>
+        ) : null}
         {slot && open != null && (
           <SlotWheel
             key={open}
@@ -277,9 +290,12 @@ export function ChunkLine({
             choices={choices}
             selected={(pick[open] ?? -1) + 1}
             onPick={(k) => {
+              // 選んだ語**だけ**を鳴らす。型ぜんぶは右端のボタン（R20「それ単体の発音も、
+              // チャンクの右端の全体の発音も聞けるように」）。
               setPick((p) => ({ ...p, [open]: k - 1 }));
-              void pronounce(phraseWith(open, choices[k].text));
+              void pronounce(choices[k].text);
             }}
+            onClose={() => setOpen(null)}
           />
         )}
       </div>
@@ -297,6 +313,7 @@ export function ChunkLine({
           size="sm"
           tone="quiet"
           stopPropagation
+          sticky
           className="chunk-line__speak"
         />
       ) : null}
@@ -319,12 +336,15 @@ function SlotWheel({
   choices,
   selected,
   onPick,
+  onClose,
 }: {
   label: string;
   lang?: string | null;
   choices: Array<{ text: string; ja: string }>;
   selected: number;
   onPick: (k: number) => void;
+  /** 語を押した時に輪を閉じる。 */
+  onClose: () => void;
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const at = useRef(selected);
@@ -366,13 +386,12 @@ function SlotWheel({
             aria-selected={k === at.current}
             className="chunk-wheel__item"
             onClick={() => {
-              const el = ref.current;
-              if (k === at.current || !el) {
-                at.current = k;
-                onPick(k);
-                return;
-              }
-              el.scrollTo({ top: k * WHEEL_ROW, behavior: "smooth" });
+              // 押した語をその場で選び、輪を閉じる（R20「スクロールしてあるものをタップしたら、
+              // スクロールのほかの選択肢は閉じて」）。回して止めた時は開いたまま。
+              window.clearTimeout(timer.current);
+              at.current = k;
+              onPick(k);
+              onClose();
             }}
           >
             <Term lang={lang} className="chunk-wheel__word">
