@@ -393,14 +393,9 @@ const q = new URLSearchParams(location.search);
  * 「これを見てください」と差し出すことになる。
  */
 const REVIEW_SCENES: Array<{ scene: string; label: string }> = [
-  // 2026-09-29 夜の依頼（R22: 止まる・日記・本を閉じる・注音・画像生成の欄）で触った面だけ。
+  // 2026-09-29 夜の依頼（R23: 復習を開いた瞬間に写真の大きさが変わる・3D のクレジット）で触った面だけ。
   // **毎回ここを入れ替える** — 前の依頼の面は残さない（オーナー指示「過去のものは全て削除して」）。
-  {
-    scene: "home-shelf",
-    label: "ホーム: 本を閉じる動き・片ページの日記ボタン・日記の罫線・過去の日まで1枚の壁",
-  },
-  { scene: "candidate-picker", label: "単語の候補: ほかの言い方の注音を見出しと同じ比に" },
-  { scene: "image-settings", label: "開発者の設定: 画像生成に Higgsfield（設定で止まった原因）" },
+  { scene: "review-choice", label: "復習: 開いた瞬間に写真の大きさが変わらない" },
 ];
 
 const explicitScene = q.get("scene");

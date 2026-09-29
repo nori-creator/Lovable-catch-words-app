@@ -3127,6 +3127,11 @@ export const DICT: Record<string, Record<UiLang, string>> = {
     en: "3D isn't set up yet",
     "zh-TW": "3D 功能尚未設定",
   },
+  "object3d.noCredit": {
+    ja: "Tripo のクレジットが足りません。Tripo の管理画面でクレジットを追加してください",
+    en: "Not enough Tripo credits. Add credits in the Tripo dashboard",
+    "zh-TW": "Tripo 點數不足，請到 Tripo 管理頁面加值",
+  },
   "object3d.proOnly": {
     ja: "3DはProの機能です",
     en: "3D is a Pro feature",

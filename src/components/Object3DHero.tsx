@@ -24,7 +24,7 @@ type State =
   | { k: "idle" }
   | { k: "making"; progress: number }
   | { k: "ready"; url: string }
-  | { k: "error"; reason: "unavailable" | "failed" | "pro_only"; detail?: string };
+  | { k: "error"; reason: "unavailable" | "failed" | "pro_only" | "no_credit"; detail?: string };
 
 export function Object3DButton({
   stickerId,
@@ -104,7 +104,9 @@ export function Object3DLayer({
               ? "pro_only"
               : res.status === "unavailable"
                 ? "unavailable"
-                : "failed",
+                : res.status === "no_credit"
+                  ? "no_credit"
+                  : "failed",
           detail: "reason" in res ? res.reason : undefined,
         });
         return;
@@ -166,7 +168,9 @@ export function Object3DLayer({
         ? t("object3d.unavailable")
         : state.reason === "pro_only"
           ? t("object3d.proOnly")
-          : `${t("object3d.failed")}${state.detail ? `（${state.detail}）` : ""}`
+          : state.reason === "no_credit"
+            ? t("object3d.noCredit")
+            : `${t("object3d.failed")}${state.detail ? `（${state.detail}）` : ""}`
       : null;
 
   return (

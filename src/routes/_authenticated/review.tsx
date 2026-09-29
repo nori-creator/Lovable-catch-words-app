@@ -238,7 +238,7 @@ function ReviewPage() {
   // 続いている日数。ヘッダーの記録の面と鍵を揃えてあるので、
   // どちらを先に開いても読み直しは起きない。
   const fetchMyStats = useServerFn(getMyStats);
-  const { data: myStats } = useQuery({
+  const { data: myStats, isPending: myStatsPending } = useQuery({
     queryKey: ["my-stats"],
     queryFn: () => fetchMyStats(),
     staleTime: 60_000,
@@ -249,7 +249,7 @@ function ReviewPage() {
     staleTime: 60_000,
   });
   const fetchMemOverview = useServerFn(getMemoryOverview);
-  const { data: memOverview } = useQuery({
+  const { data: memOverview, isPending: memOverviewPending } = useQuery({
     queryKey: ["memory-overview"],
     queryFn: () => fetchMemOverview(),
     staleTime: 60_000,
@@ -553,8 +553,10 @@ function ReviewPage() {
           mode,
           onMode: setMode,
           reviewStreak: myStats?.review_streak ?? null,
+          streakPending: myStatsPending,
         }}
         memOverview={memOverview}
+        memPending={memOverviewPending}
         memListOpen={memListOpen}
         onToggle={() => {
           if (!memListOpen) refreshMemory();
@@ -641,9 +643,12 @@ export function ReviewSessionHeader({
   compact,
   practiceEnabled = true,
   lockMode = false,
+  memPending = false,
 }: {
   header: React.ComponentProps<typeof ReviewHeader>;
   memOverview?: React.ComponentProps<typeof MemoryOverviewPanel>["overview"];
+  /** 記憶の帯を読み込み中（同じ高さの空の帯で場所を取っておく）。 */
+  memPending?: boolean;
   memListOpen: boolean;
   onToggle: () => void;
   onOpenWord: (word: MemoryWord) => void;
@@ -662,6 +667,14 @@ export function ReviewSessionHeader({
             バーをタップすると単語ごとの状態リストが開く(下部の別ブロックは廃止)。
             帯自体は28pxしかないので、見た目は変えずに before で指の当たり判定
             だけを上下に広げ、44pxの下限を満たす。 */}
+      {/* **読み込み中も帯の場所を取っておく**（オーナー報告 2026-09-29「復習のページを開いた
+          瞬間、画像の大きさが変化するバグ」）。下の写真は残りの高さをもらう作りなので、帯が
+          後から現れると、その分だけ写真が縮んで見えていた。同じ部品の空の帯を先に置く。 */}
+      {memPending && !memOverview && (
+        <div aria-hidden className="pointer-events-none opacity-60">
+          <MemoryLevelSummary words={[]} expanded={false} />
+        </div>
+      )}
       {memOverview && memOverview.words.length > 0 && (
         <>
           <button
@@ -2641,6 +2654,7 @@ export function ReviewHeader({
   mode,
   onMode,
   reviewStreak,
+  streakPending = false,
 }: {
   /** 何問終わったか。まだ取得できていなければ null(件数を出さない)。 */
   answered: number | null;
@@ -2656,6 +2670,8 @@ export function ReviewHeader({
    * 言い方で、読む人に何も足さない。
    */
   reviewStreak?: number | null;
+  /** 続いた日数を読み込み中（行の高さを取っておく — 後から現れると下の写真が縮む）。 */
+  streakPending?: boolean;
 }) {
   const t = useT();
   /**
@@ -2668,6 +2684,9 @@ export function ReviewHeader({
    * 右上の小さなボタン、押したときだけ開く。
    */
   const [modeOpen, setModeOpen] = useState(false);
+  // 一度でも「読み込み中」で場所を取ったら、0日と分かっても畳まない（畳むと写真が伸び縮みする）。
+  const streakReserved = useRef(false);
+  if (streakPending) streakReserved.current = true;
   const current = MODE_TABS.find((m) => m.id === mode);
   return (
     <>
@@ -2678,10 +2697,16 @@ export function ReviewHeader({
           </h1>
           {/* 続いていることは、今日ここを開いた理由そのもの。
               数字は `review_history` を数えたもので、1日の上限と同じ出所。 */}
-          {typeof reviewStreak === "number" && reviewStreak > 0 && (
+          {typeof reviewStreak === "number" && reviewStreak > 0 ? (
             <p className="mt-0.5 text-footnote text-muted-foreground">
               {t("rv.streakLine", { n: formatCount(reviewStreak) })}
             </p>
+          ) : (
+            streakReserved.current && (
+              <p aria-hidden className="mt-0.5 text-footnote text-transparent">
+                &nbsp;
+              </p>
+            )
           )}
         </div>
         <div className="flex shrink-0 items-center gap-2 self-center">

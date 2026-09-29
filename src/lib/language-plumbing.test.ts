@@ -5008,9 +5008,9 @@ describe("ホームは今日の誌面", () => {
     );
     // 2026-09-24「過去のものが多すぎで画面で確認できないから、過去のものは全て
     // 削除して」: 帯には**今回の依頼の面だけ**。
-    // 2026-09-29 夜の回（R22）: 本棚・候補・画像生成の欄。
-    expect(list.slice(0, list.indexOf("},"))).toMatch(/scene: "home-shelf"/);
-    expect(list).toMatch(/scene: "candidate-picker"/);
+    // 2026-09-29 夜の回（R23）: 復習の写真の大きさ。
+    expect(list.slice(0, list.indexOf("},"))).toMatch(/scene: "review-choice"/);
+    expect(list).not.toMatch(/scene: "candidate-picker"/);
     expect(list).not.toMatch(/scene: "install-app"/);
     expect(list).not.toMatch(/scene: "tts-voices"/);
     expect(list).not.toMatch(/scene: "capture-object&mode=search"/);
@@ -6403,5 +6403,24 @@ describe("R22（2026-09-29 オーナー報告: 設定で止まる・演出・3D�
     expect(css.match(/^\.home-shelf__stage\[data-full\] \{/gm)?.length).toBe(1);
     expect(css).not.toMatch(/\.home-shelf__proxy/);
     expect(css).not.toMatch(/^\.home-shelf__canvas \{\s*mask-image/m);
+  });
+});
+
+describe("R23（2026-09-29: 復習の写真が開いた瞬間に伸び縮み・3D のクレジット）", () => {
+  it("記憶の帯と続いた日数は、読み込み中も場所を取っておく（写真は残りの高さをもらうため）", () => {
+    const review = codeOnly(read("routes/_authenticated/review.tsx"));
+    expect(review).toMatch(/memPending && !memOverview && \(/);
+    expect(review).toMatch(/<MemoryLevelSummary words=\{\[\]\} expanded=\{false\} \/>/);
+    expect(review).toMatch(/if \(streakPending\) streakReserved\.current = true;/);
+  });
+
+  it("Tripo へは1件だけ頼み、足りなければ色なしで作り直し、それでも足りなければそう伝える", () => {
+    const fns = codeOnly(read("lib/object3d.functions.ts"));
+    expect(fns).not.toMatch(/Promise\.all\(\[task\("preview"\), task\("final"\)\]\)/);
+    expect(fns).toMatch(/let made = await task\("final"\);/);
+    expect(fns).toMatch(/made\.code === TRIPO_NO_CREDIT\) made = await task\("preview"\)/);
+    expect(fns).toMatch(/status: "no_credit" as const/);
+    const hero = codeOnly(read("components/Object3DHero.tsx"));
+    expect(hero).toMatch(/t\("object3d\.noCredit"\)/);
   });
 });
