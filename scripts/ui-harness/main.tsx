@@ -395,6 +395,7 @@ const q = new URLSearchParams(location.search);
 const REVIEW_SCENES: Array<{ scene: string; label: string }> = [
   // 2026-09-29 の依頼（スマホにアプリとして入れる）で触った面だけ。**毎回ここを入れ替える**
   // — 前の依頼の面は残さない（オーナー指示「過去のものは全て削除して」）。
+  { scene: "home-shelf", label: "ホーム: 本棚・今日・過去の日まで1枚の壁（下へスクロール）" },
   { scene: "install-app", label: "スマホにアプリとして入れる案内（iPhone・Android・LINE の中）" },
 ];
 
