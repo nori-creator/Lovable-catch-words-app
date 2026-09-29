@@ -9419,30 +9419,26 @@ html[data-motion="reduce"] .dex-cf__spark {
   /* **手前で大きく**（R15）。真ん中の札は奥へ下げない（z = 0）。高さは下のバーに
      被らない範囲で: 上の操作 9rem＋札の上 1rem＋札＋映り込み（札の 0.18）＋点と写真の列
      約 6.25rem＋下のバー 5.75rem＋端末の下の余白 を引いた残り。 */
-  /* R17「下の小さい画像が下のアイコンバーと被ってるから、全体的に少しうえに移動して。
-     うえの余白が大きいからスライドの画像自体も少し大きくして」: 札の上の余白を 1rem→0.5rem、
-     引く量を 22rem→17rem（上の操作の実寸 4.25rem＋点と写真の列＋下のバー 5.75rem）にして札を大きく。
-     390×844 で 281px→312px。写真の列の下端と下のバーの間は 60px 空く（`dex-cards` で実測）。 */
   --cf-w: min(
-    80vw,
-    340px,
-    max(8rem, calc((100dvh - 17rem - env(safe-area-inset-bottom, 0px)) / (1.48 * 1.18)))
+    72vw,
+    310px,
+    max(8rem, calc((100dvh - 22rem - env(safe-area-inset-bottom, 0px)) / (1.48 * 1.18)))
   );
   perspective: 1000px;
   perspective-origin: 50% 45%;
-  height: calc(0.5rem + var(--cf-w) * 1.48 * 1.18);
+  height: calc(1rem + var(--cf-w) * 1.48 * 1.18);
 }
 .dex-cf[data-theme="gallery"] .dex-cf__stage::before {
   display: none;
 }
 .dex-cf[data-theme="gallery"] .dex-cf__slot {
-  top: 0.5rem;
+  top: 1rem;
 }
 .dex-cf__glow {
   /* 真ん中の札の足もとに落ちる白い光（台の代わり。形の無い光だけ）。 */
   position: absolute;
   left: 50%;
-  top: calc(0.5rem + var(--cf-w) * 1.48 - var(--cf-w) * 0.12);
+  top: calc(1rem + var(--cf-w) * 1.48 - var(--cf-w) * 0.12);
   width: calc(var(--cf-w) * 2.2);
   height: calc(var(--cf-w) * 0.5);
   translate: -50% 0;
