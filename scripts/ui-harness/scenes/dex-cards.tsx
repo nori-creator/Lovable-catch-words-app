@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 /**
  * 図鑑のカード表示（カバーフロー）。（オーナー指示 2026-09-22）
  *
@@ -27,6 +27,19 @@ export function DexCardsScene({ q }: { q: URLSearchParams }) {
     })),
   );
   const at = Number(q.get("at") ?? 0);
+  /**
+   * `?swap=1` … 開いて少し後に、**奥の方にあった2枚だけ**に絞り込む（R24「カテゴリーを
+   * 動物にしたら、カードが最初映らなく、時間差で映る」の再現）。絞り込みで同じ札の
+   * 要素が使い回されるので、画面外で隠していた札が隠れたまま残らないかを見る。
+   */
+  const [shown, setShown] = useState(items);
+  const swap = q.get("swap") === "1";
+  useEffect(() => {
+    if (!swap) return;
+    const id = window.setTimeout(() => setShown(items.slice(-2)), 400);
+    return () => window.clearTimeout(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [swap]);
   const [theme] = useState<Theme>(THEMES.find((o) => o.key === q.get("theme"))?.key ?? "gallery");
   // 雛形の外枠がもう左右 1rem を空けている（本番の図鑑と同じ）。ここでさらに空けると、
   // カードの輪が左右で切れて見える。
@@ -50,7 +63,7 @@ export function DexCardsScene({ q }: { q: URLSearchParams }) {
       {/* R15: カードは白・背景は淡い青・台なし・手前で大きく・輪になって回る（参考: パック選びの
           動画）。色の案は白に決まったので選ぶ欄は置かない。ほかの背景は `?theme=stage` などで。 */}
       <DexCoverFlow
-        stickers={items}
+        stickers={shown}
         onOpen={() => {}}
         memory={memory}
         initialIndex={at}

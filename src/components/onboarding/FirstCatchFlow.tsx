@@ -307,6 +307,7 @@ export function FirstCatchFlow({
   if (draft.stage === "ready")
     return (
       <FirstCatchReady
+        draft={draft}
         busy={!!busy}
         onBack={() => move("notifications")}
         onStart={() => move("home")}

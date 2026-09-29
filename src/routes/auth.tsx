@@ -1,4 +1,6 @@
-import { FIRST_CATCH_PHOTOS } from "@/components/onboarding/FirstCatchPages";
+import { FirstCatchPhotoStack } from "@/components/onboarding/FirstCatchPages";
+import { sampleStickers } from "@/components/onboarding/FirstCatchHome";
+import { useTargetLang } from "@/lib/target-lang-pref";
 import { LearningPreferencesSchema } from "@/lib/learning-preferences";
 import { readFirstCatch, canRequestAccount, type FirstCatch } from "@/lib/first-catch";
 import "@/components/onboarding/first-catch.css";
@@ -233,6 +235,9 @@ export function AuthView({
   confirmed?: boolean;
 }) {
   const t = useT();
+  const target = useTargetLang();
+  const lang = draft?.targetLanguage ?? target;
+  const labels = sampleStickers(draft, t, target).map((sample) => sample.word.headword);
   /** メールの欄は**押すまで出さない**（見本の絵と同じ。既定は2つのボタン）。 */
   const [showEmail, setShowEmail] = useState(false);
   return (
@@ -242,17 +247,8 @@ export function AuthView({
           <img src="/icon-192.png" alt="" />
           <strong>CatchWords</strong>
         </div>
-        <div className="first-auth-photos" aria-hidden="true">
-          {FIRST_CATCH_PHOTOS.map(({ src }, i) => (
-            <img
-              key={src}
-              src={src}
-              alt=""
-              loading="eager"
-              className={`first-auth-photo first-auth-photo-${i}`}
-            />
-          ))}
-        </div>
+        {/* 最初の画面と同じ写真の束（ホームのアルバムと同じ紙）。 */}
+        <FirstCatchPhotoStack labels={labels} lang={lang} className="first-auth-photos" />
         <div className="first-auth-content">
           <h1 id="first-account-title">{draft ? t("first.account") : t("auth.signin")}</h1>
           {confirmed && (

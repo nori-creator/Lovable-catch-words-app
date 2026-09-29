@@ -4967,7 +4967,8 @@ describe("ホームは今日の誌面", () => {
     const auth = codeOnly(read("routes/auth.tsx"));
     const home = codeOnly(read("components/onboarding/FirstCatchHome.tsx"));
     const pages = codeOnly(read("components/onboarding/FirstCatchPages.tsx"));
-    expect(auth).toMatch(/FIRST_CATCH_PHOTOS\.map/);
+    expect(auth).toMatch(/<FirstCatchPhotoStack /);
+    expect(pages).toMatch(/FIRST_CATCH_PHOTOS\.map/);
     expect(auth).toMatch(/className="first-run first-auth"/);
     expect(auth).not.toMatch(/aria-modal="true"/);
     for (const photo of ["cafe", "flower", "cat", "ready"]) {
@@ -6422,5 +6423,41 @@ describe("R23（2026-09-29: 復習の写真が開いた瞬間に伸び縮み・3
     expect(fns).toMatch(/status: "no_credit" as const/);
     const hero = codeOnly(read("components/Object3DHero.tsx"));
     expect(hero).toMatch(/t\("object3d\.noCredit"\)/);
+  });
+});
+
+describe("R24（2026-09-29: ホームが送れない・初回の写真が潰れる・図鑑の絞り込みで札が消える）", () => {
+  it("ホームの写真は普段は縦に送れ、長押しで掴んだ間だけ送りを止める", () => {
+    const home = codeOnly(read("routes/_authenticated/home.tsx"));
+    expect(home).not.toMatch(/photo-lift group absolute block touch-none/);
+    expect(home).toMatch(/editing \? "touch-none" : "touch-pan-y"/);
+    expect(home).toMatch(/if \(grip\.current && e\.cancelable\) e\.preventDefault\(\);/);
+    expect(home).toMatch(/addEventListener\("touchmove", hold, \{ passive: false \}\)/);
+  });
+
+  it("初回の画面の写真はホームのアルバムと同じ1枚（AlbumPrint）を、写真の比のまま使う", () => {
+    const print = codeOnly(read("components/AlbumPrint.tsx"));
+    expect(print).toMatch(/className="collage__photo"/);
+    expect(print).toMatch(/className="collage__margin"/);
+    expect(print).toMatch(/<CollageFasteners id=\{id\} wall="paper" \/>/);
+    const home = codeOnly(read("routes/_authenticated/home.tsx"));
+    expect(home).toMatch(/import \{ CollageFasteners \} from "@\/components\/AlbumPrint"/);
+    expect(home).not.toMatch(/function CollageFasteners/);
+    const pages = codeOnly(read("components/onboarding/FirstCatchPages.tsx"));
+    expect(pages).toMatch(/src: "\/first-catch-cafe\.webp", word: "coffee", ratio: 1\.5/);
+    expect(pages).toMatch(/<AlbumPrint/);
+    const questions = codeOnly(read("components/onboarding/FirstCatchQuestions.tsx"));
+    expect(questions).toMatch(/<AlbumPrint/);
+    expect(questions).not.toMatch(/backgroundPosition/);
+    const css = read("components/onboarding/first-catch.css");
+    // 3×3 の1枚絵を横長の枠に当てると縦に潰れる。
+    expect(css).not.toMatch(/first-catch-interests\.webp/);
+  });
+
+  it("図鑑のカードは絞り込みで使い回された札の「隠した印」を外してから描く", () => {
+    const cf = codeOnly(read("components/DexCoverFlow.tsx"));
+    expect(cf).toMatch(
+      /cardRefs\.current\.forEach\(\(el\) => \{\s*if \(el\) el\.style\.visibility = "";\s*\}\);\s*hidden\.current = \[\];/,
+    );
   });
 });

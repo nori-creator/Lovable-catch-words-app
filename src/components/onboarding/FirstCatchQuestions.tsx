@@ -14,6 +14,7 @@ import { UI_LANGS, UI_LANG_LABEL_KEYS, TARGET_LANG_LABEL_KEYS, useT } from "@/li
 import { TARGET_LANGUAGES } from "@/lib/target-lang";
 import { FIRST_CATCH_GOALS, FIRST_CATCH_INTERESTS, type FirstCatch } from "@/lib/first-catch";
 import type { ReactNode } from "react";
+import { AlbumPrint } from "@/components/AlbumPrint";
 
 const GLYPHS = {
   ja: "🇯🇵",
@@ -177,7 +178,7 @@ export function FirstCatchQuestions({
         )}
         {step === 4 && (
           <div className="first-interest-grid" role="group" aria-label={t("first.interests")}>
-            {FIRST_CATCH_INTERESTS.map((value, i) => (
+            {FIRST_CATCH_INTERESTS.map((value) => (
               <button
                 key={value}
                 type="button"
@@ -186,12 +187,17 @@ export function FirstCatchQuestions({
                 disabled={busy}
                 onClick={() => toggle("interests", value)}
               >
-                <span
-                  className="first-interest-photo"
-                  aria-hidden="true"
-                  style={{ backgroundPosition: `${(i % 3) * 50}% ${Math.floor(i / 3) * 50}%` }}
+                {/* ホームのアルバムと同じ1枚（紙・留め具・下の余白に名前）。
+                    前は3×3の1枚絵を横長の枠（1.1:1）へ `background-size: 300%`
+                    で当てていたので、縦横の倍率が揃わず**写真が縦に潰れていた**。
+                    今は1枚ずつの正方形の写真を、正方形の枠のまま貼る。 */}
+                <AlbumPrint
+                  id={`first-interest-${value}`}
+                  src={`/first-catch-interest-${value}.webp`}
+                  ratio={1}
+                  word={t(`first.interest.${value}`)}
+                  plainWord
                 />
-                <span className="first-interest-label">{t(`first.interest.${value}`)}</span>
                 <span className="first-check" aria-hidden="true">
                   {draft.interests?.includes(value) && <Check size={13} strokeWidth={3} />}
                 </span>

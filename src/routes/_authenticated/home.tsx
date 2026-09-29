@@ -1,6 +1,6 @@
 import { MemorialReveal } from "@/components/MemorialReveal";
 import { JIGGLE, jiggleStyle, LIFTED } from "@/lib/album-drag";
-import { decorFor } from "@/lib/collage-decor";
+import { CollageFasteners } from "@/components/AlbumPrint";
 import {
   applyDelta,
   boardHeight,
@@ -1011,43 +1011,6 @@ const CAP_NOTE_PX = 56;
 const PLAIN_WORD_PX = 32;
 const MIN_TAP_PX = 44;
 
-/** 写真を壁に留める物（`lib/collage-decor.ts`）。 */
-function CollageFasteners({ id, wall }: { id: string; wall: WallId }) {
-  const d = decorFor(id, wall);
-  if (d.kind === "none") return null;
-  if (d.kind === "pin") {
-    // コルクの壁は**画鋲**。頭の色は4色、位置は上の辺の真ん中あたり。
-    return (
-      <span
-        aria-hidden="true"
-        className={`collage-pin collage-pin--${d.color}`}
-        style={{ left: `${d.x}%` }}
-      />
-    );
-  }
-  if (d.kind === "corners") {
-    return (
-      <>
-        {(["tl", "tr", "bl", "br"] as const).map((c) => (
-          <span key={c} aria-hidden="true" className={`collage-corner collage-corner--${c}`} />
-        ))}
-      </>
-    );
-  }
-  return (
-    <>
-      {d.tapes.map((tp) => (
-        <span
-          key={tp.spot}
-          aria-hidden="true"
-          className={`collage-tape collage-tape--${tp.spot} collage-tape--${tp.color}`}
-          style={{ rotate: `${tp.rot}deg` }}
-        />
-      ))}
-    </>
-  );
-}
-
 export function DayCollage({
   stickers: allStickers,
   onOpen,
@@ -1645,6 +1608,24 @@ export function DayCollage({
     // 入れる必要がない（入れると指を動かすたびに張り直しになる）。
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [live, board, boardH]);
+  /**
+   * **長押しで掴んだ札を動かす間だけ、画面の送りを止める。**
+   *
+   * 札は普段 `touch-pan-y`（縦に送れる）。指を止めて長押しが成立した後に
+   * 動かすと、そのままでは画面の送りが始まり `pointercancel` で札が手から
+   * 落ちる。掴んでいる間（`grip`）だけ最初の `touchmove` を止めれば、送りは
+   * 始まらず、指はそのまま札を運べる。止め具は台紙にだけ張る（窓に張ると、
+   * 画面のどこを送るときも毎回ここを待つことになる）。
+   */
+  useEffect(() => {
+    const el = boardRef.current;
+    if (!el) return;
+    const hold = (e: TouchEvent) => {
+      if (grip.current && e.cancelable) e.preventDefault();
+    };
+    el.addEventListener("touchmove", hold, { passive: false });
+    return () => el.removeEventListener("touchmove", hold);
+  }, []);
 
   return (
     // **壁に貼った誌面**（オーナー指示 2026-09-22「ホーム画面、やっぱり背景、
@@ -1839,7 +1820,18 @@ export function DayCollage({
                    * （`captionAlign`）。
                    */
                   data-cap={captionAlign(place.x, px.w, board.w)}
-                  className={`photo-lift group absolute block touch-none text-left ${
+                  /**
+                   * **普段は縦に送れる（`touch-pan-y`）。**（オーナー報告 2026-09-29
+                   * 「ホーム画面スクロールするとスクロールできなくなる」）
+                   *
+                   * 前は札に常に `touch-none` を付けていた。誌面の大半は写真なので、
+                   * **指が写真の上に降りた時だけ画面が送れず**、止まったように見えた。
+                   * 長押しで掴んだ後の動きは、下の `touchmove` の止め具が受け持つ。
+                   * 編集中は札も台紙も `touch-none`（掴む・広げる・回すに専念）。
+                   */
+                  className={`photo-lift group absolute block ${
+                    editing ? "touch-none" : "touch-pan-y"
+                  } text-left ${
                     editing ? "album-editing cursor-grab active:cursor-grabbing" : ""
                   } ${live?.id === s.id ? "album-lifted" : ""}`}
                   style={

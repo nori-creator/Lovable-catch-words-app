@@ -6903,6 +6903,26 @@ html[data-motion="reduce"] .tabbar__lens--gone {
 .collage__margin > .collage__margin-time {
   color: oklch(0.55 0.02 60);
 }
+/* **ホームの札と同じ1枚を、アルバムの外に単独で置く**（`AlbumPrint`。初回の画面・
+   ログイン画面・興味の質問）。箱は写真の比のまま（`--print-ratio` = 高さ÷幅）で、
+   語を書く下の白い余白はホームと同じく `--pol-strip` ぶん下へはみ出す。 */
+.album-print {
+  --pol-strip: 34px;
+  position: relative;
+  display: block;
+  aspect-ratio: 1 / var(--print-ratio, 1);
+  /* 中身（下へはみ出す紙）の高さで箱が伸びないように。伸びると比が崩れ、
+     下の余白と一言が紙から離れる。 */
+  min-height: 0;
+}
+.album-print__cap {
+  text-align: center;
+}
+/* 小さい1枚（興味の質問の9枚）でも「ファッション」が「…」で切れないよう、
+   字の下限だけ一段下げる。ホームの札（`[data-album-sticker]`）は変えない。 */
+.album-print .collage__margin-word {
+  font-size: clamp(0.75rem, 13cqi, 1.1875rem);
+}
 
 /* ── 留め具 ───────────────────────────────────────────────────────
    どれで留めるかは `lib/collage-decor.ts`（`id` から決まる）。 */
