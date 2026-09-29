@@ -393,9 +393,14 @@ const q = new URLSearchParams(location.search);
  * 「これを見てください」と差し出すことになる。
  */
 const REVIEW_SCENES: Array<{ scene: string; label: string }> = [
-  // 2026-09-29 夜の依頼（R23: 復習を開いた瞬間に写真の大きさが変わる・3D のクレジット）で触った面だけ。
+  // 2026-09-29 夜の依頼（R24: 初回の写真の縦潰れ・チュートリアルを本物の画面に・図鑑の絞り込み）で触った面だけ。
   // **毎回ここを入れ替える** — 前の依頼の面は残さない（オーナー指示「過去のものは全て削除して」）。
-  { scene: "review-choice", label: "復習: 開いた瞬間に写真の大きさが変わらない" },
+  { scene: "first-catch&step=intro", label: "最初の画面: 写真をアルバムと同じ紙に" },
+  { scene: "first-catch&step=questions&question=4", label: "興味の質問: 写真の縦潰れ" },
+  { scene: "first-catch&step=ready", label: "準備ができました: 写真" },
+  { scene: "first-catch&step=account", label: "ログイン: 写真" },
+  { scene: "first-catch&step=home", label: "チュートリアルのホーム＝本物のホーム" },
+  { scene: "dex-cards&swap=1&n=12", label: "図鑑: 絞り込んだ直後もカードが出る" },
 ];
 
 const explicitScene = q.get("scene");

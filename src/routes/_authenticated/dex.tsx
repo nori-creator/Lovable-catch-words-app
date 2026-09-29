@@ -78,6 +78,12 @@ import { motionReducedNow } from "@/hooks/use-reduced-motion";
  */
 const SLAM_IMPACT_MS = 520;
 
+/**
+ * 捕まえた直後に図鑑をどの見せ方で開くか。**本物の撮影とチュートリアルが同じ値を使う**
+ * （チュートリアルが自分で決めると、図鑑の既定を変えたときに食い違う）。
+ */
+export const JUST_CAUGHT_VIEW: ViewMode = DEX_SHELF_ENABLED ? "shelf" : "gallery";
+
 export const Route = createFileRoute("/_authenticated/dex")({
   validateSearch: (search: Record<string, unknown>): { justCaught?: string } => {
     // キャッチ演出v2: /dex?justCaught=<stickerId> で該当セルがバンと着弾する
@@ -181,7 +187,7 @@ function DexPage() {
   // 押したのに戻される画面は、壊れているのと区別がつかない。
   useEffect(() => {
     if (!justCaught) return;
-    setView(DEX_SHELF_ENABLED ? "shelf" : "gallery");
+    setView(JUST_CAUGHT_VIEW);
     setSearch("");
     if (!captured.some((item) => item.id === justCaught)) return;
     if (landingStartedRef.current === justCaught) return;

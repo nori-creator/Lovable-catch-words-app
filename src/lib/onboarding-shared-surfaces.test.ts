@@ -59,4 +59,39 @@ describe("first-catch rendering boundary", () => {
     expect(css).not.toMatch(/\.first-[\w-]+[^{}]*\.(?:dex-cf__\w+|collage|quiz-photo)[^{}]*\{/);
     expect(css).not.toMatch(/\[data-tour=[^\]]+\][^{]*\{[^}]*max-height/);
   });
+  /**
+   * **画面まるごと本物を使う**（オーナー指示 2026-09-29「チュートリアル勝手にアプリを
+   * 再現するのではなく、アプリそのものを使って」「アプリ本体をアップデートしたら
+   * 自動的に変化するように」）。部品だけ借りて並べ直すと、本物の画面に足した物
+   * （ホームの本棚など）がチュートリアルに届かない。
+   */
+  it("the tour renders whole production screens, not re-assembled parts", () => {
+    const home = components("components/onboarding/FirstCatchHome.tsx");
+    expect(components("routes/_authenticated/home.tsx")).toContain("HomeSurface");
+    expect(home).toContain("HomeSurface");
+    for (const part of ["DayCollage", "DiaryDate", "HomeShelf", "PastDays", "DexAlbumGrid"])
+      expect(home).not.toContain(part);
+    const flow = components("components/onboarding/FirstCatchFlow.tsx");
+    expect(components("routes/_authenticated/capture.tsx")).toContain("CaptureAnalyzingPanel");
+    expect(flow).toContain("CaptureAnalyzingPanel");
+    expect(flow).not.toContain("ScanEffect");
+    expect(source("components/onboarding/FirstCatchFlow.tsx")).toMatch(/view=\{JUST_CAUGHT_VIEW\}/);
+    // 案内の印は本物の部品の上に在る。チュートリアルが包み直すと並び方が変わる。
+    expect(source("routes/_authenticated/review.tsx")).toMatch(/data-tour="review-question"/);
+    expect(source("components/onboarding/FirstCatchPractice.tsx")).not.toMatch(
+      /<div data-tour="review-question"/,
+    );
+  });
+  it("first-run screens take the app's colour tokens, never their own", () => {
+    const css = source("components/onboarding/first-catch.css");
+    // 紙吹雪（飾りの多色）だけは固定色。それ以外に色を直書きすると、アプリの配色を
+    // 変えても質問やログインの画面だけ取り残される。
+    const outside = css.replace(/\.first-confetti[^{]*\{[^}]*\}/g, "");
+    expect(outside).not.toMatch(/#[0-9a-fA-F]{3,8}\b/);
+    expect(outside).not.toMatch(/:\s*(white|black)\s*;/);
+    // アプリの色の名前を、ここで別の色に定義し直さない。
+    expect(css).not.toMatch(
+      /^\s*--(card|foreground|border|muted-foreground|primary|primary-ink|background):/m,
+    );
+  });
 });

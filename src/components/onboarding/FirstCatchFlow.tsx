@@ -2,11 +2,10 @@ import { categoryOptions, dayOptions, NO_FILTER } from "@/lib/dex-filter";
 import { FirstCatchDex, FirstCatchReview } from "./FirstCatchPractice";
 import { preloadFirstCatchImages } from "@/lib/first-catch-images";
 import { CatchLandingOverlay, runCatchLanding } from "@/components/CatchLanding";
-import { ScanEffect } from "@/components/ScanEffect";
 import { usePronounce } from "@/lib/use-pronounce";
 import { useTargetLang } from "@/lib/target-lang-pref";
 import { useEffect, useRef, useState } from "react";
-import { ArrowRight, Loader2 } from "lucide-react";
+import { ArrowRight } from "lucide-react";
 import { useServerFn } from "@tanstack/react-start";
 import { useNavigate } from "@tanstack/react-router";
 import { supabase } from "@/integrations/supabase/client";
@@ -28,11 +27,12 @@ import {
   type FirstCatch,
 } from "@/lib/first-catch";
 import {
+  CaptureAnalyzingPanel,
   CaptureObjectPanel,
   CaptureCardPanel,
   PickWordPanel,
 } from "@/routes/_authenticated/capture";
-import { DexSurface } from "@/routes/_authenticated/dex";
+import { DexSurface, JUST_CAUGHT_VIEW } from "@/routes/_authenticated/dex";
 
 import { StickerSheet } from "@/components/StickerSheet";
 import { FirstCatchHome, FirstCatchShell } from "./FirstCatchHome";
@@ -139,8 +139,14 @@ export function FirstCatchFlow({
     await persist(next);
     if (mounted.current) setDraft(next);
   }
+  /**
+   * いま走っている処理の番号。分析中の面の「キャンセル」で番号を進めると、遅れて
+   * 返ってきた古い結果・失敗・後片付けは、もう画面に触らない。
+   */
+  const run = useRef(0);
   async function action(fn: () => Promise<void>, kind: "photo" | "card" | "save" = "save") {
     if (lock.current) return;
+    const mine = ++run.current;
     lock.current = true;
     setError(null);
     setBusy(kind);
@@ -150,7 +156,7 @@ export function FirstCatchFlow({
     try {
       await fn();
     } catch (e) {
-      if (mounted.current)
+      if (mounted.current && mine === run.current)
         setError(
           t(
             e instanceof Error && e.message === "FIRST_CATCH_PREVIEW_UNAVAILABLE"
@@ -165,15 +171,29 @@ export function FirstCatchFlow({
           ),
         );
     } finally {
-      lock.current = false;
-      if (mounted.current) setBusy(null);
+      if (mine === run.current) {
+        lock.current = false;
+        if (mounted.current) setBusy(null);
+      }
     }
+  }
+  /** 分析中の面の「キャンセル」（本物の撮影画面と同じ出口）。撮る所へ戻る。 */
+  function cancelAnalysis() {
+    const current = draftRef.current;
+    run.current++;
+    lock.current = false;
+    setBusy(null);
+    setSuggestions([]);
+    if (current)
+      void action(() =>
+        commit({ ...current, stage: "camera", photo: null, capturedAt: null, card: null }),
+      );
   }
   function move(stage: FirstCatch["stage"]) {
     if (!draft) return;
     void action(() => commit({ ...draft, stage }));
   }
-  async function analyze(next: FirstCatch) {
+  async function analyze(next: FirstCatch, mine = run.current) {
     await services.prepare(next);
     let timer: ReturnType<typeof setTimeout> | undefined;
     const result = await Promise.race([
@@ -183,7 +203,7 @@ export function FirstCatchFlow({
       }),
     ]).finally(() => clearTimeout(timer));
     if (!result.suggestions.length) throw new Error("No candidates");
-    if (mounted.current) setSuggestions(result.suggestions);
+    if (mounted.current && mine === run.current) setSuggestions(result.suggestions);
   }
   function photo(file: File) {
     if (!draft) return;
@@ -315,19 +335,14 @@ export function FirstCatchFlow({
     );
   if (busy && busy !== "save")
     return (
-      <FirstCatchShell tab={busy === "photo" ? 2 : 1} camera={busy === "photo"}>
-        {busy === "photo" && draft.photo ? (
-          <div className="first-analysis-screen">
-            <img src={draft.photo} alt="" />
-            <ScanEffect stage="reading" />
-            <p role="status">{t("first.analyzing")}</p>
-          </div>
-        ) : (
-          <div className="first-busy" role="status">
-            <Loader2 className="animate-spin mx-auto" />
-            {t(busy === "photo" ? "first.analyzing" : "first.preparing")}
-          </div>
-        )}
+      <FirstCatchShell tab={2} camera>
+        {/* **本物の撮影画面の分析中の面**（`CaptureAnalyzingPanel`）。候補を選んだ後の
+            準備も、本物と同じく切り抜きの演出で待つ。 */}
+        <CaptureAnalyzingPanel
+          image={draft.photo}
+          cutout={busy === "card"}
+          onCancel={cancelAnalysis}
+        />
       </FirstCatchShell>
     );
   const sticker = firstCatchSticker(draft);
@@ -452,7 +467,7 @@ export function FirstCatchFlow({
           <DexSurface
             captured={[sticker]}
             filtered={[sticker]}
-            view="gallery"
+            view={JUST_CAUGHT_VIEW}
             onView={() => move("dex")}
             search=""
             onSearch={() => move("dex")}

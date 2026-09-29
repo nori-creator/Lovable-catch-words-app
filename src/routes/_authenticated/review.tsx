@@ -2224,7 +2224,12 @@ export function LightModeCard({
 
   return (
     <SwipeCard enabled={!!picked} onSwipe={onNext} className="min-h-0 flex-1">
-      <article className="isolate flex h-full min-h-0 flex-col overflow-hidden rounded-3xl border border-border bg-card p-3 shadow-lg shadow-primary/10">
+      {/* `data-tour` はチュートリアルの案内が指す印。本物の部品の上に置くので、
+          チュートリアル側で包み直す必要が無い（包むと並び方が本物と変わる）。 */}
+      <article
+        data-tour="review-question"
+        className="isolate flex h-full min-h-0 flex-col overflow-hidden rounded-3xl border border-border bg-card p-3 shadow-lg shadow-primary/10"
+      >
         {/* スクロールなしで4択まで見えるコンパクトレイアウト:
           写真は左の小さなサムネにして、問いと選択肢を最初の画面に収める。 */}
         <div className="mb-2 flex items-center justify-between">

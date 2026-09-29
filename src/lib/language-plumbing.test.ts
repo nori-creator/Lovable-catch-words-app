@@ -4977,8 +4977,11 @@ describe("ホームは今日の誌面", () => {
     }
     // 日付は実物のホームと同じく誌面の板の上（`heading={<DiaryDate`）。
     expect(home).not.toMatch(/<DayMasthead /);
-    expect(home).toMatch(/<DayCollage\s+stickers=\{sticker \? \[sticker\] : samples\}/);
-    expect(home).toMatch(/heading=\{<DiaryDate /);
+    // 本物のホームの画面（`HomeSurface`）そのものに、撮った1枚か見本を載せる（R24）。
+    expect(home).toMatch(/const items = sticker \? \[sticker\] : samples;/);
+    expect(home).toMatch(/<HomeSurface\s+albumItems=\{items\}/);
+    const homeRoute = codeOnly(read("routes/_authenticated/home.tsx"));
+    expect(homeRoute).toMatch(/heading=\{<DiaryDate date=\{today\} \/>\}/);
     expect(home).toMatch(/first-catch-cafe\.webp/);
     expect(home).toMatch(/first-catch-flower\.webp/);
     expect(home).toMatch(/first-catch-cat\.webp/);
@@ -5009,8 +5012,10 @@ describe("ホームは今日の誌面", () => {
     );
     // 2026-09-24「過去のものが多すぎで画面で確認できないから、過去のものは全て
     // 削除して」: 帯には**今回の依頼の面だけ**。
-    // 2026-09-29 夜の回（R23）: 復習の写真の大きさ。
-    expect(list.slice(0, list.indexOf("},"))).toMatch(/scene: "review-choice"/);
+    // 2026-09-29 夜の回（R24）: 初回の写真・チュートリアル・図鑑の絞り込み。
+    expect(list.slice(0, list.indexOf("},"))).toMatch(/scene: "first-catch&step=intro"/);
+    expect(list).toMatch(/scene: "dex-cards&swap=1&n=12"/);
+    expect(list).not.toMatch(/scene: "review-choice"/);
     expect(list).not.toMatch(/scene: "candidate-picker"/);
     expect(list).not.toMatch(/scene: "install-app"/);
     expect(list).not.toMatch(/scene: "tts-voices"/);
@@ -6089,7 +6094,7 @@ describe("ホームの一番上の本棚（2026-09-29「ホームのアルバム
   it("R17: アプリの一番上に、部屋に置いた大きな 3D の棚（撮った月だけ・本の上に少し隙間）", () => {
     // 上の帯の中ではなく、ホームの中身の一番上（画面の幅いっぱいの帯）。
     expect(home).not.toMatch(/headerEnd=/);
-    expect(home).toMatch(/<HomeShelf items=\{albumItems\} \/>/);
+    expect(home).toMatch(/<HomeShelf items=\{albumItems\} loaders=\{shelfLoaders\} \/>/);
     expect(home).toMatch(/<PastDays/);
     expect(shelf).toMatch(/\{ rows: 1, openAt: "first", room \}/);
     expect(shelf).toMatch(/const months = useMemo\(\(\) => shelfMonths\(items\), \[items\]\);/);
@@ -6135,14 +6140,17 @@ describe("ホームの一番上の本棚（2026-09-29「ホームのアルバム
   });
 
   it("本棚・今日・過去の日まで1枚の壁（2026-09-29「9/28 以下が白くなってる」）", () => {
-    const home = codeOnly(read("routes/_authenticated/home.tsx"));
+    const route = codeOnly(read("routes/_authenticated/home.tsx"));
+    // 壁は画面の部品（`HomeSurface`、R24 でチュートリアルと共有）の中にある。
+    const start = route.indexOf("export function HomeSurface(");
+    const home = route.slice(start, route.indexOf("export function HomeLoading(", start));
     const open = home.indexOf('"home-scene"');
     const past = home.indexOf("<PastDays");
-    const memorial = home.indexOf("<MemorialAlbum");
+    expect(start).toBeGreaterThan(0);
     expect(open).toBeGreaterThan(0);
     expect(past).toBeGreaterThan(open);
     // 壁（div）は過去の日の後で閉じる。
-    expect(home.slice(past, memorial)).toMatch(/<\/div>/);
+    expect(home.slice(past)).toMatch(/<\/div>/);
     // 棚の下端のぼかしは壁の中の帯だけ（全画面で本を開いた時にはかけない）。
     expect(read("styles.css")).not.toMatch(/\n\.home-shelf__canvas \{\n  mask-image/);
   });

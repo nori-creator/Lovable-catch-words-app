@@ -413,16 +413,6 @@ export const DICT: Record<string, Record<UiLang, string>> = {
     en: "Sign up to save this photo and word to your account.",
     "zh-TW": "註冊帳號，保存這張照片和單字。",
   },
-  "first.analyzing": {
-    ja: "写真からことばを探しています",
-    en: "Finding words in your photo",
-    "zh-TW": "正在尋找照片中的單字",
-  },
-  "first.preparing": {
-    ja: "意味と使い方を準備しています",
-    en: "Preparing the meaning and example",
-    "zh-TW": "正在準備意思與例句",
-  },
   "first.failed": {
     ja: "処理できませんでした。写真を残したまま、もう一度試せます。",
     en: "That did not work. Your photo is kept so you can retry.",
