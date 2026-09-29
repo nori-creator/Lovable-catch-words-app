@@ -17,8 +17,8 @@
  * その字体で書き直され、「日記を書く」で打った文がそのまま右のページに載る。
  */
 import { useEffect, useRef, useState } from "react";
-import { ShelfWorld, type MonthBook } from "./shelf3d/engine";
-import type { DaySpread } from "./shelf3d/textures";
+import { ShelfWorld, type MonthBook } from "@/components/shelf3d/engine";
+import type { DaySpread } from "@/components/shelf3d/textures";
 import {
   DIARY_FONTS,
   diaryFont,

@@ -37,6 +37,8 @@ import { formatCount } from "@/lib/count";
 import { normalizeTargetLanguage } from "@/lib/target-lang";
 import { useUiLayout, type LayoutId } from "@/lib/ui-pack";
 import { Zh } from "@/components/Zh";
+import { ZhuyinWord, useZhuyinUnits } from "@/components/ZhuyinWord";
+import { neutralReadings, useReadingText } from "@/lib/phonetic";
 import { tStatic } from "@/lib/i18n";
 import { asCategoryKey, categoryEmoji } from "@/lib/category";
 import {
@@ -1083,16 +1085,7 @@ export function DexList({
               )}
             </div>
             <div className="min-w-0 flex-1">
-              <div className="flex items-baseline gap-2">
-                <span lang="zh-Hant" className="text-body font-semibold">
-                  {s.word.headword}
-                </span>
-                {s.word.reading_zhuyin && (
-                  <span lang="zh-Hant" className="truncate text-footnote text-muted-foreground">
-                    {s.word.reading_zhuyin}
-                  </span>
-                )}
-              </div>
+              <ListHeadword word={s.word} />
               <div className="truncate text-body text-muted-foreground">{s.word.meaning_ja}</div>
             </div>
           </button>
@@ -1105,6 +1098,28 @@ export function DexList({
         </li>
       ))}
     </ul>
+  );
+}
+
+/**
+ * 縦の一覧の見出し語。**注音は字ごとに右へ縦に**（オーナー指示 2026-09-29「図鑑の縦に単語が
+ * 並ぶタイプの注音がそれぞれの漢字の横に配置されてない。4択の選択肢や単語の詳細の見出しの
+ * ように注音を配置して」）。4択・詳細・カードと同じ `ZhuyinWord`。ピンインを選んだ人・注音の
+ * 無い言語は、今までどおり語の横に読みを小さく。
+ */
+function ListHeadword({ word: w }: { word: StickerWithWord["word"] }) {
+  const units = useZhuyinUnits(w.language, w.headword, w.reading_zhuyin);
+  const reading = useReadingText(
+    w.language,
+    neutralReadings(w.language, w.reading_zhuyin, w.pinyin),
+  );
+  if (units)
+    return <ZhuyinWord units={units} lang={w.language} className="block text-body font-semibold" />;
+  return (
+    <div className="flex items-baseline gap-2">
+      <Zh className="text-body font-semibold">{w.headword}</Zh>
+      {reading && <span className="truncate text-footnote text-muted-foreground">{reading}</span>}
+    </div>
   );
 }
 

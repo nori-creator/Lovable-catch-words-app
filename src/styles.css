@@ -4074,6 +4074,11 @@ html[data-scroll-root="shell"] [data-app-shell]:not(.overflow-hidden) {
   height: 100dvh;
   min-height: 0;
   overflow-y: auto;
+  /* **横には巻き取らせない**（オーナー報告 2026-09-29「ホームのアルバムの左右の余白が
+     均一でない」）。縦だけ auto にすると、CSS の決まりで横も auto になる。傾けた写真の角や
+     テープが画面の端から少しでもはみ出すと殻ごと横に送れてしまい、ホーム全体が左へ
+     約 12px ずれて「左が狭く右が広い」誌面に見えていた。 */
+  overflow-x: hidden;
   overscroll-behavior-y: contain;
   -webkit-overflow-scrolling: touch;
 }
@@ -9957,4 +9962,283 @@ html[data-dex-dragging] {
 .chunk-set--boxes > .chunk-pill:active {
   transform: translateY(1px) scale(0.95);
   transition-duration: 0.08s;
+}
+
+/* ---------------------------------------------------------------------------
+ * ホームの一番上の本棚（`HomeShelf`、オーナー指示 2026-09-29「ホームのアルバムの一番上に
+ * 本棚を一列作って」）。1段の 3D の棚。本を開くと画面いっぱいに広がる。
+ * ------------------------------------------------------------------------- */
+.home-shelf {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+.home-shelf__box {
+  /* 大きさは `HomeShelf` が冊数から決める（本にぴったりの棚の縦横比）。 */
+  position: relative;
+}
+.home-shelf__stage {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  border-radius: 3px;
+  background: #6b4a2e;
+  touch-action: none;
+  box-shadow:
+    0 1px 1px rgb(0 0 0 / 0.18),
+    0 4px 8px -4px rgb(0 0 0 / 0.35);
+}
+/* 3D が届くまでの仮の棚: 木の枠の中に、月の色の背表紙が隙間なく並ぶ。 */
+.home-shelf__proxy {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  gap: 1px;
+  padding: 3px 3px;
+  background: linear-gradient(#8a6440, #6b4a2e);
+}
+.home-shelf__proxy span {
+  flex: 1;
+  border-radius: 1px;
+  box-shadow: inset 0 0 0 1px rgb(0 0 0 / 0.15);
+}
+/* 小さな棚の上の押す所（44px の当たり判定）。押すと全画面の棚に広がる。 */
+.home-shelf__open {
+  position: absolute;
+  inset: -4px;
+  min-width: 44px;
+  min-height: 44px;
+  left: 50%;
+  top: 50%;
+  translate: -50% -50%;
+  width: max(100% + 8px, 44px);
+  height: 44px;
+  border: 0;
+  background: transparent;
+}
+.home-shelf__stage[data-full] {
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+  border-radius: 0;
+  box-shadow: none;
+}
+.home-shelf__canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+.home-shelf__status {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  color: rgb(255 255 255 / 0.75);
+  font-size: var(--text-footnote);
+  pointer-events: none;
+}
+.home-shelf__spinner {
+  width: 26px;
+  height: 26px;
+  border-radius: 9999px;
+  border: 3px solid rgb(255 255 255 / 0.25);
+  border-top-color: #fff;
+  animation: home-shelf-spin 0.8s linear infinite;
+}
+@keyframes home-shelf-spin {
+  to {
+    rotate: 360deg;
+  }
+}
+.home-shelf__btn {
+  min-height: 44px;
+  padding: 0 16px;
+  border-radius: 9999px;
+  border: 1px solid rgb(255 255 255 / 0.35);
+  background: rgb(20 16 12 / 0.55);
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+  color: #fff;
+  font-weight: 600;
+  font-size: 14px;
+}
+.home-shelf__top {
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  top: calc(env(safe-area-inset-top, 0px) + 12px);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+.home-shelf__label {
+  display: inline-flex;
+  align-items: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.home-shelf__arrow {
+  position: absolute;
+  top: 42%;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  font-size: 26px;
+  line-height: 40px;
+}
+.home-shelf__arrow[data-side="left"] {
+  left: 6px;
+}
+.home-shelf__arrow[data-side="right"] {
+  right: 6px;
+}
+.home-shelf__bottom {
+  position: absolute;
+  left: 10px;
+  right: 10px;
+  bottom: calc(env(safe-area-inset-bottom, 0px) + 10px);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.home-shelf__font {
+  flex: 1 1 0;
+  min-width: 0;
+  padding: 0 4px;
+  white-space: nowrap;
+  font-weight: 400;
+}
+.home-shelf__font[aria-checked="true"] {
+  background: rgb(255 255 255 / 0.92);
+  color: #1d1a16;
+}
+.home-shelf__write {
+  background: rgb(47 111 214 / 0.92);
+  border: none;
+}
+.home-shelf__sheet {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: flex-end;
+  background: rgb(20 16 12 / 0.55);
+}
+.home-shelf__sheet-card {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 16px 16px calc(env(safe-area-inset-bottom, 0px) + 16px);
+  border-radius: 20px 20px 0 0;
+  background: #f7f2e6;
+}
+.home-shelf__sheet-title {
+  font-size: 20px;
+  color: #3a3128;
+}
+.home-shelf__sheet-card .home-shelf__btn:not(.home-shelf__write) {
+  background: rgb(58 49 40 / 0.8);
+}
+.home-shelf__textarea {
+  width: 100%;
+  resize: none;
+  border: 1px solid rgb(90 120 170 / 0.3);
+  border-radius: 12px;
+  padding: 10px 12px;
+  background: repeating-linear-gradient(#f7f2e6 0 34px, rgb(90 120 170 / 0.22) 34px 35px);
+  line-height: 35px;
+  font-size: 20px;
+  color: #23304a;
+}
+/* 片ページ（全画面）。 */
+.home-shelf__single {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: flex;
+  flex-direction: column;
+  background: radial-gradient(120% 90% at 50% 40%, #3a322a, #14110e);
+}
+.home-shelf__single-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  padding: calc(env(safe-area-inset-top, 0px) + 10px) 12px 8px;
+}
+.home-shelf__single-title {
+  color: #fff;
+  font-weight: 700;
+  font-size: 15px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.home-shelf__seg {
+  display: flex;
+  gap: 2px;
+  padding: 3px;
+  border-radius: 9999px;
+  background: rgb(255 255 255 / 0.16);
+}
+.home-shelf__seg button {
+  min-height: 36px;
+  padding: 0 14px;
+  border-radius: 9999px;
+  border: 0;
+  font-size: 13px;
+  font-weight: 700;
+  background: transparent;
+  color: #fff;
+}
+.home-shelf__seg button[aria-checked="true"] {
+  background: #fff;
+  color: #1d1a16;
+}
+.home-shelf__single-page {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  place-items: center;
+  padding: 8px 16px;
+  border: 0;
+  background: transparent;
+}
+.home-shelf__single-img {
+  max-width: 100%;
+  max-height: 100%;
+  box-shadow:
+    0 30px 60px -20px rgb(0 0 0 / 0.7),
+    0 2px 6px rgb(0 0 0 / 0.35);
+  animation: home-shelf-page-in 280ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+.home-shelf__single-img[data-side="left"] {
+  border-radius: 10px 3px 3px 10px;
+}
+.home-shelf__single-img[data-side="right"] {
+  border-radius: 3px 10px 10px 3px;
+}
+@keyframes home-shelf-page-in {
+  from {
+    opacity: 0;
+    scale: 0.94;
+  }
+}
+html[data-motion="reduce"] .home-shelf__single-img {
+  animation: none;
+}
+.home-shelf__single-nav {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px calc(env(safe-area-inset-bottom, 0px) + 18px);
+}
+.home-shelf__single-side {
+  color: rgb(255 255 255 / 0.7);
+  font-size: 13px;
 }

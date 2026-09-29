@@ -1,4 +1,5 @@
 import { FirstCatchScene } from "./scenes/first-catch";
+import { HomeShelfScene } from "./scenes/home-shelf";
 import { ChunkDesignsScene } from "./scenes/chunk-designs";
 import { PeelStickerScene } from "./scenes/peel-sticker";
 /**
@@ -170,6 +171,7 @@ const SCENES: Record<string, ((p: { q: URLSearchParams }) => ReactNode) | undefi
   "chunk-designs": ChunkDesignsScene,
   auth: AuthScene,
   home: HomeScene,
+  "home-shelf": HomeShelfScene,
   "home-album": HomeAlbumScene,
   "home-ink": HomeInkScene,
   "home-memorial": HomeMemorialScene,

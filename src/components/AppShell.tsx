@@ -197,9 +197,15 @@ export function AppShell({
   bare = false,
   immersive = false,
   headerless = false,
+  headerEnd,
 }: {
   children: ReactNode;
   title?: string;
+  /**
+   * 上の帯の右端に置く物（ホームの本棚。オーナー指示 2026-09-29「アイコンと Catchwords の
+   * と同じ高さの右上端に本棚を追加して」）。
+   */
+  headerEnd?: ReactNode;
   /** 復習など、1画面の中ですべてを見せる場面ではページ自体を動かさない。 */
   fixedViewport?: boolean;
   /**
@@ -344,6 +350,7 @@ export function AppShell({
       bare={bare}
       immersive={immersive}
       headerless={headerless}
+      headerEnd={headerEnd}
       brandMenu={<BrandMenu />}
       watchers={
         <>
@@ -442,6 +449,7 @@ export function AppShellFrame({
   navigation,
   brandMenu,
   watchers,
+  headerEnd,
 }: {
   children: ReactNode;
   title?: string;
@@ -452,6 +460,7 @@ export function AppShellFrame({
   navigation: ReactNode;
   brandMenu?: ReactNode;
   watchers?: ReactNode;
+  headerEnd?: ReactNode;
 }) {
   const scrolled = useScrolled();
   return (
@@ -500,6 +509,7 @@ export function AppShellFrame({
                 </span>
               </Link>
             </div>
+            {headerEnd}
           </div>
         </header>
       )}

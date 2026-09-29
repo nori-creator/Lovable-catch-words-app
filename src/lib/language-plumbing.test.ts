@@ -6016,8 +6016,8 @@ describe("撮った後の候補: 1段目は全部同じ大きさ", () => {
 });
 
 describe("本棚の本を開くと、1日＝1見開き（左＝その日のアルバム、右＝日記）（2026-09-28）", () => {
-  const engine = read("../scripts/ui-harness/scenes/shelf3d/engine.ts");
-  const tex = read("../scripts/ui-harness/scenes/shelf3d/textures.ts");
+  const engine = read("components/shelf3d/engine.ts");
+  const tex = read("components/shelf3d/textures.ts");
   const journal = codeOnly(read("lib/journal.functions.ts"));
 
   it("左のページはその日の写真・一言・落書き、右のページは本人が打った日記を選んだ字体で", () => {
@@ -6029,15 +6029,68 @@ describe("本棚の本を開くと、1日＝1見開き（左＝その日のア�
     expect(engine).toMatch(/return day \? paintDiary\(day, font\)/);
   });
 
-  it("開くといちばん新しい日の見開きまでめくれる。字体を変えると右のページを描き直す", () => {
-    expect(engine).toMatch(/const last = b\.days\.length;/);
+  it("開くと**その月の最初の日**の見開き（2026-09-29 に「いちばん新しい日」から変更）。字体を変えると右のページを描き直す", () => {
+    expect(engine).toMatch(/this\.openAt = opts\.openAt \?\? "first";/);
+    expect(engine).toMatch(
+      /const last = this\.openAt === "first" \? Math\.min\(1, b\.days\.length\) : b\.days\.length;/,
+    );
     expect(engine).toMatch(/repaintDiary\(dayIndex\?: number\)/);
+  });
+
+  it("1か月ぶん（最大31日）綴じる。紙の絵は今の見開きの前後だけ描き、遠い紙は白紙へ戻す", () => {
+    expect(engine).toMatch(/const MAX_DAYS = 31;/);
+    expect(engine).toMatch(/const n = b\.days\.length \? b\.days\.length \+ 1 : LEAVES;/);
+    expect(engine).toMatch(/private ensurePages\(b: Book, page = this\.page\)/);
+    expect(engine).toMatch(
+      /else if \(i < page - 4 \|\| i > page \+ 4\) this\.unpaintLeaf\(b, i\);/,
+    );
+  });
+
+  it("見開きの片側は**押すだけ**で全画面（指の揺れを払いに数えない）", () => {
+    expect(engine).toMatch(/const slop = quick \? 16 : 10;/);
+    expect(engine).toMatch(/if \(this\.events\.onPageTap\) this\.events\.onPageTap\(side\);/);
   });
 
   it("打った日記は AI を通さずそのまま保存（添削の列には触らない）", () => {
     expect(journal).toMatch(/export const saveMyDiary = createServerFn\(\{ method: "POST" \}\)/);
     expect(journal).toMatch(
       /\{ user_id: userId, entry_date: data\.date, user_draft: text \|\| null \}/,
+    );
+  });
+});
+
+describe("ホームの一番上の本棚（2026-09-29「ホームのアルバムの一番上に本棚を一列作って」）", () => {
+  const home = codeOnly(read("routes/_authenticated/home.tsx"));
+  const shelf = codeOnly(read("components/HomeShelf.tsx"));
+
+  it("上の帯の右端（アイコンと同じ行）に小さな棚。本にぴったりの棚で、押すと全画面の棚に広がる", () => {
+    expect(home).toMatch(/headerEnd=\{[\s\S]*?<HomeShelf items=\{albumItems\} \/>/);
+    expect(home).toMatch(/<PastDays/);
+    expect(read("components/AppShell.tsx")).toMatch(
+      /\{title \?\? "Catchwords"\}[\s\S]*?\{headerEnd\}/,
+    );
+    expect(shelf).toMatch(/\{ rows: 1, openAt: "first", tight: true \}/);
+    expect(shelf).toMatch(/onClick=\{expand\}/);
+    expect(shelf).toMatch(/if \(!fullRef\.current\) return;/);
+    expect(codeOnly(read("components/shelf3d/engine.ts"))).toMatch(
+      /shelf\.scale\.set\(inner \/ SHELF_INNER_W, \(H \+ 0\.002\) \/ SHELF_INNER_H, 1\)/,
+    );
+  });
+
+  it("3D は後から読み込み、その月の写真と日記を揃えてから開く", () => {
+    expect(shelf).toMatch(/import\("@\/components\/shelf3d\/engine"\)/);
+    expect(shelf).toMatch(/loadRef\.current\.diary\(key\)/);
+    expect(shelf).toMatch(/onPageTap: \(side\) => setView\(side\)/);
+    expect(codeOnly(read("lib/journal.functions.ts"))).toMatch(
+      /export const listMyDiaryMonth = createServerFn\(\{ method: "GET" \}\)/,
+    );
+  });
+});
+
+describe("ホームが横にずれない（2026-09-29「ホームのアルバムの左右の余白が均一でない」）", () => {
+  it("殻は縦だけ巻き取り、横には送らせない", () => {
+    expect(read("styles.css")).toMatch(
+      /html\[data-scroll-root="shell"\] \[data-app-shell\]:not\(\.overflow-hidden\) \{[^}]*overflow-y: auto;[^}]*overflow-x: hidden;/,
     );
   });
 });

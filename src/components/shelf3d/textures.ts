@@ -478,6 +478,8 @@ export type DaySpread = {
   doodles?: Array<{ color: string; width: number; pts: Array<[number, number]> }>;
   /** 本人が打った日記（無ければ白紙）。 */
   diary: string;
+  /** ページの頭に書く日付（表示の言語で。無ければ日本語の「9月3日（水）」）。 */
+  label?: string;
 };
 
 const HAND = `"Zen Kurenaido", cursive`;
@@ -516,6 +518,7 @@ function inkText(ctx: CanvasRenderingContext2D, text: string, x: number, y: numb
 }
 
 function dateLabel(s: DaySpread) {
+  if (s.label) return s.label;
   const wd = WEEK_JA[new Date(s.y, s.m - 1, s.d).getDay()];
   return `${s.m}月${s.d}日（${wd}）`;
 }

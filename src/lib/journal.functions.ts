@@ -235,6 +235,42 @@ export const saveMyDiary = createServerFn({ method: "POST" })
     return toJournalEntry(row);
   });
 
+/**
+ * **その月の日記**（ホームの本棚の本を開いた時。オーナー指示 2026-09-29「ホームのアルバムの
+ * 一番上に本棚を一列作って。またアルバムを開くとその月の最初のページが開くようにして」）。
+ * 見開きの右ページに、本人が打った日記（無ければ添削・昔の日記）を載せる。
+ */
+const MonthInput = z.object({ month: z.string().regex(/^\d{4}-\d{2}$/) });
+
+export const listMyDiaryMonth = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) => MonthInput.parse(input))
+  .handler(async ({ context, data }) => {
+    const { supabase, userId } = context;
+    const [y, m] = data.month.split("-").map(Number);
+    const next = m === 12 ? `${y + 1}-01` : `${y}-${String(m + 1).padStart(2, "0")}`;
+    const { data: rows, error } = await supabase
+      .from("journal_entries")
+      .select("entry_date, user_draft, correction, body_zh")
+      .eq("user_id", userId)
+      .gte("entry_date", `${data.month}-01`)
+      .lt("entry_date", `${next}-01`)
+      .order("entry_date", { ascending: true })
+      .limit(31);
+    if (error) throw internalFailure("journal", error, "日記を読み込めませんでした");
+    return (rows ?? []).map(
+      (r: {
+        entry_date: string;
+        user_draft: string | null;
+        correction: string | null;
+        body_zh: string | null;
+      }) => ({
+        date: r.entry_date,
+        text: r.user_draft ?? r.correction ?? r.body_zh ?? "",
+      }),
+    );
+  });
+
 // ============================================================================
 // 書く「前」の足場(要望 #88)
 // ============================================================================
