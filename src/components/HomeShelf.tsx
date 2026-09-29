@@ -11,6 +11,8 @@ import { monthDays, monthKey, shelfMonths } from "@/lib/home-shelf";
 import {
   DIARY_FONTS,
   diaryFont,
+  diaryInputFamily,
+  ensureDiaryInputFontCss,
   getDiaryFont,
   loadDiaryFont,
   setDiaryFont,
@@ -130,6 +132,10 @@ export function HomeShelf({
   const [font, setFont] = useState<DiaryFontId>(() => getDiaryFont());
   const fontRef = useRef(font);
   const [writing, setWriting] = useState<string | null>(null);
+  const writingOpen = writing !== null;
+  useEffect(() => {
+    if (writingOpen) ensureDiaryInputFontCss(font);
+  }, [writingOpen, font]);
   /** 鉛筆が書いている文（書き終わるまで画面いっぱいの机の上）。 */
   const [pencil, setPencil] = useState<{ text: string; after: () => void } | null>(null);
   const [, bump] = useState(0);
@@ -615,7 +621,9 @@ export function HomeShelf({
                   onChange={(e) => setWriting(e.target.value)}
                   rows={7}
                   className="home-shelf__textarea"
-                  style={{ fontFamily: diaryFont(font).family }}
+                  // 打つ欄は `swap` の別名で描く（新しい字の切り分けが届くまで、欄の字が
+                  // 全部消えていた。`diary-fonts.ts` の `diaryInputFamily`）。
+                  style={{ fontFamily: diaryInputFamily(font) }}
                 />
                 <div className="flex gap-2">
                   <button

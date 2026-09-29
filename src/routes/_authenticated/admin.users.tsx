@@ -405,6 +405,11 @@ export function AdminUserDetailView({ d }: { d: AdminUserDetail }) {
             sub={`報告 ${d.usage.reportFixes}回`}
           />
         </div>
+        <h3 className="mt-3 text-caption font-semibold">写真の保存の失敗</h3>
+        <p className="text-footnote tabular-nums">
+          {`撮影 ${d.usage.saveFailures.catch}回、再会 ${d.usage.saveFailures.reencounter}回、登録前の1枚の引き継ぎ ${d.usage.saveFailures.firstTransfer}回`}
+          <span className="text-caption text-muted-foreground">（記録は 2026-09-30 から）</span>
+        </p>
         <h3 className="mt-3 text-caption font-semibold">開く時間帯（台湾時間）</h3>
         <div className="mt-1 flex h-16 items-end gap-0.5" aria-label="開く時間帯">
           {d.usage.hours.map((n, h) => (

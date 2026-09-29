@@ -25,7 +25,7 @@ import { MotionProvider } from "@/components/motion-provider";
 import { REVIEW_CACHE_USER_KEY } from "@/lib/review-cache";
 import { initUiTheme } from "@/lib/ui-theme";
 import { initUiPack } from "@/lib/ui-pack";
-import { useT } from "@/lib/i18n";
+import { htmlLangOf, UI_LANG_STORAGE_KEY, UI_LANGS, useT } from "@/lib/i18n";
 
 function NotFoundComponent() {
   const t = useT();
@@ -106,6 +106,17 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1, viewport-fit=cover" },
+      /**
+       * **ブラウザの自動翻訳を出さない**（オーナー報告 2026-09-30「設定言語を台湾華語に
+       * しているのに、台湾人の彼女が開くと Google 翻訳がこのアプリを日本語と判断し、
+       * もともと台湾華語のものを日本語から翻訳して変な文字になる」）。
+       *
+       * このアプリは表示言語を自分で持つ（日本語・英語・繁體中文）うえ、学ぶ語そのもの
+       * （台湾華語・注音）が画面に並ぶ。機械翻訳が掛かると、学ぶ語まで書き換えられる。
+       * Google の公式の指定（`<meta name="google" content="notranslate">`）と
+       * HTML 標準の `translate="no"` の両方で止める。
+       */
+      { name: "google", content: "notranslate" },
       { title: "CatchWords" },
       {
         name: "description",
@@ -150,6 +161,9 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     links: [
       { rel: "stylesheet", href: appCss },
       { rel: "stylesheet", href: packCss },
+      // 繁體中文の手書き（芫荽）。字の切り分けごとに `unicode-range` が付いているので、
+      // 読むのは CSS だけで、字の本体はその字が画面に出た時にだけ取る。
+      { rel: "stylesheet", href: "/fonts/iansui/iansui.css" },
       { rel: "manifest", href: "/manifest.webmanifest" },
       { rel: "apple-touch-icon", href: "/apple-touch-icon.png" },
       // フォントは public/fonts から自前で配る(styles.css の @font-face)。
@@ -192,7 +206,12 @@ try{
   var osr=window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   document.documentElement.dataset.${MOTION_ATTR}=mv==="system"?(osr?"reduce":"full"):mv;
 }catch(e){document.documentElement.dataset.${MOTION_ATTR}="full"}
-try{if(window.matchMedia("(pointer: coarse)").matches)document.documentElement.dataset.scrollRoot="shell"}catch(e){}})()`,
+try{if(window.matchMedia("(pointer: coarse)").matches)document.documentElement.dataset.scrollRoot="shell"}catch(e){}
+try{
+  var ul=null; try{ul=localStorage.getItem(${JSON.stringify(UI_LANG_STORAGE_KEY)})}catch(e){}
+  var m=${JSON.stringify(Object.fromEntries(UI_LANGS.map((l) => [l, htmlLangOf(l)])))};
+  document.documentElement.lang = (ul && m[ul]) || "ja";
+}catch(e){}})()`,
       },
       {
         type: "application/ld+json",
@@ -226,7 +245,10 @@ try{if(window.matchMedia("(pointer: coarse)").matches)document.documentElement.d
 
 function RootShell({ children }: { children: ReactNode }) {
   return (
-    <html lang="ja">
+    // `lang` は描画前のスクリプトが表示言語に合わせて書き換える（最初の1枚から正しい
+    // 言語を名乗る。ブラウザの言語の判定と、繁体字の字形選びのため）。その書き換えを
+    // 水和の食い違いと数えないよう `suppressHydrationWarning`。
+    <html lang="ja" translate="no" className="notranslate" suppressHydrationWarning>
       <head>
         <HeadContent />
       </head>

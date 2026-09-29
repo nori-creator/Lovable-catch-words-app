@@ -1,19 +1,21 @@
 <!doctype html>
-<!-- 実物は `<html lang="ja">`(`__root.tsx`)。**言語は見た目に効く** —
+<!-- 実物は `<html lang="ja" translate="no" class="notranslate">`(`__root.tsx`)。**言語は見た目に効く** —
      繁体字の字形、`word-break: auto-phrase`、そして小さな見出しの字間
      (字間を広げるのはラテン文字の作法なので和文では止める)。
      ここを空にしていたので、雛形は実物と違う条件で描かれていた。 -->
-<html lang="ja">
+<html lang="ja" translate="no" class="notranslate">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="google" content="notranslate" />
     <title>CatchWords</title>
+    <!-- 実物と同じく繁體中文の手書き（芫荽）を読む（`__root.tsx`）。 -->
+    <link rel="stylesheet" href="/fonts/iansui/iansui.css" />
     <link rel="preload" as="image" href="/first-catch-cafe.webp" />
     <link rel="preload" as="image" href="/first-catch-cat.webp" />
     <link rel="preload" as="image" href="/first-catch-flower.webp" />
     <link rel="preload" as="image" href="/first-catch-ready.webp" />
     <link rel="preload" as="image" href="/first-catch-interests.webp" />
-
   </head>
   <body>
     <div id="root"></div>

@@ -17,7 +17,9 @@ export type UiLang = "ja" | "en" | "zh-TW";
 /** 表示言語の一覧。**先頭が既定**(サーバー側と初回描画はこれ)。 */
 export const UI_LANGS = ["ja", "en", "zh-TW"] as const;
 
-const KEY = "ui-lang-v1";
+/** 表示言語を覚える鍵（`__root.tsx` の描画前スクリプトも同じ鍵を読む）。 */
+export const UI_LANG_STORAGE_KEY = "ui-lang-v1";
+const KEY = UI_LANG_STORAGE_KEY;
 const EVENT = "ui-lang-changed";
 
 /** 知らない値を既定に落とす。**未知の言語のまま描かない。** */

@@ -197,6 +197,7 @@ export function FirstCatchQuestions({
                   ratio={1}
                   word={t(`first.interest.${value}`)}
                   plainWord
+                  fasteners={false}
                 />
                 <span className="first-check" aria-hidden="true">
                   {draft.interests?.includes(value) && <Check size={13} strokeWidth={3} />}

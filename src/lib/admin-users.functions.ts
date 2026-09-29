@@ -255,6 +255,12 @@ async function buildDetail(userId: string) {
       regenerations: kinds.card_regen ?? 0,
       reportFixes: kinds.report_fix ?? 0,
       removebg: kinds.removebg ?? 0,
+      // 写真の保存に失敗した回数（`save-failure.ts`。記録は 2026-09-30 から）。
+      saveFailures: {
+        catch: kinds.save_failed_catch ?? 0,
+        reencounter: kinds.save_failed_reencounter ?? 0,
+        firstTransfer: kinds.save_failed_first_transfer ?? 0,
+      },
     },
     ai: {
       ...aiCostEstimate(kinds),

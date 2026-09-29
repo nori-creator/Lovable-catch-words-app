@@ -106,3 +106,11 @@ The minimum review experience should be intentionally small.
 - Verify guest detail/review never calls authenticated storage or scheduled-review mutations.
 - Normal motion: show the screen for 1.6 seconds, expand the blue 24px frame to the measured target over 850ms, then show the coach. Reduced motion follows the app preference and must still reveal the coach.
 - Repeat with direct signup, refresh/resume, three UI languages, narrow screens and real iOS camera/AI. Static preview data alone is not evidence of live AI or iOS success.
+
+## Beta-test regression checks (2026-09-30)
+
+- Guest first catch: peel the sticker, then sign in from any entry before finishing the tour. The catch must appear in the collection after sign-in (`hasAddedCatch`). If the transfer or any photo save fails, `/admin/users` → that user → "写真の保存の失敗" must count it.
+- Display language 台湾華語 on a device whose system language is Chinese: Chrome/Android Chrome/iOS Safari must not offer or auto-run Google Translate (`notranslate`, `translate="no"`, `lang="zh-Hant-TW"` before first paint).
+- Write a diary entry with Zhuyin input: text already typed must never disappear while a new character's font subset loads (input field uses the swap alias fonts).
+- Traditional Chinese handwritten lines (e.g. 眼前的東西，要怎麼說？) render every glyph in one typeface (Iansui).
+- Camera screen: a two-finger pinch must not zoom the page; inside the frame it changes the camera zoom. Tap-to-focus shows the ring only on devices that support `pointsOfInterest`; elsewhere a tap does nothing visible.

@@ -5012,9 +5012,14 @@ describe("ホームは今日の誌面", () => {
     );
     // 2026-09-24「過去のものが多すぎで画面で確認できないから、過去のものは全て
     // 削除して」: 帯には**今回の依頼の面だけ**。
-    // 2026-09-29 夜の回（R24）: 初回の写真・チュートリアル・図鑑の絞り込み。
-    expect(list.slice(0, list.indexOf("},"))).toMatch(/scene: "first-catch&step=intro"/);
-    expect(list).toMatch(/scene: "dex-cards&swap=1&n=12"/);
+    // 2026-09-30 の回（R25）: 最初の画面の4枚（A/B/C）・留め具・カメラ・日記・說。
+    expect(list.slice(0, list.indexOf("},"))).toMatch(
+      /scene: "first-catch&step=intro&layout=mosaic"/,
+    );
+    expect(list).toMatch(/scene: "first-catch&step=intro&layout=frame"/);
+    expect(list).toMatch(/scene: "first-catch&step=intro&layout=bouquet"/);
+    expect(list).toMatch(/scene: "capture-object"/);
+    expect(list).not.toMatch(/scene: "dex-cards&swap=1&n=12"/);
     expect(list).not.toMatch(/scene: "review-choice"/);
     expect(list).not.toMatch(/scene: "candidate-picker"/);
     expect(list).not.toMatch(/scene: "install-app"/);
@@ -6467,5 +6472,92 @@ describe("R24（2026-09-29: ホームが送れない・初回の写真が潰れ�
     expect(cf).toMatch(
       /cardRefs\.current\.forEach\(\(el\) => \{\s*if \(el\) el\.style\.visibility = "";\s*\}\);\s*hidden\.current = \[\];/,
     );
+  });
+});
+
+describe("R25（2026-09-30: ベータテストの指摘・最初の画面の4枚・カメラ）", () => {
+  it("写真の保存に失敗したら、開発者の記録（利用者ごとの画面）に残す", () => {
+    const report = codeOnly(read("lib/save-failure.ts"));
+    expect(report).toMatch(/reportLovableError\(error/);
+    expect(report).toMatch(/logAppEvent\(\{ data: \{ kind: `save_failed_\$\{where\}` \} \}\)/);
+    const metrics = codeOnly(read("lib/metrics.functions.ts"));
+    for (const k of ["save_failed_catch", "save_failed_reencounter", "save_failed_first_transfer"])
+      expect(metrics).toContain(`"${k}"`);
+    const capture = codeOnly(read("routes/_authenticated/capture.tsx"));
+    expect(capture.match(/reportSaveFailure\("catch"/g)?.length).toBe(2);
+    expect(capture).toMatch(/reportSaveFailure\("reencounter", e\)/);
+    expect(codeOnly(read("components/onboarding/FirstCatchTransfer.tsx"))).toMatch(
+      /reportSaveFailure\("first_transfer"/,
+    );
+    const admin = codeOnly(read("lib/admin-users.functions.ts"));
+    expect(admin).toMatch(/saveFailures: \{/);
+    expect(codeOnly(read("routes/_authenticated/admin.users.tsx"))).toMatch(/写真の保存の失敗/);
+  });
+
+  it("剥がした登録前の1枚は、案内の途中でログインしても引き継ぐ", () => {
+    const route = codeOnly(read("routes/_authenticated/route.tsx"));
+    expect(route).toMatch(/if \(draft && hasAddedCatch\(draft\)\)/);
+    expect(route).not.toMatch(/canRequestAccount/);
+  });
+
+  it("Google 翻訳に日本語と誤判定させない（翻訳を止め、描く前に言語を決める）", () => {
+    const root = read("routes/__root.tsx");
+    expect(root).toMatch(/\{ name: "google", content: "notranslate" \}/);
+    expect(root).toMatch(
+      /<html lang="ja" translate="no" className="notranslate" suppressHydrationWarning>/,
+    );
+    // 言語の対応は i18n の `htmlLangOf` 1か所から作る（zh-TW → zh-Hant-TW）。
+    expect(root).toMatch(/UI_LANGS\.map\(\(l\) => \[l, htmlLangOf\(l\)\]\)/);
+    expect(root).toMatch(/document\.documentElement\.lang = \(ul && m\[ul\]\) \|\| "ja";/);
+  });
+
+  it("繁體中文の手書きは芫荽1つで描く（說 だけ別の書体にならない）", () => {
+    const css = read("styles.css");
+    const zh = css.slice(css.indexOf(":lang(zh) .handwritten-ja {"));
+    expect(zh.slice(0, zh.indexOf("}"))).toContain('font-family: "Iansui", var(--font-ui);');
+    expect(css).toMatch(/--font-hand-ja: "Zen Kurenaido", "Iansui"/);
+    expect(read("routes/__root.tsx")).toMatch(/href: "\/fonts\/iansui\/iansui\.css"/);
+    expect(fs.existsSync(path.join(root, "../public/fonts/iansui/OFL.txt"))).toBe(true);
+  });
+
+  it("日記を打つ欄は、字を待たずに描く別名の書体（font-display: swap）を使う", () => {
+    const shelf = codeOnly(read("components/HomeShelf.tsx"));
+    expect(shelf).toMatch(/fontFamily: diaryInputFamily\(font\)/);
+    expect(shelf).toMatch(/ensureDiaryInputFontCss\(font\)/);
+    const alias = fs.readFileSync(
+      path.join(root, "../public/fonts/diary/input/zen-kurenaido.css"),
+      "utf8",
+    );
+    expect(alias).toMatch(/font-family:"Zen Kurenaido Input"/);
+    expect(alias).toMatch(/font-display:swap/);
+    expect(alias).not.toMatch(/font-display:block/);
+  });
+
+  it("撮る画面は拡大させず、押した所にピントを合わせる（持っている端末だけ）", () => {
+    const css = read("styles.css");
+    const vf = css.slice(css.indexOf(".capture-viewfinder {"));
+    expect(vf.slice(0, vf.indexOf("}"))).toMatch(/touch-action: none;/);
+    const capture = codeOnly(read("routes/_authenticated/capture.tsx"));
+    expect(capture).toMatch(
+      /document\.addEventListener\("gesturestart", stop, \{ passive: false \}\)/,
+    );
+    expect(capture).toMatch(/setFocusCap\(focusSupport\(track\)\)/);
+    expect(capture).toMatch(/\{\.\.\.frameGestures\}/);
+    const focus = codeOnly(read("lib/camera-focus.ts"));
+    // 持っていない端末で印だけ出さない。
+    expect(focus).toMatch(/if \(!supported\.pointsOfInterest\) return null;/);
+  });
+
+  it("初回の画面の写真には留め具を付けず、最初の画面は3つの並べ方から選べる", () => {
+    const pages = codeOnly(read("components/onboarding/FirstCatchPages.tsx"));
+    expect(pages).toMatch(/WELCOME_LAYOUTS = \["mosaic", "frame", "bouquet"\]/);
+    expect(pages).toMatch(/layout=\{DEFAULT_WELCOME_LAYOUT\}/);
+    expect(pages.match(/fasteners=\{false\}/g)?.length).toBe(2);
+    expect(codeOnly(read("components/onboarding/FirstCatchQuestions.tsx"))).toMatch(
+      /fasteners=\{false\}/,
+    );
+    const css = read("components/onboarding/first-catch.css");
+    for (const l of ["mosaic", "frame", "bouquet"])
+      expect(css).toContain(`.first-print-stack--${l}`);
   });
 });

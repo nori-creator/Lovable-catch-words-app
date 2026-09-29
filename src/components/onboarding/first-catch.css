@@ -879,6 +879,115 @@ html[data-motion="reduce"] .first-run * {
   animation-delay: 0.24s;
 }
 
+/* ── 最初の画面の4枚: 1つの作品として組む（`WELCOME_LAYOUTS`、2026-09-30） ──────────
+   3案とも**写真の比のまま**。1枚の高さ = 幅 × 比 + 下の紙（--s）。
+   A・B は2列の組写真: 左 = 珈琲（1.5）＋猫（1）、右 = 花（1）＋海（1）を 1.25 倍の幅で。
+   すると 左 2.5w + 2s + g = 右 2 × 1.25w + 2s + g で、**両方の列の下端が揃う**。 */
+.first-print-stack--mosaic,
+.first-print-stack--frame {
+  --s: 34px;
+  --g: 10px;
+  --inset: 0px;
+  /* 左の列の幅。横（全体 2.25w + g）と縦（2.5w + 2s + g）の両方に収まる大きさ。 */
+  --w: min(
+    (100cqw - 2 * var(--inset) - var(--g)) / 2.25,
+    (100cqh - 2 * var(--inset) - 2 * var(--s) - var(--g)) / 2.5
+  );
+  --x0: calc((100cqw - (2.25 * var(--w) + var(--g))) / 2);
+  --y0: calc((100cqh - (2.5 * var(--w) + 2 * var(--s) + var(--g))) / 2);
+}
+.first-print-stack--frame {
+  --g: 8px;
+  /* 台紙の余白（14px）＋縁（6px）。 */
+  --inset: 20px;
+}
+.first-print-stack--mosaic > .first-print,
+.first-print-stack--frame > .first-print {
+  inset: auto;
+  rotate: none;
+}
+.first-print-stack--mosaic > .first-print-0,
+.first-print-stack--frame > .first-print-0 {
+  left: var(--x0);
+  top: var(--y0);
+  width: var(--w);
+}
+.first-print-stack--mosaic > .first-print-2,
+.first-print-stack--frame > .first-print-2 {
+  left: var(--x0);
+  top: calc(var(--y0) + 1.5 * var(--w) + var(--s) + var(--g));
+  width: var(--w);
+}
+.first-print-stack--mosaic > .first-print-1,
+.first-print-stack--frame > .first-print-1 {
+  left: calc(var(--x0) + var(--w) + var(--g));
+  top: var(--y0);
+  width: calc(1.25 * var(--w));
+}
+.first-print-stack--mosaic > .first-print-3,
+.first-print-stack--frame > .first-print-3 {
+  left: calc(var(--x0) + var(--w) + var(--g));
+  top: calc(var(--y0) + 1.25 * var(--w) + var(--s) + var(--g));
+  width: calc(1.25 * var(--w));
+}
+/* B: 4つの窓がある1枚の額。台紙は紙の色を少し沈め、白い印画紙と分ける。
+   印画紙そのもの（`.collage__*`）には触らない — ホームと同じ1枚のまま額に入れる。 */
+.first-print-frame {
+  position: absolute;
+  left: calc(var(--x0) - var(--inset));
+  top: calc(var(--y0) - var(--inset));
+  width: calc(2.25 * var(--w) + var(--g) + 2 * var(--inset));
+  height: calc(2.5 * var(--w) + 2 * var(--s) + var(--g) + 2 * var(--inset));
+  border-radius: 4px;
+  background: color-mix(in oklab, var(--muted) 70%, var(--card));
+  box-shadow:
+    inset 0 0 0 6px color-mix(in oklab, var(--foreground) 82%, var(--card)),
+    inset 0 0 0 7px color-mix(in oklab, var(--foreground) 55%, var(--card)),
+    inset 0 2px 10px 6px color-mix(in oklab, var(--foreground) 10%, transparent),
+    0 18px 34px -16px color-mix(in oklab, var(--foreground) 45%, transparent);
+  animation: first-photo-enter 0.65s cubic-bezier(0.22, 1, 0.36, 1) backwards;
+}
+/* C: 猫を手前の主役に、花と海を左右対称に傾け、珈琲を奥の中央に立てる。
+   単位 --u は、全体（横 100u・縦 95u + 2 × 紙）が箱に収まる大きさ。 */
+.first-print-stack--bouquet {
+  --s: 34px;
+  --u: min(0.96cqw, (100cqh - 2 * var(--s)) / 95);
+  --cx: 50cqw;
+  /* 猫（主役）の上端。全体（95u + 2 × 紙）を箱の縦の真ん中に置いたときの位置。 */
+  --cat-top: calc((100cqh - 95 * var(--u) - 2 * var(--s)) / 2 + 47 * var(--u) + var(--s));
+}
+.first-print-stack--bouquet > .first-print {
+  inset: auto;
+}
+.first-print-stack--bouquet > .first-print-0 {
+  left: calc(var(--cx) - 15 * var(--u));
+  top: calc(var(--cat-top) - 47 * var(--u) - var(--s));
+  width: calc(30 * var(--u));
+  rotate: -2deg;
+  z-index: 1;
+}
+.first-print-stack--bouquet > .first-print-1 {
+  left: calc(var(--cx) - 50 * var(--u));
+  top: calc(var(--cat-top) - 24 * var(--u));
+  width: calc(36 * var(--u));
+  rotate: -8deg;
+  z-index: 2;
+}
+.first-print-stack--bouquet > .first-print-3 {
+  left: calc(var(--cx) + 14 * var(--u));
+  top: calc(var(--cat-top) - 24 * var(--u));
+  width: calc(36 * var(--u));
+  rotate: 8deg;
+  z-index: 2;
+}
+.first-print-stack--bouquet > .first-print-2 {
+  left: calc(var(--cx) - 24 * var(--u));
+  top: var(--cat-top);
+  width: calc(48 * var(--u));
+  rotate: 1.5deg;
+  z-index: 3;
+}
+
 .first-standalone-footer {
   margin-top: auto;
   padding-top: 20px;

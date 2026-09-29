@@ -1,5 +1,5 @@
 import { tStatic } from "@/lib/i18n";
-import { canRequestAccount, readFirstCatch, type FirstCatch } from "@/lib/first-catch";
+import { hasAddedCatch, readFirstCatch, type FirstCatch } from "@/lib/first-catch";
 import { FirstCatchTransfer } from "@/components/onboarding/FirstCatchTransfer";
 import { createFileRoute, Outlet, useNavigate } from "@tanstack/react-router";
 import { useCallback, useEffect, useState } from "react";
@@ -86,7 +86,8 @@ function AuthenticatedLayout() {
           // Complete the photographed word's transfer before entering the app.
           const draft = await readFirstCatch().catch(() => null);
           if (!active) return;
-          if (draft && canRequestAccount(draft)) {
+          // 剥がした1枚は、案内を最後まで見ていなくても引き継ぐ（`hasAddedCatch`）。
+          if (draft && hasAddedCatch(draft)) {
             setPending({ draft, userId: session.user.id });
             setState("ready");
             return;

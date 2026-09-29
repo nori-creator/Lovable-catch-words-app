@@ -16,26 +16,58 @@ export const FIRST_CATCH_PHOTOS = [
 ];
 
 /**
+ * **最初の画面の4枚の並べ方**（オーナー指示 2026-09-30「ウェルカム画面の4枚の画像の配置が
+ * 美しくないから、4枚を一つの作品のように並べて。デザイン案を複数出して」）。
+ *
+ * - `mosaic`（A）: 傾けず重ねず、同じ隙間で組んだ**1つの長方形**。左の列は縦長の珈琲と猫、
+ *   右の列は花と海。右の列を 1.25 倍の幅にすると、両方の列の高さがちょうど揃う
+ *   （左 = 1.5w + 1w、右 = 1.25w × 2）。
+ * - `frame`（B）: A と同じ組み方を、**1枚の額**（台紙＋細い縁）に収める。
+ * - `bouquet`（C）: 猫を手前の主役に、花と海を左右対称に傾け、珈琲を奥の中央に立てる。
+ *
+ * 写真は3案とも**写真の比のまま**（切らない・潰さない）。どれに決めるかはオーナーの判断待ち。
+ * 決まるまでは A を本番の既定にし、確認用ページ（`?layout=`）で3つを見比べる。
+ */
+export const WELCOME_LAYOUTS = ["mosaic", "frame", "bouquet"] as const;
+export type WelcomeLayout = (typeof WELCOME_LAYOUTS)[number];
+export const DEFAULT_WELCOME_LAYOUT: WelcomeLayout = "mosaic";
+let welcomeLayoutPreview: WelcomeLayout | null = null;
+/** 確認用ページだけが使う（本番のコードからは呼ばない）。 */
+export function setWelcomeLayoutPreview(layout: WelcomeLayout | null) {
+  welcomeLayoutPreview = layout;
+}
+
+/**
  * **最初の画面とログイン画面の写真の束。**（オーナー指示 2026-09-29「画像の縮尺が変、
  * 縦に圧縮されすぎてる…写真自体のデザインもホーム画面のアルバムの写真と全く同じ
  * ものにして」）
  *
  * 前は4枚とも同じ正方形に近い枠に `object-fit: cover` で押し込んでいたので、縦長の
  * 珈琲の写真（2:3）は上下が大きく切られ、枠も横に広く見えた。今は1枚ずつ
- * **写真の比のままの枠**（`AlbumPrint`）で、ホームのアルバムと同じ紙・留め具・語。
+ * **写真の比のままの枠**（`AlbumPrint`）で、ホームのアルバムと同じ紙・語。
+ * 留め具（テープ・四隅）は付けない（2026-09-30）。
  * 大きさは束の箱の高さ（`cqh`）から決めるので、背の低い画面でもはみ出さない。
+ * `layout` を渡さない束（ログイン画面）は、今までどおりの扇形。
  */
 export function FirstCatchPhotoStack({
   labels,
   lang,
   className,
+  layout,
 }: {
   labels: string[];
   lang?: string | null;
   className?: string;
+  layout?: WelcomeLayout;
 }) {
+  const chosen = layout ? (welcomeLayoutPreview ?? layout) : null;
   return (
-    <div className={`first-print-stack ${className ?? ""}`} aria-hidden="true">
+    <div
+      className={`first-print-stack ${chosen ? `first-print-stack--${chosen}` : ""} ${className ?? ""}`}
+      data-layout={chosen ?? undefined}
+      aria-hidden="true"
+    >
+      {chosen === "frame" && <span className="first-print-frame" />}
       {FIRST_CATCH_PHOTOS.map(({ src, ratio }, i) => (
         <AlbumPrint
           key={src}
@@ -44,6 +76,7 @@ export function FirstCatchPhotoStack({
           ratio={ratio}
           word={labels[i] ?? ""}
           lang={lang}
+          fasteners={false}
           className={`first-print first-print-${i}`}
         />
       ))}
@@ -97,6 +130,7 @@ export function FirstCatchIntro({
           labels={labels}
           lang={draft.targetLanguage}
           className="first-polaroids"
+          layout={DEFAULT_WELCOME_LAYOUT}
         />
         <footer className="first-standalone-footer">
           <PrimaryAction onClick={onStart} disabled={busy}>
@@ -258,6 +292,7 @@ export function FirstCatchReady({
             word={catWord}
             lang={draft.targetLanguage}
             note={t("first.readyPhoto")}
+            fasteners={false}
             className="first-ready-photo"
           />
         </div>
