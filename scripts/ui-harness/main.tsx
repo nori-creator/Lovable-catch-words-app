@@ -380,6 +380,7 @@ const q = new URLSearchParams(location.search);
  * 「これを見てください」と差し出すことになる。
  */
 const REVIEW_SCENES: Array<{ scene: string; label: string }> = [
+  { scene: "image-settings", label: "β確認: AI画像設定（日・英・繁体字の表示）" },
   // 2026-09-28〜29 の依頼（R14）で触った面だけ。**毎回ここを入れ替える**
   // — 前の依頼の面は残さない（オーナー指示「過去のものは全て削除して」）。
   // 先頭は最後に頼まれた物（図鑑のスライドを白に・カードの色の案）。
