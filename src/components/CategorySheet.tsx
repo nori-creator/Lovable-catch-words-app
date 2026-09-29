@@ -34,6 +34,7 @@ export function CategorySheet({
   onDelete,
   onEditMembers,
   onClose,
+  initialEditing = null,
 }: {
   /** 写真を移すときの、いまのカテゴリー。無ければ編集だけ。 */
   current?: string | null;
@@ -47,12 +48,14 @@ export function CategorySheet({
   /** カテゴリーの側から、入れる単語を選ぶ面を開く（図鑑から開いた時だけ）。 */
   onEditMembers?: (key: string) => void;
   onClose: () => void;
+  /** 開いた時に最初から編集しておくカテゴリー（図鑑の見出しの長押し、R14）。 */
+  initialEditing?: string | null;
 }) {
   const t = useT();
   const reduced = usePrefersReducedMotion();
   const { dragProps, grabber } = useDragDismiss({ onDismiss: onClose, enabled: !reduced });
   const labelOf = (k: CategoryKey) => t(`cat.${k}`);
-  const [editing, setEditing] = useState<string | null>(null);
+  const [editing, setEditing] = useState<string | null>(initialEditing);
   const [creating, setCreating] = useState(false);
   const [showAll, setShowAll] = useState(false);
   const [busy, setBusy] = useState(false);

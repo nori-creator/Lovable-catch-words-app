@@ -52,21 +52,32 @@ export function DexCoverFlow({
   memory,
   initialIndex = 0,
   onBrowse,
-  theme = "stage",
+  theme = "gallery",
+  cardTone = "blue",
 }: {
   stickers: StickerWithWord[];
   onOpen: (id: string) => void;
   /**
    * 背景の見せ方（オーナー指示 2026-09-27「黒系の背景・奥行き・真ん中に
    * ステージ／円。カテゴリー別の背景やアニメの案を複数」）。
-   *  ・`stage`    … 暗い部屋に、真ん中のカードだけ光る円の舞台（既定）
+   *  ・`stage`    … 暗い部屋に、真ん中のカードだけ光る円の舞台
    *  ・`category` … 舞台の光と背景の色が、真ん中のカードの分類の色になる
    *  ・`motion`   … `category` に、分類ごとの小さな動き（湯気・葉・雨…）
    *  ・`museum`   … 美術館。暗い壁、上からの光、カードの下に小さな札
-   *  ・`gallery`  … **白い展示室（既定、2026-09-27）**。作品は奥の台座の上、
+   *  ・`gallery`  … **白い展示室（既定。R14「背景白にして」で本番もこれ）**。作品は奥の台座の上、
    *                  左右の作品は壁ぞいに奥へ。下にオークションの札（番号・名・日・所）
    */
   theme?: "stage" | "category" | "motion" | "museum" | "gallery";
+  /**
+   * **カードの色**（オーナー指示 2026-09-28 R14「図鑑のスライドは背景白にして。
+   * カードと背景が同じ色で見にくいから、カードの色を少し調整して。色のデザイン案だして」）。
+   * 白い部屋の上で白いカードが溶けていたので、カードに地の色を持たせる。
+   *  ・`blue`     … アプリの青をごく薄く（既定）。縁に細い青の線
+   *  ・`ivory`    … 生成りの紙（温かい白）。縁は薄い茶
+   *  ・`category` … 真ん中のカードの分類の色をごく薄く
+   *  ・`ink`      … 濃紺の額（白い部屋の中でいちばん締まる）
+   */
+  cardTone?: "blue" | "ivory" | "category" | "ink";
   /** 札の id → 記憶の印。雛形は通信できないので、こちらで渡す。 */
   memory?: Map<string, MemoryBadgeInfo>;
   /** 最初に真ん中へ置く札（雛形で送った途中の形を見るため）。 */
@@ -309,6 +320,7 @@ export function DexCoverFlow({
       aria-label={t("dex.cards")}
       className="dex-cf -mx-4"
       data-theme={theme}
+      data-card={cardTone}
       data-room={room}
       style={{ "--cf-accent": ROOM_ACCENT[room] } as React.CSSProperties}
     >

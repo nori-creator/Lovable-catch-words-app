@@ -640,12 +640,28 @@ export function StickerSheet({ stickerId, onClose, openPhotoPicker, from, local 
           },
         });
         // いま画面に出ている項目は残し、空だった項目だけ埋める（`keepShownFields`）。
+        //
+        // **その人向けの解説がまだ無い時も、いま見えている物を残す**（オーナー報告
+        // 2026-09-28 R14「単語の詳細開くとチャンクが表示され、すぐに違うものに変化する」）。
+        // 解説の行が無い語は、共有の古い解説（`words.extras`、読む人の言語で書かれた物
+        // だけ）を先に出している。前はここで「見えている物」を null とみなしていたので、
+        // 作り終えた瞬間にチャンクが丸ごと別の型へ入れ替わっていた。
         const shownExtras =
           explanation.picked &&
           explanation.picked.explain_lang === wantKey.explainLang &&
           explanation.picked.l1 === wantKey.l1
             ? explanation.picked.extras
-            : null;
+            : explanation.picked
+              ? null
+              : resolveDisplayWord(
+                  {
+                    meaning: s.word.meaning_ja,
+                    exampleTranslation: s.word.example_translation,
+                    extras: s.word.extras,
+                  },
+                  null,
+                  uiLang,
+                ).extras;
         await saveExtras({
           data: {
             word_id: s.word_id,

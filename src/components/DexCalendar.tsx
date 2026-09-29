@@ -21,21 +21,16 @@ import { CATEGORY_META, ROOM_ACCENT, asCategoryKey } from "@/lib/category";
  * カラフルに」）。このアプリの色は飾りではなく**分類の色**（食べ物は橙、町は青…
  * `ROOM_ACCENT`）とアプリの青だけ。前は月ごとに決め打ちの12色を塗っていたが、その色は
  * 何も表していなかった。いまは:
- *  - 月の見出しと枚数の札 = **その月にいちばん多く撮った分類の色**
- *  - 写真の日の縁 = その日の1枚目の分類の色、右上に**その日の分類の色の粒**（最大3つ）
+ *  - 月の見出しと枚数の札・写真の日の縁 = **アプリの青**（R14 で分類の色から変更）
+ *  - 右上に**その日の分類の色の粒**（最大3つ）
  *  - 今日 = アプリの青
  */
-function monthAccent(days: Array<StickerWithWord[] | undefined>): string {
-  const count = new Map<string, number>();
-  for (const items of days)
-    for (const s of items ?? []) {
-      const room = CATEGORY_META[asCategoryKey(s.word.category_key)].room;
-      count.set(room, (count.get(room) ?? 0) + 1);
-    }
-  let best: string | null = null;
-  let n = 0;
-  for (const [room, c] of count) if (c > n) [best, n] = [room, c];
-  return best ? ROOM_ACCENT[best as keyof typeof ROOM_ACCENT] : "var(--primary)";
+function monthAccent(_days: Array<StickerWithWord[] | undefined>): string {
+  // **青を基調にする**（オーナー指示 2026-09-28 R14「カレンダーの色オレンジではなく、
+  // 青を基調にして」）。前はその月にいちばん多く撮った分類の色（食べ物が多いと橙）で
+  // 月全体を塗っていた。いまは月の見出し・札・升の地はいつもアプリの青。分類の色は
+  // 右上の小さな粒（`dayColors`）にだけ残す。
+  return "var(--primary)";
 }
 
 /** その日に撮った分類の色（重ならない順に、最大3つ）。 */
@@ -50,10 +45,9 @@ function dayColors(items: StickerWithWord[]): string[] {
 }
 
 /** その日の1枚目の分類の色（写真の縁と枚数の丸に使う）。 */
-function dayAccent(items: StickerWithWord[]): string {
-  const first = items[0];
-  if (!first) return "var(--primary)";
-  return ROOM_ACCENT[CATEGORY_META[asCategoryKey(first.word.category_key)].room];
+function dayAccent(_items: StickerWithWord[]): string {
+  // 写真の日の縁も青（R14）。
+  return "var(--primary)";
 }
 
 /**

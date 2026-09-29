@@ -71,6 +71,7 @@ import { MapCalendarDesignsScene } from "./scenes/map-calendar-designs";
 import { ScanResultScene } from "./scenes/scan-result";
 import { DexCalendarScene } from "./scenes/dex-calendar";
 import { DexCardsScene } from "./scenes/dex-cards";
+import { DexDragScene } from "./scenes/dex-drag";
 import { TtsVoicesScene } from "./scenes/tts-voices";
 import { CatchSoundScene } from "./scenes/catch-sound";
 import { AiModelsScene } from "./scenes/ai-models";
@@ -225,6 +226,7 @@ const SCENES: Record<string, ((p: { q: URLSearchParams }) => ReactNode) | undefi
   "scan-found": ScanResultScene,
   "dex-calendar": DexCalendarScene,
   "dex-cards": DexCardsScene,
+  "dex-drag": DexDragScene,
   "ai-models": AiModelsScene,
   "tts-voices": TtsVoicesScene,
   "catch-sound": CatchSoundScene,

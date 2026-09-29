@@ -3023,6 +3023,16 @@ export const DICT: Record<string, Record<UiLang, string>> = {
     en: "Image unavailable. The word can still be saved.",
     "zh-TW": "無法生成圖片，但仍可保存單詞。",
   },
+  "dex.movedTo": {
+    ja: "「{word}」を{cat}へ移しました",
+    en: "Moved “{word}” to {cat}",
+    "zh-TW": "已將「{word}」移到{cat}",
+  },
+  "dex.moveFailed": {
+    ja: "移せませんでした。もう一度試してください",
+    en: "Couldn't move it. Please try again.",
+    "zh-TW": "無法移動，請再試一次。",
+  },
   "input.save": { ja: "図鑑に入れる", en: "Add to the dex", "zh-TW": "收進圖鑑" },
   "input.saveHint": {
     ja: "実物に出会ってスキャンすると金色に光り、撮影で図鑑が完成します。",

@@ -9422,11 +9422,49 @@ html[data-motion="reduce"] .magic-wait::after {
  * 壁と床の境目（奥行きの手がかり）、真ん中の作品に上から落ちる光、白い台座。
  * ------------------------------------------------------------------------- */
 html[data-dex-stage="gallery"] {
-  background: #f5f4f1;
+  background: #ffffff;
 }
 .dex-cf[data-theme="gallery"] .dex-cf__backdrop {
-  /* 壁（天井ぎわがわずかに暗い）。床は舞台の中で、台座の足元から敷く。 */
-  background: radial-gradient(120% 70% at 50% 30%, #ffffff 0%, #f6f5f2 55%, #ebe8e2 100%);
+  /* **白い部屋**（R14「図鑑のスライドは背景白にして」）。四隅だけごくわずかに落とす
+     （完全な平面だと奥行きが消える）。 */
+  background: radial-gradient(130% 80% at 50% 32%, #ffffff 0%, #ffffff 60%, #f4f4f6 100%);
+}
+/* ── カードの色（`cardTone`）。白い部屋の上で白いカードが溶けないように、地の色と縁を持たせる。 ── */
+.dex-cf[data-theme="gallery"][data-card] .dex-cf__card {
+  background: var(--cf-card-bg);
+  color: var(--cf-card-fg);
+  border-radius: 10px;
+  box-shadow:
+    0 0 0 1px var(--cf-card-edge),
+    0 2px 6px rgb(0 0 0 / 0.06),
+    0 26px 40px -22px rgb(0 0 0 / 0.38);
+}
+.dex-cf[data-card] .dex-cf__card .text-muted-foreground {
+  color: var(--cf-card-sub);
+}
+.dex-cf[data-card="blue"] {
+  --cf-card-bg: #eef4ff;
+  --cf-card-fg: #10213d;
+  --cf-card-sub: #4a5d7c;
+  --cf-card-edge: rgb(10 108 255 / 0.28);
+}
+.dex-cf[data-card="ivory"] {
+  --cf-card-bg: #fbf5e9;
+  --cf-card-fg: #2b2419;
+  --cf-card-sub: #6d614e;
+  --cf-card-edge: rgb(120 92 50 / 0.26);
+}
+.dex-cf[data-card="category"] {
+  --cf-card-bg: color-mix(in oklab, var(--cf-accent) 14%, #ffffff);
+  --cf-card-fg: #1d1d1f;
+  --cf-card-sub: color-mix(in oklab, var(--cf-accent) 45%, #3a3a3c);
+  --cf-card-edge: color-mix(in oklab, var(--cf-accent) 40%, transparent);
+}
+.dex-cf[data-card="ink"] {
+  --cf-card-bg: #16213a;
+  --cf-card-fg: #ffffff;
+  --cf-card-sub: #b9c4da;
+  --cf-card-edge: rgb(0 0 0 / 0.4);
 }
 .dex-cf__gallery-floor {
   position: absolute;
@@ -9914,4 +9952,95 @@ html[data-motion="reduce"] .album-remove {
   font-size: 0.75rem;
   font-weight: 600;
   color: var(--primary);
+}
+
+/* 図鑑の札を長押しで運んでいる間（`DexCategoryDrag`）。落とせるカテゴリーの節を青く縁取る。 */
+.dex-cat {
+  border-radius: 1.25rem;
+  transition:
+    box-shadow 160ms ease,
+    background-color 160ms ease;
+}
+.dex-cat[data-drop] {
+  background: color-mix(in oklab, var(--primary) 7%, transparent);
+  box-shadow:
+    0 0 0 2px var(--primary),
+    0 0 0 8px color-mix(in oklab, var(--primary) 12%, transparent);
+}
+html[data-dex-dragging] {
+  user-select: none;
+  -webkit-user-select: none;
+}
+[data-dex-item],
+[data-dex-cat-head] {
+  -webkit-touch-callout: none;
+}
+
+/* ── チャンクの既定の形: **語ごとの四角を「＋」でつなぐ**（オーナー指示 2026-09-28 R14）。
+   前の「1本のカプセル」（`.chunk-set--formula`）は案として残す。四角は品詞の色で薄く
+   塗り、縁も同じ色。学ぶ語（`.chunk-target`）は縁を太く・字を濃く。入れ替えられる所は
+   点線の縁と ▾（押すと下に候補が横に並び、送って選ぶ）。 ── */
+.chunk-set--boxes {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.3rem;
+  max-width: 100%;
+}
+.chunk-set--boxes > .chunk-bubble,
+.chunk-set--boxes > .chunk-slot {
+  flex-direction: column;
+  justify-content: center;
+  min-height: 2.75rem;
+  padding: 0.35rem 0.7rem;
+  border-radius: 0.7rem;
+  border: 1.5px solid color-mix(in oklab, var(--pos, var(--foreground)) 38%, transparent);
+  background: color-mix(in oklab, var(--pos, var(--foreground)) 10%, var(--card));
+  box-shadow: 0 4px 10px -8px color-mix(in oklab, var(--pos, var(--foreground)) 70%, transparent);
+  text-decoration: none;
+}
+.chunk-set--boxes > .chunk-slot {
+  flex-direction: row;
+  gap: 0.15rem;
+  border-style: dashed;
+  background: var(--card);
+}
+.chunk-set--boxes > .chunk-target {
+  border-width: 2px;
+  border-color: color-mix(in oklab, var(--pos, var(--foreground)) 70%, transparent);
+  background: color-mix(in oklab, var(--pos, var(--foreground)) 18%, var(--card));
+  color: color-mix(in oklab, var(--pos, var(--foreground)) 55%, var(--foreground));
+}
+.chunk-plus {
+  flex: none;
+  font-weight: 700;
+  font-size: 0.95rem;
+  line-height: 1;
+  color: var(--muted-foreground);
+}
+/* 案 C: 言う順に → でつなぐ。 */
+.chunk-set--steps .chunk-plus {
+  font-size: 0.85rem;
+  color: color-mix(in oklab, var(--primary) 70%, var(--muted-foreground));
+}
+/* 案 D: 四角の下に品詞の名前。 */
+.chunk-tag {
+  display: block;
+  margin-top: 1px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: color-mix(in oklab, var(--pos, var(--foreground)) 60%, var(--muted-foreground));
+}
+.chunk-set--boxes > .chunk-pill:active {
+  transform: translateY(1px) scale(0.95);
+  transition-duration: 0.08s;
+}
+.chunk-set--tags > .chunk-slot {
+  flex-wrap: wrap;
+  justify-content: center;
+}
+.chunk-set--tags > .chunk-slot .chunk-tag {
+  flex-basis: 100%;
+  text-align: center;
 }

@@ -2023,6 +2023,7 @@ export function AnswerExplain({ card }: { card: DueReviewCard }) {
                 parts={c.parts}
                 translation={chunkTranslation(c.ja)}
                 lang={card.language}
+                headword={card.headword}
                 speakText={chunkSpeechText(c, card.language)}
               />
             ))}

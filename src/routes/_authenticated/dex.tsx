@@ -54,6 +54,8 @@ import { DexDayMap } from "@/components/DexDayMap";
 import { DexCoverFlow } from "@/components/DexCoverFlow";
 import { DexShelf } from "@/components/DexShelf";
 import { CategorySheet } from "@/components/CategorySheet";
+import { toast } from "sonner";
+import { DexCategoryDrag } from "@/components/DexCategoryDrag";
 import { wasFlown } from "@/lib/catch-flight";
 import { CategoryMembersSheet } from "@/components/CategoryMembersSheet";
 import { categoryDisplay, stickerCategoryKey } from "@/lib/user-category";
@@ -146,6 +148,8 @@ function DexPage() {
   );
   const cats = useCategories();
   const [manageCats, setManageCats] = useState(false);
+  /** 見出しの長押しで開いた時、最初から編集しておくカテゴリー（R14）。 */
+  const [editCatKey, setEditCatKey] = useState<string | null>(null);
   /** カテゴリーの側から単語を入れる・外す面（2026-09-28）。 */
   const [membersKey, setMembersKey] = useState<string | null>(null);
   // Memoize so the reference is stable across renders — otherwise `filtered`
@@ -319,11 +323,37 @@ function DexPage() {
         activeCategory={activeCategory}
         justCaught={justCaught}
         shelves={shelves}
-        onManageCategories={() => setManageCats(true)}
+        onManageCategories={() => {
+          setEditCatKey(null);
+          setManageCats(true);
+        }}
+        onEditCategory={(key) => {
+          setEditCatKey(key);
+          setManageCats(true);
+        }}
+        onMoveToCategory={(id, key) => {
+          const s = captured.find((x) => x.id === id);
+          if (!s) return;
+          const from = stickerCategoryKey(s, userCatKeys);
+          if (from === key) return;
+          const to = displayOf(key);
+          void cats
+            .setMembers([{ sticker_id: id, key }])
+            .then(() =>
+              toast(t("dex.movedTo", { word: s.word.headword, cat: `${to.emoji} ${to.label}` }), {
+                action: {
+                  label: t("album.undo"),
+                  onClick: () => void cats.setMembers([{ sticker_id: id, key: from }]),
+                },
+              }),
+            )
+            .catch(() => toast.error(t("dex.moveFailed")));
+        }}
       />
       <StickerSheet stickerId={openId} onClose={() => setOpenId(null)} />
       {manageCats && (
         <CategorySheet
+          initialEditing={editCatKey}
           usedKeys={catOptions.map((o) => o.key)}
           userCategories={cats.categories}
           onSave={cats.save}
@@ -415,6 +445,8 @@ export function DexSurface({
   justCaught,
   shelves = [],
   onManageCategories,
+  onMoveToCategory,
+  onEditCategory,
 }: {
   captured: StickerWithWord[];
   filtered: StickerWithWord[];
@@ -429,6 +461,10 @@ export function DexSurface({
   onOpen: (id: string) => void;
   onBrowse?: () => void;
   onManageCategories?: () => void;
+  /** 長押しで運んだ札を、そのカテゴリーへ移す（R14）。 */
+  onMoveToCategory?: (stickerId: string, key: string) => void;
+  /** カテゴリーの見出しを長押し → そのカテゴリーを編集する（R14）。 */
+  onEditCategory?: (key: string) => void;
   memory?: Map<string, MemoryBadgeInfo>;
   isError?: boolean;
   isLoading?: boolean;
@@ -603,40 +639,48 @@ export function DexSurface({
           userShelves={shelves}
         />
       ) : (
-        groups.map(([key, items]) => (
-          <section key={key} className="mb-6">
-            <div className="mb-2 flex items-baseline justify-between">
-              <h3 className="text-body font-semibold tracking-tight">
-                {/* カテゴリーは既知なら翻訳、未知のキーはそのまま見せる
+        <DexCategoryDrag
+          onMove={(id, key) => onMoveToCategory?.(id, key)}
+          onEditCategory={onEditCategory}
+        >
+          {groups.map(([key, items]) => (
+            <section key={key} className="dex-cat mb-6" data-dex-cat={key}>
+              <div className="mb-2 flex items-baseline justify-between">
+                <h3
+                  className="dex-cat__head text-body font-semibold tracking-tight"
+                  data-dex-cat-head={onEditCategory ? key : undefined}
+                >
+                  {/* カテゴリーは既知なら翻訳、未知のキーはそのまま見せる
                   (訳が無いより分かる)。 */}
-                {displayOf(key).emoji} {displayOf(key).label}
-              </h3>
-              <span className="text-footnote text-muted-foreground">{items.length}</span>
-            </div>
+                  {displayOf(key).emoji} {displayOf(key).label}
+                </h3>
+                <span className="text-footnote text-muted-foreground">{items.length}</span>
+              </div>
 
-            {view === "gallery" && layout !== "album" ? (
-              // 見た目パックが選ばれているときだけ、別の並べ方で描く。
-              // 中身(実際に撮った写真)は同じで、見せ方だけが変わる。
-              <PackGallery
-                items={items}
-                justCaught={justCaught}
-                onOpen={setOpenId}
-                layout={layout}
-              />
-            ) : view === "gallery" ? (
-              // 試作品(Capture&Converse)のアルバム: 写真がタイルいっぱいに
-              // 表示される3列グリッド+下端のグラデーションに単語名。
-              <DexAlbumGrid
-                items={items}
-                memory={memory}
-                justCaught={justCaught}
-                onOpen={setOpenId}
-              />
-            ) : (
-              <DexList items={items} onOpen={setOpenId} />
-            )}
-          </section>
-        ))
+              {view === "gallery" && layout !== "album" ? (
+                // 見た目パックが選ばれているときだけ、別の並べ方で描く。
+                // 中身(実際に撮った写真)は同じで、見せ方だけが変わる。
+                <PackGallery
+                  items={items}
+                  justCaught={justCaught}
+                  onOpen={setOpenId}
+                  layout={layout}
+                />
+              ) : view === "gallery" ? (
+                // 試作品(Capture&Converse)のアルバム: 写真がタイルいっぱいに
+                // 表示される3列グリッド+下端のグラデーションに単語名。
+                <DexAlbumGrid
+                  items={items}
+                  memory={memory}
+                  justCaught={justCaught}
+                  onOpen={setOpenId}
+                />
+              ) : (
+                <DexList items={items} onOpen={setOpenId} />
+              )}
+            </section>
+          ))}
+        </DexCategoryDrag>
       )}
     </div>
   );
@@ -821,6 +865,7 @@ export function DexAlbumGrid({
         return (
           <button
             key={s.id}
+            data-dex-item={s.id}
             onClick={() => onOpen(s.id)}
             className="group relative block text-left"
           >
@@ -947,6 +992,7 @@ export function PackGallery({
           <button
             key={s.id}
             id={`dex-cell-${s.id}`}
+            data-dex-item={s.id}
             onClick={() => onOpen(s.id)}
             className={`pk-tile text-left ${s.id === justCaught ? "ring-2 ring-amber-400" : ""}`}
           >
@@ -997,6 +1043,7 @@ export function DexList({
           className={`flex items-center gap-1 pr-2 transition-colors hover:bg-accent/40 ${i > 0 ? "border-t border-border" : ""}`}
         >
           <button
+            data-dex-item={s.id}
             onClick={() => onOpen(s.id)}
             className="flex min-w-0 flex-1 items-center gap-3 p-3 text-left active:bg-accent/50"
           >

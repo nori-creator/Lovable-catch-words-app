@@ -3959,10 +3959,13 @@ describe("N. 下のタブ帯と、札を開く動き", () => {
     expect(fs.existsSync(path.join(root, "lib/chunk-design.ts"))).toBe(false);
     expect(pills).toMatch(/chunk-set chunk-set--formula/);
     expect(pills).toMatch(/chunk-slot/);
-    // 型は**1本のカプセル**（2026-09-28「チャンクだから固まりとして見せたい」）。
-    // 語ごとの丸を「＋」で離して並べると、丸の数だけ別の物に見える。
+    // 既定は**語ごとの四角を「＋」でつなぐ**（2026-09-28 R14「連結ではなく、それぞれの
+    // 単語を四角で囲って＋でつなぐものにして」）。1本のカプセルは案 D として残す。
+    expect(pills).toMatch(/look = "boxes"/);
+    expect(pills).toMatch(/className="chunk-plus"/);
     expect(pills).toMatch(/className="chunk-joint"/);
-    expect(pills).not.toMatch(/chunk-plus/);
+    // 学ぶ語は入れ替えさせない（R14）。
+    expect(pills).toMatch(/!target && \(c\.alts\?\.length \?\? 0\) > 0/);
     const css = read("styles.css");
     const cap = css.slice(css.indexOf(".chunk-set--formula {"));
     const block = cap.slice(0, cap.indexOf("}"));

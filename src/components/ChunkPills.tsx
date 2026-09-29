@@ -33,9 +33,27 @@ export function ChunkPills({
   onSpeak,
   onSlot,
   openSlot = null,
+  look = "boxes",
+  fixedText,
 }: {
   parts: ChunkPart[];
   size?: "sm" | "md" | "lg";
+  /**
+   * **型の見せ方**（オーナー指示 2026-09-28 R14「使い方のチャンク、連結ではなく、
+   * それぞれの単語を四角で囲って＋でつなぐものにして。またそれ以外のさまざまな
+   * デザイン案も提案して」）。
+   *  ・`boxes`   … 語ごとに角の丸い四角、間に「＋」（**既定**）
+   *  ・`capsule` … 前の形（1本のカプセルに継ぐ）
+   *  ・`steps`   … 四角を「→」で順に並べる（言う順番が分かる）
+   *  ・`tags`    … 四角の下に品詞の名前（動詞・名詞…）を小さく
+   */
+  look?: "boxes" | "capsule" | "steps" | "tags";
+  /**
+   * **学んでいる語は入れ替えさせない**（R14「決して該当の単語はスクロールできるように
+   * はしないで。なぜならこの単語を学習したいから」）。この字を含む札は、AI が入れ替え
+   * 候補を付けていても固定の札として描き、学ぶ語として少し強く見せる。
+   */
+  fixedText?: string;
   /** 単語詳細では札を外し、品詞色を文字そのものに使う。 */
   appearance?: "pill" | "text";
   /** その型の学習言語。**渡さないと台湾華語として組む**(既定)。 */
@@ -67,9 +85,14 @@ export function ChunkPills({
           ? "px-3 py-2 text-headline leading-snug tracking-wide"
           : "px-2.5 py-1.5 text-body";
   const pill = appearance === "pill";
+  const isFixed = (t: string) => !!fixedText && !!t && t.includes(fixedText.trim());
+  const setClass =
+    look === "capsule"
+      ? "chunk-set chunk-set--formula"
+      : `chunk-set chunk-set--boxes chunk-set--${look}`;
   return (
-    // 札の型は**1本のカプセル**（外枠と影は型に1つ）。本文の型は字だけで並べる。
-    <div className={pill ? "chunk-set chunk-set--formula" : "flex flex-wrap gap-x-1.5 gap-y-1"}>
+    // 札の型: 既定は**語ごとの四角を＋でつなぐ**。本文の型は字だけで並べる。
+    <div className={pill ? setClass : "flex flex-wrap gap-x-1.5 gap-y-1"}>
       {parts.map((c, i) => {
         const st = chunkStyle(c.pos);
         // チャンク本体は**学習言語の語**。品詞ラベル(名詞など)は解説語なので、
@@ -78,7 +101,8 @@ export function ChunkPills({
         // フォントが当たる(`Term` の注)。
         // 記号(S/V/O…)は**帯から外した**。語のすぐ右に同じベースラインで
         // 置いていたので「我 s」が誤字に見えた。色と凡例で足りる。
-        const swappable = !!onSlot && !!c.slot && (c.alts?.length ?? 0) > 0;
+        const target = isFixed(c.text);
+        const swappable = !!onSlot && !!c.slot && !target && (c.alts?.length ?? 0) > 0;
         const body = swappable ? (
           <>
             <Term lang={lang}>{c.text}</Term>
@@ -93,17 +117,29 @@ export function ChunkPills({
         const posClass = st.dot.replace("pos-dot ", "");
         const skin = !pill
           ? `chunk-word font-semibold ${pad} ${posClass}`
-          : c.slot
+          : c.slot && !target
             ? `chunk-slot font-semibold ${pad} ${posClass}`
-            : `chunk-bubble font-semibold ${pad} ${st.pill}`;
+            : `chunk-bubble font-semibold ${pad} ${st.pill}${target ? " chunk-target" : ""}`;
         const style = { "--i": i } as CSSProperties;
-        const joint = pill && i > 0 ? <span aria-hidden className="chunk-joint" /> : null;
+        const joint =
+          pill && i > 0 ? (
+            look === "capsule" ? (
+              <span aria-hidden className="chunk-joint" />
+            ) : (
+              <span aria-hidden className="chunk-plus">
+                {look === "steps" ? "→" : "+"}
+              </span>
+            )
+          ) : null;
+        // `tags`: 四角の下に品詞の名前。
+        const tag = pill && look === "tags" ? <span className="chunk-tag">{st.label}</span> : null;
         if (!onSpeak) {
           return (
             <Fragment key={i}>
               {joint}
               <span className={skin} title={st.label} style={style}>
                 {body}
+                {tag}
               </span>
             </Fragment>
           );
@@ -134,6 +170,7 @@ export function ChunkPills({
               style={style}
             >
               {body}
+              {tag}
             </button>
           </Fragment>
         );
@@ -180,8 +217,13 @@ export function ChunkLine({
   lang,
   speakText,
   onSpeak,
+  headword,
+  look,
 }: {
   parts: ChunkPart[];
+  /** 学んでいる語。この語の札は入れ替えない（R14）。 */
+  headword?: string;
+  look?: "boxes" | "capsule" | "steps" | "tags";
   translation?: string | null;
   lang?: string | null;
   /** 型ぜんぶをひと息で鳴らす文。無ければボタンを出さない。 */
@@ -235,6 +277,8 @@ export function ChunkLine({
           onSpeak={onSpeak ?? ((text) => void pronounce(text))}
           onSlot={(i) => setOpen((o) => (o === i ? null : i))}
           openSlot={open}
+          fixedText={headword}
+          look={look}
         />
         {translation && !hasPick ? <p className="chunk-line__translation">{translation}</p> : null}
         {slot && open != null && (
