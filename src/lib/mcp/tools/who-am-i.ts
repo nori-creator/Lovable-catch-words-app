@@ -5,7 +5,7 @@ export default defineTool({
   name: "who_am_i",
   title: "Who am I",
   description:
-    "Return the Catchwords profile of the currently connected user: display name, UI/target languages, level goal, and total sticker count.",
+    "Return the CatchWords profile of the currently connected user: display name, UI/target languages, level goal, and total sticker count.",
   inputSchema: {},
   annotations: { readOnlyHint: true, idempotentHint: true, openWorldHint: false },
   handler: async (_input, ctx) => {

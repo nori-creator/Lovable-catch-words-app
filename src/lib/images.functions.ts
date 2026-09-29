@@ -95,7 +95,7 @@ export const searchImageCandidates = createServerFn({ method: "POST" })
       try {
         const res = await fetch(commonsSearchUrl(data.query), {
           // コモンズは名乗らない相手を弾くことがある。
-          headers: { "User-Agent": "Catchwords/1.0 (language learning app)" },
+          headers: { "User-Agent": "CatchWords/1.0 (language learning app)" },
         });
         if (res.ok) {
           for (const c of commonsCandidates((await res.json()) as CommonsResponse)) {

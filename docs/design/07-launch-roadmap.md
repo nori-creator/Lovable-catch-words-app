@@ -1,4 +1,4 @@
-# Catchwords ローンチ・ロードマップ v1(docs/design/07-launch-roadmap.md)
+# CatchWords ローンチ・ロードマップ v1(docs/design/07-launch-roadmap.md)
 
 > 目的: 「友達や彼女が普通に使える品質」→「ストア公開」→「収益化」への道筋を、優先順位つきで固定する。
 > 本書は 06-scan-first-mvp.md(機能仕様)の上位にある**順序と品質の判断**を記録する。矛盾時は本書が優先。

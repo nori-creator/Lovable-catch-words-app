@@ -452,7 +452,7 @@ function DayTimeline({
                   <span className="min-w-0 flex-1">
                     <Zh className="block truncate text-body font-semibold">{s.word.headword}</Zh>
                     <span className="block truncate text-footnote text-muted-foreground">
-                      <ReaderMeaning text={s.word.meaning_ja} />
+                      <ReaderMeaning text={s.word.meaning_ja} wordId={s.word_id} />
                     </span>
                     {s.location_name && (
                       <span className="mt-0.5 flex items-center gap-1 truncate text-caption text-muted-foreground">

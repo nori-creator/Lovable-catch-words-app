@@ -128,13 +128,19 @@ export function looksWrongForReader(
   const latinWords = (text ?? "").match(/[A-Za-z]{2,}/g)?.length ?? 0;
   const cjk = (s.match(/[㐀-䶿一-鿿々ぁ-ゟァ-ヺ가-힯]/g) ?? []).length;
   const latin = (s.match(/[A-Za-z]/g) ?? []).length;
+  // 欧文だけの訳・意味（「Soup curry」のように2語でも）は、日本語・台湾華語で読む人には
+  // 違う言語（R17「日本語にしてるのに、図鑑のスライドの意味や例文の訳に英語が表示される」）。
+  // 5文字未満（「OK」「USB」）は略語として残す。漢字・かなが在っても、欧文が大半なら違う。
+  const mostlyLatin = latin >= 5 && latin > cjk * 3 && latinWords >= 2;
   if (lang === "ja") {
     if (!opts.hanOnlyOk && looksLikeTargetNote(s, "ja")) return true;
-    return !HAN.test(s) && !KANA.test(s) && latinWords >= 3;
+    if (!HAN.test(s) && !KANA.test(s) && latin >= 5) return true;
+    return mostlyLatin;
   }
   if (lang.startsWith("zh")) {
     if (KANA.test(s)) return true;
-    return !HAN.test(s) && latinWords >= 3;
+    if (!HAN.test(s) && latin >= 5) return true;
+    return mostlyLatin;
   }
   if (lang === "en") return cjk >= 2 && cjk > latin;
   return false;

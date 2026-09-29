@@ -94,8 +94,8 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
         name: "description",
         content: "街で出会った言葉を集める、言語学習アプリ。\nCapture words. Build your world.",
       },
-      { name: "author", content: "Catchwords" },
-      { property: "og:site_name", content: "Catchwords" },
+      { name: "author", content: "CatchWords" },
+      { property: "og:site_name", content: "CatchWords" },
       { property: "og:title", content: "CatchWords" },
       {
         property: "og:description",
@@ -116,7 +116,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { name: "theme-color", content: "#f8fbfe" },
       { name: "apple-mobile-web-app-capable", content: "yes" },
       { name: "apple-mobile-web-app-status-bar-style", content: "default" },
-      { name: "apple-mobile-web-app-title", content: "Catchwords" },
+      { name: "apple-mobile-web-app-title", content: "CatchWords" },
       { name: "mobile-web-app-capable", content: "yes" },
       { name: "format-detection", content: "telephone=no" },
       {
@@ -184,13 +184,13 @@ try{if(window.matchMedia("(pointer: coarse)").matches)document.documentElement.d
           "@graph": [
             {
               "@type": "Organization",
-              name: "Catchwords",
+              name: "CatchWords",
               url: siteUrl(),
               logo: siteUrlFor("/icon-512.png"),
             },
             {
               "@type": "WebSite",
-              name: "Catchwords",
+              name: "CatchWords",
               url: siteUrl(),
               inLanguage: "ja-JP",
               description: "街で出会った言葉をステッカーに変えて学ぶ、台湾華語の学習アプリ。",

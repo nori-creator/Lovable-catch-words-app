@@ -41,7 +41,7 @@ describe("端末フォトへの保存", () => {
 
     expect(await saveCaptureToPhotoLibrary("data:image/jpeg;base64,AA==")).toBe("saved");
     expect(anchor.href).toBe("data:image/jpeg;base64,AA==");
-    expect(anchor.download).toMatch(/^Catchwords-.*\.jpg$/);
+    expect(anchor.download).toMatch(/^CatchWords-.*\.jpg$/);
     expect(appendChild).toHaveBeenCalledWith(anchor);
     expect(click).toHaveBeenCalledOnce();
     expect(remove).toHaveBeenCalledOnce();
@@ -56,7 +56,7 @@ describe("端末フォトへの保存", () => {
     expect(await saveCaptureToPhotoLibrary("data:image/jpeg;base64,AA==")).toBe("saved");
     expect(mocks.saveDataUrl).toHaveBeenCalledWith({
       dataUrl: "data:image/jpeg;base64,AA==",
-      filename: expect.stringMatching(/^Catchwords-.*\.jpg$/),
+      filename: expect.stringMatching(/^CatchWords-.*\.jpg$/),
     });
     expect(photoLibrarySaveRequiresUserGesture()).toBe(false);
   });

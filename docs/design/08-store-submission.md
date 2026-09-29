@@ -1,4 +1,4 @@
-# Catchwords ストア申請ドキュメント v1(docs/design/08-store-submission.md)
+# CatchWords ストア申請ドキュメント v1(docs/design/08-store-submission.md)
 
 > 目的: Phase B-3(法務・ストア要件)のうち、**申告書類と文言を先に確定**しておく。
 > Capacitor化の後、Apple App Store / Google Play Console のフォームにここから転記するだけにする。
@@ -65,7 +65,7 @@
 
 ## 5. 審査ノート(Review Notes)下書き
 
-> Catchwords is a Taiwanese Mandarin (zh-TW) learning app for Japanese residents in Taiwan. Point the camera at objects/text to get instant vocabulary + native pronunciation; save words as photo flashcards with spaced-repetition review.
+> CatchWords is a Taiwanese Mandarin (zh-TW) learning app for Japanese residents in Taiwan. Point the camera at objects/text to get instant vocabulary + native pronunciation; save words as photo flashcards with spaced-repetition review.
 >
 > - Demo account: (審査用に捨てアカウントを作って記載)
 > - Account deletion: Settings → アカウントを削除 (type 削除 to confirm) — deletes all user data immediately.

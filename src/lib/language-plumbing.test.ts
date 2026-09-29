@@ -3963,7 +3963,7 @@ describe("N. 下のタブ帯と、札を開く動き", () => {
     expect(pills).toMatch(/className="chunk-plus"/);
     expect(pills).toMatch(/chunk-slot/);
     // 学ぶ語は入れ替えさせない（R14）。
-    expect(pills).toMatch(/!target && \(c\.alts\?\.length \?\? 0\) > 0/);
+    expect(pills).toMatch(/const slotLike = isSwappableSlot\(c\) && !target;/);
     const css = read("styles.css");
     const boxes = css.slice(css.indexOf(".chunk-set--boxes {"));
     const block = boxes.slice(0, boxes.indexOf("}"));
@@ -6067,7 +6067,7 @@ describe("ホームの一番上の本棚（2026-09-29「ホームのアルバム
     expect(home).toMatch(/headerEnd=\{[\s\S]*?<HomeShelf items=\{albumItems\} \/>/);
     expect(home).toMatch(/<PastDays/);
     expect(read("components/AppShell.tsx")).toMatch(
-      /\{title \?\? "Catchwords"\}[\s\S]*?\{headerEnd\}/,
+      /\{title \?\? "CatchWords"\}[\s\S]*?\{headerEnd\}/,
     );
     expect(shelf).toMatch(/\{ rows: 1, openAt: "first", tight: true \}/);
     expect(shelf).toMatch(/onClick=\{expand\}/);
@@ -6105,7 +6105,7 @@ describe("訳・意味は表示言語の物だけ（2026-09-29「例文の訳に
       /readerText\(card\.example_translation, uiLang, card\.example_sentence\)/,
     );
     expect(codeOnly(read("routes/_authenticated/dex.tsx"))).toMatch(
-      /<ReaderMeaning text=\{s\.word\.meaning_ja\} \/>/,
+      /<ReaderMeaning text=\{s\.word\.meaning_ja\} wordId=\{s\.word_id\} \/>/,
     );
   });
   it("作る側・貯める側も、読む人の言語でない訳は落とす", () => {

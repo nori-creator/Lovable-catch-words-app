@@ -1,5 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
-import { meaningRule, distinctionRule } from "@/lib/meaning-rule";
+import { meaningRule, distinctionRule, shortMeaning } from "@/lib/meaning-rule";
 import { mnemonicRule } from "@/lib/mnemonic-rule";
 import { DEFAULT_TARGET_LANGUAGE } from "./target-lang";
 import { readingPromptNames, targetProfile } from "./target-profile";
@@ -224,6 +224,8 @@ ${distinctionRule(profile.promptName, profile.capture.distinctionExamples)}
       return {
         suggestions: orderByRegister(parsed.suggestions).map((s) => ({
           ...s,
+          // 候補の意味も語の長さに（R17「湯咖哩の英語の単語の候補…が長すぎる」）。
+          meaning_ja: shortMeaning(s.meaning_ja),
           category_key: normalizeCategory(s.headword, s.category_key),
         })),
       };
@@ -361,6 +363,7 @@ ${langRule}
       .map((c) => ({
         ...c,
         headword: coerceTargetHeadword(c.headword, data.targetLanguage) ?? "",
+        meaning_ja: shortMeaning(c.meaning_ja),
       }))
       .filter((c) => c.headword && isTargetHeadword(c.headword, data.targetLanguage))
       .filter((c) => {
@@ -640,6 +643,8 @@ ${data.hintCategory ? `カテゴリのヒント: ${data.hintCategory}` : ""}`;
         );
       });
     }
+    // 意味は語の長さに（R17。説明文で返った回を保存前に縮める）。
+    card = { ...card, meaning_ja: shortMeaning(card.meaning_ja) };
     if (extrasLookEmpty(card)) {
       // 1回だけ、空を明確に禁止して作り直す。
       try {
@@ -935,6 +940,14 @@ function formulaChunkRule(code: string): string {
     `\n入れ替えて使う所は「人」「事」「someone」のような広い言い方にしない。` +
     `ネイティブがそこにいちばんよく入れる具体語を1つだけ入れて、そのパーツに slot: true を付ける。` +
     `決まった語のパーツは slot を付けない。` +
+    // R17「加熱（動詞）が点線になってる。点線は…入れ替え可能な具体的なもの」。
+    `**slot を付けてよいのは具体的な物・人・場所を表す名詞（と量詞）だけ。` +
+    `動詞・形容詞・副詞・助詞には絶対に slot を付けない。**` +
+    `\n**型ぜんぶは文法的に正しく、ネイティブが実際にそのまま言う形にする。**` +
+    (zh
+      ? `形容詞（状態動詞）を述語にするときは、裸で置かず程度副詞（很・超・好・太 など）を必ず入れる` +
+        `（✗ 滷味＋入味 → ○ 滷味＋很＋入味、✗ 珍珠奶茶＋好喝 → ○ 珍珠奶茶＋超＋好喝）。`
+      : `冠詞・前置詞・語形変化を省かない（✗ argue with boyfriend → ○ argue with + my boyfriend）。`) +
     `\nslot: true のパーツには alts も付ける: ネイティブがそこに**実際によく入れるほかの具体語**を` +
     `頻度の高い順に4〜6個、[{text, ja: その語の意味（解説の言語で、短く）}]。` +
     `どれを入れても型ぜんぶが自然に言える語だけ（例: 跟＋男朋友＋吵架 → 女朋友・朋友・同事・爸媽・室友）。` +
@@ -1285,7 +1298,8 @@ async function runSectionRegen(
   };
   if (data.section === "meaning") {
     delete extrasPatch.meaning_ja;
-    if (word.source !== "verified") baseUpdate.meaning_ja = out.meaning_ja;
+    if (word.source !== "verified")
+      baseUpdate.meaning_ja = shortMeaning(String(out.meaning_ja ?? ""));
   }
   if (data.section === "example") {
     delete extrasPatch.example_sentence;

@@ -34,7 +34,7 @@ const config: CapacitorConfig = {
    */
   appId: "app.catchwords.taiwan",
   /** ホーム画面のアイコンの下に出る名前。 */
-  appName: "Catchwords",
+  appName: "CatchWords",
   /**
    * server.url を使う場合でも、殻の中に置く「万一のときの画面」が要る。
    * ビルド成果物の公開ディレクトリを指す。

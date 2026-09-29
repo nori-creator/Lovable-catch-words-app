@@ -17,7 +17,7 @@ import {
 } from "@/lib/admin.functions";
 
 export const Route = createFileRoute("/_authenticated/admin/dictionary")({
-  head: () => ({ meta: [{ title: "辞書管理 — Catchwords" }] }),
+  head: () => ({ meta: [{ title: "辞書管理 — CatchWords" }] }),
   component: DictionaryAdminPage,
 });
 

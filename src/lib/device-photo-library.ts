@@ -15,7 +15,7 @@ export function photoLibrarySaveRequiresUserGesture(): boolean {
 }
 
 function captureFilename(now = new Date()): string {
-  return `Catchwords-${now.toISOString().replace(/[:.]/g, "-")}.jpg`;
+  return `CatchWords-${now.toISOString().replace(/[:.]/g, "-")}.jpg`;
 }
 
 /**

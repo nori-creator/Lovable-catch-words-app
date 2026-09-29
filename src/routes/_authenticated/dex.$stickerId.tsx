@@ -500,7 +500,7 @@ export function StickerDetailHero({
           {s.word.reading_zhuyin} {s.word.pinyin && `· ${s.word.pinyin}`}
         </div>
         <div className="mt-2 text-headline font-medium">
-          <ReaderMeaning text={s.word.meaning_ja} />
+          <ReaderMeaning text={s.word.meaning_ja} wordId={s.word_id} />
         </div>
         {s.word.part_of_speech && (
           <span className="mt-1 inline-block rounded-full bg-violet-100 px-2 py-0.5 text-caption font-medium text-violet-900 ring-1 ring-violet-200 dark:bg-violet-500/20 dark:text-violet-200 dark:ring-violet-400/30">

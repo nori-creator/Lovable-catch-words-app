@@ -410,7 +410,7 @@ export async function ingestCorpusFromNews(): Promise<NewsIngestResult> {
       const res = await fetch(url, {
         headers: {
           "User-Agent":
-            "Mozilla/5.0 (compatible; CatchwordsBot/1.0; +https://word-snap-journey.lovable.app)",
+            "Mozilla/5.0 (compatible; CatchWordsBot/1.0; +https://word-snap-journey.lovable.app)",
           Accept: "application/rss+xml, application/xml, text/xml, */*",
         },
       });

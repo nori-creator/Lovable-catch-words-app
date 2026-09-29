@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { withoutGenericChunks } from "./generic-chunks";
 import { normalizeTargetLanguage } from "./target-lang";
+import { tidyUsageParts } from "./chunk-grammar";
 
 /**
  * 単語カードの extras の唯一の定義(2026-07-25 詳細カード再構成)。
@@ -662,7 +663,11 @@ export function chunkTranslation(ja: string | null | undefined): string {
 }
 
 export function chunkSpeechText(chunk: UsageChunk, language?: string | null): string {
-  return chunkText(chunk, normalizeTargetLanguage(language) === "en" ? " " : "");
+  // 画面の札と同じ形を読む（台湾華語の「名詞＋形容詞」に 很 を補った後、`chunk-grammar.ts`）。
+  return chunkText(
+    { ...chunk, parts: tidyUsageParts(chunk.parts ?? [], language) },
+    normalizeTargetLanguage(language) === "en" ? " " : "",
+  );
 }
 
 /**

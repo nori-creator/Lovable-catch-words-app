@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Catchwords 辞書 レベル5〜7 日本語訳 一括生成スクリプト
+CatchWords 辞書 レベル5〜7 日本語訳 一括生成スクリプト
 =====================================================
 使い方(Claude Codeのターミナルで):
   1. このファイルと catchwords-dict-ALL-master.csv を同じフォルダに置く

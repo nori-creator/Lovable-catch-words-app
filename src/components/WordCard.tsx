@@ -40,6 +40,7 @@ import { updateWordExtras } from "@/lib/stickers.functions";
 import { posDisplay } from "@/lib/pos";
 import { Reading, ReadingOf } from "@/lib/phonetic";
 import { useT, useUiLang } from "@/lib/i18n";
+import { shortMeaning } from "@/lib/meaning-rule";
 import { readerMeaning, readerText } from "@/lib/note-language";
 import { Prose } from "@/components/Prose";
 import { useWebImages } from "@/lib/use-web-images";
@@ -1521,7 +1522,7 @@ function Body({
       // 太すぎる」)。大きさで着地点は作れているので、太さは足さない。
       return (
         <p className="text-title leading-snug text-foreground">
-          {readerMeaning(word.meaning_ja, uiLang)}
+          {shortMeaning(readerMeaning(word.meaning_ja, uiLang))}
         </p>
       );
 

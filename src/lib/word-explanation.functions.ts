@@ -180,3 +180,60 @@ export async function saveWordExplanation(
     return { saved: false, reason: "error" };
   }
 }
+
+const MeaningsInput = z.object({
+  word_ids: z.array(z.string().uuid()).min(1).max(200),
+  /** 読む人の言語（表示言語）。 */
+  explain_lang: z.string().min(1).max(16),
+});
+
+/**
+ * **その人の言語で書かれた意味だけを、まとめて引く**（R17「学習言語を日本語にしてるのに、
+ * 図鑑のスライドの意味や例文の訳に英語が表示される…混ざらないようにシステムを作って徹底して」）。
+ *
+ * 図鑑・暦・地図は共有の `words.meaning_ja`（最初に作った人の言語）を出していたので、
+ * 別の言語で作られた語は、その人向けの解説が出来ていても図鑑では違う言語のままだった。
+ * ここは解説の表から、読む人の言語の意味だけを語ごとに返す（無ければ入れない）。
+ */
+export const getReaderMeanings = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) => MeaningsInput.parse(input))
+  .handler(async ({ context, data }): Promise<Record<string, string>> => {
+    const db = context.supabase as unknown as {
+      from: (t: string) => {
+        select: (c: string) => {
+          in: (
+            k: string,
+            v: string[],
+          ) => {
+            eq: (
+              k: string,
+              v: string,
+            ) => Promise<{
+              data: Record<string, unknown>[] | null;
+              error: { message: string } | null;
+            }>;
+          };
+        };
+      };
+    };
+    const { data: rows, error } = await db
+      .from("word_explanations")
+      .select("word_id, explain_lang, l1, meaning, source")
+      .in("word_id", data.word_ids)
+      .eq("explain_lang", data.explain_lang);
+    // 表がまだ無い環境・読めない時は空（呼ぶ側は共有の意味を言語で選り分けて出す）。
+    if (error) return {};
+    const out: Record<string, string> = {};
+    const rank = (s: unknown) => (s === "verified" ? 2 : s === "seed" ? 1 : 0);
+    const best = new Map<string, Record<string, unknown>>();
+    for (const r of rows ?? []) {
+      const id = String(r.word_id ?? "");
+      const m = readerText(String(r.meaning ?? ""), data.explain_lang).trim();
+      if (!id || !m) continue;
+      const have = best.get(id);
+      if (!have || rank(r.source) > rank(have.source)) best.set(id, { ...r, meaning: m });
+    }
+    for (const [id, r] of best) out[id] = String(r.meaning);
+    return out;
+  });

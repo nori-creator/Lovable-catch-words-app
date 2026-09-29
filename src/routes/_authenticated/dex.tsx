@@ -1010,7 +1010,11 @@ export function PackGallery({
                 {s.word.headword}
               </span>
               <span className="pk-tile-sub">
-                {s.word.meaning_ja || <Zh>{s.word.reading_zhuyin}</Zh>}
+                {s.word.meaning_ja ? (
+                  <ReaderMeaning text={s.word.meaning_ja} wordId={s.word_id} />
+                ) : (
+                  <Zh>{s.word.reading_zhuyin}</Zh>
+                )}
               </span>
             </span>
           </button>
@@ -1079,7 +1083,7 @@ export function DexList({
             <div className="min-w-0 flex-1">
               <ListHeadword word={s.word} />
               <div className="truncate text-body text-muted-foreground">
-                <ReaderMeaning text={s.word.meaning_ja} />
+                <ReaderMeaning text={s.word.meaning_ja} wordId={s.word_id} />
               </div>
             </div>
           </button>

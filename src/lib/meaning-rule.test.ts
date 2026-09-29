@@ -45,3 +45,23 @@ describe("言い換え禁止は**両方**に入る", () => {
     expect(NO_PADDING).toContain("無いより悪い");
   });
 });
+
+import { shortMeaning } from "./meaning-rule";
+
+describe("shortMeaning（意味は語の長さに）", () => {
+  it("説明文で返った意味を最初の区切りまでに縮める（湯咖哩）", () => {
+    expect(
+      shortMeaning(
+        "Soup curry, a Japanese-style curry dish served in a thin, broth-like sauce often containing large pieces of vegetables",
+      ),
+    ).toBe("Soup curry");
+    expect(shortMeaning("スープカレー。北海道発祥の、さらさらしたスープ状のカレー料理")).toBe(
+      "スープカレー",
+    );
+  });
+  it("短い意味・区切りの無い意味は触らない", () => {
+    expect(shortMeaning("タピオカミルクティー")).toBe("タピオカミルクティー");
+    expect(shortMeaning("umbrella")).toBe("umbrella");
+    expect(shortMeaning("")).toBe("");
+  });
+});

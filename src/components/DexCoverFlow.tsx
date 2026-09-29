@@ -392,7 +392,7 @@ export function DexCoverFlow({
           <Zh className="font-semibold">{current.word.headword}</Zh>
           <span>
             {" — "}
-            <ReaderMeaning text={current.word.meaning_ja} />
+            <ReaderMeaning text={current.word.meaning_ja} wordId={current.word_id} />
           </span>
         </p>
       )}
@@ -580,7 +580,7 @@ function CardFace({
             </span>
           )}
           <span className="mt-1 block truncate text-body">
-            <ReaderMeaning text={s.word.meaning_ja} />
+            <ReaderMeaning text={s.word.meaning_ja} wordId={s.word_id} />
           </span>
         </span>
         <span className="mt-2 flex items-center gap-1.5 truncate text-caption text-muted-foreground">

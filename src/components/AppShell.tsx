@@ -202,7 +202,7 @@ export function AppShell({
   children: ReactNode;
   title?: string;
   /**
-   * 上の帯の右端に置く物（ホームの本棚。オーナー指示 2026-09-29「アイコンと Catchwords の
+   * 上の帯の右端に置く物（ホームの本棚。オーナー指示 2026-09-29「アイコンと CatchWords の
    * と同じ高さの右上端に本棚を追加して」）。
    */
   headerEnd?: ReactNode;
@@ -505,7 +505,7 @@ export function AppShellFrame({
                   これはどの画面にも出るアプリ名(道標)であって、その画面の
                   見出しではない。h1 は各画面が自分で持つ。 */}
                 <span className="text-body font-medium tracking-[-0.01em] text-muted-foreground">
-                  {title ?? "Catchwords"}
+                  {title ?? "CatchWords"}
                 </span>
               </Link>
             </div>

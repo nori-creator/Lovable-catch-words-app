@@ -2383,7 +2383,7 @@ export function CaptureObjectPanel({
         2026-09-16「右上の台湾華語のような言語設定はいらない」）。
       */}
       <p className="capture-brand" aria-hidden="true">
-        Catchwords
+        CatchWords
       </p>
 
       {/* 復習の「もう一度撮ってみる?」から来たとき、何を撮りに来たかを

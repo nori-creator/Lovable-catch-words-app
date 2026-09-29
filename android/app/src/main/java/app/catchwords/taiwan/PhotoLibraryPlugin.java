@@ -48,7 +48,7 @@ public class PhotoLibraryPlugin extends Plugin {
 
     private void writeDataUrl(PluginCall call) {
         String dataUrl = call.getString("dataUrl");
-        String filename = call.getString("filename", "Catchwords.jpg");
+        String filename = call.getString("filename", "CatchWords.jpg");
         if (dataUrl == null) {
             call.reject("Missing image");
             return;
@@ -61,7 +61,7 @@ public class PhotoLibraryPlugin extends Plugin {
             values.put(MediaStore.Images.Media.DISPLAY_NAME, filename);
             values.put(MediaStore.Images.Media.MIME_TYPE, "image/jpeg");
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                values.put(MediaStore.Images.Media.RELATIVE_PATH, "Pictures/Catchwords");
+                values.put(MediaStore.Images.Media.RELATIVE_PATH, "Pictures/CatchWords");
                 values.put(MediaStore.Images.Media.IS_PENDING, 1);
             }
             Uri uri = getContext().getContentResolver().insert(

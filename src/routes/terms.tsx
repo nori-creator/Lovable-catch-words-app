@@ -11,13 +11,13 @@ export const Route = createFileRoute("/terms")({
       {
         name: "description",
         content:
-          "Catchwordsの利用規約。アカウント、投稿コンテンツ、禁止事項、知的財産、免責などサービス利用に関する条件を定めています。",
+          "CatchWordsの利用規約。アカウント、投稿コンテンツ、禁止事項、知的財産、免責などサービス利用に関する条件を定めています。",
       },
-      { property: "og:title", content: "利用規約 — Catchwords" },
+      { property: "og:title", content: "利用規約 — CatchWords" },
       {
         property: "og:description",
         content:
-          "Catchwordsの利用規約。アカウント、投稿コンテンツ、禁止事項、知的財産、免責などサービス利用に関する条件を定めています。",
+          "CatchWordsの利用規約。アカウント、投稿コンテンツ、禁止事項、知的財産、免責などサービス利用に関する条件を定めています。",
       },
       { property: "og:type", content: "article" },
       { property: "og:url", content: siteUrlFor("/terms") },
@@ -46,7 +46,7 @@ function TermsJa() {
       <section className="prose prose-sm mt-6 max-w-none dark:prose-invert">
         <h2>1. 適用</h2>
         <p>
-          本規約は、Catchwords(以下「本サービス」)の利用条件を定めるものです。ユーザーは本サービスを利用することで本規約に同意したものとみなされます。
+          本規約は、CatchWords(以下「本サービス」)の利用条件を定めるものです。ユーザーは本サービスを利用することで本規約に同意したものとみなされます。
         </p>
 
         <h2>2. アカウント</h2>
@@ -98,7 +98,7 @@ function TermsEn() {
       <section className="prose prose-sm mt-6 max-w-none dark:prose-invert">
         <h2>1. Scope</h2>
         <p>
-          These terms set out the conditions for using Catchwords (“the Service”). By using the
+          These terms set out the conditions for using CatchWords (“the Service”). By using the
           Service you are deemed to have agreed to these terms.
         </p>
 

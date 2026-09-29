@@ -2871,7 +2871,7 @@ html[data-motion="reduce"] {
   }
 }
 
-/* Catchwords camera — the nav lens lifts, becomes a finder, then fills the view. */
+/* CatchWords camera — the nav lens lifts, becomes a finder, then fills the view. */
 .camera-launch {
   position: fixed;
   inset: 0;
@@ -9517,43 +9517,52 @@ html[data-motion="reduce"] .dex-cf__spark {
   opacity: 0.7;
   transition: rotate 0.2s var(--ease-ios, ease);
 }
-.chunk-alts {
-  display: flex;
-  gap: 8px;
-  overflow-x: auto;
+/* 入れ替える語の縦の輪（R17。iOS のピッカーと同じ: 真ん中の帯に止まった語が選ばれる）。 */
+.chunk-wheel {
+  position: relative;
   margin-top: 8px;
-  padding: 2px 2px 6px;
-  scroll-snap-type: x proximity;
-  scrollbar-width: none;
-  overscroll-behavior-x: contain;
+  max-width: 260px;
   animation: chunk-alts-in 0.25s var(--ease-ios, ease) both;
 }
-.chunk-alts::-webkit-scrollbar {
+.chunk-wheel__band {
+  position: absolute;
+  inset: 44px 0 auto;
+  height: 44px;
+  border-radius: 12px;
+  border: 1.5px dashed color-mix(in oklab, var(--primary) 55%, var(--border));
+  background: color-mix(in oklab, var(--primary) 8%, var(--card));
+  pointer-events: none;
+}
+.chunk-wheel__list {
+  position: relative;
+  height: 132px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scroll-snap-type: y mandatory;
+  scrollbar-width: none;
+  padding-block: 44px;
+  -webkit-mask-image: linear-gradient(to bottom, transparent, #000 34%, #000 66%, transparent);
+  mask-image: linear-gradient(to bottom, transparent, #000 34%, #000 66%, transparent);
+}
+.chunk-wheel__list::-webkit-scrollbar {
   display: none;
 }
-.chunk-alts__item {
-  flex: none;
-  scroll-snap-align: start;
-  display: grid;
-  justify-items: center;
-  min-height: 44px;
-  min-width: 56px;
-  padding: 6px 12px;
-  border-radius: 14px;
-  background: var(--card);
-  border: 1.5px dashed color-mix(in oklab, var(--primary) 45%, var(--border));
+.chunk-wheel__item {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  height: 44px;
+  scroll-snap-align: center;
+  line-height: 44px;
 }
-.chunk-alts__item[aria-selected="true"] {
-  border-style: solid;
-  border-color: var(--primary);
-  background: color-mix(in oklab, var(--primary) 10%, var(--card));
-}
-.chunk-alts__word {
+.chunk-wheel__word {
   font-size: var(--text-body);
   font-weight: 700;
 }
-.chunk-alts__ja {
-  font-size: 11px;
+.chunk-wheel__ja {
+  font-size: 12px;
   color: var(--muted-foreground);
 }
 @keyframes chunk-alts-in {
@@ -9562,7 +9571,7 @@ html[data-motion="reduce"] .dex-cf__spark {
     transform: translateY(-4px);
   }
 }
-html[data-motion="reduce"] .chunk-alts {
+html[data-motion="reduce"] .chunk-wheel {
   animation: none;
 }
 

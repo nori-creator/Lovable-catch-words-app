@@ -311,7 +311,10 @@ export function DexDayMap({
                                 </span>
                               ) : (
                                 <span className="block truncate text-footnote text-muted-foreground">
-                                  <ReaderMeaning text={it.s.word.meaning_ja} />
+                                  <ReaderMeaning
+                                    text={it.s.word.meaning_ja}
+                                    wordId={it.s.word_id}
+                                  />
                                 </span>
                               )}
                             </span>

@@ -47,7 +47,7 @@ const DIARIES = [
 ];
 
 export function HomeShelfScene({ q }: { q: URLSearchParams }) {
-  // 本番の上の帯と同じ並び: 左にアイコンと「Catchwords」、右端に本棚（同じ高さ）。
+  // 本番の上の帯と同じ並び: 左にアイコンと「CatchWords」、右端に本棚（同じ高さ）。
   return (
     <>
       <div
@@ -70,7 +70,7 @@ export function HomeShelfScene({ q }: { q: URLSearchParams }) {
           >
             <span style={{ width: 28, height: 28, borderRadius: 999, background: "#0a84ff" }} />
           </span>
-          <span style={{ fontWeight: 500, color: "#6b7280" }}>Catchwords</span>
+          <span style={{ fontWeight: 500, color: "#6b7280" }}>CatchWords</span>
         </div>
         <HomeShelf
           items={ITEMS}

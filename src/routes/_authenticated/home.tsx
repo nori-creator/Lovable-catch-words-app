@@ -375,7 +375,7 @@ function HomePage() {
     <AppShell
       headerEnd={
         // **上の帯の右端に、月ごとのアルバムの本棚**（オーナー指示 2026-09-29「表示の本棚
-        // 大きすぎる。アイコンとCatchwordsのと同じ高さの右上端に本棚を追加して。また本棚と
+        // 大きすぎる。アイコンとCatchWordsのと同じ高さの右上端に本棚を追加して。また本棚と
         // 本の上部は空間を作らずぴったり収まるようにして」）。押すと全画面の棚に広がり、
         // 本を選ぶとその月の最初の日の見開きが開く。下へ続く日ごとのアルバムはそのまま。
         !isLoading && !isError && albumItems.length > 0 ? <HomeShelf items={albumItems} /> : null

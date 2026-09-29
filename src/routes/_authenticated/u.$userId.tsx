@@ -31,13 +31,13 @@ export const Route = createFileRoute("/_authenticated/u/$userId")({
         {
           name: "description",
           content:
-            "Catchwordsユーザーのプロフィール。集めたステッカー、投稿、フォロー数を確認できます。",
+            "CatchWordsユーザーのプロフィール。集めたステッカー、投稿、フォロー数を確認できます。",
         },
-        { property: "og:title", content: `プロフィール — Catchwords` },
+        { property: "og:title", content: `プロフィール — CatchWords` },
         {
           property: "og:description",
           content:
-            "Catchwordsユーザーのプロフィール。集めたステッカー、投稿、フォロー数を確認できます。",
+            "CatchWordsユーザーのプロフィール。集めたステッカー、投稿、フォロー数を確認できます。",
         },
         { property: "og:type", content: "profile" },
         { property: "og:url", content: siteUrlFor(`/u/${id}`) },

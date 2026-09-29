@@ -36,7 +36,7 @@ import type { DaySpread } from "@/components/shelf3d/textures";
  * 棚が画面の外に出ている間は描かない。3D が使えない端末では棚ごと出さない。
  */
 /**
- * 帯の上の棚の高さ（px）。上の帯の行（アイコンと「Catchwords」）の中に収まり、同じ高さに
+ * 帯の上の棚の高さ（px）。上の帯の行（アイコンと「CatchWords」）の中に収まり、同じ高さに
  * 並ぶ。アイコンの写真（28px）より少しだけ高くして、背表紙の色が見分けられる大きさに。
  */
 const SHELF_PX = 36;

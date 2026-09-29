@@ -297,7 +297,7 @@ function Frame({ children }: { children: ReactNode }) {
       <header className="scroll-edge sticky top-0 z-30 bg-background/70 pt-[env(safe-area-inset-top)] backdrop-blur-xl backdrop-saturate-150">
         <div className="mx-auto flex min-h-[var(--app-header-h)] max-w-3xl items-center px-4 py-3">
           <div className="h-8 w-8 rounded-xl bg-primary" />
-          <span className="ml-2 text-body font-semibold tracking-[-0.02em]">Catchwords</span>
+          <span className="ml-2 text-body font-semibold tracking-[-0.02em]">CatchWords</span>
         </div>
       </header>
       <main className="mx-auto max-w-3xl px-4 py-4">{children}</main>
@@ -358,7 +358,7 @@ const BARE = new Set([
   "camera-strip",
   // 撮る画面は画面いっぱい（`.capture-viewfinder` が `fixed inset-0`）。
   // 枠の上のバーを敷くと、実物では**映像に覆われて見えない**物の
-  // 読みやすさを測ることになる（実際、枠の「Catchwords」が
+  // 読みやすさを測ることになる（実際、枠の「CatchWords」が
   // 地＝黒い映像で 1.12 と出た）。
   "capture-object",
   "reward-catch",
