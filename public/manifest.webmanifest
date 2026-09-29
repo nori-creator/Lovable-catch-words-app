@@ -1,4 +1,5 @@
 {
+  "id": "/home",
   "name": "CatchWords — 街で出会う、台湾華語",
   "short_name": "CatchWords",
   "description": "街で見たものの単語と発音が瞬間的に分かる。撮って、切り抜いて、自分だけの図鑑を作る台湾華語学習アプリ。",
@@ -11,15 +12,37 @@
   "lang": "ja",
   "categories": ["education", "lifestyle"],
   "icons": [
-    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
-    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
-    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" },
-    { "src": "/apple-touch-icon.png", "sizes": "180x180", "type": "image/png", "purpose": "any" }
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/apple-touch-icon.png",
+      "sizes": "180x180",
+      "type": "image/png",
+      "purpose": "any"
+    }
   ],
   "share_target": {
     "action": "/capture",
     "method": "GET",
-    "params": { "text": "word" }
+    "params": {
+      "text": "word"
+    }
   },
   "shortcuts": [
     {
@@ -27,7 +50,13 @@
       "short_name": "スキャン",
       "description": "カメラをかざして単語を調べる",
       "url": "/scan",
-      "icons": [{ "src": "/icon-512.png", "sizes": "512x512", "type": "image/png" }]
+      "icons": [
+        {
+          "src": "/icon-512.png",
+          "sizes": "512x512",
+          "type": "image/png"
+        }
+      ]
     }
   ]
 }

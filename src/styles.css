@@ -10643,3 +10643,37 @@ html[data-dex-dragging] {
 html[data-motion="reduce"] .object3d-layer {
   animation: none;
 }
+
+/* ── 「ホーム画面に追加」の案内（`InstallBanner`、2026-09-29）。下のバーの上に浮かせる。── */
+.install-banner {
+  position: fixed;
+  left: 12px;
+  right: 12px;
+  bottom: calc(env(safe-area-inset-bottom, 0px) + 96px);
+  z-index: 60;
+  max-width: 480px;
+  margin: 0 auto;
+  padding: 12px 12px 14px 14px;
+  border-radius: 20px;
+  background: var(--card);
+  color: var(--card-foreground);
+  box-shadow:
+    0 1px 2px rgb(0 0 0 / 0.08),
+    0 18px 40px -16px rgb(0 0 0 / 0.35);
+  animation: install-banner-in 0.35s var(--ease-ios, ease) both;
+}
+@keyframes install-banner-in {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+}
+.install-banner--inline {
+  position: relative;
+  left: auto;
+  right: auto;
+  bottom: auto;
+}
+html[data-motion="reduce"] .install-banner {
+  animation: none;
+}

@@ -9,6 +9,7 @@ import {
   Scripts,
 } from "@tanstack/react-router";
 import { useEffect, type ReactNode } from "react";
+import { initPwa } from "@/lib/pwa";
 
 import appCss from "../styles.css?url";
 // 見た目パック。すべてのセレクタが [data-ui-pack] の下にあるので、
@@ -229,6 +230,8 @@ function RootComponent() {
   useEffect(() => {
     initUiTheme();
     initUiPack();
+    // スマホにアプリとして入れる準備（インストールの合図・サービスワーカー。`lib/pwa.ts`）。
+    initPwa();
   }, []);
 
   /**
