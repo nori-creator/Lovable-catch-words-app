@@ -3241,10 +3241,14 @@ describe("復習の束は、アプリを閉じても残る", () => {
     expect(view()).not.toMatch(/\) : isFetching \? \(/);
   });
 
-  it("解いている最中には束を入れ替えない（1枚目へ戻されるのはラグより悪い）", () => {
+  it("見えている束を入れ替えない（1枚目へ戻される・4択が差し替わるのはラグより悪い）", () => {
     const s = view();
-    const guard = s.slice(s.indexOf("const revalidated"), s.indexOf("const revalidated") + 420);
-    expect(guard).toMatch(/idx !== 0 \|\| tally\.answered !== 0/);
+    const guard = s.slice(s.indexOf("const revalidated"), s.indexOf("const revalidated") + 900);
+    // R17: 見えている束は読み直しで一度も入れ替えない（開いた瞬間の4択が別の4択に変わった）。
+    // 読み直した束は次の回のために端末へ置くだけ。
+    expect(guard).not.toMatch(/refetch\(\)/);
+    expect(guard).toMatch(/nextBatch\.current = next/);
+    expect(guard).toMatch(/localStorage\.setItem\(REVIEW_CACHE_KEY/);
   });
 });
 
@@ -6212,5 +6216,15 @@ describe("図鑑に追加する動きは一連（着地＝追加、本物の札�
     expect(reward).toMatch(/await target\.animate\(/);
     expect(codeOnly(read("routes/_authenticated/dex.tsx"))).toMatch(/!wasFlown\(s\.id\)/);
     expect(codeOnly(read("components/DexShelf.tsx"))).toMatch(/!wasFlown\(s\.id\)/);
+  });
+});
+
+describe("同じ人の SIGNED_IN で全部を読み直さない（R17 4択の差し替わり・起動の遅さ）", () => {
+  it("人が変わった時だけ invalidateQueries する", () => {
+    const rootSrc = codeOnly(read("routes/__root.tsx"));
+    expect(rootSrc).toMatch(
+      /const same = event === "SIGNED_IN" && !!before && before === session\?\.user\?\.id;/,
+    );
+    expect(rootSrc).toMatch(/if \(same\) return;[\s\S]*?queryClient\.invalidateQueries\(\)/);
   });
 });

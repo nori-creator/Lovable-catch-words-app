@@ -267,7 +267,9 @@ function RootComponent() {
        * 入った/出た/変わったの度にここへ写しておけば、次に開いたときに
        * 同期で確かめられる。出たときは消す — **別の人の束を出さない**。
        */
+      let before: string | null = null;
       try {
+        before = localStorage.getItem(REVIEW_CACHE_USER_KEY);
         const uid = session?.user?.id;
         if (uid) localStorage.setItem(REVIEW_CACHE_USER_KEY, uid);
         else localStorage.removeItem(REVIEW_CACHE_USER_KEY);
@@ -275,6 +277,17 @@ function RootComponent() {
         // 内緒のタブなどで書けなくても、束が出ないだけ（今までと同じ）。
       }
       if (event !== "SIGNED_IN" && event !== "SIGNED_OUT" && event !== "USER_UPDATED") return;
+      /**
+       * **同じ人のまま届いた SIGNED_IN では何も読み直さない**（R17「復習の画面を開くと４択が
+       * 表示され、すぐ消え新しい４択が表示されるバグ」「起動までが極端に遅くなった」）。
+       *
+       * supabase-js は、保存済みのセッションを戻した時やアプリに戻った時にも SIGNED_IN を
+       * 送ってくる。前はそのたびに全部の問い合わせを捨てて読み直していたので、起動直後に
+       * 全画面の読み込みがもう一度走り、復習では端末に用意してあった4択が、読み直した別の
+       * 4択に差し替わっていた。人が変わった時（別の人が入った・初めて入った）だけ読み直す。
+       */
+      const same = event === "SIGNED_IN" && !!before && before === session?.user?.id;
+      if (same) return;
       router.invalidate();
       if (event !== "SIGNED_OUT") queryClient.invalidateQueries();
     });

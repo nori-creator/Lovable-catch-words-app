@@ -9,6 +9,10 @@ import { useServerFn } from "@tanstack/react-start";
 import { getMyProfile } from "@/lib/profile.functions";
 import { getReaderMeanings } from "@/lib/word-explanation.functions";
 import { setReaderMeaningLoader } from "@/lib/reader-meanings";
+import { getDueReviews } from "@/lib/reviews.functions";
+import { packBatch, readBatch, REVIEW_CACHE_KEY, REVIEW_CACHE_USER_KEY } from "@/lib/review-cache";
+import { warmCachedImages } from "@/lib/image-cache";
+import { stickerPhotoUrl } from "@/lib/sticker-photo";
 
 export const Route = createFileRoute("/_authenticated")({
   component: AuthenticatedLayout,
@@ -128,6 +132,51 @@ function AuthenticatedLayout() {
       sub.subscription.unsubscribe();
     };
   }, [navigate, attempt, fetchProfile]);
+
+  /**
+   * **復習の束を、アプリを開いた時点で裏で用意しておく**（R17「復習の問題もいつもラクが
+   * あって、今日の問題を準備中と出てストレス…ユーザーが復習をタップしたら瞬間的に表示して」）。
+   *
+   * 復習を開いた時に端末の束（`review-cache.ts`）があれば、その場で出る。無い（初めて・
+   * 20時間より古い）か1時間より古い時だけ、画面が落ち着いてから1本だけ読んで書き留める。
+   * 見ている画面には触らない（束を入れ替えない。`review.tsx` の注）。
+   */
+  const fetchDue = useServerFn(getDueReviews);
+  useEffect(() => {
+    if (state !== "ready") return;
+    let off = false;
+    const run = () => {
+      if (off) return;
+      try {
+        const uid = localStorage.getItem(REVIEW_CACHE_USER_KEY);
+        if (!uid) return;
+        const have = readBatch(localStorage.getItem(REVIEW_CACHE_KEY), uid, null, Date.now());
+        if (have && Date.now() - have.at < 60 * 60_000) return;
+        void fetchDue()
+          .then((cards) => {
+            if (off || !cards?.length) return;
+            const packed = packBatch(cards, uid, null, Date.now());
+            if (packed) localStorage.setItem(REVIEW_CACHE_KEY, JSON.stringify(packed));
+            void warmCachedImages(cards.map((c) => stickerPhotoUrl(c, { prefer: "cutout" })));
+          })
+          .catch(() => undefined);
+      } catch {
+        // 端末に書けない時は、復習を開いた時に読むだけ（前と同じ）。
+      }
+    };
+    // 起動直後の描画・ホームの写真の読み込みと取り合わないよう、落ち着いてから。
+    const w = window as Window & {
+      requestIdleCallback?: (cb: () => void, o?: { timeout: number }) => number;
+    };
+    const timer = window.setTimeout(() => {
+      if (w.requestIdleCallback) w.requestIdleCallback(run, { timeout: 4000 });
+      else run();
+    }, 2500);
+    return () => {
+      off = true;
+      window.clearTimeout(timer);
+    };
+  }, [state, fetchDue]);
 
   if (state === "failed") {
     return (

@@ -31,6 +31,7 @@ import { resolvePrefer, usePhotoPref } from "@/lib/photo-pref";
 import { pickStickerPhoto, stickerPhotoUrl } from "@/lib/sticker-photo";
 import { resolveSurfaceRole, surfaceKey, useSurfaceRoleMap } from "@/lib/photo-surface";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { readHomeSnapshot, writeHomeSnapshot } from "@/lib/home-cache";
 import { useServerFn } from "@tanstack/react-start";
 import { AppShell } from "@/components/AppShell";
 import { HomeShelf } from "@/components/HomeShelf";
@@ -245,6 +246,9 @@ function HomePage() {
   const navigate = useNavigate();
   const fetchStickers = useServerFn(listMyStickers);
   const fetchProfile = useServerFn(getMyProfile);
+  const [homeSnapshot] = useState(() =>
+    readHomeSnapshot<Awaited<ReturnType<typeof listMyStickers>>>(),
+  );
   const { data: profile } = useQuery({ queryKey: ["profile"], queryFn: () => fetchProfile() });
   const {
     data: stickers,
@@ -259,7 +263,13 @@ function HomePage() {
     // can serve the images instead of re-downloading them (roadmap B1).
     staleTime: 5 * 60 * 1000,
     gcTime: 30 * 60 * 1000,
+    // 前に届いた一覧を最初の描画で出す（R17 起動の速さ、`lib/home-cache.ts`）。
+    initialData: () => homeSnapshot?.data,
+    initialDataUpdatedAt: homeSnapshot?.at,
   });
+  useEffect(() => {
+    writeHomeSnapshot(stickers);
+  }, [stickers]);
   const [openId, setOpenId] = useState<string | null>(null);
   /**
    * **節目の日の記念アルバム**（オーナー指示 2026-09-27、`lib/milestone-album.ts`）。
