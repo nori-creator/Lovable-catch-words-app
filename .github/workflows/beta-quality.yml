@@ -1,0 +1,41 @@
+name: Beta quality
+
+on:
+  push:
+    branches: [main, "fix/**"]
+  pull_request:
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - run: npm run check
+      - run: npm run build
+      - run: npx vite build --config scripts/ui-harness/vite.config.ts
+
+  mobile-browser-audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: npm run ui:audit
+        env:
+          UI_OUT: ${{ runner.temp }}/catchwords-ui-audit
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: mobile-browser-audit
+          path: ${{ runner.temp }}/catchwords-ui-audit
+          if-no-files-found: ignore
