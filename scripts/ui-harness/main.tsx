@@ -400,6 +400,10 @@ const REVIEW_SCENES: Array<{ scene: string; label: string }> = [
   },
   { scene: "chunk-designs", label: "チャンク: 点線は入れ替えられる物だけ・很・縦の輪" },
   {
+    scene: "sticker-sheet&variant=pro",
+    label: "単語の詳細（Pro）: 写真の左下の「3D」（生成は本番のみ。ここでは失敗表示）",
+  },
+  {
     scene: "capture-object&mode=search",
     label: "撮る画面: 左下の「写真」で端末の写真を分析（検索の横の釦は削除）",
   },

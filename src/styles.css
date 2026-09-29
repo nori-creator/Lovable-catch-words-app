@@ -10385,3 +10385,84 @@ html[data-motion="reduce"] .home-shelf__single-img {
   translate: -50% 0;
   bottom: calc(env(safe-area-inset-bottom, 0px) + 20px);
 }
+
+/* ---------------------------------------------------------------------------
+ * Pro: 単語の詳細の写真を 3D にする（`Object3DHero`、R17）。
+ * ------------------------------------------------------------------------- */
+.object3d-btn {
+  /* 左上（左下は写真の切り替え・右上は記憶の印が使っている）。 */
+  position: absolute;
+  left: 12px;
+  top: 12px;
+  z-index: 5;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 44px;
+  padding: 0 14px;
+  border-radius: 9999px;
+  border: 1px solid rgb(255 255 255 / 0.5);
+  background: rgb(15 20 30 / 0.55);
+  -webkit-backdrop-filter: blur(14px) saturate(160%);
+  backdrop-filter: blur(14px) saturate(160%);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+.object3d-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 6;
+  overflow: hidden;
+  border-radius: 1.5rem;
+  background: radial-gradient(ellipse at 50% 40%, #1c1f26, #07080b 75%);
+  animation: object3d-in 0.32s var(--ease-ios, ease) both;
+}
+.object3d-layer__canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  touch-action: none;
+}
+.object3d-layer__status {
+  position: absolute;
+  left: 50%;
+  bottom: 18px;
+  translate: -50% 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  max-width: calc(100% - 32px);
+  padding: 8px 14px;
+  border-radius: 9999px;
+  background: rgb(255 255 255 / 0.12);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 600;
+  text-align: center;
+}
+.object3d-layer__close {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 9999px;
+  border: 0;
+  background: rgb(255 255 255 / 0.16);
+  color: #fff;
+}
+@keyframes object3d-in {
+  from {
+    opacity: 0;
+    scale: 0.97;
+  }
+}
+html[data-motion="reduce"] .object3d-layer {
+  animation: none;
+}

@@ -3053,6 +3053,29 @@ export const DICT: Record<string, Record<UiLang, string>> = {
   "shelf.home.leftPage": { ja: "左のページ", en: "Left page", "zh-TW": "左頁" },
   "shelf.home.rightPage": { ja: "右のページ", en: "Right page", "zh-TW": "右頁" },
   "shelf.home.cover": { ja: "表紙", en: "Cover", "zh-TW": "封面" },
+  "object3d.open": { ja: "3Dにする", en: "Make it 3D", "zh-TW": "變成 3D" },
+  "object3d.close": { ja: "写真に戻る", en: "Back to the photo", "zh-TW": "回到照片" },
+  "object3d.making": {
+    ja: "3Dを作っています",
+    en: "Building the 3D model",
+    "zh-TW": "正在製作 3D",
+  },
+  "object3d.unavailable": {
+    ja: "3Dの準備中です（開発者の設定待ち）",
+    en: "3D isn't set up yet",
+    "zh-TW": "3D 功能尚未設定",
+  },
+  "object3d.proOnly": {
+    ja: "3DはProの機能です",
+    en: "3D is a Pro feature",
+    "zh-TW": "3D 是 Pro 功能",
+  },
+  "object3d.failed": {
+    ja: "3Dを作れませんでした。もう一度お試しください",
+    en: "Couldn't build the 3D model. Please try again.",
+    "zh-TW": "無法製作 3D，請再試一次",
+  },
+
   "shelf.home.pencilSkip": {
     ja: "タップで書き終える",
     en: "Tap to finish writing",

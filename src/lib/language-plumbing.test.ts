@@ -6256,3 +6256,18 @@ describe("同じ人の SIGNED_IN で全部を読み直さない（R17 4択の差
     expect(rootSrc).toMatch(/if \(same\) return;[\s\S]*?queryClient\.invalidateQueries\(\)/);
   });
 });
+
+describe("Pro: 単語の詳細の写真を 3D にする（R17）", () => {
+  it("Pro の人にだけボタンを出し、作った形は端末に置いて作り直さない", () => {
+    const sheet = codeOnly(read("components/StickerSheet.tsx"));
+    expect(sheet).toMatch(/\{isPro && !flipped && !show3d && \(/);
+    expect(sheet).toMatch(/\{isPro && show3d && object3dSource && \(/);
+    const hero = codeOnly(read("components/Object3DHero.tsx"));
+    expect(hero).toMatch(/const cached = await readCached\(stickerId\);/);
+    expect(hero).toMatch(/await c\.put\(/);
+    // サーバ側でも Pro か確かめる（画面の条件だけに頼らない）。
+    expect(codeOnly(read("lib/object3d.functions.ts"))).toMatch(
+      /if \(!object3dAllowed\(\{ isPro: await isProUser\(userId\) \}\)\)/,
+    );
+  });
+});

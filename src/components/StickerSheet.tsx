@@ -3,7 +3,7 @@ import { StickerCategoryChip } from "@/components/StickerCategoryChip";
 import type { Dispatch, RefObject, SetStateAction } from "react";
 import { useReadableError } from "@/lib/errors";
 import { cardSectionsNow } from "@/lib/card-prefs";
-import { hasOwnPhoto, pickStickerPhoto } from "@/lib/sticker-photo";
+import { hasOwnPhoto, pickStickerPhoto, stickerPhotoUrl } from "@/lib/sticker-photo";
 import { useEffect, useMemo, useReducer, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
@@ -61,6 +61,7 @@ import { CachedImg, putCachedImage } from "@/lib/image-cache";
 import { SEED_UPDATED_AT, seedStickerFromList } from "@/lib/sticker-seed";
 import { useHeroReveal, type HeroOrigin } from "@/components/use-hero-reveal";
 import { HeroPhotoPicker } from "@/components/HeroPhotoPicker";
+import { Object3DButton, Object3DLayer } from "@/components/Object3DHero";
 import { usePhotoAttach } from "@/lib/use-photo-attach";
 import { usePlaceName } from "@/lib/use-place-name";
 import { Term } from "@/components/Term";
@@ -995,6 +996,9 @@ export function StickerSheetBody({
    * 札の指定がいちばん細かい話なので、いちばん強い。
    */
   const photoPref = usePhotoPref();
+  const [show3d, setShow3d] = useState(false);
+  /** 3D にする絵（切り抜きがあればそれ。背景が無い方が形がきれいに出る）。 */
+  const object3dSource = stickerPhotoUrl(s, { prefer: "cutout" });
   const hero = pickStickerPhoto(s, {
     // 詳細の選択は `hero_role`(サーバ)に在る。**知らない値は無視する** —
     // 古い行や、他所で書き込まれた値でこの画面を落とさない。
@@ -1033,7 +1037,7 @@ export function StickerSheetBody({
          */
         ref={heroRef}
         data-sheet-hero
-        className="perspective-1200 mb-4"
+        className="perspective-1200 relative mb-4"
         // 自撮りが無いカードは裏面が無い＝タップしても回さない(NORI指定)。
         // ボタンとして振る舞うのも自撮りがあるときだけにする。
         role={hasSelfie ? "button" : undefined}
@@ -1178,6 +1182,23 @@ export function StickerSheetBody({
             )}
           </div>
         </div>
+        {/* **Pro: 写真を 3D にする**（R17「課金ユーザーは単語の詳細に３Dモデル化する専用の
+            ボタンを表示し、タップしたら単語の詳細の画像が3Dモデル化する」）。表の面を見ている
+            時だけ。押すと写真の枠の中で 3D が組み上がり、指で回せる。 */}
+        {isPro && !flipped && !show3d && (
+          <Object3DButton
+            stickerId={s.id}
+            imageUrl={object3dSource}
+            onOpen={() => setShow3d(true)}
+          />
+        )}
+        {isPro && show3d && object3dSource && (
+          <Object3DLayer
+            stickerId={s.id}
+            imageUrl={object3dSource}
+            onClose={() => setShow3d(false)}
+          />
+        )}
       </div>
 
       {/* ネット画像の候補: 自動で入った画像が気に入らなければタップで変更。
