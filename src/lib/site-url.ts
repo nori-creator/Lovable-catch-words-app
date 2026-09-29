@@ -4,7 +4,7 @@
  * ## なぜ要るか（オーナー指示 2026-08-31）
  * > 「ドメインも独自で取得したい。」
  *
- * いま `https://word-snap-journey.lovable.app` が **7ファイル・16箇所**に
+ * いま `https://catchwords.lovable.app` が **7ファイル・16箇所**に
  * 直接書き込まれている。canonical・og:url・sitemap・JSON-LD — どれも
  * 「このページの本当の住所はここです」と検索エンジンに宣言する所なので、
  * **1つでも古いまま残ると、独自ドメインに移した日に検索の評価が
@@ -27,11 +27,13 @@
 
 /**
  * 未設定のときの住所。**今の本番の住所そのもの。**
+ * 2026-09-29 に Lovable の公開 URL が `word-snap-journey.lovable.app` から
+ * `catchwords.lovable.app` に変わった（旧 URL は「Project not found」になる）ので、ここも新 URL。
  *
  * ここを消してはいけない。消すと未設定時に `undefined` が canonical に
  * 入り、検索エンジンに壊れた宣言を出すことになる。
  */
-export const FALLBACK_SITE_URL = "https://word-snap-journey.lovable.app";
+export const FALLBACK_SITE_URL = "https://catchwords.lovable.app";
 
 /** 末尾の `/` を落として、住所の形をそろえる。 */
 export function normalizeSiteUrl(raw: string | null | undefined): string | null {

@@ -41,7 +41,7 @@ const config: CapacitorConfig = {
    */
   webDir: ".output/public",
   server: {
-    url: process.env.CAP_SERVER_URL ?? "https://word-snap-journey.lovable.app",
+    url: process.env.CAP_SERVER_URL ?? "https://catchwords.lovable.app",
     /** 平文HTTPは許可しない(盗み見を防ぐため)。 */
     cleartext: false,
   },

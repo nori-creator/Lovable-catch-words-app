@@ -2308,7 +2308,7 @@ describe("独自ドメインへ移れる形になっているか", () => {
 
   it("**未設定のときは今の住所を返す**（設定するまで出力は1文字も変わらない）", () => {
     expect(codeOnly(read("lib/site-url.ts"))).toContain(
-      'FALLBACK_SITE_URL = "https://word-snap-journey.lovable.app"',
+      'FALLBACK_SITE_URL = "https://catchwords.lovable.app"',
     );
   });
 });

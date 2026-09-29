@@ -15,4 +15,4 @@ Disallow: /post/
 Disallow: /u/
 Disallow: /reset-password
 
-Sitemap: https://word-snap-journey.lovable.app/sitemap.xml
+Sitemap: https://catchwords.lovable.app/sitemap.xml
