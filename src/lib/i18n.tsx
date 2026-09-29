@@ -3311,6 +3311,45 @@ export const DICT: Record<string, Record<UiLang, string>> = {
   },
   "settings.ttsSave": { ja: "この声にする", en: "Use these voices", "zh-TW": "使用這些聲音" },
   "settings.ttsSaved": { ja: "声を切り替えました", en: "Voice switched", "zh-TW": "已切換聲音" },
+  "settings.ttsTwTitle": {
+    ja: "台湾の声（アプリ全体で1つ）",
+    en: "Taiwan voice (one for the whole app)",
+    "zh-TW": "台灣聲音（全 App 統一一個）",
+  },
+  "settings.ttsTwNote": {
+    ja: "決めると、台湾華語の読み上げはすべてこの声。失敗しても別の声・端末の声には切り替えず、鳴らさない。",
+    en: "Once set, every Taiwan Mandarin reading uses this voice. On failure it stays silent instead of switching to another voice.",
+    "zh-TW": "設定後，所有台灣華語朗讀都用這個聲音。失敗時不會改用其他聲音，而是不發聲。",
+  },
+  "settings.ttsTwOff": {
+    ja: "決めない（これまでの声）",
+    en: "Not set (current voice)",
+    "zh-TW": "不指定（原本的聲音）",
+  },
+  "settings.ttsTwGender": { ja: "性別", en: "Gender", "zh-TW": "性別" },
+  "settings.ttsTwFemale": { ja: "女性", en: "Female", "zh-TW": "女聲" },
+  "settings.ttsTwMale": { ja: "男性", en: "Male", "zh-TW": "男聲" },
+  "settings.ttsTwIncomplete": {
+    ja: "この性別の声がまだ選ばれていません。診断で出た声を入れてください（未選択の間、台湾の声は無効）。",
+    en: "No voice chosen for this gender yet. Pick one from the diagnosis (the Taiwan voice stays off until then).",
+    "zh-TW": "此性別尚未選擇聲音。請從診斷結果選一個（在此之前台灣聲音不啟用）。",
+  },
+  "settings.ttsDiagnose": {
+    ja: "Gemini を診断（課金なし）",
+    en: "Diagnose Gemini (no charge)",
+    "zh-TW": "診斷 Gemini（不計費）",
+  },
+  "settings.ttsDiagKeyOk": {
+    ja: "鍵: あり（{k}）",
+    en: "Key: present ({k})",
+    "zh-TW": "金鑰：有（{k}）",
+  },
+  "settings.ttsDiagKeyNo": { ja: "鍵: なし", en: "Key: missing", "zh-TW": "金鑰：無" },
+  "settings.ttsDiagVoices": {
+    ja: "zh-TW の声: 女性 {f} / 男性 {m}",
+    en: "zh-TW voices: female {f} / male {m}",
+    "zh-TW": "zh-TW 聲音：女 {f} / 男 {m}",
+  },
   "settings.aiSwitch": {
     ja: "使うAIを切り替える",
     en: "Switch the AI in use",

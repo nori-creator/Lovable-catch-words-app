@@ -1,8 +1,15 @@
 import { describe, expect, it } from "vitest";
 import {
   azureSsml,
+  base64ToBytes,
   choiceFor,
   cleanTtsConfig,
+  geminiAudioFrom,
+  geminiBody,
+  isVoiceLocked,
+  pcmToWav,
+  TAIWAN_AZURE_VOICES,
+  taiwanChoice,
   elevenLabsBody,
   hexToBytes,
   minimaxBody,
@@ -11,9 +18,10 @@ import {
 } from "./tts-providers";
 
 describe("発音の声の会社（開発者だけが選ぶ。オーナー指示 2026-09-23）", () => {
-  it("5社を並べる。仕様書を取れなかった VoAI と ATEN は未接続（推測で繋がない）", () => {
+  it("6社を並べる。仕様書を取れなかった VoAI と ATEN は未接続（推測で繋がない）", () => {
     expect(TTS_PROVIDERS.map((p) => p.id)).toEqual([
       "azure",
+      "gemini",
       "elevenlabs",
       "minimax",
       "voai",
@@ -74,5 +82,136 @@ describe("発音の声の会社（開発者だけが選ぶ。オーナー指示 
     expect(b.output_format).toBe("hex");
     expect([...hexToBytes("49443303")]).toEqual([0x49, 0x44, 0x33, 0x03]);
     expect(() => hexToBytes("zz")).toThrow();
+  });
+});
+
+describe("台湾の声（R18: 必ず台湾・男女を選べる・アプリ全体で1つの声）", () => {
+  it("Azure は台湾（zh-TW）の表の声だけ。性別で決まり、表に無い声は使わない", () => {
+    expect(taiwanChoice({ provider: "azure", gender: "female" })).toEqual({
+      provider: "azure",
+      voice: "zh-TW-HsiaoChenNeural",
+    });
+    expect(taiwanChoice({ provider: "azure", gender: "male" })?.voice).toBe("zh-TW-YunJheNeural");
+    // 表にある別の女声は選べる。表に無い声（大陸の声など）は捨てて表の先頭に戻る。
+    expect(
+      taiwanChoice({
+        provider: "azure",
+        gender: "female",
+        voices: { female: "zh-TW-HsiaoYuNeural" },
+      })?.voice,
+    ).toBe("zh-TW-HsiaoYuNeural");
+    expect(
+      taiwanChoice({
+        provider: "azure",
+        gender: "female",
+        voices: { female: "zh-CN-XiaoxiaoNeural" },
+      })?.voice,
+    ).toBe("zh-TW-HsiaoChenNeural");
+    for (const list of Object.values(TAIWAN_AZURE_VOICES))
+      for (const v of list) expect(v.startsWith("zh-TW-")).toBe(true);
+  });
+
+  it("Gemini は選んだ性別の声が要る。未選択なら無効（別の性別・別の声で鳴らさない）", () => {
+    expect(taiwanChoice({ provider: "gemini", gender: "male" })).toBeNull();
+    expect(
+      taiwanChoice({ provider: "gemini", gender: "male", voices: { female: "Aoede" } }),
+    ).toBeNull();
+    expect(
+      taiwanChoice({
+        provider: "gemini",
+        gender: "female",
+        voices: { female: "Aoede" },
+        model: "gemini-3.8-flash-tts",
+      }),
+    ).toEqual({ provider: "gemini", voice: "Aoede", model: "gemini-3.8-flash-tts" });
+    // 知らないモデル名は既定（軽いほう）に戻す。
+    expect(
+      taiwanChoice({
+        provider: "gemini",
+        gender: "female",
+        voices: { female: "Aoede" },
+        model: "x",
+      })?.model,
+    ).toBe("gemini-3.8-flash-lite-tts");
+  });
+
+  it("台湾の声が決まっていれば zh-TW はいつもそれ。英語には効かない", () => {
+    const config = cleanTtsConfig({
+      taiwan: { provider: "azure", gender: "male" },
+      languages: { en: { provider: "azure", voice: "en-US-JennyNeural" } },
+    });
+    expect(choiceFor(config, "zh-TW")?.voice).toBe("zh-TW-YunJheNeural");
+    expect(choiceFor(config, "en")?.voice).toBe("en-US-JennyNeural");
+    expect(isVoiceLocked(config, "zh-TW")).toBe(true);
+    expect(isVoiceLocked(config, "en")).toBe(false);
+    // 言語ごとの設定より台湾の声が優先される。
+    const both = cleanTtsConfig({
+      taiwan: { provider: "azure", gender: "female" },
+      languages: { "zh-TW": { provider: "azure", voice: "zh-CN-XiaoxiaoNeural" } },
+    });
+    expect(choiceFor(both, "zh-TW")?.voice).toBe("zh-TW-HsiaoChenNeural");
+  });
+
+  it("台湾の声が無効（Gemini の声が未選択）ならロックしない", () => {
+    const config = cleanTtsConfig({ taiwan: { provider: "gemini", gender: "female" } });
+    expect(isVoiceLocked(config, "zh-TW")).toBe(false);
+    expect(choiceFor(config, "zh-TW")).toBeNull();
+  });
+
+  it("保存の前の掃除: 知らない会社・性別・変な字の声は捨てる", () => {
+    expect(
+      cleanTtsConfig({ taiwan: { provider: "voai", gender: "female" } }).taiwan,
+    ).toBeUndefined();
+    expect(cleanTtsConfig({ taiwan: { provider: "azure", gender: "x" } }).taiwan).toBeUndefined();
+    expect(
+      cleanTtsConfig({
+        taiwan: { provider: "gemini", gender: "female", voices: { female: "a/b", male: " Kore " } },
+      }).taiwan?.voices,
+    ).toEqual({ male: "Kore" });
+  });
+});
+
+describe("Gemini TTS の頼み方と返事（3.8 は WAV、以前は頭の無い PCM）", () => {
+  it("声は voiceName に入れ、文には何も足さない（台湾なまりは声で決める）", () => {
+    const body = geminiBody("你好", "Aoede");
+    expect(body.contents[0].parts[0].text).toBe("你好");
+    expect(body.generationConfig.responseModalities).toEqual(["AUDIO"]);
+    expect(body.generationConfig.speechConfig.voiceConfig.prebuiltVoiceConfig.voiceName).toBe(
+      "Aoede",
+    );
+  });
+
+  it("PCM には WAV の頭（RIFF・24kHz・16bit・モノラル）を付ける", () => {
+    const wav = pcmToWav(new Uint8Array([1, 2, 3, 4]));
+    expect(String.fromCharCode(...wav.slice(0, 4))).toBe("RIFF");
+    expect(String.fromCharCode(...wav.slice(8, 12))).toBe("WAVE");
+    const v = new DataView(wav.buffer);
+    expect(v.getUint32(24, true)).toBe(24000);
+    expect(v.getUint16(34, true)).toBe(16);
+    expect(v.getUint32(40, true)).toBe(4);
+    expect(wav.length).toBe(48);
+  });
+
+  const reply = (data: string, mimeType: string) => ({
+    candidates: [{ content: { parts: [{ inlineData: { data, mimeType } }] } }],
+  });
+  const b64 = (u: Uint8Array) => btoa(String.fromCharCode(...u));
+
+  it("RIFF 付きはそのまま、頭の無い PCM は WAV にそろえる", () => {
+    const riff = pcmToWav(new Uint8Array([9, 9]));
+    const a = geminiAudioFrom(reply(b64(riff), "audio/wav"));
+    expect(a.mime).toBe("audio/wav");
+    expect(Array.from(a.bytes)).toEqual(Array.from(riff));
+    const b = geminiAudioFrom(reply(b64(new Uint8Array([1, 2])), "audio/L16;rate=16000"));
+    expect(b.mime).toBe("audio/wav");
+    expect(new DataView(b.bytes.buffer).getUint32(24, true)).toBe(16000);
+    expect(Array.from(base64ToBytes(b64(new Uint8Array([7]))))).toEqual([7]);
+  });
+
+  it("音が無い返事（拒否・文だけ）は投げる", () => {
+    expect(() =>
+      geminiAudioFrom({ candidates: [{ content: { parts: [{ text: "x" }] } }] }),
+    ).toThrow();
+    expect(() => geminiAudioFrom({})).toThrow();
   });
 });

@@ -1,6 +1,6 @@
 import { Volume2, Sparkles } from "lucide-react";
 import { useT } from "@/lib/i18n";
-import { speak } from "@/lib/speak";
+import { usePronounce } from "@/lib/use-pronounce";
 import { DEFAULT_TARGET_LANGUAGE } from "@/lib/target-lang";
 import type { JournalScaffold as JournalScaffoldData } from "@/lib/journal.functions";
 
@@ -39,6 +39,7 @@ export function JournalScaffold({
   targetLanguage?: string;
 }) {
   const t = useT();
+  const pronounce = usePronounce(targetLanguage);
   const headById = new Map(data.captures.map((c) => [c.id, c.headword]));
   return (
     <div className="rounded-2xl border border-border bg-card p-3 shadow-sm">
@@ -58,10 +59,10 @@ export function JournalScaffold({
                 <p lang="zh-Hant" className="flex-1 text-body font-semibold leading-snug">
                   {p.question_zh}
                 </p>
-                {/* 読み上げは `lib/speak.ts` の1箇所を使う。**自前の写しを
-                    作らない** — 写しを持った画面が大陸の声で読んでいた。 */}
+                {/* 読み上げはアプリ全体で1つの声（`usePronounce`）。端末の声を直に使うと、
+                    ここだけ別の声（大陸の声のこともある）で読んでいた（R18）。 */}
                 <button
-                  onClick={() => speak(p.question_zh, targetLanguage)}
+                  onClick={() => void pronounce(p.question_zh)}
                   aria-label={t("card.playPron")}
                   className="speak-button grid h-11 w-11 shrink-0 place-items-center rounded-full active:scale-95 motion-reduce:active:scale-100"
                 >

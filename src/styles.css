@@ -9981,6 +9981,58 @@ html[data-dex-dragging] {
   /* 画面の幅いっぱいの帯（R17「3D のリアルな本棚をアプリの上部に設置して」）。 */
   margin: -1rem -1rem 0.25rem;
 }
+/* ---------------------------------------------------------------------------
+ * 本棚と今日のアルバムを**1つの作品**にする（オーナー指示 R19「本棚と下の今日のアルバムの
+ * 画像の一体感がないから、デザインを工夫して1つの作品に」）。
+ *
+ * 前は、丸く切った部屋の帯の下に、別の色の画面の地があり、そこへ紙の板が置かれていた。
+ * 3 つがそれぞれ別の物に見えた。今は**同じ 1 枚の壁**: 棚の壁（A 自然光の下半分の色）が
+ * そのまま下へ続き、棚は壁に掛かり、日付は壁に直に書かれ、アルバムは壁に貼られた大きな
+ * 印画紙になる。いちばん下に巾木（はばき）を通して、壁がそこで終わることを見せる。
+ * 壁は明るい色で固定なので、字の色は紙用に差し替える（`.collage-board` と同じ考え方）。
+ * ------------------------------------------------------------------------- */
+.home-scene {
+  --foreground: var(--album-ink);
+  --muted-foreground: var(--album-ink-dim);
+  position: relative;
+  margin: -1rem -1rem 1.5rem;
+  padding: 0 1rem 2.6rem;
+  background: #efe5d6;
+  color: var(--album-ink);
+}
+.home-scene .home-shelf {
+  margin: 0 -1rem 0.5rem;
+}
+.home-scene .home-shelf__stage:not([data-full]) {
+  border-radius: 0;
+}
+/* 棚が壁に落とす影は、帯の下の縁で切れずに壁へ溶ける（縁で切ると、帯と壁の継ぎ目が見える）。 */
+.home-scene .home-shelf__stage:not([data-full]) .home-shelf__canvas {
+  mask-image: linear-gradient(#000 88%, transparent);
+}
+.home-scene .diary-date__weekday {
+  color: color-mix(in oklab, var(--primary) 82%, #000);
+}
+/* アルバム = 壁に貼った大きな印画紙。壁に対して少し浮かせる。 */
+.home-scene .collage-board {
+  box-shadow:
+    0 2px 3px rgba(60, 42, 18, 0.14),
+    0 26px 34px -18px rgba(60, 42, 18, 0.55);
+}
+/* 巾木。壁の終わり。 */
+.home-scene::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 20px;
+  background: linear-gradient(#c9a47a, #a17b52 60%, #8a6540);
+  box-shadow:
+    0 -1px 0 rgb(255 255 255 / 0.45),
+    0 -14px 16px -10px rgb(60 42 18 / 0.28);
+  pointer-events: none;
+}
 .home-shelf__box {
   position: relative;
   height: clamp(190px, 58vw, 290px);
@@ -10017,7 +10069,7 @@ html[data-dex-dragging] {
 .home-shelf--room-a .home-shelf__room {
   background:
     radial-gradient(90% 70% at 12% 0%, rgb(255 250 235 / 0.95), transparent 60%),
-    linear-gradient(180deg, #cfe6fb 0%, #e9f2fa 38%, #f6efe3 62%, #efe5d6 100%);
+    linear-gradient(180deg, #cfe6fb 0%, #e9f2fa 34%, #f6efe3 56%, #efe5d6 80%);
 }
 .home-shelf--room-a .home-shelf__room::after {
   /* 窓から差す光の筋 */
@@ -10108,6 +10160,14 @@ html[data-dex-dragging] {
   display: grid;
   place-items: center;
   pointer-events: none;
+  /* 3D はすぐ出るのが普通。仮の平らな棚は、1 秒以上待たせる時だけ現れる（先に見せると、
+     3D に変わる瞬間に絵が入れ替わって見える。R19「開いた瞬間、仮の絵ではなく 3D」）。 */
+  animation: home-shelf-proxy-in 0.4s ease 1.2s both;
+}
+@keyframes home-shelf-proxy-in {
+  from {
+    opacity: 0;
+  }
 }
 .home-shelf__proxy-shelf {
   display: flex;
@@ -10260,13 +10320,18 @@ html[data-dex-dragging] {
   font-size: 20px;
   color: #23304a;
 }
-/* 片ページ（全画面）。 */
+/* 片ページ（全画面）。ページは 3D の本が寄って見せる。この層は釦だけ（間は素通し）。 */
 .home-shelf__single {
   position: fixed;
   inset: 0;
   z-index: 80;
   display: flex;
   flex-direction: column;
+  justify-content: space-between;
+  pointer-events: none;
+}
+.home-shelf__single > * {
+  pointer-events: auto;
 }
 .home-shelf__single-top {
   display: flex;
@@ -10304,37 +10369,6 @@ html[data-dex-dragging] {
   background: #fff;
   color: #1d1a16;
 }
-.home-shelf__single-page {
-  flex: 1;
-  min-height: 0;
-  display: grid;
-  place-items: center;
-  padding: 8px 16px;
-  border: 0;
-  background: transparent;
-}
-.home-shelf__single-img {
-  max-width: 100%;
-  max-height: 100%;
-  box-shadow:
-    0 30px 60px -20px rgb(0 0 0 / 0.7),
-    0 2px 6px rgb(0 0 0 / 0.35);
-}
-.home-shelf__single-img[data-side="left"] {
-  border-radius: 10px 3px 3px 10px;
-}
-.home-shelf__single-img[data-side="right"] {
-  border-radius: 3px 10px 10px 3px;
-}
-@keyframes home-shelf-page-in {
-  from {
-    opacity: 0;
-    scale: 0.94;
-  }
-}
-html[data-motion="reduce"] .home-shelf__single-img {
-  animation: none;
-}
 .home-shelf__single-nav {
   display: flex;
   justify-content: space-between;
@@ -10345,25 +10379,6 @@ html[data-motion="reduce"] .home-shelf__single-img {
 .home-shelf__single-side {
   color: rgb(255 255 255 / 0.7);
   font-size: 13px;
-}
-/* 片ページの後ろの暗がり（ページが大きくなるのと一緒に濃くなる）。 */
-.home-shelf__single-shade {
-  position: absolute;
-  inset: 0;
-  z-index: -1;
-  background: radial-gradient(120% 90% at 50% 40%, #3a322a, #14110e);
-}
-.home-shelf__single {
-  isolation: isolate;
-}
-.home-shelf__single-page {
-  touch-action: pan-y;
-  cursor: grab;
-}
-.home-shelf__single-img {
-  user-select: none;
-  -webkit-user-select: none;
-  will-change: transform;
 }
 /* 鉛筆で日記を書き込む机（R17）。 */
 .home-shelf__pencil {

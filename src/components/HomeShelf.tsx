@@ -21,6 +21,10 @@ import type { MonthBook, ShelfWorld } from "@/components/shelf3d/engine";
 import type { DaySpread } from "@/components/shelf3d/textures";
 import type { RoomId } from "@/components/shelf3d/room";
 import type { PencilDiary } from "@/components/diary-pencil/engine";
+import { prewarmShelf } from "@/components/shelf3d/prewarm";
+
+// ホームの塊を読んだ瞬間に、3D の塊と棚の 3 ファイルを並べて取りに行く（`prewarm.ts`）。
+prewarmShelf();
 
 /**
  * **ホームの一番上の本棚**（部屋に置いた大きな 3D の棚）。
@@ -113,15 +117,16 @@ export function HomeShelf({
     cover?: boolean;
   }>({ open: null, page: 0, pages: 0 });
   const [view, setView] = useState<View>("spread");
-  const [pageUrl, setPageUrl] = useState<string | null>(null);
   const [font, setFont] = useState<DiaryFontId>(() => getDiaryFont());
   const fontRef = useRef(font);
   const [writing, setWriting] = useState<string | null>(null);
   /** 鉛筆が書いている文（書き終わるまで画面いっぱいの机の上）。 */
   const [pencil, setPencil] = useState<{ text: string; after: () => void } | null>(null);
   const [, bump] = useState(0);
-  /** 片ページへ移る時に、ページが写っていた位置（ここから大きくなる）。 */
-  const zoomFrom = useRef<DOMRect | null>(null);
+  const viewRef = useRef<View>("spread");
+  viewRef.current = view;
+  /** 直前に見た「めくった枚数」（払ってめくれた時に、見ているページを追いかける）。 */
+  const prevPage = useRef(0);
 
   const monthTitle = useCallback(
     (y: number, m: number) =>
@@ -235,78 +240,74 @@ export function HomeShelf({
       count: m.count,
       color: m.color,
     }));
-    const idle =
-      (window as Window & { requestIdleCallback?: (cb: () => void) => number })
-        .requestIdleCallback ?? ((cb: () => void) => window.setTimeout(cb, 200));
-    idle(() => {
-      void import("@/components/shelf3d/engine")
-        .then(async ({ ShelfWorld }) => {
-          if (!alive) return;
-          w = new ShelfWorld(
-            el,
-            books,
-            {
-              onState: (st) => {
-                setState(st);
-                if (!st.open) setView("spread");
-              },
-              onPageTap: (side) => {
-                zoomFrom.current = world.current?.pageRect(side) ?? null;
-                setView(side);
-              },
-              onBookTap: (b, open) => {
-                setBusy(true);
-                void prepare(b)
-                  .then(() => {
-                    if (!alive) return;
-                    if (!fullRef.current) expand();
-                    // 広がり始めた次の描画で開く（寄ってくる本が広がる画面の中に来る）。
-                    requestAnimationFrame(() => requestAnimationFrame(open));
-                  })
-                  .finally(() => alive && setBusy(false));
-              },
-              days: (b) => daysOf.current.get(b) ?? [],
-              diaryFont: () => fontRef.current,
-              titlePage: (b, n) => [
-                labelsRef.current.monthTitle(b.y, b.m),
-                labelsRef.current.t("shelf.home.titlePage").replace("{n}", String(n)),
-              ],
+    /** 写真立ての写真。遅ければ待たずに空の額で先に組む（棚が出るほうを優先）。 */
+    const frameSrc = async (): Promise<string | null> => {
+      if (!framePhoto) return null;
+      const slow = new Promise<null>((ok) => window.setTimeout(() => ok(null), 500));
+      return Promise.race([resolveCachedSrc(framePhoto).catch(() => framePhoto), slow]);
+    };
+    void Promise.all([import("@/components/shelf3d/engine"), frameSrc()])
+      .then(async ([{ ShelfWorld }, frame]) => {
+        if (!alive) return;
+        w = new ShelfWorld(
+          el,
+          books,
+          {
+            onState: (st) => {
+              setState(st);
+              if (!st.open) setView("spread");
             },
-            { rows: 1, openAt: "first", room },
-          );
-          world.current = w;
-          const world3d = w;
-          ro = new ResizeObserver(() => world3d.resize());
-          ro.observe(el);
-          io = new IntersectionObserver(([e]) => world3d.setPaused(!e.isIntersecting));
-          io.observe(el);
-          // 帯の上でも本はそのまま押せる（大きくなったので背表紙を指で狙える）。縦に払えば
-          // ホームが送られる（`touch-action: pan-y`、その時は押したと数えない）。
-          const down = (e: PointerEvent) => {
-            if (fullRef.current) el.setPointerCapture(e.pointerId);
-            world3d.pointerDown(e);
-          };
-          const move = (e: PointerEvent) => world3d.pointerMove(e);
-          const up = (e: PointerEvent) => world3d.pointerUp(e);
-          const cancel = () => world3d.pointerCancel();
-          el.addEventListener("pointerdown", down);
-          el.addEventListener("pointermove", move);
-          el.addEventListener("pointerup", up);
-          el.addEventListener("pointercancel", cancel);
-          off.push(() => {
-            el.removeEventListener("pointerdown", down);
-            el.removeEventListener("pointermove", move);
-            el.removeEventListener("pointerup", up);
-            el.removeEventListener("pointercancel", cancel);
-          });
-          world3d.start();
-          const frame = framePhoto
-            ? await resolveCachedSrc(framePhoto).catch(() => framePhoto)
-            : null;
-          return world3d.load(frame ? [frame] : []).then(() => alive && setReady(true));
-        })
-        .catch(() => alive && setFailed(true));
-    });
+            // 見開きで押した側のページへ寄る。寄っている時に押したら見開きへ戻る。
+            onPageTap: (side) => setView(viewRef.current === "spread" ? side : "spread"),
+            onBookTap: (b, open) => {
+              setBusy(true);
+              void prepare(b)
+                .then(() => {
+                  if (!alive) return;
+                  if (!fullRef.current) expand();
+                  // 広がり始めた次の描画で開く（寄ってくる本が広がる画面の中に来る）。
+                  requestAnimationFrame(() => requestAnimationFrame(open));
+                })
+                .finally(() => alive && setBusy(false));
+            },
+            days: (b) => daysOf.current.get(b) ?? [],
+            diaryFont: () => fontRef.current,
+            titlePage: (b, n) => [
+              labelsRef.current.monthTitle(b.y, b.m),
+              labelsRef.current.t("shelf.home.titlePage").replace("{n}", String(n)),
+            ],
+          },
+          { rows: 1, openAt: "first", room },
+        );
+        world.current = w;
+        const world3d = w;
+        ro = new ResizeObserver(() => world3d.resize());
+        ro.observe(el);
+        io = new IntersectionObserver(([e]) => world3d.setPaused(!e.isIntersecting));
+        io.observe(el);
+        // 帯の上でも本はそのまま押せる（大きくなったので背表紙を指で狙える）。縦に払えば
+        // ホームが送られる（`touch-action: pan-y`、その時は押したと数えない）。
+        const down = (e: PointerEvent) => {
+          if (fullRef.current) el.setPointerCapture(e.pointerId);
+          world3d.pointerDown(e);
+        };
+        const move = (e: PointerEvent) => world3d.pointerMove(e);
+        const up = (e: PointerEvent) => world3d.pointerUp(e);
+        const cancel = () => world3d.pointerCancel();
+        el.addEventListener("pointerdown", down);
+        el.addEventListener("pointermove", move);
+        el.addEventListener("pointerup", up);
+        el.addEventListener("pointercancel", cancel);
+        off.push(() => {
+          el.removeEventListener("pointerdown", down);
+          el.removeEventListener("pointermove", move);
+          el.removeEventListener("pointerup", up);
+          el.removeEventListener("pointercancel", cancel);
+        });
+        world3d.start();
+        return world3d.load(frame ? [frame] : []).then(() => alive && setReady(true));
+      })
+      .catch(() => alive && setFailed(true));
     return () => {
       alive = false;
       ro?.disconnect();
@@ -321,20 +322,33 @@ export function HomeShelf({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [monthSig, room]);
 
-  // 片ページの絵（見開きの片側の canvas をそのまま大きく見せる）。
+  // 片ページ = **同じ 3D の本のまま、そのページへ寄る**（R19: めくりは見開きと同じ紙の動き）。
   useEffect(() => {
-    if (view === "spread") {
-      setPageUrl(null);
+    world.current?.setFocus(state.open ? view : "spread");
+  }, [view, state.open, ready]);
+
+  // 払ってめくった・表紙まで戻った時に、見ているページを追いかける
+  // （右のページをめくると、その裏＝左のページへ。左をめくり戻すと右へ）。
+  useEffect(() => {
+    if (!state.open) {
+      prevPage.current = 0;
       return;
     }
-    const c = world.current?.pageCanvas(view);
-    setPageUrl(c ? c.toDataURL("image/jpeg", 0.9) : null);
-  }, [view, state.page, state.cover, font, writing, pencil]);
+    const before = prevPage.current;
+    prevPage.current = state.page;
+    if (view === "right" && state.page > before) setView("left");
+    else if (view === "left" && state.page < before) setView("right");
+    else if ((view === "right" || view === "left") && state.cover) setView("cover");
+    else if (view === "cover" && !state.cover) setView("right");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state.page, state.cover, state.open]);
 
   // 開いている間は、Esc で片ページ → 見開き → 棚の順に戻る（キーボードの人のため）。
   useEffect(() => {
     if (!state.open) return;
     const onKey = (e: KeyboardEvent) => {
+      if (e.key === "ArrowRight" && view !== "spread") stepSingle(1);
+      else if (e.key === "ArrowLeft" && view !== "spread") stepSingle(-1);
       if (e.key !== "Escape") return;
       if (view !== "spread") setView("spread");
       else world.current?.close();
@@ -351,27 +365,20 @@ export function HomeShelf({
     const w = world.current;
     if (!w) return false;
     const { at, count } = w.spread;
+    // 紙をめくる時（flip）は、見ているページの切り替えは上の effect が追いかける。
     if (dir === 1) {
-      if (view === "cover") {
-        w.flip(1);
-        setView("right");
-      } else if (view === "left") setView("right");
-      else if (at < count - 1) {
-        w.flip(1);
-        setView("left");
-      } else return false;
+      if (view === "cover") w.flip(1);
+      else if (view === "left") setView("right");
+      else if (at < count - 1) w.flip(1);
+      else return false;
       return true;
     }
     if (view === "cover") return false;
     if (view === "right" && at > 0) setView("left");
-    else if (at > 0) {
-      w.flip(-1);
-      setView("right");
-    } else {
-      // 最初の見開きから戻る → 表紙（パタッと閉じる）
-      w.flip(-1);
-      setView("cover");
-    }
+    else if (view === "left" && at > 0) w.flip(-1);
+    else if (view === "right")
+      w.flip(-1); // 最初の見開きから戻る → 表紙（パタッと閉じる）
+    else return false;
     return true;
   };
 
@@ -453,7 +460,7 @@ export function HomeShelf({
               <span className="home-shelf__spinner" />
             </div>
           )}
-          {state.open && (
+          {state.open && view === "spread" && (
             <div className="home-shelf__top">
               <button
                 type="button"
@@ -569,11 +576,8 @@ export function HomeShelf({
       </ul>
       {state.open && view !== "spread" && (
         <SinglePage
-          url={pageUrl}
           view={view}
           heading={heading}
-          from={zoomFrom.current}
-          fromOf={(side) => world.current?.pageRect(side) ?? null}
           onStep={stepSingle}
           onClose={() => setView("spread")}
           labels={{
@@ -605,170 +609,31 @@ export function HomeShelf({
 }
 
 /**
- * **片ページ**（全画面）。ページが見開きの中で写っていた位置から大きくなって現れ（R17
- * 「片面のページをタップしたらズームするようなアニメーションとともに 1 ページが表示される」）、
- * 指で左右に払うとめくれる（「片ページでもスワイプするとページをめくれるように」）。
- * 押すと、写っていた位置へ縮んで見開きに戻る。
+ * **片ページ**の操作部品（上の題と切替、下の前へ・次へ）。ページそのものは**同じ 3D の本**が
+ * 手前へ寄って見せる（`ShelfWorld.setFocus`）ので、ここに絵は無い。だから
+ *  - 開く・閉じる = 見開きの中のページへ寄る・戻る 3D の動き（R17「ズームするように」）
+ *  - めくる = 見開きと**同じ紙**（同じ曲がり方・ばね・指に付いてくる払い）（R19）
+ * 払うのは 3D の本が直に受ける（この層は素通し）。ここの釦は同じ紙を同じ動きでめくる。
  */
 function SinglePage({
-  url,
   view,
   heading,
-  from,
-  fromOf,
   onStep,
   onClose,
   labels,
 }: {
-  url: string | null;
   view: Exclude<View, "spread">;
   heading: string;
-  from: DOMRect | null;
-  fromOf: (side: Exclude<View, "spread">) => DOMRect | null;
   onStep: (dir: 1 | -1) => boolean;
   onClose: () => void;
   labels: Record<"single" | "spread" | "pageView" | "back" | "prev" | "next" | "side", string>;
 }) {
-  const img = useRef<HTMLImageElement>(null);
-  const shade = useRef<HTMLDivElement>(null);
-  const zoomed = useRef(false);
-  const enter = useRef<1 | -1 | 0>(0);
-  const drag = useRef<{ x: number; y: number; t: number; dx: number; v: number } | null>(null);
-
-  /** 見開きの中の位置 ↔ 片ページの位置、を transform 1つで行き来する。 */
-  const flipFrom = (r: DOMRect, el: HTMLElement) => {
-    const to = el.getBoundingClientRect();
-    if (!to.width || !r.width) return "none";
-    const sx = r.width / to.width;
-    const sy = r.height / to.height;
-    return `translate(${r.left - to.left}px, ${r.top - to.top}px) scale(${sx}, ${sy})`;
-  };
-
-  // 最初に出る時: ページの位置から大きくなる（最初の1回だけ）。めくった後: 横から滑り込む。
-  useLayoutEffect(() => {
-    const el = img.current;
-    if (!el || !url || motionReducedNow()) return;
-    if (!zoomed.current) {
-      zoomed.current = true;
-      if (from) {
-        el.animate(
-          [
-            { transformOrigin: "0 0", transform: flipFrom(from, el), borderRadius: "2px" },
-            { transformOrigin: "0 0", transform: "none" },
-          ],
-          { duration: 420, easing: "cubic-bezier(.2,.8,.2,1)" },
-        );
-        shade.current?.animate([{ opacity: 0 }, { opacity: 1 }], {
-          duration: 300,
-          easing: "ease-out",
-        });
-      }
-      return;
-    }
-    if (enter.current) {
-      el.animate(
-        [
-          {
-            transform: `translateX(${enter.current * 38}%) rotate(${enter.current * 2}deg)`,
-            opacity: 0.4,
-          },
-          { transform: "none", opacity: 1 },
-        ],
-        { duration: 260, easing: "cubic-bezier(.2,.8,.2,1)" },
-      );
-      enter.current = 0;
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [url]);
-
-  const close = () => {
-    const el = img.current;
-    const r = fromOf(view);
-    if (!el || !r || motionReducedNow()) {
-      onClose();
-      return;
-    }
-    shade.current?.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 300, fill: "forwards" });
-    el.animate(
-      [
-        { transformOrigin: "0 0", transform: "none" },
-        { transformOrigin: "0 0", transform: flipFrom(r, el), borderRadius: "2px" },
-      ],
-      { duration: 340, easing: "cubic-bezier(.3,.7,.2,1)", fill: "forwards" },
-    ).finished.then(onClose, onClose);
-  };
-
-  const go = (dir: 1 | -1) => {
-    const el = img.current;
-    const out = () => {
-      enter.current = dir;
-      if (!onStep(dir)) {
-        enter.current = 0;
-        el?.animate([{ transform: "none" }], { duration: 200, easing: "ease-out" });
-      }
-    };
-    if (!el || motionReducedNow()) {
-      out();
-      return;
-    }
-    el.animate(
-      [
-        { transform: el.style.transform || "none" },
-        { transform: `translateX(${-dir * 110}%) rotate(${-dir * 4}deg)`, opacity: 0.2 },
-      ],
-      { duration: 180, easing: "cubic-bezier(.4,0,.8,.6)" },
-    ).finished.then(() => {
-      el.style.transform = "";
-      out();
-    }, out);
-  };
-
-  const onDown = (e: React.PointerEvent) => {
-    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
-    drag.current = { x: e.clientX, y: e.clientY, t: performance.now(), dx: 0, v: 0 };
-  };
-  const onMove = (e: React.PointerEvent) => {
-    const d = drag.current;
-    const el = img.current;
-    if (!d || !el) return;
-    const now = performance.now();
-    const dx = e.clientX - d.x;
-    d.v = (dx - d.dx) / Math.max(1, now - d.t);
-    d.t = now;
-    d.dx = dx;
-    // 指に 1:1 で付いてくる（端の先にページが無ければ少しだけ抵抗）
-    el.style.transform = `translateX(${dx}px) rotate(${dx * 0.012}deg)`;
-  };
-  const onUp = (e: React.PointerEvent) => {
-    const d = drag.current;
-    drag.current = null;
-    const el = img.current;
-    if (!d || !el) return;
-    const moved = Math.hypot(e.clientX - d.x, e.clientY - d.y);
-    if (moved < 10) {
-      el.style.transform = "";
-      close();
-      return;
-    }
-    // 払った向き・速さでめくるか戻すかを決める
-    const projected = d.dx + d.v * 180;
-    if (Math.abs(projected) > 70) go(projected < 0 ? 1 : -1);
-    else {
-      el.animate([{ transform: el.style.transform }, { transform: "none" }], {
-        duration: 260,
-        easing: "cubic-bezier(.2,.8,.2,1)",
-      });
-      el.style.transform = "";
-    }
-  };
-
   return (
-    <div role="dialog" aria-label={labels.single} className="home-shelf__single">
-      <div ref={shade} aria-hidden className="home-shelf__single-shade" />
+    <div role="dialog" aria-label={labels.single} className="home-shelf__single" data-view={view}>
       <div className="home-shelf__single-top">
         <span className="home-shelf__single-title">{heading}</span>
         <div role="radiogroup" aria-label={labels.pageView} className="home-shelf__seg">
-          <button type="button" role="radio" aria-checked={false} onClick={close}>
+          <button type="button" role="radio" aria-checked={false} onClick={onClose}>
             {labels.spread}
           </button>
           <button type="button" role="radio" aria-checked>
@@ -776,41 +641,12 @@ function SinglePage({
           </button>
         </div>
       </div>
-      <div
-        role="button"
-        tabIndex={0}
-        aria-label={labels.back}
-        className="home-shelf__single-page"
-        onPointerDown={onDown}
-        onPointerMove={onMove}
-        onPointerUp={onUp}
-        onPointerCancel={() => {
-          drag.current = null;
-          if (img.current) img.current.style.transform = "";
-        }}
-        onKeyDown={(e) => {
-          if (e.key === "ArrowRight") go(1);
-          else if (e.key === "ArrowLeft") go(-1);
-          else if (e.key === "Enter" || e.key === " ") close();
-        }}
-      >
-        {url && (
-          <img
-            ref={img}
-            src={url}
-            alt=""
-            draggable={false}
-            data-side={view}
-            className="home-shelf__single-img"
-          />
-        )}
-      </div>
       <div className="home-shelf__single-nav">
-        <button type="button" onClick={() => go(-1)} className="home-shelf__btn">
+        <button type="button" onClick={() => onStep(-1)} className="home-shelf__btn">
           ‹ {labels.prev}
         </button>
         <span className="home-shelf__single-side">{labels.side}</span>
-        <button type="button" onClick={() => go(1)} className="home-shelf__btn">
+        <button type="button" onClick={() => onStep(1)} className="home-shelf__btn">
           {labels.next} ›
         </button>
       </div>

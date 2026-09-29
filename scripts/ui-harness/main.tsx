@@ -396,7 +396,7 @@ const REVIEW_SCENES: Array<{ scene: string; label: string }> = [
   // 先頭は最後に頼まれた物（R17: 部屋に置いた大きな本棚。A〜D を下で切り替え）。
   {
     scene: "home-shelf",
-    label: "ホーム: 上の本棚（A〜D）→ 本を押す → 見開き・片ページのズーム・払ってめくる・表紙",
+    label: "ホーム: 本棚とアルバムが1枚の壁 → 本を押す → 見開き・片ページ・めくり",
   },
   { scene: "chunk-designs", label: "チャンク: 点線は入れ替えられる物だけ・很・縦の輪" },
   {

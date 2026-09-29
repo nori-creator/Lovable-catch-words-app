@@ -221,6 +221,24 @@ export class ShelfWorld {
   /** 表紙を閉じて手元に持っている（表紙まで戻った）。 */
   private coverShut = false;
   private dim = spring(0.4, 1);
+  /**
+   * **片ページ**（R19「片ページモードでも、めくるアニメーションは見開きと同じに」）。
+   * 前は片ページを別の絵（画像）で出して横へ滑らせていたので、めくりが見開きの紙とは別物だった。
+   * 今は**同じ 3D の本のまま、手前へ寄って片側のページを画面いっぱいにする**だけ。めくるのは
+   * 見開きと同じ紙（同じ曲がり方・同じばね・指に付いてくる払い）。
+   * `focus` は 0（見開き）〜1（片ページ）、`focusSide` はどのページに寄るか。
+   */
+  private focus = spring(0.5, 1);
+  private focusSide: "left" | "right" | "cover" | null = null;
+  /** 寄る先ページの中心（本の中の x）と幅。ページが変わる時はこの値がなめらかに動く。 */
+  /** いま片ページで見ている側（見開きなら null）。 */
+  private get single() {
+    return this.focus.target === 1 ? this.focusSide : null;
+  }
+  private fcx = JOINT + LEAF_W / 2;
+  private fw = LEAF_W;
+  private tcx = JOINT + LEAF_W / 2;
+  private tw = LEAF_W;
   private page = 0; // めくった枚数
   private drag: {
     leaf: number;
@@ -769,8 +787,10 @@ export class ShelfWorld {
     this.down = { x: e.clientX, y: e.clientY, t: performance.now() };
     if (this.active && this.open.x > 0.85) {
       const r = this.canvas.getBoundingClientRect();
-      const rightSide = e.clientX > r.left + r.width / 2;
-      const leaf = rightSide ? this.page : this.page - 1;
+      // 片ページの時は、寄っているページの紙を掴む（画面の左右どちらを押したかではなく）。
+      const one = this.single;
+      const rightSide = one ? one === "right" : e.clientX > r.left + r.width / 2;
+      const leaf = one === "cover" ? -1 : rightSide ? this.page : this.page - 1;
       if (leaf >= 0 && leaf < this.active.leaves.length) {
         const l = this.active.leaves[leaf];
         this.drag = {
@@ -789,11 +809,12 @@ export class ShelfWorld {
     if (!this.drag || !this.active) return;
     const r = this.canvas.getBoundingClientRect();
     const l = this.active.leaves[this.drag.leaf];
-    // 指に 1:1: 画面の幅の半分を動かすと1枚ぶん
-    const p = this.drag.p0 + (this.drag.x0 - e.clientX) / (r.width * 0.5);
+    // 指に 1:1: 見開きは画面の幅の半分、片ページ（ページが画面いっぱい）は画面の幅ほど動かすと1枚ぶん
+    const span = r.width * (this.single ? 0.95 : 0.5);
+    const p = this.drag.p0 + (this.drag.x0 - e.clientX) / span;
     const now = performance.now();
     const dt = Math.max(1, now - this.drag.t) / 1000;
-    const inst = (this.drag.lastX - e.clientX) / (r.width * 0.5) / dt;
+    const inst = (this.drag.lastX - e.clientX) / span / dt;
     this.drag.vx = this.drag.vx * 0.6 + inst * 0.4;
     this.drag.t = now;
     this.drag.lastX = e.clientX;
@@ -820,6 +841,24 @@ export class ShelfWorld {
     this.down = null;
     const moved = d ? Math.hypot(e.clientX - d.x, e.clientY - d.y) : 99;
     // 表紙を閉じて持っている時に左へ払う → 表紙を開く。最初の見開きで右へ払う → 表紙へ戻る。
+    if (
+      this.active &&
+      d &&
+      moved > 24 &&
+      !this.coverShut &&
+      this.page === 0 &&
+      this.open.x > 0.85
+    ) {
+      // 最初のページ（扉）を右へ払う → 表紙へ戻る。扉の紙を掴んでいても（片ページの時）表紙へ。
+      if (e.clientX - d.x > 0 && (!this.drag || this.drag.leaf === 0)) {
+        if (this.drag) {
+          this.active.leaves[0].p.target = 0;
+          this.drag = null;
+        }
+        this.flip(-1);
+        return;
+      }
+    }
     if (this.active && !this.drag && d && moved > 24) {
       const dx = e.clientX - d.x;
       if (this.coverShut && dx < 0) {
@@ -903,6 +942,28 @@ export class ShelfWorld {
     if (!book || this.active) return;
     if (this.events.onBookTap) this.events.onBookTap(book.data, () => this.openBook(book));
     else this.openBook(book);
+  }
+
+  /** 片ページ（left / right / cover）へ寄る・見開き（spread）へ戻る。 */
+  setFocus(side: "spread" | "left" | "right" | "cover") {
+    if (side === "spread") {
+      this.focus.target = 0;
+    } else {
+      this.focusSide = side;
+      this.tcx =
+        side === "left" ? JOINT - LEAF_W / 2 : side === "cover" ? W / 2 : JOINT + LEAF_W / 2;
+      this.tw = side === "cover" ? W : LEAF_W;
+      if (this.focus.x < 0.001 || this.reduce) {
+        this.fcx = this.tcx;
+        this.fw = this.tw;
+      }
+      this.focus.target = 1;
+    }
+    if (this.reduce) {
+      this.focus.x = this.focus.target;
+      this.focus.v = 0;
+    }
+    this.kick();
   }
 
   flip(dir: 1 | -1) {
@@ -1077,6 +1138,9 @@ export class ShelfWorld {
   close() {
     const b = this.active;
     if (!b) return;
+    this.focus.target = 0;
+    this.focus.x = 0;
+    this.focus.v = 0;
     for (const l of b.leaves) l.p.target = 0;
     this.ensurePages(b, 0);
     this.page = 0;
@@ -1189,12 +1253,19 @@ export class ShelfWorld {
       if (this.paused && !this.active) return;
       let moving = false;
       moving = this.stepCover(dt) || moving;
-      const springs = [this.pull, this.present, this.dim];
+      const springs = [this.pull, this.present, this.dim, this.focus];
       for (const s of springs) {
         if (this.reduce) {
           s.x = s.target;
           s.v = 0;
         } else moving = step(s, dt) || moving;
+      }
+      // 寄る先のページの中心・幅がなめらかに動く（左→右のページへ移る時に本が滑る）。
+      const ease = 1 - Math.exp(-dt * 10);
+      if (Math.abs(this.tcx - this.fcx) > 1e-5 || Math.abs(this.tw - this.fw) > 1e-5) {
+        this.fcx += (this.tcx - this.fcx) * ease;
+        this.fw += (this.tw - this.fw) * ease;
+        moving = true;
       }
       const b = this.active;
       if (b) {
@@ -1229,12 +1300,52 @@ export class ShelfWorld {
     const reading = new THREE.Vector3(-W / 2 + (W / 2) * openX, this.readingY, this.readingZ);
     const p = shelf.lerp(reading, pr);
     p.y += 0.06 * Math.sin(Math.PI * Math.min(1, pr)); // 弧を描いて寄る
-    b.group.position.copy(p);
     const qShelf = new THREE.Quaternion().setFromEuler(new THREE.Euler(0, Math.PI / 2, 0));
     const qRead = new THREE.Quaternion().setFromEuler(
       new THREE.Euler(this.room ? -0.16 : -0.32, 0, 0),
     );
     b.group.quaternion.copy(qShelf.slerp(qRead, Math.min(1, pr)));
+    const f = Math.max(0, Math.min(1.05, this.focus.x));
+    if (f > 0.0005 && this.focusSide) {
+      // 片ページ: 寄る先のページが画面の幅いっぱい（縦は上下の釦の間）の真ん中に来る姿勢を、
+      // 画面への写り方（射影）を測りながら求め、見開きの姿勢との間を `focus` で行き来する。
+      const cw = this.canvas.clientWidth || 1;
+      const ch = this.canvas.clientHeight || 1;
+      const vfov = (this.camera.fov * Math.PI) / 180;
+      const tanH = Math.tan(vfov / 2) * (cw / ch);
+      const tanV = Math.tan(vfov / 2);
+      const availH = Math.max(0.5, (ch - 200) / ch);
+      const wantW = Math.min(1.88, (2 * availH) / ((LEAF_H / this.fw) * (cw / ch)));
+      const inner = b.group.children[0];
+      const tgt = p.clone();
+      const at = (x: number, y: number) =>
+        inner.localToWorld(new THREE.Vector3(x, y, T / 2 + 0.001));
+      const measure = () => {
+        b.group.position.copy(tgt);
+        b.group.updateMatrixWorld(true);
+        const l = at(this.fcx - this.fw / 2, 0);
+        const r = at(this.fcx + this.fw / 2, 0);
+        const m = at(this.fcx, 0);
+        const pl = l.clone().project(this.camera);
+        const pr2 = r.clone().project(this.camera);
+        const pm = m.clone().project(this.camera);
+        return {
+          w: Math.abs(pr2.x - pl.x),
+          cx: pm.x,
+          cy: pm.y,
+          dist: this.camera.position.z - m.z,
+        };
+      };
+      let m = measure();
+      tgt.z += m.dist - m.dist * (m.w / wantW);
+      m = measure();
+      tgt.z += m.dist - m.dist * (m.w / wantW);
+      m = measure();
+      tgt.x -= m.cx * m.dist * tanH;
+      tgt.y -= m.cy * m.dist * tanV;
+      p.lerp(tgt, f);
+    }
+    b.group.position.copy(p);
     // 硬い表紙: 蝶番で板のまま回る（曲がらない）
     b.front.rotation.y = -Math.PI * Math.max(0, Math.min(1, this.open.x));
   }

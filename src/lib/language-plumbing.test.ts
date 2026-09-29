@@ -6095,8 +6095,13 @@ describe("ホームの一番上の本棚（2026-09-29「ホームのアルバム
   it("3D は後から読み込み、その月の写真と日記を揃えてから開く", () => {
     expect(shelf).toMatch(/import\("@\/components\/shelf3d\/engine"\)/);
     expect(shelf).toMatch(/loadRef\.current\.diary\(key\)/);
-    // 押したページが写っている位置から、片ページへ大きくなる（R17）。
-    expect(shelf).toMatch(/zoomFrom\.current = world\.current\?\.pageRect\(side\) \?\? null;/);
+    // 開いた瞬間に 3D が出るよう、ホームの塊を読んだ時点で 3D の塊と棚の 3 ファイルを並べて取りに行く（R19）。
+    expect(shelf).toMatch(/^prewarmShelf\(\);$/m);
+    expect(codeOnly(read("components/shelf3d/prewarm.ts"))).toMatch(/"\/models\/shelf\.glb"/);
+    // 手が空くのを待たない（アルバムの写真を読み込み中は手が空くのが遅れ、仮の棚が長く見えた）。
+    expect(shelf).not.toMatch(/requestIdleCallback/);
+    // 押したページへ 3D の本のまま寄る（R19: 片ページのめくりも見開きと同じ紙）。
+    expect(shelf).toMatch(/world\.current\?\.setFocus\(state\.open \? view : "spread"\);/);
     expect(codeOnly(read("lib/journal.functions.ts"))).toMatch(
       /export const listMyDiaryMonth = createServerFn\(\{ method: "GET" \}\)/,
     );
@@ -6107,9 +6112,13 @@ describe("ホームの一番上の本棚（2026-09-29「ホームのアルバム
     expect(engine).toMatch(/if \(dir === -1 && this\.page === 0 && !this\.coverShut\) \{/);
     expect(engine).toMatch(/private stepCover\(dt: number\): boolean \{/);
     // 表紙はばねではなく時間で倒す（ばねの列から外した）
-    expect(engine).toMatch(/const springs = \[this\.pull, this\.present, this\.dim\];/);
-    expect(shelf).toMatch(/onPointerMove=\{onMove\}/);
-    expect(shelf).toMatch(/if \(Math\.abs\(projected\) > 70\) go\(projected < 0 \? 1 : -1\);/);
+    expect(engine).toMatch(
+      /const springs = \[this\.pull, this\.present, this\.dim, this\.focus\];/,
+    );
+    // 片ページも同じ紙・同じ動き: 別の絵を滑らせず、3D の本が寄る（R19）。
+    expect(engine).toMatch(/setFocus\(side: "spread" \| "left" \| "right" \| "cover"\) \{/);
+    expect(shelf).not.toMatch(/home-shelf__single-img/);
+    expect(shelf).not.toMatch(/pageCanvas/);
   });
 
   it("R17: 日記を書く・書き直すと鉛筆で書き込む（押せば書き上げて戻る）", () => {

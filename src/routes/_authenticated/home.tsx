@@ -389,68 +389,73 @@ function HomePage() {
         参考画像 A〜D。撮った月の本だけが並ぶ）。本を押すと全画面に広がり、その月の最初の日の
         見開きが開く。下へ続く日ごとのアルバムはそのまま。
       */}
-      {!isLoading && !isError && albumItems.length > 0 ? <HomeShelf items={albumItems} /> : null}
-      {/* **日付は壁紙に直に書く**（オーナー指示 2026-09-23「ホーム画面の日付は
+      <div className={!isLoading && !isError && albumItems.length > 0 ? "home-scene" : undefined}>
+        {!isLoading && !isError && albumItems.length > 0 ? <HomeShelf items={albumItems} /> : null}
+        {/* **日付は壁紙に直に書く**（オーナー指示 2026-09-23「ホーム画面の日付は
           背景の壁紙に直接書いて。日記のように」）。上の見出しの帯はやめ、
           今日の誌面の板の中（`DayCollage` の `heading`）に書く。 */}
-      <PendingCapturesBanner />
-      {memorialToday &&
-        !memorialHidden &&
-        memorialPicks.length > 0 &&
-        !wasMemorialDismissed(memorialToday) && (
-          <MemorialEntry
-            n={memorialToday}
-            words={total}
-            picks={memorialPicks}
-            onOpen={() => setMemorialOpen(memorialToday)}
-            onDismiss={() => {
-              dismissMemorial(memorialToday);
-              setMemorialHidden(true);
-            }}
-          />
-        )}
+        <PendingCapturesBanner />
+        {memorialToday &&
+          !memorialHidden &&
+          memorialPicks.length > 0 &&
+          !wasMemorialDismissed(memorialToday) && (
+            <MemorialEntry
+              n={memorialToday}
+              words={total}
+              picks={memorialPicks}
+              onOpen={() => setMemorialOpen(memorialToday)}
+              onDismiss={() => {
+                dismissMemorial(memorialToday);
+                setMemorialHidden(true);
+              }}
+            />
+          )}
 
-      {isLoading ? (
-        <HomeLoading />
-      ) : isError ? (
-        // 失敗を「今日はまだ何も無い」と描いていた。しかも日記への唯一の入口が
-        // この else の中にあるので、エラーのときは日記にも辿り着けなくなる。
-        <LoadFailed onRetry={() => void refetch()} retrying={isFetching} what={t("err.whatHome")} />
-      ) : todayStickers.length === 0 ? (
-        <HomeEmptyState
-          surface={surfaceClass}
-          date={today}
-          message={homeBlankText(albumItems, total, today, t)}
-        />
-      ) : (
-        <>
-          {/* 表紙が開く演出は**今日の1冊だけ**(オーナー指摘⑪)。
-              過去の日にも付けると、遡るたびに何十冊も回り出す。 */}
-          <DayCollage
-            stickers={todayStickers}
-            surface={surfaceClass}
-            heading={<DiaryDate date={today} />}
-            opening
-            onOpen={(id, from) => {
-              setOpenId(baseStickerId(id));
-              setOpenFrom(from ?? null);
-            }}
-            onLongPress={(id) => {
-              setOpenId(baseStickerId(id));
-              setOpenFrom(null);
-              setOpenPhotoPicker(true);
-            }}
+        {isLoading ? (
+          <HomeLoading />
+        ) : isError ? (
+          // 失敗を「今日はまだ何も無い」と描いていた。しかも日記への唯一の入口が
+          // この else の中にあるので、エラーのときは日記にも辿り着けなくなる。
+          <LoadFailed
+            onRetry={() => void refetch()}
+            retrying={isFetching}
+            what={t("err.whatHome")}
           />
-          {/* **「今日の日記」の欄は出さない**（オーナー指示 2026-09-17
+        ) : todayStickers.length === 0 ? (
+          <HomeEmptyState
+            surface={surfaceClass}
+            date={today}
+            message={homeBlankText(albumItems, total, today, t)}
+          />
+        ) : (
+          <>
+            {/* 表紙が開く演出は**今日の1冊だけ**(オーナー指摘⑪)。
+              過去の日にも付けると、遡るたびに何十冊も回り出す。 */}
+            <DayCollage
+              stickers={todayStickers}
+              surface={surfaceClass}
+              heading={<DiaryDate date={today} />}
+              opening
+              onOpen={(id, from) => {
+                setOpenId(baseStickerId(id));
+                setOpenFrom(from ?? null);
+              }}
+              onLongPress={(id) => {
+                setOpenId(baseStickerId(id));
+                setOpenFrom(null);
+                setOpenPhotoPicker(true);
+              }}
+            />
+            {/* **「今日の日記」の欄は出さない**（オーナー指示 2026-09-17
               「今日の日記の欄も消して」）。
 
               紙の下に青いボタンが1つ座っていると、そこで誌面が終わって
               **アプリの画面に戻る**。この面は1枚の紙であって、道具の並んだ
               画面ではない。日記そのものは消していない — 過去の日の紙の
               向かいには今までどおり出るし、書く画面(`/journal`)も残っている。 */}
-        </>
-      )}
-
+          </>
+        )}
+      </div>
       {/* **下へスクロールすると過去が続く形に戻した**(オーナー指示
           2026-08-25「ホームの本棚の機能を全削除して、前のように
           下スクロールで過去が見える形に戻して」)。
