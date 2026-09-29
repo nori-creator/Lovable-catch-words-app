@@ -217,16 +217,28 @@ export function useHeroReveal(origin: HeroOrigin | null, key: string | null, onD
      * いちばん大きい丸みを採る。
      */
     const radiusOf = (node: Element) => parseFloat(getComputedStyle(node).borderTopLeftRadius) || 0;
+    /**
+     * **写真の枠と同じくらい大きい物だけを測る**（オーナー報告 2026-09-29「ホーム画面の画像
+     * タップした時にアニメーションが勝手に変更されてる。丸ではなく、元の浮かび上がるものに
+     * 戻して」）。写真の上に「3D」の丸い釦（`rounded-full` = 9999px）を置いた日から、その
+     * 丸みを拾って**写真ごと楕円**になって広がっていた。小さな釦・札は枠ではない。
+     */
+    const isFrame = (node: Element) => {
+      const r = node.getBoundingClientRect();
+      return r.width >= last.width * 0.8 && r.height >= last.height * 0.8;
+    };
     let endRadius = radiusOf(el);
     if (endRadius < 1) {
       // 子と孫まで（浅い所だけ。写しは作らず、測るだけ）。
       for (const child of Array.from(el.children).slice(0, 6)) {
-        endRadius = Math.max(endRadius, radiusOf(child));
+        if (isFrame(child)) endRadius = Math.max(endRadius, radiusOf(child));
         for (const grand of Array.from(child.children).slice(0, 6)) {
-          endRadius = Math.max(endRadius, radiusOf(grand));
+          if (isFrame(grand)) endRadius = Math.max(endRadius, radiusOf(grand));
         }
       }
     }
+    // 丸みは短い辺の半分まで（それ以上は楕円になる）。
+    endRadius = Math.min(endRadius, Math.min(last.width, last.height) / 2);
 
     /** 行きの道のり（0 = 押した札、1 = 見出し）。影と濃さの案に使う。 */
     const progress = () => {

@@ -42,16 +42,27 @@ export async function readShelfSnapshot(): Promise<string | null> {
   }
 }
 
-export async function saveShelfSnapshot(dataUrl: string): Promise<void> {
+/** 撮った時の棚の中身（月と冊数）。同じなら撮り直さない（開くたびに撮ると重い）。 */
+const SIG = "cw-shelf-snap-sig";
+export function shelfSnapshotSig(): string | null {
+  try {
+    return localStorage.getItem(SIG);
+  } catch {
+    return null;
+  }
+}
+
+export async function saveShelfSnapshot(image: string | Blob, sig?: string): Promise<void> {
   try {
     if (typeof caches === "undefined") return;
-    const blob = await (await fetch(dataUrl)).blob();
+    const blob = typeof image === "string" ? await (await fetch(image)).blob() : image;
     // 大きすぎる絵は置かない（端末の容量を食わない。ふつうは 100KB 前後）。
     if (!blob.size || blob.size > 1_500_000) return;
     const c = await caches.open(CACHE);
     await c.put(KEY, new Response(blob, { headers: { "content-type": blob.type } }));
     try {
       localStorage.setItem(FLAG, "1");
+      if (sig) localStorage.setItem(SIG, sig);
     } catch {
       /* 印が置けなくても、絵は読める（同梱の絵が一瞬先に出るだけ） */
     }

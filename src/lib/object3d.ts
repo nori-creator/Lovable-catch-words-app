@@ -51,9 +51,13 @@ export function readObject3dConfig(env: Record<string, string | undefined>): Obj
   };
 }
 
-/** Pro だけ。無料の人には「Pro で使える」の案内を出す（押しても作らない）。 */
-export function object3dAllowed(p: { isPro: boolean }): boolean {
-  return p.isPro;
+/**
+ * **開発者だけ**（オーナー指示 2026-09-29「開発者の私は pro プランだけど、今から友達に
+ * シェアするから、私以外は 3D モデル機能使えないようにして」）。Pro かどうかは見ない —
+ * 生成は1回ごとに料金がかかるので、試している間は開発者の鍵でだけ動かす。
+ */
+export function object3dAllowed(p: { isAdmin: boolean }): boolean {
+  return p.isAdmin;
 }
 
 /**
@@ -127,8 +131,13 @@ export function readTripoKey(
 }
 
 /** Tripo に頼む仕事の中身。下書き（速い・色なし）と仕上げ（色と質感）。 */
-export function tripoTaskBody(imageToken: string, kind: "preview" | "final") {
-  const file = { type: "png", file_token: imageToken };
+export function tripoTaskBody(
+  imageToken: string,
+  kind: "preview" | "final",
+  /** 上げた絵の種類（実際の中身と合わせる。png と書いて jpg を渡すと失敗する）。 */
+  type: "png" | "jpg" | "webp" = "png",
+) {
+  const file = { type, file_token: imageToken };
   return kind === "preview"
     ? {
         type: "image_to_model",
@@ -145,12 +154,13 @@ export function tripoTaskBody(imageToken: string, kind: "preview" | "final") {
 export type Object3dTaskState =
   | { status: "running"; progress: number }
   | { status: "success"; progress: 100; modelUrl: string }
-  | { status: "failed"; progress: number };
+  | { status: "failed"; progress: number; reason?: string };
 
 /** Tripo の「仕事の様子」の返事を読む。 */
 export function readTripoTask(json: unknown): Object3dTaskState {
-  const o = (json ?? {}) as { code?: number; data?: Record<string, unknown> };
-  if (o.code !== 0 || !o.data) return { status: "failed", progress: 0 };
+  const o = (json ?? {}) as { code?: number; message?: string; data?: Record<string, unknown> };
+  if (o.code !== 0 || !o.data)
+    return { status: "failed", progress: 0, reason: `code ${o.code ?? "-"} ${o.message ?? ""}` };
   const d = o.data;
   const progress = Math.max(0, Math.min(100, Number(d.progress) || 0));
   const st = String(d.status ?? "");
@@ -161,10 +171,10 @@ export function readTripoTask(json: unknown): Object3dTaskState {
     );
     return url
       ? { status: "success", progress: 100, modelUrl: url }
-      : { status: "failed", progress };
+      : { status: "failed", progress, reason: "no model url" };
   }
   if (["failed", "banned", "expired", "cancelled", "unknown"].includes(st))
-    return { status: "failed", progress };
+    return { status: "failed", progress, reason: st };
   return { status: "running", progress };
 }
 

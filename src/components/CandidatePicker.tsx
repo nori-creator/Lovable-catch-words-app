@@ -170,7 +170,7 @@ function HeroWord({
             <ZhuyinWord
               units={units}
               lang={language}
-              className="block text-hero font-medium leading-tight"
+              className="zy-word--balanced block text-hero font-medium leading-tight"
             />
           ) : (
             <Term lang={language} className="block break-words text-hero font-medium leading-tight">
@@ -237,7 +237,14 @@ function WordLine({
   return (
     <>
       {units ? (
-        <ZhuyinWord units={units} lang={language} className={`block ${cls} font-medium`} />
+        // **見出しと同じ比（字の 0.36 倍）**（オーナー報告 2026-09-29「ほかの言い方の漢字と注音の
+        // バランスが悪い、注音がでかすぎる。上の保温杯のやつと同じバランス比にして。漢字も小さい
+        // ときは注音もそれに合わせて小さくして」）。下限 11px を外す（`zy-word--balanced`）。
+        <ZhuyinWord
+          units={units}
+          lang={language}
+          className={`zy-word--balanced block ${cls} font-medium`}
+        />
       ) : (
         <Term lang={language} className={`block break-words ${cls} font-medium`}>
           {c.headword}

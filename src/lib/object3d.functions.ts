@@ -1,7 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { z } from "zod";
-import { isProUser, logUsage } from "./ai-provider.server";
+import { logUsage } from "./ai-provider.server";
 import {
   TRIPO_BASE_URL,
   readTripoKey,
@@ -37,8 +37,9 @@ export const generateObject3d = createServerFn({ method: "POST" })
   )
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
-    if (!object3dAllowed({ isPro: await isProUser(userId) }))
-      return { status: "pro_only" as const };
+    // 3D は開発者だけ（`object3dAllowed`）。
+    const { data: isAdmin } = await supabase.rpc("has_role", { _user_id: userId, _role: "admin" });
+    if (!object3dAllowed({ isAdmin: Boolean(isAdmin) })) return { status: "pro_only" as const };
     const cfg = readObject3dConfig(process.env);
     if (!cfg.endpoint) return { status: "unavailable" as const };
     try {
@@ -81,15 +82,30 @@ export const startObject3d = createServerFn({ method: "POST" })
   )
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
-    if (!object3dAllowed({ isPro: await isProUser(userId) }))
-      return { status: "pro_only" as const };
+    // 3D は開発者だけ（`object3dAllowed`）。
+    const { data: isAdmin } = await supabase.rpc("has_role", { _user_id: userId, _role: "admin" });
+    if (!object3dAllowed({ isAdmin: Boolean(isAdmin) })) return { status: "pro_only" as const };
     const key = readTripoKey(process.env)?.key;
     if (!key) return { status: "unavailable" as const };
+    /**
+     * **失敗の理由を返す**（オーナー報告 2026-09-29「3D のボタン押してもエラーと出て機能しない」）。
+     * 前は理由を捨てて「作れませんでした」だけを返していたので、どこで止まったか（写真を上げる所・
+     * 仕事を頼む所・鍵）が誰にも分からなかった。使うのは開発者だけなので、Tripo の返事の要点を
+     * そのまま画面に出す（鍵の値は含まれない）。
+     */
+    const fail = (reason: string) => ({ status: "failed" as const, reason: reason.slice(0, 200) });
     try {
+      const mime = data.image.slice(5, data.image.indexOf(";")) || "image/png";
+      const ext =
+        mime.includes("jpeg") || mime.includes("jpg")
+          ? "jpg"
+          : mime.includes("webp")
+            ? "webp"
+            : "png";
       const b64 = data.image.slice(data.image.indexOf(",") + 1);
       const bytes = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
       const form = new FormData();
-      form.append("file", new Blob([bytes], { type: "image/png" }), "image.png");
+      form.append("file", new Blob([bytes], { type: mime }), `image.${ext}`);
       const auth = { authorization: `Bearer ${key}` };
       const up = await fetch(`${TRIPO_BASE_URL}/upload/sts`, {
         method: "POST",
@@ -99,28 +115,44 @@ export const startObject3d = createServerFn({ method: "POST" })
       });
       const upJson = (await up.json().catch(() => null)) as {
         code?: number;
+        message?: string;
         data?: { image_token?: string };
       } | null;
       const token = upJson?.code === 0 ? upJson.data?.image_token : undefined;
-      if (!token) return { status: "failed" as const };
+      if (!token)
+        return fail(
+          `upload HTTP ${up.status} code ${upJson?.code ?? "-"} ${upJson?.message ?? ""}`,
+        );
       const task = (kind: "preview" | "final") =>
         fetch(`${TRIPO_BASE_URL}/task`, {
           method: "POST",
           headers: { ...auth, "content-type": "application/json" },
-          body: JSON.stringify(tripoTaskBody(token, kind)),
+          body: JSON.stringify(tripoTaskBody(token, kind, ext)),
           signal: AbortSignal.timeout(30_000),
         })
-          .then((r) => r.json())
-          .then((j: { code?: number; data?: { task_id?: string } }) =>
-            j?.code === 0 ? (j.data?.task_id ?? null) : null,
-          )
-          .catch(() => null);
-      const [previewTaskId, finalTaskId] = await Promise.all([task("preview"), task("final")]);
-      if (!finalTaskId) return { status: "failed" as const };
+          .then(async (r) => {
+            const j = (await r.json().catch(() => null)) as {
+              code?: number;
+              message?: string;
+              data?: { task_id?: string };
+            } | null;
+            return j?.code === 0 && j.data?.task_id
+              ? { id: j.data.task_id, error: null }
+              : {
+                  id: null,
+                  error: `task HTTP ${r.status} code ${j?.code ?? "-"} ${j?.message ?? ""}`,
+                };
+          })
+          .catch((e: unknown) => ({
+            id: null,
+            error: `task ${e instanceof Error ? e.message : e}`,
+          }));
+      const [preview, final] = await Promise.all([task("preview"), task("final")]);
+      if (!final.id) return fail(final.error ?? "task");
       await logUsage(supabase, userId, "object3d");
-      return { status: "started" as const, previewTaskId, finalTaskId };
-    } catch {
-      return { status: "failed" as const };
+      return { status: "started" as const, previewTaskId: preview.id, finalTaskId: final.id };
+    } catch (e) {
+      return fail(e instanceof Error ? e.message : String(e));
     }
   });
 

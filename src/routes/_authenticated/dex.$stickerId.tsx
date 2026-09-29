@@ -15,7 +15,7 @@ import { usePlaceName } from "@/lib/use-place-name";
 import { HeroPhotoPicker } from "@/components/HeroPhotoPicker";
 import type { PhotoRole } from "@/lib/sticker-photo";
 /** グラフは開いたときに読み込む（起動時の束に recharts を入れない）。 */
-const ForgettingCurveChart = lazy(() =>
+const ForgettingCurveChart = lazyWithRetry(() =>
   import("@/components/ForgettingCurveChart").then((m) => ({ default: m.ForgettingCurveChart })),
 );
 import { getSticker, setStickerHeroRole } from "@/lib/stickers.functions";
@@ -23,7 +23,8 @@ import { SEED_UPDATED_AT, seedStickerFromList } from "@/lib/sticker-seed";
 import { getStickerMemoryHistory } from "@/lib/reviews.functions";
 import { listStickerPhotos } from "@/lib/encounters.functions";
 import { StickerPhotoHistory } from "@/components/StickerPhotoHistory";
-import { lazy, Suspense, useRef, useState } from "react";
+import { Suspense, useRef, useState } from "react";
+import { lazyWithRetry } from "@/lib/chunk-reload";
 import { ArrowLeft, MapPin, Brain, ChevronDown, Clock } from "lucide-react";
 import { useAutoHero } from "@/hooks/use-auto-hero";
 import { localeOf, useT } from "@/lib/i18n";

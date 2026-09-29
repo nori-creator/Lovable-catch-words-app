@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type React from "react";
+import { flushSync } from "react-dom";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 import type { StickerWithWord } from "@/lib/stickers.functions";
@@ -27,6 +28,7 @@ import {
   hasShelfSnapshot,
   readShelfSnapshot,
   saveShelfSnapshot,
+  shelfSnapshotSig,
 } from "@/components/shelf3d/snapshot";
 
 // ホームの塊を読んだ瞬間に、3D の塊と棚の 3 ファイルを並べて取りに行く（`prewarm.ts`）。
@@ -158,28 +160,55 @@ export function HomeShelf({
     fromRect.current = box.current?.getBoundingClientRect() ?? null;
     setFull(true);
   }, []);
+  /** 閉じている最中（「閉じる」を押した瞬間に釦を消す）。 */
+  const [closing, setClosing] = useState(false);
+  /**
+   * **閉じる: 全画面の棚が、そのまま帯の中へ収まる**（オーナー報告 2026-09-29「本のアルバムを
+   * 閉じて、ホーム画面に戻るときのアニメーションにバグがある」）。
+   *
+   * 前は舞台の幅と高さを毎コマ変えていた。すると 3D の canvas も毎コマ作り直しになり、
+   * **途中で棚が消えて空だけが縮む**。さらに動きが終わった瞬間、React が帯へ戻すより先に
+   * 舞台が**全画面へ一瞬戻って**いた（録画で空が画面いっぱいに1コマ出ていた）。
+   *
+   * 今は canvas の大きさを変えない。全画面の絵のまま「帯の大きさの窓」で切り抜き
+   * （clip-path）、窓ごと帯の位置へ滑らせる。棚は画面の幅いっぱい・縦の真ん中に描かれて
+   * いるので、窓の中身は帯の中の棚とほぼ同じ絵になる。終わりの姿は保ったまま
+   * （fill: forwards）帯へ戻し、戻し終えてから動きを外す。
+   */
   const collapse = useCallback(() => {
     const el = stage.current;
     const to = box.current?.getBoundingClientRect();
+    setClosing(true);
+    const done = () => {
+      flushSync(() => {
+        setFull(false);
+        setClosing(false);
+      });
+    };
     if (!el || !to || motionReducedNow()) {
-      setFull(false);
+      done();
       return;
     }
-    el.animate(
+    const W = el.clientWidth || innerWidth;
+    const H = el.clientHeight || innerHeight;
+    const top = Math.max(0, H / 2 - to.height / 2);
+    const dy = to.top + to.height / 2 - H / 2;
+    const right = Math.max(0, W - to.left - to.width);
+    const anim = el.animate(
       [
-        { top: "0px", left: "0px", width: `${innerWidth}px`, height: `${innerHeight}px` },
+        { clipPath: "inset(0px 0px 0px 0px round 0px)", transform: "translateY(0px)" },
         {
-          top: `${to.top}px`,
-          left: `${to.left}px`,
-          width: `${to.width}px`,
-          height: `${to.height}px`,
+          clipPath: `inset(${top}px ${right}px ${top}px ${Math.max(0, to.left)}px round 0px 0px 28px 28px)`,
+          transform: `translateY(${dy}px)`,
         },
       ],
-      { duration: 380, easing: "cubic-bezier(.3,.7,.2,1)" },
-    ).finished.then(
-      () => setFull(false),
-      () => setFull(false),
+      { duration: 420, easing: "cubic-bezier(.3,.7,.2,1)", fill: "forwards" },
     );
+    const finish = () => {
+      done();
+      anim.cancel();
+    };
+    anim.finished.then(finish, finish);
   }, []);
   useLayoutEffect(() => {
     const el = stage.current;
@@ -252,14 +281,18 @@ export function HomeShelf({
   }, []);
 
   // 3D が描けたら、今の棚を撮って端末に置く（次に開いた時に先に出す）。本の数が変わった時も撮り直す。
+  // **中身が前に撮った時と同じなら撮らない**（オーナー報告 2026-09-29「アプリ全体がカクカク」—
+  // 開くたびに撮って圧縮し、画面が 0.5 秒ほど止まっていた）。撮る時も画面を止めない（toBlob）。
   useEffect(() => {
     if (!ready) return;
+    if (hasShelfSnapshot() && shelfSnapshotSig() === `${room}:${monthSig}`) return;
     const id = window.setTimeout(() => {
-      const url = world.current?.snapshot();
-      if (url) void saveShelfSnapshot(url);
+      void world.current
+        ?.snapshotBlob()
+        .then((blob) => blob && saveShelfSnapshot(blob, `${room}:${monthSig}`));
     }, 1200);
     return () => window.clearTimeout(id);
-  }, [ready, monthSig]);
+  }, [ready, monthSig, room]);
 
   // ---- 3D の棚を組み立てる（ホームを描いた後の手の空いた時に） -----------------
   useEffect(() => {
@@ -489,7 +522,7 @@ export function HomeShelf({
               data-gone={ready || undefined}
             />
           )}
-          {full && !state.open && (
+          {full && !state.open && !closing && (
             <div className="home-shelf__top">
               <button type="button" className="home-shelf__btn" onClick={collapse}>
                 {t("common.close")}
@@ -615,12 +648,16 @@ export function HomeShelf({
           </li>
         ))}
       </ul>
-      {state.open && view !== "spread" && (
+      {state.open && view !== "spread" && writing === null && (
         <SinglePage
           view={view}
           heading={heading}
           onStep={stepSingle}
           onClose={() => setView("spread")}
+          // 片ページでも日記を書ける（オーナー指示 2026-09-29「片ページモードにしたときにも
+          // 日記を書くボタンを表示して」）。書く欄は見開きと同じ物を開く。
+          onWrite={day ? () => setWriting(day.diary) : undefined}
+          writeLabel={day?.diary.trim() ? t("shelf.home.rewriteDiary") : t("shelf.home.writeDiary")}
           labels={{
             single: t("shelf.home.single"),
             spread: t("shelf.home.spread"),
@@ -661,12 +698,17 @@ function SinglePage({
   heading,
   onStep,
   onClose,
+  onWrite,
+  writeLabel,
   labels,
 }: {
   view: Exclude<View, "spread">;
   heading: string;
   onStep: (dir: 1 | -1) => boolean;
   onClose: () => void;
+  /** 日記を書く（その日のページを見ている時だけ）。 */
+  onWrite?: () => void;
+  writeLabel: string;
   labels: Record<"single" | "spread" | "pageView" | "back" | "prev" | "next" | "side", string>;
 }) {
   return (
@@ -682,14 +724,27 @@ function SinglePage({
           </button>
         </div>
       </div>
-      <div className="home-shelf__single-nav">
-        <button type="button" onClick={() => onStep(-1)} className="home-shelf__btn">
-          ‹ {labels.prev}
-        </button>
-        <span className="home-shelf__single-side">{labels.side}</span>
-        <button type="button" onClick={() => onStep(1)} className="home-shelf__btn">
-          {labels.next} ›
-        </button>
+      <div>
+        {onWrite && (
+          <div className="home-shelf__single-write">
+            <button
+              type="button"
+              onClick={onWrite}
+              className="home-shelf__btn home-shelf__write w-full"
+            >
+              {writeLabel}
+            </button>
+          </div>
+        )}
+        <div className="home-shelf__single-nav">
+          <button type="button" onClick={() => onStep(-1)} className="home-shelf__btn">
+            ‹ {labels.prev}
+          </button>
+          <span className="home-shelf__single-side">{labels.side}</span>
+          <button type="button" onClick={() => onStep(1)} className="home-shelf__btn">
+            {labels.next} ›
+          </button>
+        </div>
       </div>
     </div>
   );

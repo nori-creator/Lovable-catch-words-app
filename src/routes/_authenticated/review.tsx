@@ -9,7 +9,8 @@ import { batchKey, readMark, writeMark, EMPTY_MARK } from "@/lib/review-session"
 import { packBatch, readBatch, REVIEW_CACHE_KEY, REVIEW_CACHE_USER_KEY } from "@/lib/review-cache";
 import { countsAsRemembered, speakingResult } from "@/lib/speaking-grade";
 import { useServerFn } from "@tanstack/react-start";
-import { lazy, Suspense, useEffect, useId, useMemo, useRef, useState } from "react";
+import { Suspense, useEffect, useId, useMemo, useRef, useState } from "react";
+import { lazyWithRetry } from "@/lib/chunk-reload";
 import { createPortal } from "react-dom";
 import { AppShell } from "@/components/AppShell";
 import { warmCachedImages } from "@/lib/image-cache";
@@ -18,7 +19,7 @@ import { warmCachedImages } from "@/lib/image-cache";
  * 単語の詳細に飛べるボタン」）。**画面を移らずに上に重ねる** — 移ると
  * 今日の復習の途中から外れる。重い部品なので、押すまで読み込まない。
  */
-const StickerSheet = lazy(() =>
+const StickerSheet = lazyWithRetry(() =>
   import("@/components/StickerSheet").then((m) => ({ default: m.StickerSheet })),
 );
 import { usePrefetchSpeech, usePronounce } from "@/lib/use-pronounce";
@@ -46,10 +47,10 @@ import { memoryCurveFrom } from "@/lib/memory-curve-from";
  * **グラフは押したときに読み込む**（recharts・lodash・d3 で起動時の JS の約4割。
  * オーナー指示 2026-09-27「アプリを開いてからホームやカメラが出るまでを限界まで速く」）。
  */
-const MemoryCurveChart = lazy(() =>
+const MemoryCurveChart = lazyWithRetry(() =>
   import("@/components/ForgettingCurveChart").then((m) => ({ default: m.MemoryCurveChart })),
 );
-const MiniRetentionGraph = lazy(() =>
+const MiniRetentionGraph = lazyWithRetry(() =>
   import("@/components/MiniRetentionGraph").then((m) => ({ default: m.MiniRetentionGraph })),
 );
 import { getMyProfile, updateMyProfile } from "@/lib/profile.functions";

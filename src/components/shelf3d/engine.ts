@@ -250,7 +250,31 @@ export class ShelfWorld {
     t: number;
     lastX: number;
   } | null = null;
-  private dirty = true;
+  /**
+   * 描き直しが要る印。**立てたら描画の輪を起こす**（輪は何も動いていない時は止まっている —
+   * オーナー報告 2026-09-29「アプリ全体がカクカク」。前は何もしていない間も毎秒 60 回、
+   * ホームにいる間ずっと空回りしていた）。
+   */
+  private _dirty = true;
+  private get dirty() {
+    return this._dirty;
+  }
+  private set dirty(v: boolean) {
+    this._dirty = v;
+    if (v) this.wake();
+  }
+  /** 描画の輪が回っているか／回す関数（`start` で作る）。 */
+  private looping = false;
+  private loopFn: ((t: number) => void) | null = null;
+  /** 何も動かないまま過ぎたコマ数（しばらく続いたら輪を止める）。 */
+  private idleFrames = 0;
+  private wake() {
+    this.idleFrames = 0;
+    if (this.looping || this.disposed || !this.loopFn) return;
+    this.looping = true;
+    this.last = 0;
+    this.raf = requestAnimationFrame(this.loopFn);
+  }
   private reduce = false;
   private photos: Array<HTMLImageElement | null> = [];
   private dimMesh!: THREE.Mesh;
@@ -817,6 +841,7 @@ export class ShelfWorld {
   }
 
   pointerDown(e: PointerEvent) {
+    this.wake();
     this.down = { x: e.clientX, y: e.clientY, t: performance.now() };
     this.pending = null;
     this.pan = null;
@@ -833,6 +858,7 @@ export class ShelfWorld {
   }
 
   pointerMove(e: PointerEvent) {
+    this.wake();
     if (this.pending && this.active) {
       const dx = e.clientX - this.pending.x;
       const dy = e.clientY - this.pending.y;
@@ -886,6 +912,7 @@ export class ShelfWorld {
 
   /** 画面が縦に送られて指が取られた（押した・払ったとは数えない）。 */
   pointerCancel() {
+    this.wake();
     this.down = null;
     this.pending = null;
     if (this.pan) {
@@ -902,6 +929,7 @@ export class ShelfWorld {
   }
 
   pointerUp(e: PointerEvent) {
+    this.wake();
     const d = this.down;
     this.down = null;
     this.pending = null;
@@ -1013,6 +1041,7 @@ export class ShelfWorld {
 
   /** i 冊目（左から）を押したのと同じ（読み上げ用の釦から開く時）。 */
   openMonth(i: number) {
+    this.wake();
     const book = this.books[i];
     if (!book || this.active) return;
     if (this.events.onBookTap) this.events.onBookTap(book.data, () => this.openBook(book));
@@ -1021,6 +1050,7 @@ export class ShelfWorld {
 
   /** 片ページ（left / right / cover）へ寄る・見開き（spread）へ戻る。 */
   setFocus(side: "spread" | "left" | "right" | "cover") {
+    this.wake();
     if (side === "spread") {
       this.focus.target = 0;
     } else {
@@ -1042,6 +1072,7 @@ export class ShelfWorld {
   }
 
   flip(dir: 1 | -1) {
+    this.wake();
     if (!this.active) return;
     // **表紙までめくれる**（R17「本のアルバムのカバーまでページがめくれるようにして」）。
     // 最初の見開きから戻ると表紙が閉じ、閉じた表紙から進むと表紙が開く。
@@ -1095,6 +1126,7 @@ export class ShelfWorld {
 
   /** 日記の字体を変えた・日記を書いた → 開いている本の右ページを描き直す。 */
   repaintDiary(dayIndex?: number) {
+    this.wake();
     const b = this.active;
     if (!b || !b.days.length) return;
     b.leaves.forEach((leaf, i) => {
@@ -1173,6 +1205,7 @@ export class ShelfWorld {
   }
 
   openBook(b: Book) {
+    this.wake();
     if (this.active) return;
     void preloadSfx(["book-open"]);
     this.paintInside(b);
@@ -1211,6 +1244,7 @@ export class ShelfWorld {
   }
 
   close() {
+    this.wake();
     const b = this.active;
     if (!b) return;
     this.focus.target = 0;
@@ -1306,7 +1340,10 @@ export class ShelfWorld {
     // 見開き（≈0.30m）が画面の幅の 9 割になる所まで寄せる（手前に傾くぶんの余白を残す）。
     const need = (this.room ? 0.34 : 0.33) / 2 / Math.tan(hfov / 2);
     this.readingZ = this.camera.position.z - need;
-    this.dirty = true;
+    // 大きさを変えると絵が消える（WebGL の描き先が作り直される）。次のコマを待たずに
+    // その場で描き直す — 待つと、全画面から帯へ戻った瞬間に1コマ空の棚が見える。
+    if (!this.disposed) this.renderer.render(this.scene, this.camera);
+    this.dirty = false;
   }
 
   private kick() {
@@ -1322,10 +1359,18 @@ export class ShelfWorld {
 
   start() {
     const loop = (t: number) => {
-      this.raf = requestAnimationFrame(loop);
+      if (this.disposed) {
+        this.looping = false;
+        return;
+      }
       const dt = Math.min(1 / 30, this.last ? (t - this.last) / 1000 : 1 / 60);
       this.last = t;
-      if (this.paused && !this.active) return;
+      if (this.paused && !this.active) {
+        // 画面の外: 描かずに輪を止める（戻ってきたら setPaused(false) が起こす）。
+        this.looping = false;
+        return;
+      }
+      this.raf = requestAnimationFrame(loop);
       let moving = false;
       moving = this.stepCover(dt) || moving;
       const springs = [this.pull, this.present, this.dim, this.focus];
@@ -1357,11 +1402,18 @@ export class ShelfWorld {
         this.pose(b);
       }
       (this.dimMesh.material as THREE.MeshBasicMaterial).opacity = 0.5 * this.dim.x;
-      if (moving || this.dirty) {
+      if (moving || this._dirty) {
         this.renderer.render(this.scene, this.camera);
-        this.dirty = false;
+        this._dirty = false;
+        this.idleFrames = 0;
+      } else if (!this.drag && !this.pending && ++this.idleFrames > 45) {
+        // 0.75 秒ほど何も動いていない: 輪を止める（指・描き直しの印・操作で起きる）。
+        cancelAnimationFrame(this.raf);
+        this.looping = false;
       }
     };
+    this.loopFn = loop;
+    this.looping = true;
     this.raf = requestAnimationFrame(loop);
   }
 
@@ -1478,6 +1530,18 @@ export class ShelfWorld {
     if (hide) for (const b of this.books) b.group.visible = true;
     this.dirty = true;
     return url;
+  }
+
+  /**
+   * `snapshot` と同じ絵を、**画面を止めずに**作る（`toBlob` は絵の圧縮を裏で行う）。
+   * `toDataURL` は圧縮が終わるまで画面を止め、スマホでは開くたびに 0.5 秒ほど固まっていた
+   * （オーナー報告 2026-09-29「アプリ全体がカクカク」）。描いた直後に呼ぶのは同じ。
+   */
+  snapshotBlob(): Promise<Blob | null> {
+    if (this.active || this.disposed) return Promise.resolve(null);
+    this.renderer.render(this.scene, this.camera);
+    this.dirty = true;
+    return new Promise((ok) => this.canvas.toBlob((b) => ok(b), "image/webp", 0.86));
   }
 
   dispose() {

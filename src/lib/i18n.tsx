@@ -1803,6 +1803,12 @@ export const DICT: Record<string, Record<UiLang, string>> = {
     "zh-TW": "請過一會兒再試一次。",
   },
   "root.retry": { ja: "再試行", en: "Retry", "zh-TW": "重試" },
+  "root.sectionFailed": {
+    ja: "この欄を表示できませんでした",
+    en: "This section couldn't be shown",
+    "zh-TW": "無法顯示這個區塊",
+  },
+  "root.errorDetail": { ja: "エラーの内容", en: "Error details", "zh-TW": "錯誤內容" },
   // --- 発見・投稿・日記 ---
   "discover.title": { ja: "発見", en: "Discover", "zh-TW": "探索" },
   "discover.search": {

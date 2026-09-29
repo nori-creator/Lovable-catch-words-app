@@ -18,7 +18,7 @@ import { ReviewReminderWatcher } from "@/components/ReviewReminderWatcher";
 import { NativeLinkListener } from "@/components/NativeLinkListener";
 import { installSessionTracker } from "@/lib/session-tracker";
 import { useScrolled } from "@/hooks/use-scrolled";
-import { useSwipeBack, useTabSwipe } from "@/hooks/use-tab-swipe";
+import { useSwipeBack } from "@/hooks/use-tab-swipe";
 import { playCameraLaunch } from "@/lib/camera-launch";
 import { useWarmCamera } from "@/hooks/use-warm-camera";
 
@@ -269,25 +269,13 @@ export function AppShell({
    *  色にして」）。撮る・調べる・読み取るは同じ一台の3つのモード。
    */
   const onCameraScreen = atPath("/capture") || atPath("/scan");
-  const { progress } = useTabSwipe({
-    /**
-     * **カメラの中では、横に払うのはタブの切り替えではない。**（オーナー指示
-     * 2026-09-16「スライドしたら検索、スキャンに変更できる」）
-     *
-     * カメラの画面では横払いが**撮り方の帯**の物になる。両方が同じ指の
-     * 動きを取ると、撮り方を変えたつもりで復習の画面へ飛ぶ。
-     */
-    enabled: !onCameraScreen,
-    index: tabIndex,
-    count: items.length,
-    onCommit: (n) => {
-      const next = items[n];
-      if (!next) return;
-      Sound.pageSnap();
-      haptic("selection");
-      void navigate({ to: next.to });
-    },
-  });
+  /**
+   * **横に払ってもタブは移らない**（オーナー指示 2026-09-29「このアプリで横にスライドすると
+   * 横のアイコンのページに移る機能消して」）。本・図鑑のカード・カメラの帯など、横に払う
+   * 操作を持つ画面が多く、取り違えて別の画面へ飛んでいた。タブは下のバーを押して移る。
+   * （詳細などタブ以外の画面の「左端から払って戻る」は残す。）
+   */
+  const progress = 0;
   useSwipeBack({ enabled: tabIndex < 0, onBack: () => router.history.back() });
   // 指の位置(小数)。バーの印と色はこれ1つから決まる。
   const cursor = tabIndex < 0 ? -1 : tabIndex + progress;

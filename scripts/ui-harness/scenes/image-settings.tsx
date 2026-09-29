@@ -2,7 +2,7 @@ import { ImageGenerationPanel } from "@/routes/_authenticated/settings";
 
 const previewData = {
   effective: { provider: "lovable" as const, model: "openai/gpt-image-1-mini" },
-  keys: { lovable: true, openrouter: false, google: false, openai: false },
+  keys: { lovable: true, openrouter: false, google: false, openai: false, higgsfield: false },
 };
 
 /** Real settings panel with deterministic credentials status, no backend calls. */

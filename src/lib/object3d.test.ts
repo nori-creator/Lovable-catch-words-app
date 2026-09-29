@@ -34,9 +34,9 @@ describe("撮った物を 3D で手に入れる（Pro）", () => {
     expect(readObject3dConfig({ OBJECT3D_PROVIDER: "foo" }).provider).toBe("custom");
   });
 
-  it("Pro だけ", () => {
-    expect(object3dAllowed({ isPro: true })).toBe(true);
-    expect(object3dAllowed({ isPro: false })).toBe(false);
+  it("開発者だけ（Pro でも開発者でなければ使えない）", () => {
+    expect(object3dAllowed({ isAdmin: true })).toBe(true);
+    expect(object3dAllowed({ isAdmin: false })).toBe(false);
   });
 
   it("よくある返事の形から GLB の場所を取り出す", () => {
