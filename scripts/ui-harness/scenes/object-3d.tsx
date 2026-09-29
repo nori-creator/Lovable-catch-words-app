@@ -31,7 +31,9 @@ export function Object3DScene({ q }: { q: URLSearchParams }) {
     if (!started || !canvas.current) return;
     const v = createObjectViewer(
       canvas.current,
-      { demo: demoBubbleTea },
+      // `?glb=<URL>` で Blender の仕上げ（`scripts/blender/object3d_clean.py`）を通した
+      // 本物の GLB を読む。無ければ見本の形。
+      q.get("glb") ? { glbUrl: q.get("glb")! } : { demo: demoBubbleTea },
       { materialize: step === "making" },
     );
     // 本番は Tripo の進み具合。見本では組み上がる演出の長さ（3.8 秒）に合わせて進める。

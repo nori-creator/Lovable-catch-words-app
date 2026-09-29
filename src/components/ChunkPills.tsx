@@ -25,6 +25,8 @@ import type { ChunkPart } from "@/lib/extras";
  * 見えていた。いまは外枠と影を**型に1つだけ**持たせ、語は中で品詞の色に塗り分け、
  * 継ぎ目は細い線（`.chunk-joint`）。入れ替える所は点線の下線と ▾ で分かる。
  */
+export type ChunkLook = "boxes" | "focus" | "marker" | "bracket" | "capsule";
+
 export function ChunkPills({
   parts,
   size = "md",
@@ -39,15 +41,16 @@ export function ChunkPills({
   parts: ChunkPart[];
   size?: "sm" | "md" | "lg";
   /**
-   * **型の見せ方**（オーナー指示 2026-09-28 R14「使い方のチャンク、連結ではなく、
-   * それぞれの単語を四角で囲って＋でつなぐものにして。またそれ以外のさまざまな
-   * デザイン案も提案して」）。
-   *  ・`boxes`   … 語ごとに角の丸い四角、間に「＋」（**既定**）
+   * **型の見せ方**（オーナー指示 2026-09-28〜29 R14）。既定は四角。
+   * 「四角以外にチャンクとしての一体感が欲しい」「覚えたい単語が目立たない。該当の単語
+   * 以外はボックスではなく文字だけのデザイン案を」を受けた案:
+   *  ・`boxes`   … 語ごとの四角を狭い「＋」でつなぎ、**薄い台（トレー）に全部を載せる**（既定）
+   *  ・`focus`   … **学ぶ語だけ四角**、ほかは文字だけ。全体を薄い台に載せる
+   *  ・`marker`  … 学ぶ語だけ蛍光ペンで塗る、ほかは文字だけ。全体を1本の帯で包む
+   *  ・`bracket` … 学ぶ語だけ四角、ほかは文字だけ。下に1本の括り線（⎣ ⎦）で「ひとかたまり」
    *  ・`capsule` … 前の形（1本のカプセルに継ぐ）
-   *  ・`steps`   … 四角を「→」で順に並べる（言う順番が分かる）
-   *  ・`tags`    … 四角の下に品詞の名前（動詞・名詞…）を小さく
    */
-  look?: "boxes" | "capsule" | "steps" | "tags";
+  look?: ChunkLook;
   /**
    * **学んでいる語は入れ替えさせない**（R14「決して該当の単語はスクロールできるように
    * はしないで。なぜならこの単語を学習したいから」）。この字を含む札は、AI が入れ替え
@@ -86,10 +89,14 @@ export function ChunkPills({
           : "px-2.5 py-1.5 text-body";
   const pill = appearance === "pill";
   const isFixed = (t: string) => !!fixedText && !!t && t.includes(fixedText.trim());
+  // 学ぶ語以外を文字だけにする案。
+  const lite = look === "focus" || look === "marker" || look === "bracket";
   const setClass =
     look === "capsule"
       ? "chunk-set chunk-set--formula"
-      : `chunk-set chunk-set--boxes chunk-set--${look}`;
+      : lite
+        ? `chunk-set chunk-set--lite chunk-set--${look}`
+        : "chunk-set chunk-set--boxes";
   return (
     // 札の型: 既定は**語ごとの四角を＋でつなぐ**。本文の型は字だけで並べる。
     <div className={pill ? setClass : "flex flex-wrap gap-x-1.5 gap-y-1"}>
@@ -119,7 +126,9 @@ export function ChunkPills({
           ? `chunk-word font-semibold ${pad} ${posClass}`
           : c.slot && !target
             ? `chunk-slot font-semibold ${pad} ${posClass}`
-            : `chunk-bubble font-semibold ${pad} ${st.pill}${target ? " chunk-target" : ""}`;
+            : lite && !target
+              ? `chunk-plain font-semibold ${pad} ${posClass}`
+              : `chunk-bubble font-semibold ${pad} ${st.pill}${target ? " chunk-target" : ""}`;
         const style = { "--i": i } as CSSProperties;
         const joint =
           pill && i > 0 ? (
@@ -127,19 +136,17 @@ export function ChunkPills({
               <span aria-hidden className="chunk-joint" />
             ) : (
               <span aria-hidden className="chunk-plus">
-                {look === "steps" ? "→" : "+"}
+                +
               </span>
             )
           ) : null;
-        // `tags`: 四角の下に品詞の名前。
-        const tag = pill && look === "tags" ? <span className="chunk-tag">{st.label}</span> : null;
+
         if (!onSpeak) {
           return (
             <Fragment key={i}>
               {joint}
               <span className={skin} title={st.label} style={style}>
                 {body}
-                {tag}
               </span>
             </Fragment>
           );
@@ -170,7 +177,6 @@ export function ChunkPills({
               style={style}
             >
               {body}
-              {tag}
             </button>
           </Fragment>
         );
@@ -223,7 +229,7 @@ export function ChunkLine({
   parts: ChunkPart[];
   /** 学んでいる語。この語の札は入れ替えない（R14）。 */
   headword?: string;
-  look?: "boxes" | "capsule" | "steps" | "tags";
+  look?: ChunkLook;
   translation?: string | null;
   lang?: string | null;
   /** 型ぜんぶをひと息で鳴らす文。無ければボタンを出さない。 */

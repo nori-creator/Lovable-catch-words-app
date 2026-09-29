@@ -101,10 +101,11 @@ readySpeech([...WORD_CHUNKS, ...REVIEW_CHUNKS].map(speech));
 
 /** R14 の形の案。A が本番の既定（四角＋でつなぐ）。 */
 const LOOKS = [
-  { key: "boxes", label: "A 四角＋（既定）" },
-  { key: "tags", label: "B 四角＋品詞名" },
-  { key: "steps", label: "C 四角→順番" },
-  { key: "capsule", label: "D 1本のカプセル（前）" },
+  { key: "boxes", label: "A 四角＋台（既定）" },
+  { key: "focus", label: "B 学ぶ語だけ四角" },
+  { key: "marker", label: "C 学ぶ語だけ蛍光ペン" },
+  { key: "bracket", label: "D 学ぶ語だけ四角＋括り線" },
+  { key: "capsule", label: "E 1本のカプセル（前）" },
 ] as const;
 type Look = (typeof LOOKS)[number]["key"];
 

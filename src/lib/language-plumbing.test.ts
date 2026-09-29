@@ -4988,12 +4988,13 @@ describe("ホームは今日の誌面", () => {
     );
     // 2026-09-24「過去のものが多すぎで画面で確認できないから、過去のものは全て
     // 削除して」: 帯には**今回の依頼の面だけ**。
-    // 2026-09-28 の回の最後の依頼: Pro の「撮った物を 3D で手に入れる」試作。
-    expect(list.slice(0, list.indexOf("},"))).toMatch(/scene: "object-3d"/);
+    // 2026-09-29 の回（R14）の最後の依頼: 図鑑のスライドを白に・カードの色の案。
+    expect(list.slice(0, list.indexOf("},"))).toMatch(/scene: "dex-cards/);
+    expect(list).toMatch(/\{ scene: "chunk-designs"/);
+    expect(list).toMatch(/\{ scene: "dex-drag"/);
     expect(list).toMatch(/\{ scene: "scan-found"/);
-    expect(list).toMatch(/\{ scene: "motion-compare"/);
-    expect(list).toMatch(/\{ scene: "launch-intro"/);
     // 前の回の面は残さない。
+    expect(list).not.toMatch(/\{ scene: "motion-compare"/);
     expect(list).not.toMatch(/\{ scene: "album-shelf"/);
     expect(list).not.toMatch(/\{ scene: "scan-pick-designs"/);
     expect(list).not.toMatch(/glass=1/);

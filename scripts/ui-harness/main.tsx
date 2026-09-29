@@ -380,30 +380,26 @@ const q = new URLSearchParams(location.search);
  * 「これを見てください」と差し出すことになる。
  */
 const REVIEW_SCENES: Array<{ scene: string; label: string }> = [
-  // 2026-09-28 の依頼（R12・R13）で触った面だけ。**毎回ここを入れ替える**
+  // 2026-09-28〜29 の依頼（R14）で触った面だけ。**毎回ここを入れ替える**
   // — 前の依頼の面は残さない（オーナー指示「過去のものは全て削除して」）。
-  // 先頭は最後に頼まれた物（Pro の 3D でキャッチ）。
-  { scene: "object-3d", label: "試作: Pro 撮った物を 3D で手に入れる（360度回せる）" },
-  { scene: "scan-found", label: "スキャン結果（黒い隙間なし・右上に撮り直し・各行に追加）" },
-  { scene: "motion-compare", label: "案: 動き 今の形 / ① 白黒の1つの形 / ② ガラス" },
-  { scene: "diary-pencil", label: "試作: 日記を鉛筆でゆっくり書く（3D）" },
-  { scene: "launch-intro", label: "案: アプリを開くときの動き A〜D" },
-  { scene: "voice-face", label: "試作: 自分の声と顔（同意→録音→写真→切替→全部消す）" },
-  { scene: "three-fx", label: "3D の演出（分析中・紙吹雪・図鑑・物の表示）＋効果音" },
-  { scene: "analyzing-designs", label: "分析中の演出（3D の奥行き版が既定）" },
-  { scene: "reward-catch", label: "キャッチの着地（効果音・3D 紙吹雪）" },
-  { scene: "home-memorial", label: "記念アルバム（祝福の音・3D 紙吹雪）" },
-  { scene: "shelf-3d", label: "本棚 → 開くと左に今日のアルバム・右に日記" },
-  { scene: "home-album", label: "ホームのアルバム（重ならない配置・赤バツで外す）" },
-  { scene: "home-ink", label: "落書き（ペン・マーカー・ネオン・消しゴム・太さ）" },
-  { scene: "category-members", label: "図鑑のカテゴリーに単語を足す・外す" },
-  { scene: "dex-calendar", label: "図鑑のカレンダー（月の色・日の点・今日は青）" },
-  { scene: "memory-curve", label: "記憶のグラフ（押したまま横に滑らせても引っかからない）" },
-  { scene: "review-choice", label: "復習の4択（正解・不正解から図鑑の単語へ）" },
-  { scene: "word-card", label: "単語の詳細（例文を自然な言い方に）" },
-  { scene: "settings-notify", label: "設定: 通知（チュートリアルと同じ選択肢）" },
-  { scene: "first-catch&step=notifications", label: "初回体験: 通知の選び方（設定と同じ）" },
-  { scene: "image-settings", label: "画像生成の設定" },
+  // 先頭は最後に頼まれた物（図鑑のスライドを白に・カードの色の案）。
+  {
+    scene: "dex-cards&n=24&at=3",
+    label: "図鑑スライド: 白い部屋・カードの色 A〜D・下のバーに被らない",
+  },
+  { scene: "chunk-designs", label: "チャンク: 四角＋でつなぐ（A〜D の案・学ぶ語は入れ替えない）" },
+  { scene: "dex-drag", label: "図鑑: 長押しで別の分類へ運ぶ・見出しの長押しで編集" },
+  { scene: "dex-calendar", label: "カレンダー: 青を基調に・日付を押すと地図" },
+  { scene: "home-album", label: "ホームのアルバム: 長押し → 赤バツが写真と一緒に揺れる" },
+  { scene: "three-fx&fx=gallery", label: "図鑑 3D: 下の影なし・写真の列から飛べる" },
+  { scene: "shelf-3d&open=12", label: "本棚の本: ページを押すと片ページ全画面・最後のページ" },
+  { scene: "scan-found", label: "スキャン結果: 2行まで・写真を大きく・「＋ 追加」・写真から" },
+  { scene: "launch-intro", label: "案: アプリを開く動き（作り直し・ばね・ゆっくり再生）" },
+  { scene: "diary-pencil", label: "日記の鉛筆（芯が見える）" },
+  { scene: "three-fx&fx=analyze", label: "分析中（浮いていた輪を消した）" },
+  { scene: "reward-catch", label: "図鑑に着く音（柔らかく）" },
+  { scene: "object-3d", label: "開発中: Pro 3D（Blender の仕上げ・本番には未実装）" },
+  { scene: "voice-face", label: "開発中: 自分の声と顔（本番には未実装）" },
 ];
 
 const explicitScene = q.get("scene");

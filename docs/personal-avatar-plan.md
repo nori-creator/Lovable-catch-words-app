@@ -99,3 +99,46 @@
 - [ElevenLabs: 他人の声の Professional Voice Clone は作れるか（公式ヘルプ）](https://help.elevenlabs.io/hc/en-us/articles/36842751624209-Can-I-create-a-Professional-Voice-Clone-of-someone-else-s-voice)
 - [個人情報保護委員会: 「個人識別符号」とはどのようなものを指しますか](https://www.ppc.go.jp/all_faq_index/faq4-q008_/)
 - [個人情報保護委員会: 個人情報保護法ガイドライン（通則編）](https://www.ppc.go.jp/personalinfo/legal/guidelines_tsusoku/)
+
+## 8. 開発の進み（2026-09-29、オーナー指示 R14「まだ実装しないで、ただ開発を進めて」）
+
+**本番には何も入れていません。** 確認用ページ（`?scene=voice-face`）の試作と、この設計だけです。
+
+### 8-1. 試作で決めた画面の流れ
+
+1. 同意（何に使う・どこへ送る・いつ消す）→ 初期値は「使わない」
+2. 声: 決まった文を約10秒読む（Google Chirp 3 Instant Custom Voice の最低量に合わせた）
+3. 顔: 正面の写真1枚
+4. 単語の音声を「ネイティブの声 ⇄ 自分の声」で切り替えて聞く
+5. 設定の「全部消す」で、元の録音・写真・作った物をすべて消す
+
+### 8-2. 保存の形（案。まだ表は作っていない）
+
+```sql
+-- 同意の記録（同意した時刻と、同意した文の版。取り消したら revoked_at）
+create table personal_media_consent (
+  user_id uuid primary key references auth.users on delete cascade,
+  voice boolean not null default false,
+  face boolean not null default false,
+  consent_version text not null,
+  agreed_at timestamptz not null default now(),
+  revoked_at timestamptz
+);
+-- 作った声の識別子（外部サービス側の ID だけ。録音そのものは持たない）
+create table personal_voice (
+  user_id uuid primary key references auth.users on delete cascade,
+  provider text not null,          -- 'google-chirp3' など
+  voice_ref text not null,         -- 外部サービスの声の ID
+  created_at timestamptz not null default now()
+);
+```
+
+- 元の録音・写真は**作り終えたらすぐ消す**（持たない）。表には外部の ID だけを残す。
+- 行の読み書きは本人だけ（RLS: `user_id = auth.uid()`）。
+- 「全部消す」は、外部サービスの声を消す呼び出し → 表の行を消す、の順（外部が失敗したら表を残して再試行）。
+
+### 8-3. 本番の前に要ること（変わらず）
+
+- Google Chirp 3 の Instant Custom Voice は**申請して許可リストに入る必要がある**。
+- 顔の動画（Seedance など）は 1 本の費用が高い → Pro 限定・1日の本数に上限。
+- 弁護士への確認（生体情報・肖像）と、プライバシーポリシーへの追記。
