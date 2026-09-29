@@ -4967,7 +4967,8 @@ describe("ホームは今日の誌面", () => {
     const auth = codeOnly(read("routes/auth.tsx"));
     const home = codeOnly(read("components/onboarding/FirstCatchHome.tsx"));
     const pages = codeOnly(read("components/onboarding/FirstCatchPages.tsx"));
-    expect(auth).toMatch(/FIRST_CATCH_PHOTOS\.map/);
+    expect(auth).toMatch(/<FirstCatchPhotoStack /);
+    expect(pages).toMatch(/FIRST_CATCH_PHOTOS\.map/);
     expect(auth).toMatch(/className="first-run first-auth"/);
     expect(auth).not.toMatch(/aria-modal="true"/);
     for (const photo of ["cafe", "flower", "cat", "ready"]) {
@@ -4976,8 +4977,11 @@ describe("ホームは今日の誌面", () => {
     }
     // 日付は実物のホームと同じく誌面の板の上（`heading={<DiaryDate`）。
     expect(home).not.toMatch(/<DayMasthead /);
-    expect(home).toMatch(/<DayCollage\s+stickers=\{sticker \? \[sticker\] : samples\}/);
-    expect(home).toMatch(/heading=\{<DiaryDate /);
+    // 本物のホームの画面（`HomeSurface`）そのものに、撮った1枚か見本を載せる（R24）。
+    expect(home).toMatch(/const items = sticker \? \[sticker\] : samples;/);
+    expect(home).toMatch(/<HomeSurface\s+albumItems=\{items\}/);
+    const homeRoute = codeOnly(read("routes/_authenticated/home.tsx"));
+    expect(homeRoute).toMatch(/heading=\{<DiaryDate date=\{today\} \/>\}/);
     expect(home).toMatch(/first-catch-cafe\.webp/);
     expect(home).toMatch(/first-catch-flower\.webp/);
     expect(home).toMatch(/first-catch-cat\.webp/);
@@ -5008,9 +5012,11 @@ describe("ホームは今日の誌面", () => {
     );
     // 2026-09-24「過去のものが多すぎで画面で確認できないから、過去のものは全て
     // 削除して」: 帯には**今回の依頼の面だけ**。
-    // 2026-09-29 夜の回（R22）: 本棚・候補・画像生成の欄。
-    expect(list.slice(0, list.indexOf("},"))).toMatch(/scene: "home-shelf"/);
-    expect(list).toMatch(/scene: "candidate-picker"/);
+    // 2026-09-29 夜の回（R24）: 初回の写真・チュートリアル・図鑑の絞り込み。
+    expect(list.slice(0, list.indexOf("},"))).toMatch(/scene: "first-catch&step=intro"/);
+    expect(list).toMatch(/scene: "dex-cards&swap=1&n=12"/);
+    expect(list).not.toMatch(/scene: "review-choice"/);
+    expect(list).not.toMatch(/scene: "candidate-picker"/);
     expect(list).not.toMatch(/scene: "install-app"/);
     expect(list).not.toMatch(/scene: "tts-voices"/);
     expect(list).not.toMatch(/scene: "capture-object&mode=search"/);
@@ -6088,7 +6094,7 @@ describe("ホームの一番上の本棚（2026-09-29「ホームのアルバム
   it("R17: アプリの一番上に、部屋に置いた大きな 3D の棚（撮った月だけ・本の上に少し隙間）", () => {
     // 上の帯の中ではなく、ホームの中身の一番上（画面の幅いっぱいの帯）。
     expect(home).not.toMatch(/headerEnd=/);
-    expect(home).toMatch(/<HomeShelf items=\{albumItems\} \/>/);
+    expect(home).toMatch(/<HomeShelf items=\{albumItems\} loaders=\{shelfLoaders\} \/>/);
     expect(home).toMatch(/<PastDays/);
     expect(shelf).toMatch(/\{ rows: 1, openAt: "first", room \}/);
     expect(shelf).toMatch(/const months = useMemo\(\(\) => shelfMonths\(items\), \[items\]\);/);
@@ -6134,14 +6140,17 @@ describe("ホームの一番上の本棚（2026-09-29「ホームのアルバム
   });
 
   it("本棚・今日・過去の日まで1枚の壁（2026-09-29「9/28 以下が白くなってる」）", () => {
-    const home = codeOnly(read("routes/_authenticated/home.tsx"));
+    const route = codeOnly(read("routes/_authenticated/home.tsx"));
+    // 壁は画面の部品（`HomeSurface`、R24 でチュートリアルと共有）の中にある。
+    const start = route.indexOf("export function HomeSurface(");
+    const home = route.slice(start, route.indexOf("export function HomeLoading(", start));
     const open = home.indexOf('"home-scene"');
     const past = home.indexOf("<PastDays");
-    const memorial = home.indexOf("<MemorialAlbum");
+    expect(start).toBeGreaterThan(0);
     expect(open).toBeGreaterThan(0);
     expect(past).toBeGreaterThan(open);
     // 壁（div）は過去の日の後で閉じる。
-    expect(home.slice(past, memorial)).toMatch(/<\/div>/);
+    expect(home.slice(past)).toMatch(/<\/div>/);
     // 棚の下端のぼかしは壁の中の帯だけ（全画面で本を開いた時にはかけない）。
     expect(read("styles.css")).not.toMatch(/\n\.home-shelf__canvas \{\n  mask-image/);
   });
@@ -6403,5 +6412,60 @@ describe("R22（2026-09-29 オーナー報告: 設定で止まる・演出・3D�
     expect(css.match(/^\.home-shelf__stage\[data-full\] \{/gm)?.length).toBe(1);
     expect(css).not.toMatch(/\.home-shelf__proxy/);
     expect(css).not.toMatch(/^\.home-shelf__canvas \{\s*mask-image/m);
+  });
+});
+
+describe("R23（2026-09-29: 復習の写真が開いた瞬間に伸び縮み・3D のクレジット）", () => {
+  it("記憶の帯と続いた日数は、読み込み中も場所を取っておく（写真は残りの高さをもらうため）", () => {
+    const review = codeOnly(read("routes/_authenticated/review.tsx"));
+    expect(review).toMatch(/memPending && !memOverview && \(/);
+    expect(review).toMatch(/<MemoryLevelSummary words=\{\[\]\} expanded=\{false\} \/>/);
+    expect(review).toMatch(/if \(streakPending\) streakReserved\.current = true;/);
+  });
+
+  it("Tripo へは1件だけ頼み、足りなければ色なしで作り直し、それでも足りなければそう伝える", () => {
+    const fns = codeOnly(read("lib/object3d.functions.ts"));
+    expect(fns).not.toMatch(/Promise\.all\(\[task\("preview"\), task\("final"\)\]\)/);
+    expect(fns).toMatch(/let made = await task\("final"\);/);
+    expect(fns).toMatch(/made\.code === TRIPO_NO_CREDIT\) made = await task\("preview"\)/);
+    expect(fns).toMatch(/status: "no_credit" as const/);
+    const hero = codeOnly(read("components/Object3DHero.tsx"));
+    expect(hero).toMatch(/t\("object3d\.noCredit"\)/);
+  });
+});
+
+describe("R24（2026-09-29: ホームが送れない・初回の写真が潰れる・図鑑の絞り込みで札が消える）", () => {
+  it("ホームの写真は普段は縦に送れ、長押しで掴んだ間だけ送りを止める", () => {
+    const home = codeOnly(read("routes/_authenticated/home.tsx"));
+    expect(home).not.toMatch(/photo-lift group absolute block touch-none/);
+    expect(home).toMatch(/editing \? "touch-none" : "touch-pan-y"/);
+    expect(home).toMatch(/if \(grip\.current && e\.cancelable\) e\.preventDefault\(\);/);
+    expect(home).toMatch(/addEventListener\("touchmove", hold, \{ passive: false \}\)/);
+  });
+
+  it("初回の画面の写真はホームのアルバムと同じ1枚（AlbumPrint）を、写真の比のまま使う", () => {
+    const print = codeOnly(read("components/AlbumPrint.tsx"));
+    expect(print).toMatch(/className="collage__photo"/);
+    expect(print).toMatch(/className="collage__margin"/);
+    expect(print).toMatch(/<CollageFasteners id=\{id\} wall="paper" \/>/);
+    const home = codeOnly(read("routes/_authenticated/home.tsx"));
+    expect(home).toMatch(/import \{ CollageFasteners \} from "@\/components\/AlbumPrint"/);
+    expect(home).not.toMatch(/function CollageFasteners/);
+    const pages = codeOnly(read("components/onboarding/FirstCatchPages.tsx"));
+    expect(pages).toMatch(/src: "\/first-catch-cafe\.webp", word: "coffee", ratio: 1\.5/);
+    expect(pages).toMatch(/<AlbumPrint/);
+    const questions = codeOnly(read("components/onboarding/FirstCatchQuestions.tsx"));
+    expect(questions).toMatch(/<AlbumPrint/);
+    expect(questions).not.toMatch(/backgroundPosition/);
+    const css = read("components/onboarding/first-catch.css");
+    // 3×3 の1枚絵を横長の枠に当てると縦に潰れる。
+    expect(css).not.toMatch(/first-catch-interests\.webp/);
+  });
+
+  it("図鑑のカードは絞り込みで使い回された札の「隠した印」を外してから描く", () => {
+    const cf = codeOnly(read("components/DexCoverFlow.tsx"));
+    expect(cf).toMatch(
+      /cardRefs\.current\.forEach\(\(el\) => \{\s*if \(el\) el\.style\.visibility = "";\s*\}\);\s*hidden\.current = \[\];/,
+    );
   });
 });

@@ -3,9 +3,11 @@
 This file protects existing product behavior during refactors.
 
 ## Golden rule
+
 A cleanup/refactor is not successful merely because the code is smaller. It is successful only when intended current behavior still works and the architecture is easier to change safely.
 
 ## Critical user journeys
+
 1. App can start and route correctly.
 2. Existing authenticated user can sign in and reach the app.
 3. Camera/capture flow works on supported mobile browsers.
@@ -23,29 +25,36 @@ A cleanup/refactor is not successful merely because the code is smaller. It is s
 15. Hidden/future features behind flags must not be deleted merely because they are currently off.
 
 ## Before deleting legacy code
+
 Prove at least one:
+
 - unreachable and unreferenced;
 - superseded by a tested implementation;
 - explicitly deprecated by current product docs;
 - duplicate whose callers have been safely migrated.
-If uncertain, isolate/mark it rather than delete it.
+  If uncertain, isolate/mark it rather than delete it.
 
 ## UI change policy
+
 For user-visible design, interaction or animation changes:
+
 - use a feature branch/PR;
 - provide a preview when infrastructure supports it;
 - user performs real-device comparison;
 - merge after approval.
 
 ## iPhone (Safari / home-screen app) device checks
+
 Automated checks here run in Chromium only; WebKit is not available in the preview pipeline, so these must be confirmed on a real iPhone before release.
 Known WebKit traps the code already guards against (keep the guards):
+
 - `indexedDB.open` can never settle → queueing a capture must not block AI analysis (`offline-queue.ts` open timeout; `capture.tsx` runs AI first).
 - Geolocation `timeout` is not counted while the permission prompt is open → every location wait uses `withDeadline` (`deadline.ts`).
 - Total canvas memory is capped → release canvases after encoding (`width = height = 0`).
 - `MediaRecorder` records MP4, not WebM → label blobs with `rec.mimeType`.
 - `<video>` needs `playsInline` (and `muted` for camera streams) or it goes full screen.
-Checklist (Safari tab and home-screen app, Wi-Fi and cellular):
+  Checklist (Safari tab and home-screen app, Wi-Fi and cellular):
+
 1. Take a photo → candidates appear (or the "saved for later" state) within ~20 s; never an endless "analyzing".
 2. Same with location permission prompt left unanswered.
 3. Scan mode: frame → detected words.
@@ -54,26 +63,32 @@ Checklist (Safari tab and home-screen app, Wi-Fi and cellular):
 6. Place reminder permission flow (home-screen app only; Safari tabs cannot receive web notifications).
 
 ## Performance checks
+
 For Catch path track p50/p90/p99 where possible:
+
 - capture → candidate response;
 - candidate selection → usable meaning;
 - request → first audio playback;
 - Catch → persisted item.
 
 ## AI quality benchmark
+
 Maintain a fixed representative test set for Taiwan Mandarin and English candidate generation.
 Track Top-1 and Top-3 usefulness/accuracy, latency and cost across model changes.
 TTS changes require language-specific pronunciation/naturalness evaluation rather than provider-name assumptions.
 
 ## Linguistic correctness
+
 Do not label AI estimates as official exam/corpus facts.
 User-reported canonical corrections require validation before global propagation.
 
 ## Review UX
+
 Never require a user to clear an intimidating accumulated backlog to receive a successful daily completion state.
 The minimum review experience should be intentionally small.
 
 ## Release blockers
+
 - critical Catch/save failure;
 - authentication/data-loss regression;
 - settings repeatedly reverting;
@@ -84,7 +99,8 @@ The minimum review experience should be intentionally small.
 - unbounded collection queries likely to fail at realistic scale.
 
 ## Shared tutorial release checks
-- Change a production tab, collection view, card section or review control once; confirm both the normal app and tutorial render that change.
+
+- Change a production tab, collection view, card section or review control once; confirm both the normal app and tutorial render that change. The same holds for whole screens (`HomeSurface`, `CaptureAnalyzingPanel`) and for the colour tokens used by the first-run question pages.
 - Home → actual camera → actual candidate picker → capture card → shared landing animation → collection views → shared detail sheet → real four-choice exercise / memory modal → completion → full-screen auth.
 - Verify the guide allows only the intended controls, including keyboard access; no duplicate UI and no tutorial CSS overriding production card dimensions.
 - Verify guest detail/review never calls authenticated storage or scheduled-review mutations.

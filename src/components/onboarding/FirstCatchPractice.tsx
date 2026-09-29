@@ -173,21 +173,19 @@ export function FirstCatchReview({
         onToggle={() => setExpanded((value) => !value)}
         onOpenWord={setMemoryWord}
       />
-      <div data-tour="review-question" className="min-h-0 flex flex-1 flex-col">
-        <ReviewQuestion
-          key={index}
-          card={practiceCard(
-            cards[index],
-            samples.map((s) => s.word.headword),
-          )}
-          practice
-          format="choice"
-          onNext={() => {
-            if (index + 1 < cards.length) setIndex(index + 1);
-            else onComplete();
-          }}
-        />
-      </div>
+      <ReviewQuestion
+        key={index}
+        card={practiceCard(
+          cards[index],
+          samples.map((s) => s.word.headword),
+        )}
+        practice
+        format="choice"
+        onNext={() => {
+          if (index + 1 < cards.length) setIndex(index + 1);
+          else onComplete();
+        }}
+      />
       {!introduced && (
         <Spotlight
           target='[data-tour="review-question"]'

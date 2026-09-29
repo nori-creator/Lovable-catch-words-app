@@ -393,14 +393,14 @@ const q = new URLSearchParams(location.search);
  * 「これを見てください」と差し出すことになる。
  */
 const REVIEW_SCENES: Array<{ scene: string; label: string }> = [
-  // 2026-09-29 夜の依頼（R22: 止まる・日記・本を閉じる・注音・画像生成の欄）で触った面だけ。
+  // 2026-09-29 夜の依頼（R24: 初回の写真の縦潰れ・チュートリアルを本物の画面に・図鑑の絞り込み）で触った面だけ。
   // **毎回ここを入れ替える** — 前の依頼の面は残さない（オーナー指示「過去のものは全て削除して」）。
-  {
-    scene: "home-shelf",
-    label: "ホーム: 本を閉じる動き・片ページの日記ボタン・日記の罫線・過去の日まで1枚の壁",
-  },
-  { scene: "candidate-picker", label: "単語の候補: ほかの言い方の注音を見出しと同じ比に" },
-  { scene: "image-settings", label: "開発者の設定: 画像生成に Higgsfield（設定で止まった原因）" },
+  { scene: "first-catch&step=intro", label: "最初の画面: 写真をアルバムと同じ紙に" },
+  { scene: "first-catch&step=questions&question=4", label: "興味の質問: 写真の縦潰れ" },
+  { scene: "first-catch&step=ready", label: "準備ができました: 写真" },
+  { scene: "first-catch&step=account", label: "ログイン: 写真" },
+  { scene: "first-catch&step=home", label: "チュートリアルのホーム＝本物のホーム" },
+  { scene: "dex-cards&swap=1&n=12", label: "図鑑: 絞り込んだ直後もカードが出る" },
 ];
 
 const explicitScene = q.get("scene");

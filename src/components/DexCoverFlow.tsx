@@ -178,6 +178,18 @@ export function DexCoverFlow({
   useLayoutEffect(() => {
     // 絞り込みで札が変わったら、前の札の控えを残さず先頭（または指定の札）から。
     cardRefs.current.length = stickers.length;
+    /**
+     * **隠した印は要素ごと外す。**（オーナー報告 2026-09-29「カテゴリーを動物にしたら、
+     * カードが最初映らなく、時間差で映る」）
+     *
+     * 札の要素は `key={s.id}` で使い回される。絞り込む前に画面の外（奥）にいて
+     * `visibility: hidden` にしていた札は、絞り込んで真ん中に来ても**要素に隠した
+     * 印が残ったまま**だった。控え（`hidden`）だけ空にしていたので、`paint` は
+     * 「隠していない」と思って外さず、札が見えるのは次に送って一度奥へ回った後になった。
+     */
+    cardRefs.current.forEach((el) => {
+      if (el) el.style.visibility = "";
+    });
     hidden.current = [];
     measure();
     const start = Math.max(0, Math.min(stickers.length - 1, initialIndex)) * step.current;

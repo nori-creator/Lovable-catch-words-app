@@ -1471,26 +1471,11 @@ function CapturePage() {
       )}
 
       {step === "processing" && (
-        // 分析中もフルスクリーン。撮った写真の上でスキャン演出が走る
-        // (「少しだけ待ってね」のような待たせる文言は出さない)。
-        <div className="fixed inset-0 z-50 bg-black">
-          {objectImg && (
-            <img src={objectImg} alt="" className="absolute inset-0 h-full w-full object-cover" />
-          )}
-          <ScanEffect
-            stage={waitKind === "cutout" ? "matching" : "reading"}
-            cutout={waitKind === "cutout"}
-          />
-          {/* 全画面で覆う画面には**必ず出口を置く**。ここには閉じるボタンも
-              戻るも無く、処理が返ってこないとアプリを強制終了するしか
-              逃げ道が無かった(§16 Freedom & Recovery)。 */}
-          <button
-            onClick={cancelProcessing}
-            className="absolute right-4 top-[calc(1rem+env(safe-area-inset-top))] inline-flex min-h-11 items-center rounded-full bg-white/15 px-4 text-body font-medium text-white backdrop-blur-sm active:scale-95 motion-reduce:active:scale-100"
-          >
-            {t("capture.cancel")}
-          </button>
-        </div>
+        <CaptureAnalyzingPanel
+          image={objectImg}
+          cutout={waitKind === "cutout"}
+          onCancel={cancelProcessing}
+        />
       )}
 
       {step === "select" && (
@@ -1577,6 +1562,42 @@ function CapturePage() {
         />
       )}
     </AppShell>
+  );
+}
+
+/**
+ * **分析中の面**（撮った写真の上でスキャン演出が走る全画面）。
+ *
+ * 撮影画面とチュートリアルが**同じこの部品**を描く（オーナー指示 2026-09-29「チュートリアル
+ * 勝手にアプリを再現するのではなく、アプリそのものを使って」）。前はチュートリアルが
+ * 写真と演出と文を自分で並べた別の面を持っていた。
+ */
+export function CaptureAnalyzingPanel({
+  image,
+  cutout = false,
+  onCancel,
+}: {
+  image: string | null;
+  cutout?: boolean;
+  onCancel: () => void;
+}) {
+  const t = useT();
+  return (
+    // 分析中もフルスクリーン。撮った写真の上でスキャン演出が走る
+    // (「少しだけ待ってね」のような待たせる文言は出さない)。
+    <div className="fixed inset-0 z-50 bg-black">
+      {image && <img src={image} alt="" className="absolute inset-0 h-full w-full object-cover" />}
+      <ScanEffect stage={cutout ? "matching" : "reading"} cutout={cutout} />
+      {/* 全画面で覆う画面には**必ず出口を置く**。ここには閉じるボタンも
+          戻るも無く、処理が返ってこないとアプリを強制終了するしか
+          逃げ道が無かった(§16 Freedom & Recovery)。 */}
+      <button
+        onClick={onCancel}
+        className="absolute right-4 top-[calc(1rem+env(safe-area-inset-top))] inline-flex min-h-11 items-center rounded-full bg-white/15 px-4 text-body font-medium text-white backdrop-blur-sm active:scale-95 motion-reduce:active:scale-100"
+      >
+        {t("capture.cancel")}
+      </button>
+    </div>
   );
 }
 

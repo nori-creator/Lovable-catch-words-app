@@ -1,7 +1,7 @@
 .first-run {
   min-height: var(--first-viewport-height, 100dvh);
-  background: #f4faff;
-  color: #10213d;
+  background: var(--background);
+  color: var(--foreground);
 }
 .first-questions {
   max-width: 460px;
@@ -10,8 +10,14 @@
   padding: max(18px, env(safe-area-inset-top)) 24px max(24px, env(safe-area-inset-bottom));
   display: flex;
   flex-direction: column;
-  background: radial-gradient(ellipse at 85% 90%, #e9f7ff, transparent 65%), #fcfeff;
-  color: #10213d;
+  background:
+    radial-gradient(
+      ellipse at 85% 90%,
+      color-mix(in oklab, var(--primary) 9%, var(--background)),
+      transparent 65%
+    ),
+    var(--background);
+  color: var(--foreground);
   animation: first-enter 0.24s ease-out;
 }
 .first-question-nav {
@@ -27,7 +33,7 @@
   height: 44px;
   border-radius: 50%;
   flex-shrink: 0;
-  color: #52667f;
+  color: var(--muted-foreground);
 }
 .first-back:disabled {
   visibility: hidden;
@@ -35,7 +41,7 @@
 .first-progress {
   flex: 1;
   height: 4px;
-  background: #e9f0f6;
+  background: var(--border);
   border-radius: 4px;
   overflow: hidden;
 }
@@ -43,12 +49,16 @@
   display: block;
   height: 100%;
   border-radius: inherit;
-  background: linear-gradient(90deg, #0089f8, #7bd5ff);
+  background: linear-gradient(
+    90deg,
+    var(--primary),
+    color-mix(in oklab, var(--primary) 55%, var(--card))
+  );
   transition: width 0.25s;
 }
 .first-count {
   font-size: 12px;
-  color: #65778c;
+  color: var(--muted-foreground);
   white-space: nowrap;
   font-variant-numeric: tabular-nums;
 }
@@ -58,7 +68,7 @@
 }
 .first-eyebrow {
   display: block;
-  color: #0083df;
+  color: var(--primary);
   font-size: 12px;
   font-weight: 700;
   letter-spacing: 0.08em;
@@ -80,7 +90,7 @@
 .first-sub {
   font-size: 14px;
   line-height: 1.8;
-  color: #65778c;
+  color: var(--muted-foreground);
 }
 .first-choices {
   display: grid;
@@ -96,11 +106,11 @@
   gap: 14px;
   text-align: left;
   padding: 14px 18px;
-  border: 1px solid #e6edf5;
+  border: 1px solid var(--border);
   border-radius: 22px;
-  background: white;
+  background: var(--card);
   font-weight: 650;
-  box-shadow: 0 4px 16px #006eb005;
+  box-shadow: 0 4px 16px color-mix(in oklab, var(--primary) 2%, transparent);
   transition:
     border-color 0.18s,
     box-shadow 0.18s,
@@ -108,8 +118,8 @@
 }
 .first-choice[aria-checked="true"],
 .first-choice[aria-pressed="true"] {
-  border-color: #119eff;
-  box-shadow: 0 4px 16px #008cff13;
+  border-color: var(--primary);
+  box-shadow: 0 4px 16px color-mix(in oklab, var(--primary) 7%, transparent);
 }
 .first-choice-copy {
   flex: 1;
@@ -117,7 +127,7 @@
 }
 .first-choice small {
   display: block;
-  color: #75849a;
+  color: var(--muted-foreground);
   font-size: 12px;
   font-weight: 400;
   margin-top: 4px;
@@ -136,20 +146,20 @@
   width: 22px;
   height: 22px;
   flex: 0 0 22px;
-  border: 1px solid #e1e9f0;
+  border: 1px solid var(--border);
   border-radius: 50%;
   display: grid;
   place-items: center;
-  color: white;
+  color: var(--primary-foreground);
 }
 [aria-checked="true"] > .first-check,
 [aria-pressed="true"] > .first-check {
-  background: #008cff;
-  border-color: #008cff;
+  background: var(--primary);
+  border-color: var(--primary);
 }
 .first-choice-icon {
   width: 34px;
-  color: #008cff;
+  color: var(--primary);
   display: grid;
   place-items: center;
   flex-shrink: 0;
@@ -171,18 +181,22 @@
   border-radius: 50%;
   display: grid;
   place-items: center;
-  color: #008cff;
-  background: radial-gradient(circle at 35% 30%, white, #d1efff);
+  color: var(--primary);
+  background: radial-gradient(
+    circle at 35% 30%,
+    var(--card),
+    color-mix(in oklab, var(--primary) 18%, var(--card))
+  );
   box-shadow:
-    inset 0 0 0 7px #ffffff70,
-    0 10px 30px #008cff14;
+    inset 0 0 0 7px color-mix(in oklab, var(--card) 44%, transparent),
+    0 10px 30px color-mix(in oklab, var(--primary) 8%, transparent);
   position: relative;
 }
 .first-clock span {
   position: absolute;
   top: 1px;
   right: 3px;
-  color: #55b4fa;
+  color: var(--primary);
   font-size: 32px;
 }
 .first-time-grid {
@@ -194,71 +208,57 @@
 .first-time-choice {
   min-height: 56px;
   border-radius: 17px;
-  background: white;
-  border: 1px solid #e6edf5;
+  background: var(--card);
+  border: 1px solid var(--border);
   font-size: 15px;
   font-weight: 650;
 }
 .first-time-choice[aria-checked="true"] {
-  color: white;
-  background: #008cff;
-  border-color: #008cff;
-  box-shadow: 0 5px 16px #008cff26;
+  color: var(--primary-foreground);
+  background: var(--primary);
+  border-color: var(--primary);
+  box-shadow: 0 5px 16px color-mix(in oklab, var(--primary) 15%, transparent);
 }
 .first-soft-note {
   padding: 16px 18px;
-  background: #fff9;
-  border: 1px solid #e7f0f8;
+  background: color-mix(in oklab, var(--card) 60%, transparent);
+  border: 1px solid var(--border);
   border-radius: 18px;
-  color: #65778c;
+  color: var(--muted-foreground);
   font-size: 13px;
   line-height: 1.8;
 }
 .first-interest-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 12px 10px;
+  /* 留め具（テープ）は紙の外へ少し出るので、その分だけ間と縁を空ける。 */
+  gap: 18px 12px;
   margin: 24px 0;
+  padding: 10px 12px;
 }
+/* 1つの選択肢＝ホームのアルバムと同じ1枚の写真（`AlbumPrint`）。ボタンの箱は
+   写真の枠＋下の白い余白（34px）で、選ぶと紙の外周に青い輪が付く。 */
 .first-interest {
   position: relative;
-  background: white;
-  border: 2px solid transparent;
-  border-radius: 15px;
-  overflow: hidden;
-  box-shadow: 0 3px 10px #143c5608;
-}
-.first-interest[aria-pressed="true"] {
-  border-color: #008cff;
-}
-.first-interest-photo {
   display: block;
-  aspect-ratio: 1.1;
-  background-image: url("/first-catch-interests.webp");
-  background-size: 300% 300%;
-}
-.first-interest-label {
-  min-height: 40px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 5px 2px;
-  font-size: 14px;
-  font-weight: 700;
-  line-height: 1.3;
+  padding: 0 0 34px;
+  background: none;
+  border: 0;
+  border-radius: 6px;
 }
 .first-interest .first-check {
+  z-index: 3;
   position: absolute;
   right: 5px;
   top: 5px;
   width: 20px;
   height: 20px;
-  background: #ffffffad;
-  border-color: #ffffffb3;
+  background: color-mix(in oklab, var(--card) 68%, transparent);
+  border-color: color-mix(in oklab, var(--card) 70%, transparent);
 }
 .first-interest[aria-pressed="true"] .first-check {
-  background: #008cff;
-  border-color: white;
+  background: var(--primary);
+  border-color: var(--card);
 }
 .first-brand {
   display: flex;
@@ -266,7 +266,7 @@
   gap: 10px;
   font-weight: 750;
   font-size: 22px;
-  color: #0789ef;
+  color: var(--primary);
 }
 .first-brand img {
   width: 34px;
@@ -281,11 +281,11 @@
   width: 100%;
   min-height: 50px;
   border-radius: 999px;
-  background: linear-gradient(105deg, #079cff, #0085f4);
-  color: white;
+  background: linear-gradient(105deg, var(--primary), var(--primary));
+  color: var(--primary-foreground);
   font-weight: 650;
   padding: 12px 22px;
-  box-shadow: 0 5px 15px #008cff24;
+  box-shadow: 0 5px 15px color-mix(in oklab, var(--primary) 14%, transparent);
   transition:
     transform 0.16s,
     opacity 0.16s;
@@ -305,11 +305,11 @@
 }
 .first-secondary {
   min-height: 44px;
-  color: #007bcc;
+  color: var(--primary-ink);
   font-size: 14px;
 }
 .first-sample-label {
-  color: #6e8398;
+  color: var(--muted-foreground);
   font-size: 12px;
   text-align: center;
   padding: 8px 12px;
@@ -341,12 +341,12 @@
   position: sticky;
   bottom: 12px;
   padding: 18px 0 4px;
-  background: linear-gradient(transparent, #f4faff 30%);
+  background: linear-gradient(transparent, var(--background) 30%);
   z-index: 10;
 }
 .first-run:not([data-first-stage]) button:focus-visible,
 .first-run:not([data-first-stage]) a:focus-visible {
-  outline: 3px solid #007bcc;
+  outline: 3px solid var(--primary-ink);
   outline-offset: 4px;
 }
 @keyframes first-enter {
@@ -403,44 +403,13 @@
 }
 .first-error {
   padding: 16px;
-  border: 1px solid #f4c3c3;
-  background: #fff5f5;
+  border: 1px solid color-mix(in oklab, var(--destructive) 35%, transparent);
+  background: color-mix(in oklab, var(--destructive) 6%, var(--card));
   border-radius: 18px;
   display: grid;
   gap: 12px;
-  color: #8d2424;
+  color: var(--destructive);
   margin: 16px 0;
-}
-.first-busy {
-  display: grid;
-  place-content: center;
-  gap: 20px;
-  min-height: 55dvh;
-  text-align: center;
-}
-.first-analysis-screen {
-  position: fixed;
-  inset: 0;
-  z-index: 50;
-  background: #07152b;
-  overflow: hidden;
-}
-.first-analysis-screen > img {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-.first-analysis-screen > p {
-  position: absolute;
-  left: 16px;
-  right: 16px;
-  bottom: max(36px, env(safe-area-inset-bottom));
-  color: white;
-  text-align: center;
-  font-weight: 700;
-  text-shadow: 0 2px 8px #001a3b;
 }
 .tour-layer {
   position: fixed;
@@ -472,10 +441,10 @@
 .tour-ring {
   animation: tour-focus-expand 850ms cubic-bezier(0.22, 1, 0.36, 1) both;
   position: absolute;
-  border: 2px solid #65c7ff;
+  border: 2px solid var(--primary);
   box-shadow:
-    0 0 0 4px #cceaff38,
-    0 0 24px #6acbff7a,
+    0 0 0 4px color-mix(in oklab, var(--primary) 22%, transparent),
+    0 0 24px color-mix(in oklab, var(--primary) 48%, transparent),
     0 0 0 9999px rgb(11 24 42 / 0.57);
 }
 /* 案内が次の物へ移るとき、暗幕の穴と輪は**跳ばずに滑って**移る
@@ -498,9 +467,9 @@
   margin: auto;
   padding: 16px 18px 14px;
   border-radius: 22px;
-  background: #fff;
-  color: #10213d;
-  box-shadow: 0 12px 36px #00122c2e;
+  background: var(--card);
+  color: var(--foreground);
+  box-shadow: 0 12px 36px color-mix(in oklab, var(--foreground) 18%, transparent);
   pointer-events: auto;
   outline: none;
   transition: top 0.45s cubic-bezier(0.32, 0.72, 0, 1);
@@ -526,13 +495,13 @@
 }
 .tour-coach__step {
   font-size: 12px;
-  color: #75849a;
+  color: var(--muted-foreground);
   font-variant-numeric: tabular-nums;
 }
 .tour-coach p {
   font-size: 15px;
   line-height: 1.6;
-  color: #3d4f66;
+  color: var(--muted-foreground);
   text-wrap: pretty;
   word-break: auto-phrase;
 }
@@ -543,8 +512,8 @@
   min-width: 88px;
   padding: 0 20px;
   border-radius: 999px;
-  background: #008cf3;
-  color: white;
+  background: var(--primary);
+  color: var(--primary-foreground);
   font-size: 15px;
   font-weight: 650;
 }
@@ -571,16 +540,20 @@
   justify-content: center;
 }
 .first-account-sheet {
-  background: linear-gradient(165deg, #ffffff 45%, #eff9ff);
-  color: #10213d;
-  border: 1px solid #ffffffc9;
+  background: linear-gradient(
+    165deg,
+    var(--card) 45%,
+    color-mix(in oklab, var(--primary) 6%, var(--card))
+  );
+  color: var(--foreground);
+  border: 1px solid color-mix(in oklab, var(--card) 79%, transparent);
   border-radius: 32px 32px 0 0;
   padding: 30px 24px calc(24px + env(safe-area-inset-bottom));
   width: 100%;
   max-width: 480px;
   max-height: 78dvh;
   overflow: auto;
-  box-shadow: 0 -10px 45px #10213d14;
+  box-shadow: 0 -10px 45px color-mix(in oklab, var(--foreground) 8%, transparent);
 }
 .first-account-sheet h1 {
   text-align: center;
@@ -597,13 +570,12 @@
   margin: 0;
 }
 .first-auth {
-  --card: #fff;
-  --foreground: #10213d;
-  --border: #e1e9f0;
-  --muted-foreground: #65778c;
-  --primary-ink: #0073d2;
   min-height: var(--first-viewport-height, 100dvh);
-  background: linear-gradient(180deg, #fff 0%, #f1faff 100%);
+  background: linear-gradient(
+    180deg,
+    var(--card) 0%,
+    color-mix(in oklab, var(--primary) 5%, var(--background)) 100%
+  );
 }
 .first-auth-page {
   width: min(100%, 480px);
@@ -612,7 +584,7 @@
   padding: max(22px, env(safe-area-inset-top)) 22px max(26px, env(safe-area-inset-bottom));
   display: flex;
   flex-direction: column;
-  color: #10213d;
+  color: var(--foreground);
 }
 .first-auth-brand {
   display: flex;
@@ -630,50 +602,37 @@
   aspect-ratio: 1;
   border-radius: 20%;
 }
+/* ログイン画面の束は**横に扇形**に並べる。縦に2段だと、紙の下の余白（語）が
+   前の段の写真に隠れる。横に少しずつ重ねれば、どの紙の語も見える。 */
 .first-auth-photos {
-  position: relative;
-  height: clamp(174px, 25dvh, 235px);
+  height: clamp(190px, 26dvh, 236px);
   width: min(100%, 356px);
   flex: none;
   margin: 22px auto 12px;
 }
-.first-auth-photo {
-  position: absolute;
-  width: 40%;
-  height: 64%;
-  object-fit: cover;
-  border: 5px solid white;
-  border-bottom-width: 12px;
-  border-radius: 13px;
-  box-shadow: 0 9px 25px #15456624;
-  animation: first-photo-enter 0.56s cubic-bezier(0.22, 1, 0.36, 1) backwards;
-}
-.first-auth-photo-0 {
-  left: 5%;
-  top: 2%;
+.first-auth-photos .first-print-0 {
+  left: 1%;
+  bottom: 40px;
+  width: min(26cqw, calc((94cqh - 40px) / 1.5));
   rotate: -9deg;
-  z-index: 2;
 }
-.first-auth-photo-1 {
-  right: 4%;
-  top: 1%;
-  rotate: 8deg;
-  z-index: 1;
-  animation-delay: 0.08s;
+.first-auth-photos .first-print-1 {
+  left: 23%;
+  bottom: 46px;
+  width: min(29cqw, calc(80cqh - 40px));
+  rotate: -3deg;
 }
-.first-auth-photo-2 {
-  left: 25%;
-  bottom: 0;
-  rotate: 5deg;
-  z-index: 4;
-  animation-delay: 0.16s;
+.first-auth-photos .first-print-2 {
+  left: 46%;
+  bottom: 44px;
+  width: min(29cqw, calc(80cqh - 40px));
+  rotate: 4deg;
 }
-.first-auth-photo-3 {
-  right: 13%;
-  bottom: 3%;
-  rotate: -7deg;
-  z-index: 3;
-  animation-delay: 0.24s;
+.first-auth-photos .first-print-3 {
+  right: 1%;
+  bottom: 38px;
+  width: min(29cqw, calc(80cqh - 40px));
+  rotate: 10deg;
 }
 .first-auth-content {
   width: 100%;
@@ -720,9 +679,13 @@ html[data-motion="reduce"] .first-run * {
 }
 
 .personal-lesson {
-  border: 1px solid #d7eafb;
-  background: linear-gradient(145deg, #fff, #f1f9ff);
-  color: #10213d;
+  border: 1px solid var(--border);
+  background: linear-gradient(
+    145deg,
+    var(--card),
+    color-mix(in oklab, var(--primary) 5%, var(--card))
+  );
+  color: var(--foreground);
   border-radius: 24px;
   padding: 20px;
   margin: 20px 0;
@@ -731,10 +694,10 @@ html[data-motion="reduce"] .first-run * {
   display: flex;
   align-items: center;
   gap: 10px;
-  color: #0789ef;
+  color: var(--primary);
 }
 .personal-lesson-heading h2 {
-  color: #10213d;
+  color: var(--foreground);
   font-size: 17px;
   font-weight: 700;
 }
@@ -764,7 +727,7 @@ html[data-motion="reduce"] .first-run * {
   margin: 10px 0;
 }
 .personal-senses p {
-  color: #63758b;
+  color: var(--muted-foreground);
   font-size: 13px;
 }
 .personal-examples {
@@ -773,17 +736,17 @@ html[data-motion="reduce"] .first-run * {
   margin-top: 20px;
 }
 .personal-examples article {
-  border: 1px solid #e3eef7;
+  border: 1px solid var(--border);
   border-radius: 18px;
   padding: 16px;
-  background: #fff;
+  background: var(--card);
 }
 .personal-situation {
   display: inline-block;
   border-radius: 7px;
   padding: 3px 8px;
-  background: #edf7ff;
-  color: #007acb;
+  background: var(--accent);
+  color: var(--primary-ink);
   font-size: 11px;
 }
 .personal-example-line {
@@ -799,14 +762,14 @@ html[data-motion="reduce"] .first-run * {
   line-height: 1.6;
 }
 .personal-translation {
-  color: #63758b;
+  color: var(--muted-foreground);
   font-size: 13px;
   line-height: 1.7;
 }
 .personal-explanation {
   margin-top: 12px;
   padding-top: 12px;
-  border-top: 1px solid #edf2f7;
+  border-top: 1px solid var(--border);
   font-size: 13px;
   line-height: 1.8;
 }
@@ -819,7 +782,12 @@ html[data-motion="reduce"] .first-run * {
   padding: max(28px, env(safe-area-inset-top)) 24px max(28px, env(safe-area-inset-bottom));
   display: flex;
   flex-direction: column;
-  background: radial-gradient(ellipse at 54% 70%, #e5f5ff 0%, #f9fdff 60%, #fff 84%);
+  background: radial-gradient(
+    ellipse at 54% 70%,
+    color-mix(in oklab, var(--primary) 10%, var(--background)) 0%,
+    var(--background) 60%,
+    var(--card) 84%
+  );
   animation: first-enter 0.4s ease-out both;
 }
 .first-intro-heading {
@@ -837,14 +805,14 @@ html[data-motion="reduce"] .first-run * {
   font-size: clamp(33px, 8vw, 40px);
   font-weight: 780;
   line-height: 1.2;
-  color: #10213d;
+  color: var(--foreground);
   letter-spacing: -0.035em;
 }
 .first-intro-heading p {
   margin-top: 14px;
   font-size: 16px;
   line-height: 1.65;
-  color: #63758b;
+  color: var(--muted-foreground);
   white-space: pre-line;
 }
 /* 残りの高さぜんぶを写真の束に使い、束の中は箱の高さ（cqh）で大きさを決める。
@@ -854,73 +822,61 @@ html[data-motion="reduce"] .first-run * {
   height: auto;
 }
 .first-polaroids {
-  position: relative;
   width: 100%;
   max-width: 365px;
   height: clamp(290px, 51dvh, 420px);
   margin: 20px auto 14px;
-  flex: 1;
+  /* **伸縮させない。** 中の写真は箱の高さ（`cqh`）で大きさを決めるが、flex で
+     伸ばした高さは Chrome では `cqh` に入らず 0 になり、写真が消えた（実測）。
+     高さは上の clamp だけで決め、余った分は下のボタンの `margin-top: auto` が取る。 */
+  flex: none;
   min-height: 290px;
 }
-.first-polaroid {
+/**
+ * **写真の束**（`FirstCatchPhotoStack`）。1枚ずつ写真の比のままの枠で、大きさは
+ * 束の箱の高さ（`cqh`）から決める。紙の下の白い余白（34px）は枠の外へはみ出す
+ * ので、上の段は「枠＋余白」が箱の半分に収まる大きさにし、下の段は余白ぶん
+ * 上げて置く — 上の段の語が下の段の写真に隠れない。
+ */
+.first-print-stack {
+  position: relative;
+  container-type: size;
+}
+/* 共通の `.album-print`（position: relative）より強く、束の中では絶対配置。 */
+.first-print-stack > .first-print {
   position: absolute;
-  display: flex;
-  flex-direction: column;
-  padding: 6px 6px 9px;
-  background: white;
-  border-radius: 13px;
-  box-shadow: 0 13px 30px #25608b26;
   animation: first-photo-enter 0.65s cubic-bezier(0.22, 1, 0.36, 1) backwards;
 }
-.first-polaroid img {
-  width: 100%;
-  flex: 1;
-  min-height: 0;
-  object-fit: cover;
-  border-radius: 8px;
-}
-.first-polaroid span {
-  display: inline-block;
-  margin-top: 6px;
-  padding: 1px 8px;
-  border-radius: 7px;
-  background: #fff;
-  font-size: 1.1875rem;
-  font-weight: 700;
-  align-self: center;
-  text-align: center;
-}
-.first-polaroid-0 {
-  left: 0;
-  top: 3%;
-  width: 50%;
-  height: 47%;
-  rotate: -7deg;
-  z-index: 2;
-}
-.first-polaroid-1 {
-  right: 0;
-  top: 11%;
-  width: 44%;
-  height: 43%;
-  rotate: 8deg;
+.first-print-0 {
+  left: 6%;
+  top: 2%;
+  width: min(38cqw, calc((54cqh - 34px) / 1.5));
+  rotate: -6deg;
   z-index: 1;
 }
-.first-polaroid-2 {
-  left: 4%;
-  bottom: 3%;
-  width: 42%;
-  height: 43%;
-  rotate: 5deg;
-  z-index: 4;
+.first-print-1 {
+  right: 5%;
+  top: 6%;
+  width: min(44cqw, calc(42cqh - 34px));
+  rotate: 6deg;
+  z-index: 2;
+  animation-delay: 0.08s;
 }
-.first-polaroid-3 {
-  right: 1%;
-  bottom: 2%;
-  width: 50%;
-  height: 44%;
-  rotate: -6deg;
-  z-index: 5;
+.first-print-2 {
+  left: 4%;
+  bottom: 40px;
+  width: min(44cqw, calc(42cqh - 34px));
+  rotate: 4deg;
+  z-index: 3;
+  animation-delay: 0.16s;
+}
+.first-print-3 {
+  right: 2%;
+  bottom: 44px;
+  width: min(46cqw, calc(44cqh - 34px));
+  rotate: -5deg;
+  z-index: 4;
+  animation-delay: 0.24s;
 }
 
 .first-standalone-footer {
@@ -964,10 +920,10 @@ html[data-motion="reduce"] .first-run * {
   min-height: 80px;
   width: 100%;
   padding: 16px 20px;
-  border: 1px solid #e6edf5;
+  border: 1px solid var(--border);
   border-radius: 24px;
-  background: white;
-  box-shadow: 0 7px 24px #0e679a0b;
+  background: var(--card);
+  box-shadow: 0 7px 24px color-mix(in oklab, var(--primary) 4%, transparent);
   text-align: left;
   transition:
     transform 0.18s,
@@ -977,7 +933,7 @@ html[data-motion="reduce"] .first-run * {
   transform: scale(0.985);
 }
 .first-reminder-icon {
-  color: #0789ef;
+  color: var(--primary);
 }
 .first-reminder-text {
   display: grid;
@@ -990,34 +946,34 @@ html[data-motion="reduce"] .first-run * {
 }
 .first-reminder-text small {
   font-size: 13px;
-  color: #75849a;
+  color: var(--muted-foreground);
 }
 .first-reminder[aria-checked="true"] {
-  border-color: #008cf3;
+  border-color: var(--primary);
   box-shadow:
-    0 0 0 1px #008cf3,
-    0 7px 24px #0e679a14;
+    0 0 0 1px var(--primary),
+    0 7px 24px color-mix(in oklab, var(--primary) 8%, transparent);
 }
 .first-radio {
   width: 22px;
   height: 22px;
   border-radius: 50%;
-  border: 2px solid #c9d4e1;
+  border: 2px solid var(--border);
   flex: none;
   transition:
     border-color 0.18s,
     border-width 0.18s;
 }
 .first-reminder[aria-checked="true"] .first-radio {
-  border: 7px solid #008cf3;
+  border: 7px solid var(--primary);
 }
 .first-reminder-time {
   justify-self: start;
   height: 48px;
   padding: 0 16px;
-  border: 1px solid #e6edf5;
+  border: 1px solid var(--border);
   border-radius: 16px;
-  background: white;
+  background: var(--card);
   font-size: 17px;
   font-variant-numeric: tabular-nums;
 }
@@ -1047,7 +1003,7 @@ html[data-motion="reduce"] .first-run * {
   font-weight: 780;
 }
 .first-ready-heading p {
-  color: #667b90;
+  color: var(--muted-foreground);
   line-height: 1.75;
   font-size: 15px;
   white-space: pre-line;
@@ -1160,31 +1116,16 @@ html[data-motion="reduce"] .first-run * {
     rotate: 14deg;
   }
 }
+/* 紙の下の白い余白（34px）と手書きの一言は枠の外へはみ出すので、その分を空ける。 */
 .first-ready-photo {
-  padding: 10px 10px 17px;
-  background: white;
-  border-radius: 12px;
-  box-shadow: 0 16px 40px #007ed52b;
-}
-.first-ready-photo img {
-  aspect-ratio: 1;
-  object-fit: cover;
-  border-radius: 6px;
-}
-.first-ready-photo span {
-  display: block;
-  padding-top: 8px;
-  color: #29496a;
-  text-align: center;
-  font-size: 15px;
-  font-family: "Zen Kurenaido", sans-serif;
+  margin-bottom: calc(34px + 2.6rem);
 }
 .first-ready .first-standalone-footer {
   width: 100%;
 }
 .first-ready-footnote {
   margin-top: 12px;
-  color: #75849a;
+  color: var(--muted-foreground);
   font-size: 12px;
   line-height: 1.6;
 }
@@ -1192,21 +1133,6 @@ html[data-motion="reduce"] .first-run * {
   50% {
     translate: 0 -8px;
   }
-}
-
-.first-sample-dex {
-  padding: 16px 14px 24px;
-  border: 1px solid #e3eff8;
-  border-radius: 26px;
-  background: white;
-  box-shadow: 0 10px 30px #035c9610;
-}
-.first-sample-dex .first-sample-label {
-  padding-top: 0;
-  padding-bottom: 14px;
-}
-.first-sample-dex button {
-  pointer-events: none;
 }
 
 @media (max-height: 650px) {
@@ -1230,15 +1156,6 @@ html[data-motion="reduce"] .tour-coach {
   font-size: 18px;
   font-weight: 700;
 }
-.first-polaroid:nth-child(2) {
-  animation-delay: 0.08s;
-}
-.first-polaroid:nth-child(3) {
-  animation-delay: 0.16s;
-}
-.first-polaroid:nth-child(4) {
-  animation-delay: 0.24s;
-}
 .first-question-heading + .first-clock {
   margin-top: 16px;
 }
@@ -1252,7 +1169,7 @@ html[data-motion="reduce"] .tour-coach {
   margin: 12px 0 20px;
   font-size: 16px;
   line-height: 1.65;
-  color: #3d4f66;
+  color: var(--muted-foreground);
 }
 
 .first-complete-photo {
@@ -1261,7 +1178,7 @@ html[data-motion="reduce"] .tour-coach {
   object-fit: cover;
   border-radius: 24px;
   margin: 40px auto;
-  box-shadow: 0 16px 40px #007ed52b;
+  box-shadow: 0 16px 40px color-mix(in oklab, var(--primary) 17%, transparent);
 }
 @media (max-height: 700px) {
   .first-intro-logo {
@@ -1324,9 +1241,13 @@ html[data-motion="reduce"] .tour-coach {
   transform: scale(0.96);
 }
 .first-choice[aria-checked="true"],
-.first-choice[aria-pressed="true"],
+.first-choice[aria-pressed="true"] {
+  box-shadow: 0 10px 26px color-mix(in oklab, var(--primary) 14%, transparent);
+}
 .first-interest[aria-pressed="true"] {
-  box-shadow: 0 10px 26px #008cff24;
+  box-shadow:
+    0 0 0 3px var(--primary),
+    0 10px 26px color-mix(in oklab, var(--primary) 14%, transparent);
 }
 .first-check svg,
 .first-interest[aria-pressed="true"] .first-check,
@@ -1340,10 +1261,6 @@ html[data-motion="reduce"] .tour-coach {
   transform: scale(0.965);
 }
 
-.first-polaroid span {
-  max-width: 100%;
-  white-space: nowrap;
-}
 .first-questions--dense {
   height: var(--first-viewport-height, 100dvh);
   overflow: hidden;
@@ -1365,11 +1282,14 @@ html[data-motion="reduce"] .tour-coach {
   padding: 4px 2px;
   align-content: start;
 }
+.first-questions--dense .first-interest-grid {
+  padding: 10px 12px;
+}
 .first-questions--dense .first-footer {
   flex: none;
   margin-top: auto;
   padding: 8px 0;
-  background: #fcfeff;
+  background: var(--background);
 }
 
 @keyframes first-title-in {

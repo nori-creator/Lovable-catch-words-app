@@ -1,8 +1,7 @@
 import { AppShellFrame } from "../AppShell";
 import { AppNavigation } from "../AppNavigation";
 import type { ReactNode } from "react";
-import { DiaryDate, DayCollage } from "@/routes/_authenticated/home";
-import { DexAlbumGrid } from "@/routes/_authenticated/dex";
+import { HomeSurface } from "@/routes/_authenticated/home";
 import { firstCatchSticker, type FirstCatch } from "@/lib/first-catch";
 import { useT } from "@/lib/i18n";
 import { useTargetLang } from "@/lib/target-lang-pref";
@@ -67,17 +66,6 @@ export function sampleStickers(
   }));
 }
 
-export function FirstCatchSampleDex({ draft }: { draft: FirstCatch | null }) {
-  const t = useT();
-  const target = useTargetLang();
-  const samples = sampleStickers(draft, t, target);
-  return (
-    <div className="first-sample-dex">
-      <DexAlbumGrid items={samples} onOpen={() => {}} />
-    </div>
-  );
-}
-
 export function FirstCatchShell({
   children,
   tab = 0,
@@ -114,7 +102,13 @@ export function FirstCatchShell({
     </AppShellFrame>
   );
 }
-/** The exact components used by Home, with the actual captured photo. */
+/**
+ * **本物のホームの画面（`HomeSurface`）そのもの**に、見本の写真か撮った1枚を載せる。
+ *
+ * 本棚・今日の誌面・壁の続きまで本物と同じ部品なので、ホームを直すとここも同じ
+ * ビルドで変わる（オーナー指示 2026-09-29「アプリ本体をアップデートしたら自動的に
+ * 変化するように」）。本棚の日記は登録前なので端末の外へ出さない（空で読み、書いても送らない）。
+ */
 export function FirstCatchHome({
   draft,
   animated = false,
@@ -128,19 +122,28 @@ export function FirstCatchHome({
   const target = useTargetLang();
   const sticker = draft && firstCatchSticker(draft);
   const samples = sampleStickers(draft, t, target);
+  const items = sticker ? [sticker] : samples;
   return (
     <FirstCatchShell onTab={onCamera ? () => onCamera() : undefined}>
       <section data-tour="home">
         <div inert={!sticker}>
-          {/* 実物のホームと同じ形: 日付は誌面の板の上に直に書く（`heading`）。 */}
-          <DayCollage
-            stickers={sticker ? [sticker] : samples}
-            heading={<DiaryDate date={new Date(draft?.capturedAt ?? "2026-09-23T09:00:00.000Z")} />}
+          <HomeSurface
+            albumItems={items}
+            today={new Date(items[0]?.created_at ?? SAMPLE_DAY)}
+            surfaceClass="album-bg-paper"
             opening={animated && !sticker}
             onOpen={() => {}}
+            shelfLoaders={GUEST_SHELF}
           />
         </div>
       </section>
     </FirstCatchShell>
   );
 }
+
+const SAMPLE_DAY = "2026-09-23T09:00:00.000Z";
+/** 登録前の本棚の日記: 何も読まず、何も送らない。 */
+const GUEST_SHELF = {
+  diary: async () => [],
+  save: async () => {},
+};

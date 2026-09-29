@@ -413,16 +413,6 @@ export const DICT: Record<string, Record<UiLang, string>> = {
     en: "Sign up to save this photo and word to your account.",
     "zh-TW": "註冊帳號，保存這張照片和單字。",
   },
-  "first.analyzing": {
-    ja: "写真からことばを探しています",
-    en: "Finding words in your photo",
-    "zh-TW": "正在尋找照片中的單字",
-  },
-  "first.preparing": {
-    ja: "意味と使い方を準備しています",
-    en: "Preparing the meaning and example",
-    "zh-TW": "正在準備意思與例句",
-  },
   "first.failed": {
     ja: "処理できませんでした。写真を残したまま、もう一度試せます。",
     en: "That did not work. Your photo is kept so you can retry.",
@@ -3126,6 +3116,11 @@ export const DICT: Record<string, Record<UiLang, string>> = {
     ja: "3Dの準備中です（開発者の設定待ち）",
     en: "3D isn't set up yet",
     "zh-TW": "3D 功能尚未設定",
+  },
+  "object3d.noCredit": {
+    ja: "Tripo のクレジットが足りません。Tripo の管理画面でクレジットを追加してください",
+    en: "Not enough Tripo credits. Add credits in the Tripo dashboard",
+    "zh-TW": "Tripo 點數不足，請到 Tripo 管理頁面加值",
   },
   "object3d.proOnly": {
     ja: "3DはProの機能です",

@@ -4,14 +4,52 @@ import type { FirstCatch } from "@/lib/first-catch";
 import { normalizeReminderPrefs, type ReminderMode } from "@/lib/review-reminder";
 import type { ReactNode } from "react";
 import { sampleStickers } from "./FirstCatchHome";
+import { AlbumPrint } from "@/components/AlbumPrint";
 import "./first-catch.css";
 
+/** `ratio` は写真そのものの高さ÷幅（`public/` の実寸）。枠をこの形にするので切れない。 */
 export const FIRST_CATCH_PHOTOS = [
-  { src: "/first-catch-cafe.webp", word: "coffee" },
-  { src: "/first-catch-flower.webp", word: "花" },
-  { src: "/first-catch-cat.webp", word: "cat" },
-  { src: "/first-catch-ready.webp", word: "sea" },
+  { src: "/first-catch-cafe.webp", word: "coffee", ratio: 1.5 },
+  { src: "/first-catch-flower.webp", word: "花", ratio: 1 },
+  { src: "/first-catch-cat.webp", word: "cat", ratio: 1 },
+  { src: "/first-catch-ready.webp", word: "sea", ratio: 1 },
 ];
+
+/**
+ * **最初の画面とログイン画面の写真の束。**（オーナー指示 2026-09-29「画像の縮尺が変、
+ * 縦に圧縮されすぎてる…写真自体のデザインもホーム画面のアルバムの写真と全く同じ
+ * ものにして」）
+ *
+ * 前は4枚とも同じ正方形に近い枠に `object-fit: cover` で押し込んでいたので、縦長の
+ * 珈琲の写真（2:3）は上下が大きく切られ、枠も横に広く見えた。今は1枚ずつ
+ * **写真の比のままの枠**（`AlbumPrint`）で、ホームのアルバムと同じ紙・留め具・語。
+ * 大きさは束の箱の高さ（`cqh`）から決めるので、背の低い画面でもはみ出さない。
+ */
+export function FirstCatchPhotoStack({
+  labels,
+  lang,
+  className,
+}: {
+  labels: string[];
+  lang?: string | null;
+  className?: string;
+}) {
+  return (
+    <div className={`first-print-stack ${className ?? ""}`} aria-hidden="true">
+      {FIRST_CATCH_PHOTOS.map(({ src, ratio }, i) => (
+        <AlbumPrint
+          key={src}
+          id={`first-catch-${i}`}
+          src={src}
+          ratio={ratio}
+          word={labels[i] ?? ""}
+          lang={lang}
+          className={`first-print first-print-${i}`}
+        />
+      ))}
+    </div>
+  );
+}
 
 function PrimaryAction({
   children,
@@ -55,14 +93,11 @@ export function FirstCatchIntro({
             猫の写真が重なり、667px では「はじめる」が画面の外へ落ちていた。
             手書きの一言と4つの点は外した — 一言は見出しの言い直しで、
             点は横に送れない画面を送れるように見せていた。 */}
-        <div className="first-polaroids" aria-hidden="true">
-          {FIRST_CATCH_PHOTOS.map(({ src }, i) => (
-            <div key={src} className={`first-polaroid first-polaroid-${i}`}>
-              <img src={src} alt="" loading="eager" fetchPriority="high" />
-              <span className="collage__slip">{labels[i]}</span>
-            </div>
-          ))}
-        </div>
+        <FirstCatchPhotoStack
+          labels={labels}
+          lang={draft.targetLanguage}
+          className="first-polaroids"
+        />
         <footer className="first-standalone-footer">
           <PrimaryAction onClick={onStart} disabled={busy}>
             {t("first.introStart")}
@@ -177,15 +212,19 @@ export function FirstCatchNotifications({
 }
 
 export function FirstCatchReady({
+  draft,
   busy,
   onBack,
   onStart,
 }: {
+  draft: FirstCatch;
   busy: boolean;
   onBack: () => void;
   onStart: () => void;
 }) {
   const t = useT();
+  // 猫の1枚（`sampleStickers` の3枚目）の語。ホームのアルバムと同じく写真の下の余白に書く。
+  const catWord = sampleStickers(draft, t, draft.targetLanguage)[2]?.word.headword ?? "";
   return (
     <div className="first-run">
       <div className="first-standalone first-ready">
@@ -210,10 +249,17 @@ export function FirstCatchReady({
               <i key={i} />
             ))}
           </div>
-          <div className="first-ready-photo">
-            <img src="/first-catch-cat.webp" alt="" />
-            <span>{t("first.readyPhoto")}</span>
-          </div>
+          {/* ホームのアルバムと同じ1枚（紙・留め具・下の余白の語）。一言はホームの
+              「撮ったときに書いた一言」と同じく、紙の下に手書きで添える。 */}
+          <AlbumPrint
+            id="first-catch-ready"
+            src="/first-catch-cat.webp"
+            ratio={1}
+            word={catWord}
+            lang={draft.targetLanguage}
+            note={t("first.readyPhoto")}
+            className="first-ready-photo"
+          />
         </div>
         <footer className="first-standalone-footer">
           <PrimaryAction onClick={onStart} disabled={busy}>

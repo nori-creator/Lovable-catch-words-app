@@ -137,24 +137,38 @@ export const startObject3d = createServerFn({ method: "POST" })
               data?: { task_id?: string };
             } | null;
             return j?.code === 0 && j.data?.task_id
-              ? { id: j.data.task_id, error: null }
+              ? { id: j.data.task_id, error: null, code: 0 }
               : {
                   id: null,
+                  code: j?.code ?? null,
                   error: `task HTTP ${r.status} code ${j?.code ?? "-"} ${j?.message ?? ""}`,
                 };
           })
           .catch((e: unknown) => ({
             id: null,
+            code: null,
             error: `task ${e instanceof Error ? e.message : e}`,
           }));
-      const [preview, final] = await Promise.all([task("preview"), task("final")]);
-      if (!final.id) return fail(final.error ?? "task");
+      /**
+       * **頼むのは1件だけ**（オーナー報告 2026-09-29「3D がエラーが出て作れない」— Tripo の返事は
+       * 「code 2010 You don't have enough credit」）。前は下書き（色なし 20 クレジット）と仕上げ
+       * （色つき 30〜40）を**同時に**頼んでいたが、画面が使うのは仕上げだけで、下書きは毎回
+       * 捨てていた。1回 50〜60 クレジット → 30〜40 に減る。
+       * 残りが仕上げに足りない時（2010）だけ、色なしの形（20）で作り直す。
+       */
+      let made = await task("final");
+      if (!made.id && made.code === TRIPO_NO_CREDIT) made = await task("preview");
+      if (!made.id && made.code === TRIPO_NO_CREDIT) return { status: "no_credit" as const };
+      if (!made.id) return fail(made.error ?? "task");
       await logUsage(supabase, userId, "object3d");
-      return { status: "started" as const, previewTaskId: preview.id, finalTaskId: final.id };
+      return { status: "started" as const, finalTaskId: made.id };
     } catch (e) {
       return fail(e instanceof Error ? e.message : String(e));
     }
   });
+
+/** Tripo の「クレジットが足りない」の番号（返事の `code`）。 */
+const TRIPO_NO_CREDIT = 2010;
 
 /** 頼んだ仕事の進み具合（数秒ごとに呼ぶ）。出来たら GLB を画面へ中継する場所を返す。 */
 export const checkObject3d = createServerFn({ method: "POST" })

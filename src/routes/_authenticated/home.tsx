@@ -1,6 +1,6 @@
 import { MemorialReveal } from "@/components/MemorialReveal";
 import { JIGGLE, jiggleStyle, LIFTED } from "@/lib/album-drag";
-import { decorFor } from "@/lib/collage-decor";
+import { CollageFasteners } from "@/components/AlbumPrint";
 import {
   applyDelta,
   boardHeight,
@@ -332,12 +332,7 @@ function HomePage() {
   const surfaceClass = wallClass(wall);
 
   const today = new Date();
-  const todayKey = dayKey(today);
 
-  /**
-   * 今日の1冊は**必ず日で切る**。今日は「今日」であって週でも月でもない。
-   * 束ね方が効くのは、下に続く「これまでのページ」のほう。
-   */
   /**
    * アルバムに貼る物 = 札 ＋ **再会の写真**（オーナー指示 2026-09-23、
    * `lib/album-encounters.ts`）。再会の写真はその日の札の写しとして並ぶ。
@@ -346,11 +341,6 @@ function HomePage() {
     () => mergeAlbumEncounters(stickers?.items ?? [], stickers?.albumEncounters),
     [stickers],
   );
-  const byDay = useMemo(
-    () => groupBySpan(albumItems, (s) => new Date(s.created_at), "day"),
-    [stickers],
-  );
-  const todayStickers = byDay.find(([k]) => k === todayKey)?.[1] ?? [];
 
   /**
    * 図鑑と同じ上限に当たっているか。**当たっているならそう言う**(§8)。
@@ -361,21 +351,6 @@ function HomePage() {
   const total = stickers?.total ?? stickers?.items.length ?? 0;
   const shown = stickers?.items.length ?? 0;
   const truncated = stickers?.truncated ?? false;
-
-  /**
-   * 今日より前の日。**日ごとに、新しい順に並べて下へ続ける**
-   * (オーナー指示 2026-08-25「ホームの本棚の機能を全削除して、
-   * 前のように下スクロールで過去が見える形に戻して」)。
-   *
-   * 束ね方(日/週/月)の切替も、端末に覚えさせる仕掛けも消した。
-   */
-  const pastGroups = useMemo(() => {
-    const past = albumItems.filter((s) => dayKey(new Date(s.created_at)) !== todayKey);
-    return groupBySpan(past, (s) => new Date(s.created_at), "day").map(([key, items]) => ({
-      key,
-      items,
-    }));
-  }, [albumItems, todayKey]);
 
   /*
    * **ホームに日記は出さない**（オーナー指示 2026-09-22「ホームの日記は
@@ -390,11 +365,36 @@ function HomePage() {
         参考画像 A〜D。撮った月の本だけが並ぶ）。本を押すと全画面に広がり、その月の最初の日の
         見開きが開く。下へ続く日ごとのアルバムはそのまま。
       */}
-      <div className={!isLoading && !isError && albumItems.length > 0 ? "home-scene" : undefined}>
-        {!isLoading && !isError && albumItems.length > 0 ? <HomeShelf items={albumItems} /> : null}
-        {/* **日付は壁紙に直に書く**（オーナー指示 2026-09-23「ホーム画面の日付は
-          背景の壁紙に直接書いて。日記のように」）。上の見出しの帯はやめ、
-          今日の誌面の板の中（`DayCollage` の `heading`）に書く。 */}
+      <HomeSurface
+        albumItems={albumItems}
+        today={today}
+        surfaceClass={surfaceClass}
+        loading={isLoading}
+        failed={
+          isError ? (
+            // 失敗を「今日はまだ何も無い」と描いていた。しかも日記への唯一の入口が
+            // この else の中にあるので、エラーのときは日記にも辿り着けなくなる。
+            <LoadFailed
+              onRetry={() => void refetch()}
+              retrying={isFetching}
+              what={t("err.whatHome")}
+            />
+          ) : null
+        }
+        blankMessage={homeBlankText(albumItems, total, today, t)}
+        onOpen={(id, from) => {
+          setOpenId(baseStickerId(id));
+          setOpenFrom(from ?? null);
+        }}
+        onLongPress={(id) => {
+          setOpenId(baseStickerId(id));
+          setOpenFrom(null);
+          setOpenPhotoPicker(true);
+        }}
+        truncated={truncated}
+        shown={shown}
+        total={total}
+      >
         <PendingCapturesBanner />
         {memorialToday &&
           !memorialHidden &&
@@ -411,81 +411,7 @@ function HomePage() {
               }}
             />
           )}
-
-        {isLoading ? (
-          <HomeLoading />
-        ) : isError ? (
-          // 失敗を「今日はまだ何も無い」と描いていた。しかも日記への唯一の入口が
-          // この else の中にあるので、エラーのときは日記にも辿り着けなくなる。
-          <LoadFailed
-            onRetry={() => void refetch()}
-            retrying={isFetching}
-            what={t("err.whatHome")}
-          />
-        ) : todayStickers.length === 0 ? (
-          <HomeEmptyState
-            surface={surfaceClass}
-            date={today}
-            message={homeBlankText(albumItems, total, today, t)}
-          />
-        ) : (
-          <>
-            {/* 表紙が開く演出は**今日の1冊だけ**(オーナー指摘⑪)。
-              過去の日にも付けると、遡るたびに何十冊も回り出す。 */}
-            <DayCollage
-              stickers={todayStickers}
-              surface={surfaceClass}
-              heading={<DiaryDate date={today} />}
-              opening
-              onOpen={(id, from) => {
-                setOpenId(baseStickerId(id));
-                setOpenFrom(from ?? null);
-              }}
-              onLongPress={(id) => {
-                setOpenId(baseStickerId(id));
-                setOpenFrom(null);
-                setOpenPhotoPicker(true);
-              }}
-            />
-            {/* **「今日の日記」の欄は出さない**（オーナー指示 2026-09-17
-              「今日の日記の欄も消して」）。
-
-              紙の下に青いボタンが1つ座っていると、そこで誌面が終わって
-              **アプリの画面に戻る**。この面は1枚の紙であって、道具の並んだ
-              画面ではない。日記そのものは消していない — 過去の日の紙の
-              向かいには今までどおり出るし、書く画面(`/journal`)も残っている。 */}
-          </>
-        )}
-        {/* **下へスクロールすると過去が続く形に戻した**(オーナー指示
-          2026-08-25「ホームの本棚の機能を全削除して、前のように
-          下スクロールで過去が見える形に戻して」)。
-
-          本棚と見開きは削除した。押して開く一手間が要るうえ、
-          「いつ何を撮ったか」を遡るのに背表紙は向いていない。
-
-          日/週/月の切替も出さない(オーナー指摘「ホームの画面の
-          日、週、月のボタンを消して」)。日ごとに素直に並べる。 */}
-        {pastGroups.length > 0 && (
-          <PastDays
-            surface={surfaceClass}
-            days={pastGroups.map((g) => [g.key, g.items] as [string, StickerWithWord[]])}
-            onOpen={(id, from) => {
-              setOpenId(baseStickerId(id));
-              setOpenFrom(from ?? null);
-            }}
-            onLongPress={(id) => {
-              setOpenId(baseStickerId(id));
-              setOpenFrom(null);
-              setOpenPhotoPicker(true);
-            }}
-            truncated={truncated}
-            shown={shown}
-            total={total}
-          />
-        )}
-        {/* ↑ 本棚・今日・過去の日まで**1枚の壁**（`.home-scene`。オーナー指示 2026-09-29「9/29 の
-          周りのデザインをそれより下のすべての日にちにも適用して」）。巾木は一番下の日の後。 */}
-      </div>
+      </HomeSurface>
       {memorialOpen !== null && memorialPicks.length > 0 && (
         <MemorialAlbum
           n={memorialOpen}
@@ -517,6 +443,123 @@ function HomePage() {
         }}
       />
     </AppShell>
+  );
+}
+
+/**
+ * **ホームの画面そのもの**（本棚・今日の誌面・これまでの日）。
+ *
+ * 本物のホーム（`HomePage`）と**チュートリアルが同じこの部品を描く**（オーナー指示
+ * 2026-09-29「チュートリアルの画面…はアプリ本体をアップデートしたら自動的に変化する
+ * ようにして」「勝手にアプリを再現するのではなく、アプリそのものを使って」）。
+ * 前はチュートリアルが `DayCollage` を自分で並べていたので、本棚や壁の続きなど
+ * ホームに足した物がチュートリアルには出なかった。
+ *
+ * データの取り方・詳細の開き方・案内の帯は呼ぶ側が持つ。ここは**描くだけ**。
+ */
+export function HomeSurface({
+  albumItems,
+  today,
+  surfaceClass,
+  loading = false,
+  failed = null,
+  blankMessage,
+  opening = true,
+  onOpen,
+  onLongPress,
+  shelfLoaders,
+  truncated = false,
+  shown,
+  total,
+  children,
+}: {
+  albumItems: StickerWithWord[];
+  today: Date;
+  surfaceClass: string;
+  loading?: boolean;
+  /** 読み込みに失敗したときに出す物（出すなら、誌面の代わりにこれを出す）。 */
+  failed?: React.ReactNode;
+  blankMessage?: string;
+  /** 今日の1冊の表紙が開く演出。 */
+  opening?: boolean;
+  onOpen: (id: string, from?: FlightOrigin | null) => void;
+  onLongPress?: (id: string) => void;
+  /** 本棚の日記の読み書き（チュートリアルは端末の中だけで済ませる）。 */
+  shelfLoaders?: Parameters<typeof HomeShelf>[0]["loaders"];
+  truncated?: boolean;
+  shown?: number;
+  total?: number;
+  /** 本棚の下・誌面の上に挟む帯（未送信の写真・記念日など）。 */
+  children?: React.ReactNode;
+}) {
+  const todayKey = dayKey(today);
+  /**
+   * 今日の1冊は**必ず日で切る**。今日は「今日」であって週でも月でもない。
+   * 束ね方が効くのは、下に続く「これまでのページ」のほう。
+   */
+  const byDay = useMemo(
+    () => groupBySpan(albumItems, (s) => new Date(s.created_at), "day"),
+    [albumItems],
+  );
+  const todayStickers = byDay.find(([k]) => k === todayKey)?.[1] ?? [];
+  /**
+   * 今日より前の日。**日ごとに、新しい順に並べて下へ続ける**
+   * (オーナー指示 2026-08-25「ホームの本棚の機能を全削除して、
+   * 前のように下スクロールで過去が見える形に戻して」)。
+   */
+  const pastGroups = useMemo(() => {
+    const past = albumItems.filter((s) => dayKey(new Date(s.created_at)) !== todayKey);
+    return groupBySpan(past, (s) => new Date(s.created_at), "day");
+  }, [albumItems, todayKey]);
+  const ready = !loading && !failed && albumItems.length > 0;
+  return (
+    /*
+      **アプリの一番上に、部屋に置いた 3D の本棚**（オーナー指示 R17「本棚が小さすぎる。
+      また空中に本棚がただあるデザイン不自然。3D のリアルな本棚をアプリの上部に設置して」、
+      参考画像 A〜D。撮った月の本だけが並ぶ）。本を押すと全画面に広がり、その月の最初の日の
+      見開きが開く。下へ続く日ごとのアルバムはそのまま。
+      本棚・今日・過去の日まで**1枚の壁**（`.home-scene`。オーナー指示 2026-09-29「9/29 の
+      周りのデザインをそれより下のすべての日にちにも適用して」）。巾木は一番下の日の後。
+    */
+    <div className={ready ? "home-scene" : undefined}>
+      {ready ? <HomeShelf items={albumItems} loaders={shelfLoaders} /> : null}
+      {/* **日付は壁紙に直に書く**（オーナー指示 2026-09-23「ホーム画面の日付は
+        背景の壁紙に直接書いて。日記のように」）。上の見出しの帯はやめ、
+        今日の誌面の板の中（`DayCollage` の `heading`）に書く。 */}
+      {children}
+      {loading ? (
+        <HomeLoading />
+      ) : failed ? (
+        failed
+      ) : todayStickers.length === 0 ? (
+        <HomeEmptyState surface={surfaceClass} date={today} message={blankMessage} />
+      ) : (
+        /* 表紙が開く演出は**今日の1冊だけ**(オーナー指摘⑪)。
+          過去の日にも付けると、遡るたびに何十冊も回り出す。
+          **「今日の日記」の欄は出さない**（オーナー指示 2026-09-17）。 */
+        <DayCollage
+          stickers={todayStickers}
+          surface={surfaceClass}
+          heading={<DiaryDate date={today} />}
+          opening={opening}
+          onOpen={onOpen}
+          onLongPress={onLongPress}
+        />
+      )}
+      {/* **下へスクロールすると過去が続く形**(オーナー指示 2026-08-25)。
+        日/週/月の切替は出さない。日ごとに素直に並べる。 */}
+      {pastGroups.length > 0 && (
+        <PastDays
+          surface={surfaceClass}
+          days={pastGroups}
+          onOpen={onOpen}
+          onLongPress={onLongPress}
+          truncated={truncated}
+          shown={shown ?? albumItems.length}
+          total={total ?? albumItems.length}
+        />
+      )}
+    </div>
   );
 }
 
@@ -1010,43 +1053,6 @@ const CAP_NOTE_PX = 56;
  */
 const PLAIN_WORD_PX = 32;
 const MIN_TAP_PX = 44;
-
-/** 写真を壁に留める物（`lib/collage-decor.ts`）。 */
-function CollageFasteners({ id, wall }: { id: string; wall: WallId }) {
-  const d = decorFor(id, wall);
-  if (d.kind === "none") return null;
-  if (d.kind === "pin") {
-    // コルクの壁は**画鋲**。頭の色は4色、位置は上の辺の真ん中あたり。
-    return (
-      <span
-        aria-hidden="true"
-        className={`collage-pin collage-pin--${d.color}`}
-        style={{ left: `${d.x}%` }}
-      />
-    );
-  }
-  if (d.kind === "corners") {
-    return (
-      <>
-        {(["tl", "tr", "bl", "br"] as const).map((c) => (
-          <span key={c} aria-hidden="true" className={`collage-corner collage-corner--${c}`} />
-        ))}
-      </>
-    );
-  }
-  return (
-    <>
-      {d.tapes.map((tp) => (
-        <span
-          key={tp.spot}
-          aria-hidden="true"
-          className={`collage-tape collage-tape--${tp.spot} collage-tape--${tp.color}`}
-          style={{ rotate: `${tp.rot}deg` }}
-        />
-      ))}
-    </>
-  );
-}
 
 export function DayCollage({
   stickers: allStickers,
@@ -1645,6 +1651,24 @@ export function DayCollage({
     // 入れる必要がない（入れると指を動かすたびに張り直しになる）。
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [live, board, boardH]);
+  /**
+   * **長押しで掴んだ札を動かす間だけ、画面の送りを止める。**
+   *
+   * 札は普段 `touch-pan-y`（縦に送れる）。指を止めて長押しが成立した後に
+   * 動かすと、そのままでは画面の送りが始まり `pointercancel` で札が手から
+   * 落ちる。掴んでいる間（`grip`）だけ最初の `touchmove` を止めれば、送りは
+   * 始まらず、指はそのまま札を運べる。止め具は台紙にだけ張る（窓に張ると、
+   * 画面のどこを送るときも毎回ここを待つことになる）。
+   */
+  useEffect(() => {
+    const el = boardRef.current;
+    if (!el) return;
+    const hold = (e: TouchEvent) => {
+      if (grip.current && e.cancelable) e.preventDefault();
+    };
+    el.addEventListener("touchmove", hold, { passive: false });
+    return () => el.removeEventListener("touchmove", hold);
+  }, []);
 
   return (
     // **壁に貼った誌面**（オーナー指示 2026-09-22「ホーム画面、やっぱり背景、
@@ -1839,7 +1863,18 @@ export function DayCollage({
                    * （`captionAlign`）。
                    */
                   data-cap={captionAlign(place.x, px.w, board.w)}
-                  className={`photo-lift group absolute block touch-none text-left ${
+                  /**
+                   * **普段は縦に送れる（`touch-pan-y`）。**（オーナー報告 2026-09-29
+                   * 「ホーム画面スクロールするとスクロールできなくなる」）
+                   *
+                   * 前は札に常に `touch-none` を付けていた。誌面の大半は写真なので、
+                   * **指が写真の上に降りた時だけ画面が送れず**、止まったように見えた。
+                   * 長押しで掴んだ後の動きは、下の `touchmove` の止め具が受け持つ。
+                   * 編集中は札も台紙も `touch-none`（掴む・広げる・回すに専念）。
+                   */
+                  className={`photo-lift group absolute block ${
+                    editing ? "touch-none" : "touch-pan-y"
+                  } text-left ${
                     editing ? "album-editing cursor-grab active:cursor-grabbing" : ""
                   } ${live?.id === s.id ? "album-lifted" : ""}`}
                   style={
