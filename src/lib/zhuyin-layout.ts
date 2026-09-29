@@ -11,6 +11,8 @@
  * 読みを下の行に出す。**ずれた読みを字に当てるくらいなら、並べない。**
  */
 
+import { neutralizeMeasureGe } from "./tw-neutral-tone";
+
 const HAN = /[㐀-䶿一-鿿々〇]/u;
 const TONES = "ˊˇˋ";
 const NEUTRAL = "˙";
@@ -49,7 +51,8 @@ export function pairZhuyin(
   zhuyin: string | null | undefined,
 ): ZhuyinUnit[] | null {
   const word = (headword ?? "").trim();
-  const reading = (zhuyin ?? "").trim();
+  // 量詞の「個」は輕聲で読む（`tw-neutral-tone.ts`、オーナー指示 2026-09-30）。
+  const reading = neutralizeMeasureGe(word, zhuyin).trim();
   if (!word || !reading) return null;
   const syllables = reading.split(/\s+/).filter(Boolean);
   const chars = [...word];

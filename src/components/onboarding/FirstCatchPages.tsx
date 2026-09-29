@@ -25,12 +25,12 @@ export const FIRST_CATCH_PHOTOS = [
  * - `frame`（B）: A と同じ組み方を、**1枚の額**（台紙＋細い縁）に収める。
  * - `bouquet`（C）: 猫を手前の主役に、花と海を左右対称に傾け、珈琲を奥の中央に立てる。
  *
- * 写真は3案とも**写真の比のまま**（切らない・潰さない）。どれに決めるかはオーナーの判断待ち。
- * 決まるまでは A を本番の既定にし、確認用ページ（`?layout=`）で3つを見比べる。
+ * 写真は3案とも**写真の比のまま**（切らない・潰さない）。**本番は C**（オーナー決定
+ * 2026-09-30「Cにして」）。A・B は確認用ページ（`?layout=`）で見比べられるよう残す。
  */
 export const WELCOME_LAYOUTS = ["mosaic", "frame", "bouquet"] as const;
 export type WelcomeLayout = (typeof WELCOME_LAYOUTS)[number];
-export const DEFAULT_WELCOME_LAYOUT: WelcomeLayout = "mosaic";
+export const DEFAULT_WELCOME_LAYOUT: WelcomeLayout = "bouquet";
 let welcomeLayoutPreview: WelcomeLayout | null = null;
 /** 確認用ページだけが使う（本番のコードからは呼ばない）。 */
 export function setWelcomeLayoutPreview(layout: WelcomeLayout | null) {

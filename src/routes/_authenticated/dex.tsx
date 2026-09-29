@@ -69,6 +69,7 @@ import { Sound } from "@/lib/sound-engine";
 import { haptic } from "@/lib/haptics";
 import { DEX_SHELF_ENABLED } from "@/lib/features";
 import { motionReducedNow } from "@/hooks/use-reduced-motion";
+import { neutralizeMeasureGe } from "@/lib/tw-neutral-tone";
 
 /**
  * 落ちてきたモノが棚板に触れる瞬間(演出の開始から何ミリ秒か)。
@@ -1019,7 +1020,7 @@ export function PackGallery({
                 {s.word.meaning_ja ? (
                   <ReaderMeaning text={s.word.meaning_ja} wordId={s.word_id} />
                 ) : (
-                  <Zh>{s.word.reading_zhuyin}</Zh>
+                  <Zh>{neutralizeMeasureGe(s.word.headword, s.word.reading_zhuyin)}</Zh>
                 )}
               </span>
             </span>
@@ -1115,7 +1116,7 @@ function ListHeadword({ word: w }: { word: StickerWithWord["word"] }) {
   const units = useZhuyinUnits(w.language, w.headword, w.reading_zhuyin);
   const reading = useReadingText(
     w.language,
-    neutralReadings(w.language, w.reading_zhuyin, w.pinyin),
+    neutralReadings(w.language, w.reading_zhuyin, w.pinyin, w.headword),
   );
   if (units)
     return (

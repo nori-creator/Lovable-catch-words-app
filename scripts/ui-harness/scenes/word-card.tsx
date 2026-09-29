@@ -142,6 +142,21 @@ export function WordCardScene({ q }: { q: URLSearchParams }) {
   if (q.get("variant") === "minimal") {
     return <WordCard word={FULL} autoplay={false} minimal />;
   }
+  // `?measure=ge` … 量詞「個」が輕聲（˙ㄍㄜ）で出ること（R25、オーナー指示「輕聲にして」）。
+  // 保存されている読みは AI が返したままの ㄍㄜˋ。画面で直す。
+  if (q.get("measure") === "ge") {
+    const word = {
+      ...FULL,
+      extras: {
+        ...FULL.extras,
+        measure_words: [
+          { word: "個", zhuyin: "ㄍㄜˋ", pinyin: "gè", note: "いちばん広く使う数え方" },
+          ...FULL.extras.measure_words,
+        ],
+      },
+    };
+    return <WordCard word={word} autoplay={false} />;
+  }
   return <WordCard word={FULL} autoplay={false} />;
 }
 

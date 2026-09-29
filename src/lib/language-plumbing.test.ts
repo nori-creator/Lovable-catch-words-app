@@ -5013,11 +5013,9 @@ describe("ホームは今日の誌面", () => {
     // 2026-09-24「過去のものが多すぎで画面で確認できないから、過去のものは全て
     // 削除して」: 帯には**今回の依頼の面だけ**。
     // 2026-09-30 の回（R25）: 最初の画面の4枚（A/B/C）・留め具・カメラ・日記・說。
-    expect(list.slice(0, list.indexOf("},"))).toMatch(
-      /scene: "first-catch&step=intro&layout=mosaic"/,
-    );
-    expect(list).toMatch(/scene: "first-catch&step=intro&layout=frame"/);
-    expect(list).toMatch(/scene: "first-catch&step=intro&layout=bouquet"/);
+    // 最初の画面は C に決まった（2026-09-30）。案の見比べは外し、決まった形を先頭に。
+    expect(list.slice(0, list.indexOf("},"))).toMatch(/scene: "first-catch&step=intro"/);
+    expect(list).toMatch(/scene: "word-card&measure=ge"/);
     expect(list).toMatch(/scene: "capture-object"/);
     expect(list).not.toMatch(/scene: "dex-cards&swap=1&n=12"/);
     expect(list).not.toMatch(/scene: "review-choice"/);
@@ -6552,6 +6550,7 @@ describe("R25（2026-09-30: ベータテストの指摘・最初の画面の4枚
     const pages = codeOnly(read("components/onboarding/FirstCatchPages.tsx"));
     expect(pages).toMatch(/WELCOME_LAYOUTS = \["mosaic", "frame", "bouquet"\]/);
     expect(pages).toMatch(/layout=\{DEFAULT_WELCOME_LAYOUT\}/);
+    expect(pages).toMatch(/DEFAULT_WELCOME_LAYOUT: WelcomeLayout = "bouquet"/);
     expect(pages.match(/fasteners=\{false\}/g)?.length).toBe(2);
     expect(codeOnly(read("components/onboarding/FirstCatchQuestions.tsx"))).toMatch(
       /fasteners=\{false\}/,
@@ -6559,5 +6558,17 @@ describe("R25（2026-09-30: ベータテストの指摘・最初の画面の4枚
     const css = read("components/onboarding/first-catch.css");
     for (const l of ["mosaic", "frame", "bouquet"])
       expect(css).toContain(`.first-print-stack--${l}`);
+  });
+
+  it("量詞の「個」は、見出し・量詞の欄・一覧のどこでも輕聲で出す", () => {
+    expect(codeOnly(read("lib/zhuyin-layout.ts"))).toMatch(
+      /const reading = neutralizeMeasureGe\(word, zhuyin\)\.trim\(\);/,
+    );
+    const card = codeOnly(read("components/WordCard.tsx"));
+    expect(card).toMatch(/neutralizeMeasureGe\(word, zhuyin, \{ measureWord: true \}\)/);
+    expect(card).toMatch(/zhuyin=\{neutralizeMeasureGe\(word\.headword, word\.reading_zhuyin\)\}/);
+    expect(codeOnly(read("components/DexCoverFlow.tsx"))).toMatch(
+      /neutralReadings\(s\.word\.language, s\.word\.reading_zhuyin, s\.word\.pinyin, s\.word\.headword\)/,
+    );
   });
 });

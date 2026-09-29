@@ -40,6 +40,7 @@ import {
   type ReadingKind,
   type TargetProfile,
 } from "./target-profile";
+import { neutralizeMeasureGe, neutralizeMeasureGePinyin } from "./tw-neutral-tone";
 
 export type { ReadingKind };
 
@@ -264,12 +265,27 @@ export function neutralReadings(
   lang: string | null | undefined,
   primary?: string | null,
   alt?: string | null,
+  /** 見出し語。渡すと量詞の「個」を輕聲に直す（`tw-neutral-tone.ts`）。 */
+  headword?: string | null,
 ): Partial<Record<ReadingKind, string | null | undefined>> {
   const [first, second] = targetProfile(lang).readings;
   const out: Partial<Record<ReadingKind, string | null | undefined>> = {};
-  if (first) out[first] = primary;
-  if (second) out[second] = alt;
+  if (first) out[first] = headword ? colloquialReading(first, headword, primary) : primary;
+  if (second) out[second] = headword ? colloquialReading(second, headword, alt) : alt;
   return out;
+}
+
+/** 注音・ピンインの量詞「個」を輕聲に。ほかの表記はそのまま。 */
+export function colloquialReading(
+  kind: ReadingKind,
+  headword: string | null | undefined,
+  reading: string | null | undefined,
+  opts?: { measureWord?: boolean },
+): string | null | undefined {
+  if (!reading) return reading;
+  if (kind === "zhuyin") return neutralizeMeasureGe(headword, reading, opts);
+  if (kind === "pinyin") return neutralizeMeasureGePinyin(headword, reading, opts);
+  return reading;
 }
 
 /**

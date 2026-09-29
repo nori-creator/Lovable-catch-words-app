@@ -114,3 +114,4 @@ The minimum review experience should be intentionally small.
 - Write a diary entry with Zhuyin input: text already typed must never disappear while a new character's font subset loads (input field uses the swap alias fonts).
 - Traditional Chinese handwritten lines (e.g. 眼前的東西，要怎麼說？) render every glyph in one typeface (Iansui).
 - Camera screen: a two-finger pinch must not zoom the page; inside the frame it changes the camera zoom. Tap-to-focus shows the ring only on devices that support `pointsOfInterest`; elsewhere a tap does nothing visible.
+- Measure-word 個 reads with the neutral tone (˙ㄍㄜ / ge) in the measure-word section and after numerals/demonstratives (一個・這個・幾個); non-measure uses (個人・個性) stay ㄍㄜˋ (`tw-neutral-tone.ts`).

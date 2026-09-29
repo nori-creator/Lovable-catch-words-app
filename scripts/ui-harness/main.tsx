@@ -400,9 +400,8 @@ const q = new URLSearchParams(location.search);
 const REVIEW_SCENES: Array<{ scene: string; label: string }> = [
   // 2026-09-30 の依頼（R25: 初回の写真・ベータテストの指摘・カメラ）で触った面だけ。
   // **毎回ここを入れ替える** — 前の依頼の面は残さない（オーナー指示「過去のものは全て削除して」）。
-  { scene: "first-catch&step=intro&layout=mosaic", label: "最初の画面 A: 組写真" },
-  { scene: "first-catch&step=intro&layout=frame", label: "B: 1枚の額" },
-  { scene: "first-catch&step=intro&layout=bouquet", label: "C: 猫が主役の花束" },
+  { scene: "first-catch&step=intro", label: "最初の画面: C（猫が主役の花束）" },
+  { scene: "word-card&measure=ge", label: "量詞「個」を輕聲に" },
   { scene: "first-catch&step=questions&question=4", label: "興味の質問: 留め具なし" },
   { scene: "first-catch&step=ready", label: "準備ができました: 留め具なし" },
   { scene: "capture-object", label: "カメラ: 画面固定・押してピント" },
