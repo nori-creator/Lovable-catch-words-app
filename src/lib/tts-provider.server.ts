@@ -7,14 +7,23 @@
  *   これまでの声に落とす（その音はこれまでの置き場所に貯める — 新しい声の
  *   置き場所に古い声を入れない）。
  */
+import { findKey } from "./ai-provider.server";
 import {
-  azureSsml,
+  azureSpeech,
+  diagnoseGeminiWith,
+  geminiSpeech,
+  ttsPost,
+  type SynthesizedAudio,
+} from "./tts-synth";
+import {
   choiceFor,
   elevenLabsBody,
   hexToBytes,
+  isVoiceLocked,
   minimaxBody,
   providerInfo,
   voiceTag,
+  type GeminiDiagnosis,
   type TtsChoice,
   type TtsVoiceConfig,
 } from "./tts-providers";
@@ -62,49 +71,100 @@ export async function currentVoiceTag(language: string): Promise<string> {
   return voiceTag(await activeChoice(language));
 }
 
-/** 鍵が揃っているか（値は返さない）。 */
+/** その言語の声が固定されているか（台湾の声。固定中は別の声・端末の声へ落とさない）。 */
+export async function isLockedFor(language: string): Promise<boolean> {
+  return isVoiceLocked(await getTtsVoiceConfig(), language);
+}
+
+/** 鍵が揃っているか（値は返さない）。Gemini は Google の鍵の別名も見る。 */
 export function providerKeysPresent(id: string): boolean {
   const info = providerInfo(id);
-  return Boolean(info && info.keyEnvs.every((k) => Boolean(process.env[k])));
+  if (!info) return false;
+  if (id === "gemini") return findKey("google") !== null;
+  return info.keyEnvs.every((k) => Boolean(process.env[k]));
 }
 
-const TIMEOUT_MS = 6000;
+const post = ttsPost;
 
-async function post(url: string, init: RequestInit): Promise<Response> {
-  const res = await fetch(url, { ...init, signal: AbortSignal.timeout(TIMEOUT_MS) });
-  if (!res.ok) {
-    const body = await res.text().catch(() => "");
-    throw new Error(`TTS ${res.status} ${body.slice(0, 160)}`);
+export type { SynthesizedAudio } from "./tts-synth";
+
+/** 一時的な失敗（混雑・圏外・時間切れ）か。 */
+function isTransient(e: unknown): boolean {
+  const m = e instanceof Error ? `${e.name} ${e.message}` : String(e);
+  return /TTS (429|5\d\d)|timeout|aborted|fetch failed|network/i.test(m);
+}
+
+/**
+ * 選んだ会社で音を作る（MP3。Gemini は WAV）。鍵が無い・失敗したら投げる。
+ * **一時的な失敗は同じ声で1回だけやり直す** — 台湾の声は別の声に切り替えないので、
+ * 混んでいた時に黙って別の声にならないよう、同じ声をもう一度頼む。
+ */
+export async function synthesizeAudio(
+  choice: TtsChoice,
+  text: string,
+  speed: number,
+  language: string,
+): Promise<SynthesizedAudio> {
+  try {
+    return await synthesizeOnce(choice, text, speed, language);
+  } catch (e) {
+    if (!isTransient(e)) throw e;
+    await new Promise((r) => setTimeout(r, 400));
+    return synthesizeOnce(choice, text, speed, language);
   }
-  return res;
 }
 
-/** 選んだ会社で MP3 を作る。鍵が無い・失敗したら投げる。 */
+/** 音の中身だけ欲しい所（前の呼び名）。 */
 export async function synthesizeWithChoice(
   choice: TtsChoice,
   text: string,
   speed: number,
   language: string,
 ): Promise<Uint8Array> {
+  return (await synthesizeAudio(choice, text, speed, language)).bytes;
+}
+
+async function synthesizeOnce(
+  choice: TtsChoice,
+  text: string,
+  speed: number,
+  language: string,
+): Promise<SynthesizedAudio> {
   const info = providerInfo(choice.provider);
   if (!info?.implemented) throw new Error(`TTS provider not connected: ${choice.provider}`);
+  if (choice.provider === "gemini") {
+    // 鍵の名前は別名も見る（`findKey("google")`）。値は表に出さない。
+    const key = findKey("google");
+    if (!key) throw new Error("TTS key missing: GEMINI_API_KEY");
+    return geminiSpeech({
+      key: key.value,
+      model: choice.model || info.models[0],
+      voice: choice.voice,
+      text,
+    });
+  }
   const missing = info.keyEnvs.filter((k) => !process.env[k]);
   if (missing.length) throw new Error(`TTS key missing: ${missing.join(", ")}`);
+  return { bytes: await synthesizeMp3Provider(choice, text, speed, language), mime: "audio/mpeg" };
+}
+
+async function synthesizeMp3Provider(
+  choice: TtsChoice,
+  text: string,
+  speed: number,
+  language: string,
+): Promise<Uint8Array> {
+  const info = providerInfo(choice.provider)!;
 
   if (choice.provider === "azure") {
-    // https://<region>.tts.speech.microsoft.com/cognitiveservices/v1
-    const region = process.env.AZURE_SPEECH_REGION!;
-    const res = await post(`https://${region}.tts.speech.microsoft.com/cognitiveservices/v1`, {
-      method: "POST",
-      headers: {
-        "Ocp-Apim-Subscription-Key": process.env.AZURE_SPEECH_KEY!,
-        "Content-Type": "application/ssml+xml",
-        "X-Microsoft-OutputFormat": "audio-24khz-48kbitrate-mono-mp3",
-        "User-Agent": "catchwords",
-      },
-      body: azureSsml(text, choice.voice, speed),
+    const made = await azureSpeech({
+      key: process.env.AZURE_SPEECH_KEY!,
+      region: process.env.AZURE_SPEECH_REGION!,
+      voice: choice.voice,
+      text,
+      speed,
     });
-    return new Uint8Array(await res.arrayBuffer());
+    return made.bytes;
   }
 
   if (choice.provider === "elevenlabs") {
@@ -153,4 +213,11 @@ export async function synthesizeWithChoice(
   }
 
   throw new Error(`TTS provider not connected: ${choice.provider}`);
+}
+
+// ---- 診断（開発者だけ。鍵の値は返さない・課金しない） -----------------------------
+
+/** 診断の中身は `tts-synth.ts`（確認用ページの聞き比べと同じ）。鍵は Lovable の Secrets。 */
+export async function diagnoseGemini(): Promise<GeminiDiagnosis> {
+  return diagnoseGeminiWith(findKey("google"));
 }

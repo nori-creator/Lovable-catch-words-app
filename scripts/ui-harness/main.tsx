@@ -1,4 +1,5 @@
 import { FirstCatchScene } from "./scenes/first-catch";
+import { HomeShelfScene } from "./scenes/home-shelf";
 import { ChunkDesignsScene } from "./scenes/chunk-designs";
 import { PeelStickerScene } from "./scenes/peel-sticker";
 /**
@@ -170,6 +171,7 @@ const SCENES: Record<string, ((p: { q: URLSearchParams }) => ReactNode) | undefi
   "chunk-designs": ChunkDesignsScene,
   auth: AuthScene,
   home: HomeScene,
+  "home-shelf": HomeShelfScene,
   "home-album": HomeAlbumScene,
   "home-ink": HomeInkScene,
   "home-memorial": HomeMemorialScene,
@@ -288,17 +290,23 @@ const SCENES: Record<string, ((p: { q: URLSearchParams }) => ReactNode) | undefi
  * 見出しの下敷きになって消えていた。実物と同じ箱を置いて初めて、
  * sticky の止まる位置が実物と同じになる。
  */
-function Frame({ children }: { children: ReactNode }) {
+function Frame({ children, immersive = false }: { children: ReactNode; immersive?: boolean }) {
   return (
     // 実物の `AppShell` と同じ印（図鑑のスライドが地を透かす目印）。
     <div data-app-shell="" className="min-h-screen bg-background">
-      <header className="scroll-edge sticky top-0 z-30 bg-background/70 pt-[env(safe-area-inset-top)] backdrop-blur-xl backdrop-saturate-150">
-        <div className="mx-auto flex min-h-[var(--app-header-h)] max-w-3xl items-center px-4 py-3">
-          <div className="h-8 w-8 rounded-xl bg-primary" />
-          <span className="ml-2 text-body font-semibold tracking-[-0.02em]">Catchwords</span>
-        </div>
-      </header>
-      <main className="mx-auto max-w-3xl px-4 py-4">{children}</main>
+      {/* 図鑑は本番で上の帯を出さない（`AppShell immersive`）。ここで帯を置くと、札の位置が
+          本番より 72px 下にずれて「下の写真の列がバーに被る」かを正しく測れない（R17）。 */}
+      {!immersive && (
+        <header className="scroll-edge sticky top-0 z-30 bg-background/70 pt-[env(safe-area-inset-top)] backdrop-blur-xl backdrop-saturate-150">
+          <div className="mx-auto flex min-h-[var(--app-header-h)] max-w-3xl items-center px-4 py-3">
+            <div className="h-8 w-8 rounded-xl bg-primary" />
+            <span className="ml-2 text-body font-semibold tracking-[-0.02em]">CatchWords</span>
+          </div>
+        </header>
+      )}
+      <main className={immersive ? "mx-auto max-w-3xl px-4" : "mx-auto max-w-3xl px-4 py-4"}>
+        {children}
+      </main>
       {/* 下のタブ帯の**占める高さ**も置く。**置かないと嘘になる。**
           答え合わせの面は画面下端に貼り付いて、この帯のぶんだけ上に浮く。
           帯が無いページで撮ると浮く位置が変わり、何が覆われるかも変わる。
@@ -344,6 +352,9 @@ function Frame({ children }: { children: ReactNode }) {
  * なる。逆に、バーがある画面で枠を外すと sticky の止まる位置が変わる。
  * どちらも「別の画面を見ている」なので、場面ごとに決める。
  */
+/** 本番で上の帯を出さない画面（`AppShell immersive`）。 */
+const IMMERSIVE = new Set(["dex-cards", "dex-drag"]);
+
 const BARE = new Set([
   "first-catch",
   "auth",
@@ -356,7 +367,7 @@ const BARE = new Set([
   "camera-strip",
   // 撮る画面は画面いっぱい（`.capture-viewfinder` が `fixed inset-0`）。
   // 枠の上のバーを敷くと、実物では**映像に覆われて見えない**物の
-  // 読みやすさを測ることになる（実際、枠の「Catchwords」が
+  // 読みやすさを測ることになる（実際、枠の「CatchWords」が
   // 地＝黒い映像で 1.12 と出た）。
   "capture-object",
   "reward-catch",
@@ -380,26 +391,15 @@ const q = new URLSearchParams(location.search);
  * 「これを見てください」と差し出すことになる。
  */
 const REVIEW_SCENES: Array<{ scene: string; label: string }> = [
-  // 2026-09-28〜29 の依頼（R14）で触った面だけ。**毎回ここを入れ替える**
+  // 2026-09-29 の依頼（R20）で触った面だけ。**毎回ここを入れ替える**
   // — 前の依頼の面は残さない（オーナー指示「過去のものは全て削除して」）。
-  // 先頭は最後に頼まれた物（図鑑のスライドを白に・カードの色の案）。
+  // 先頭は最後に頼まれた物（R20: 開いた瞬間の本棚・片ページの横移動）。
   {
-    scene: "dex-cards&n=24&at=3",
-    label: "図鑑スライド: 白い部屋・カードの色 A〜D・下のバーに被らない",
+    scene: "home-shelf",
+    label: "ホーム: 開いた瞬間の本棚 → 本を押す → 片ページで左右に払う",
   },
-  { scene: "chunk-designs", label: "チャンク（決定）: 四角＋でつなぐ・台なし・学ぶ語は入れ替えない" },
-  { scene: "dex-drag", label: "図鑑: 長押しで別の分類へ運ぶ・見出しの長押しで編集" },
-  { scene: "dex-calendar", label: "カレンダー: 青を基調に・日付を押すと地図" },
-  { scene: "home-album", label: "ホームのアルバム: 長押し → 赤バツが写真と一緒に揺れる" },
-  { scene: "three-fx&fx=gallery", label: "図鑑 3D: 下の影なし・写真の列から飛べる" },
-  { scene: "shelf-3d&open=12", label: "本棚の本: ページを押すと片ページ全画面・最後のページ" },
-  { scene: "scan-found", label: "スキャン結果: 2行まで・写真を大きく・「＋ 追加」・写真から" },
-  { scene: "launch-intro", label: "案: アプリを開く動き（作り直し・ばね・ゆっくり再生）" },
-  { scene: "diary-pencil", label: "日記の鉛筆（芯が見える）" },
-  { scene: "three-fx&fx=analyze", label: "分析中（浮いていた輪を消した）" },
-  { scene: "reward-catch", label: "図鑑に着く音（柔らかく）" },
-  { scene: "object-3d", label: "開発中: Pro 3D（Blender の仕上げ・本番には未実装）" },
-  { scene: "voice-face", label: "開発中: 自分の声と顔（本番には未実装）" },
+  { scene: "tts-voices", label: "台湾の声: Azure と Gemini を聞き比べ・アプリの設定画面" },
+  { scene: "chunk-designs", label: "チャンク: 点線の語を替えると訳・語の発音・全体の発音" },
 ];
 
 const explicitScene = q.get("scene");
@@ -539,7 +539,7 @@ createRoot(document.getElementById("root")!).render(
       {BARE.has(wanted) ? (
         <Scene q={q} />
       ) : (
-        <Frame>
+        <Frame immersive={IMMERSIVE.has(wanted)}>
           <Scene q={q} />
         </Frame>
       )}

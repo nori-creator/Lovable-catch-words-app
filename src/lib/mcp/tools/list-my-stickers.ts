@@ -6,7 +6,7 @@ export default defineTool({
   name: "list_my_stickers",
   title: "List my stickers",
   description:
-    "List the caller's most recent Catchwords stickers (photo/text/voice catches) with the associated Mandarin word, reading, Japanese meaning, and capture time. Returns compact rows suitable for browsing the dex.",
+    "List the caller's most recent CatchWords stickers (photo/text/voice catches) with the associated Mandarin word, reading, Japanese meaning, and capture time. Returns compact rows suitable for browsing the dex.",
   inputSchema: {
     limit: z
       .number()

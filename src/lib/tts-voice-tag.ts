@@ -44,12 +44,50 @@ export function rememberVoiceTags(next: Record<string, string>): boolean {
   return changed;
 }
 
+/**
+ * **声が固定されている言語**（台湾の声。開発者の設定）。固定中は、サーバの音が取れなくても
+ * 端末の別の声で読まない（オーナー指示 2026-09-29「アプリ全体で1つの同一の音声」）。
+ * 控えは札と同じ所（起動のたびにサーバから取り直す）。
+ */
+const LOCK_KEY = "catchwords-tts-voice-locked";
+let locked: Record<string, boolean> | null = null;
+
+function loadLocked(): Record<string, boolean> {
+  if (locked) return locked;
+  try {
+    const raw = typeof localStorage === "undefined" ? null : localStorage.getItem(LOCK_KEY);
+    const parsed = raw ? (JSON.parse(raw) as unknown) : null;
+    locked = parsed && typeof parsed === "object" ? (parsed as Record<string, boolean>) : {};
+  } catch {
+    locked = {};
+  }
+  return locked;
+}
+
+export function isVoiceLockedFor(language: string): boolean {
+  return loadLocked()[language] === true;
+}
+
+export function rememberVoiceLocks(next: Record<string, boolean>) {
+  locked = { ...loadLocked(), ...next };
+  try {
+    localStorage.setItem(LOCK_KEY, JSON.stringify(locked));
+  } catch {
+    /* 私用モードなど — 控えは任意 */
+  }
+}
+
 let refreshing: Promise<void> | null = null;
 
 /** 1起動に1回だけ札を取り直す（失敗しても何度も叩かない）。 */
-export function refreshVoiceTagsOnce(fetcher: () => Promise<{ tags: Record<string, string> }>) {
+export function refreshVoiceTagsOnce(
+  fetcher: () => Promise<{ tags: Record<string, string>; locked?: Record<string, boolean> }>,
+) {
   refreshing ??= fetcher()
-    .then((r) => void rememberVoiceTags(r.tags ?? {}))
+    .then((r) => {
+      rememberVoiceTags(r.tags ?? {});
+      if (r.locked) rememberVoiceLocks(r.locked);
+    })
     .catch(() => {});
   return refreshing;
 }
@@ -57,5 +95,6 @@ export function refreshVoiceTagsOnce(fetcher: () => Promise<{ tags: Record<strin
 /** 試験用。 */
 export function resetVoiceTagsForTest() {
   tags = null;
+  locked = null;
   refreshing = null;
 }

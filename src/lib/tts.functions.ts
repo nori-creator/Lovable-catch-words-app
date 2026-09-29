@@ -5,7 +5,13 @@ import { z } from "zod";
 import { assertWithinDailyCap, getTts, logUsage } from "./ai-provider.server";
 import { ttsObjectPath, TTS_VOICE_DEFAULT } from "./tts-cache";
 import { ttsVoiceFor, withVoiceOverride } from "./tts-voice";
-import { cleanTtsConfig, TTS_LANGUAGES, TTS_PROVIDERS, type TtsChoice } from "./tts-providers";
+import {
+  cleanTtsConfig,
+  TAIWAN_AZURE_VOICES,
+  TTS_LANGUAGES,
+  TTS_PROVIDERS,
+  type TtsChoice,
+} from "./tts-providers";
 
 const DEFAULT_SPEED = 0.95;
 const SIGNED_URL_TTL = 60 * 60 * 6;
@@ -112,17 +118,29 @@ export const synthesizeSpeech = createServerFn({ method: "POST" })
     const { data: cached } = await supabase.storage
       .from("tts")
       .createSignedUrl(path, SIGNED_URL_TTL);
-    if (cached?.signedUrl) return { audio_url: cached.signedUrl };
+    if (cached?.signedUrl) return { audio_url: cached.signedUrl, locked: false };
 
     // Cache hits above are free and unlimited — the cap only meters real synthesis.
     await assertWithinDailyCap(userId, "tts");
     let buf: Uint8Array;
+    let mime = "audio/mpeg";
+    // **台湾の声が決まっている間は、別の声へ切り替えない**（オーナー指示 2026-09-29
+    // 「アプリ全体で1つの同一の音声を使う」）。失敗したら音を返さず、`locked` を伝えて
+    // 端末の声にも落とさせない（`use-pronounce.tsx`）。同じ声のやり直しは1回済んでいる。
+    const { isLockedFor } = await import("./tts-provider.server");
+    const locked = choice ? await isLockedFor(data.language) : false;
     try {
       if (choice) {
         try {
-          const { synthesizeWithChoice } = await import("./tts-provider.server");
-          buf = await synthesizeWithChoice(choice, data.text, data.speed, data.language);
+          const { synthesizeAudio } = await import("./tts-provider.server");
+          const made = await synthesizeAudio(choice, data.text, data.speed, data.language);
+          buf = made.bytes;
+          mime = made.mime;
         } catch (e) {
+          if (locked) {
+            console.error("[tts] locked voice failed:", (e as Error).message);
+            return { audio_url: null as string | null, locked: true };
+          }
           // 選んだ会社が駄目なときは、これまでの声で鳴らし、これまでの置き場所に貯める。
           console.warn("[tts] provider failed, falling back:", (e as Error).message);
           buf = await synthesizeMp3(data.text, data.speed, data.language);
@@ -135,7 +153,7 @@ export const synthesizeSpeech = createServerFn({ method: "POST" })
       // 音声AIが使えない（クレジット不足 402 など、再試行しても直らない）ときは
       // 画面を落とさず null を返す — 呼ぶ側は端末の声で鳴らす。
       console.error("[tts] synthesis unavailable:", (e as Error).message);
-      return { audio_url: null as string | null };
+      return { audio_url: null as string | null, locked: false };
     }
     await logUsage(supabase, userId, "tts");
 
@@ -150,13 +168,13 @@ export const synthesizeSpeech = createServerFn({ method: "POST" })
     // 物が上の「貯めてある」道で返る。
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     await supabaseAdmin.storage.from("tts").upload(path, buf, {
-      contentType: "audio/mpeg",
+      contentType: mime,
       upsert: true,
     });
 
     let binary = "";
     for (let i = 0; i < buf.length; i++) binary += String.fromCharCode(buf[i]);
-    return { audio_url: `data:audio/mpeg;base64,${btoa(binary)}` };
+    return { audio_url: `data:${mime};base64,${btoa(binary)}`, locked: false };
   });
 
 // --- Admin: pre-generate dictionary audio (§4.3) -----------------------------
@@ -201,7 +219,7 @@ export const pregenerateDictionaryTts = createServerFn({ method: "POST" })
     const language = normalizeTargetLanguage(data.language);
     // 開発者が選んだ声（無ければこれまでの声）。**声を変えたら作り直す** —
     // 前の声の置き場所を指している行も「まだ」に数える。
-    const { activeChoice, synthesizeWithChoice } = await import("./tts-provider.server");
+    const { activeChoice, synthesizeAudio } = await import("./tts-provider.server");
     const { voiceTag } = await import("./tts-providers");
     const choice = await activeChoice(language);
     const tag = voiceTag(choice);
@@ -251,12 +269,15 @@ export const pregenerateDictionaryTts = createServerFn({ method: "POST" })
           .createSignedUrl(path, 60);
         if (!existing?.signedUrl) {
           // 作り置きでは落とさない（落とすと、新しい声の置き場所に古い声が入る）。
-          const buf = choice
-            ? await synthesizeWithChoice(choice, entry.headword, DEFAULT_SPEED, language)
-            : await synthesizeMp3(entry.headword, DEFAULT_SPEED, language);
+          const made = choice
+            ? await synthesizeAudio(choice, entry.headword, DEFAULT_SPEED, language)
+            : {
+                bytes: await synthesizeMp3(entry.headword, DEFAULT_SPEED, language),
+                mime: "audio/mpeg",
+              };
           const { error: upErr } = await supabaseAdmin.storage
             .from("tts")
-            .upload(path, buf, { contentType: "audio/mpeg", upsert: true });
+            .upload(path, made.bytes, { contentType: made.mime, upsert: true });
           if (upErr) throw new Error(`upload: ${upErr.message}`);
         }
         const { error: dbErr } = await supabaseAdmin
@@ -288,10 +309,14 @@ export const pregenerateDictionaryTts = createServerFn({ method: "POST" })
 export const getTtsVoiceTags = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async () => {
-    const { currentVoiceTag } = await import("./tts-provider.server");
+    const { currentVoiceTag, isLockedFor } = await import("./tts-provider.server");
     const tags: Record<string, string> = {};
-    for (const lang of TTS_LANGUAGES) tags[lang] = await currentVoiceTag(lang);
-    return { tags };
+    const locked: Record<string, boolean> = {};
+    for (const lang of TTS_LANGUAGES) {
+      tags[lang] = await currentVoiceTag(lang);
+      locked[lang] = await isLockedFor(lang);
+    }
+    return { tags, locked };
   });
 
 async function assertAdmin(context: { supabase: unknown; userId: string }) {
@@ -329,6 +354,7 @@ export const getTtsVoiceAdmin = createServerFn({ method: "GET" })
         keys_present: providerKeysPresent(p.id),
       })),
       languages: [...TTS_LANGUAGES],
+      taiwanAzureVoices: TAIWAN_AZURE_VOICES,
       legacy: process.env.GOOGLE_TTS_API_KEY ? "Google Cloud TTS" : "OpenAI 互換 TTS",
     };
   });
@@ -375,11 +401,23 @@ export const previewTtsVoice = createServerFn({ method: "POST" })
     const cleaned = cleanTtsConfig({ languages: { [data.language]: data.choice } });
     const choice = cleaned.languages?.[data.language] as TtsChoice | undefined;
     if (!choice) throw new Error("この会社・声は使えません（未接続か、声の ID が空）");
-    const { synthesizeWithChoice } = await import("./tts-provider.server");
+    const { synthesizeAudio } = await import("./tts-provider.server");
     const t0 = Date.now();
-    const buf = await synthesizeWithChoice(choice, data.text, DEFAULT_SPEED, data.language);
+    const made = await synthesizeAudio(choice, data.text, DEFAULT_SPEED, data.language);
     const ms = Date.now() - t0;
     let binary = "";
-    for (let i = 0; i < buf.length; i++) binary += String.fromCharCode(buf[i]);
-    return { audio_url: `data:audio/mpeg;base64,${btoa(binary)}`, ms };
+    for (let i = 0; i < made.bytes.length; i++) binary += String.fromCharCode(made.bytes[i]);
+    return { audio_url: `data:${made.mime};base64,${btoa(binary)}`, ms };
+  });
+
+/**
+ * **Gemini TTS が使えるかの診断**（開発者だけ。課金の無い問い合わせだけ・鍵の値は返さない）。
+ * 鍵が在るか（名前だけ）、3.8 の2モデルが見えるか、台湾（zh-TW）の声が男女それぞれ在るか。
+ */
+export const diagnoseGeminiTts = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    await assertAdmin(context);
+    const { diagnoseGemini } = await import("./tts-provider.server");
+    return diagnoseGemini();
   });

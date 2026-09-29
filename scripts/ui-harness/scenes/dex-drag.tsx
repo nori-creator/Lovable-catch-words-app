@@ -9,6 +9,16 @@ import { FIXTURES, makeSticker } from "./home";
  * 本物の写真の升目・縦の一覧を使う。移した先はこの画面の中だけで覚える（通信しない）。
  * `?list=1` で縦の一覧。見出しを長押しすると「編集」の知らせが出る（本番では編集の面）。
  */
+const ZHUYIN: Record<string, string> = {
+  珍珠奶茶: "ㄓㄣ ㄓㄨ ㄋㄞˇ ㄔㄚˊ",
+  夜市: "ㄧㄝˋ ㄕˋ",
+  腳踏車: "ㄐㄧㄠˇ ㄊㄚˋ ㄔㄜ",
+  芒果: "ㄇㄤˊ ㄍㄨㄛˇ",
+  捷運: "ㄐㄧㄝˊ ㄩㄣˋ",
+  雨傘: "ㄩˇ ㄙㄢˇ",
+  獎學金: "ㄐㄧㄤˇ ㄒㄩㄝˊ ㄐㄧㄣ",
+};
+
 const CATS = [
   { key: "drink", label: "🧋 飲み物" },
   { key: "town", label: "🏙️ 街" },
@@ -21,7 +31,11 @@ export function DexDragScene({ q }: { q: URLSearchParams }) {
     FIXTURES.slice(0, 9).forEach((_, i) => (m[`s0-${i}`] = CATS[i % 3].key));
     return m;
   });
-  const items = FIXTURES.slice(0, 9).map((f, i) => makeSticker(f, i, 0));
+  // 注音を付けて撮る（R16「縦の一覧の注音を字の横に」を見るため）。
+  const items = FIXTURES.slice(0, 9).map((f, i) => {
+    const s = makeSticker(f, i, 0);
+    return { ...s, word: { ...s.word, reading_zhuyin: ZHUYIN[s.word.headword] ?? null } };
+  });
   const list = q.get("list") === "1";
   return (
     <div style={{ padding: "8px 16px 120px" }}>

@@ -49,23 +49,42 @@ export function coverFlowPose(offset: number, reduced = false): CoverPose {
 }
 
 /**
- * **展示室の置き方**（オーナー指示 2026-09-27「画像が手前すぎ → 奥に舞台を
- * 設定し、奥でカードがスライド。空間の真ん中に作品、オークションで1つの
- * 作品を鑑賞するように」）。
+ * **輪になって回る置き方**（オーナー指示 2026-09-29 R15「図鑑のスライドのカードは白にして…
+ * 添付の動画を参考に…カードの下の変な台を削除して。カードをもう少し手前に持ってきてカードを
+ * 大きくして。Blenderやthree.jsなどで添付した動画を再現して」— 参考はカードゲームの
+ * パック選び。真ん中の1枚が正面・手前、左右は輪に沿って奥へ回り込み、その奥にさらに
+ * 小さく次の札が覗く）。
  *
- * 真ん中の1枚も**奥に置く**（手前に飛び出さない）。左右は傾きを浅く、
- * さらに奥へ下がって薄くなる — 展示室の壁ぞいに並んだ作品のように。
+ * 札は横に `RING_R`・奥に `RING_DEPTH`（カードの幅に対して）の楕円の輪の上に、1枚ぶん
+ * `RING_STEP` ラジアンずつ並ぶ。真ん中の札が輪の手前（z = 0）。奥行きを横より深くするのは、
+ * 左右の札をはっきり小さく奥へ下げ、真ん中の1枚を主役にするため（動画の左右のパックは
+ * 真ん中の 9 割ほどの大きさで、真ん中の後ろに少し潜る）。向きは**外側の端が手前**に来るよう
+ * 浅く内へ向ける。`x` と `z` はカードの幅を 1 とした値で返す。
  */
-export function galleryPose(offset: number, reduced = false): CoverPose & { opacity: number } {
-  const o = Math.max(-3, Math.min(3, offset));
+const RING_R = 1.0;
+const RING_DEPTH = 1.6;
+const RING_STEP = 0.78;
+/** 真ん中の札が指に 1:1 で付くための、1枚ぶんの送り（カードの幅に対して）。 */
+export const CAROUSEL_STEP = RING_R * RING_STEP;
+/** これより遠い札は描かない（輪の真後ろは真ん中の札に隠れる）。 */
+export const CAROUSEL_REACH = 3.4;
+
+export function carouselPose(
+  offset: number,
+  reduced = false,
+): { x: number; z: number; rotateY: number; zIndex: number; opacity: number } {
+  const o = Math.max(-CAROUSEL_REACH, Math.min(CAROUSEL_REACH, offset));
   const a = Math.abs(o);
-  const near = Math.min(1, a);
+  const phi = o * RING_STEP;
   return {
-    rotateY: reduced ? 0 : -Math.sign(o) * near * 32,
-    translateZ: -160 - a * 150,
-    scale: 1 - Math.min(a, 2) * 0.06,
+    x: RING_R * Math.sin(phi),
+    z: -RING_DEPTH * (1 - Math.cos(phi)),
+    // 動きを減らす設定では向きを変えない（置き場所だけ輪に沿う）。
+    rotateY: reduced ? 0 : (-phi * 0.3 * 180) / Math.PI,
+    // 手前ほど上。重なりの順がひっくり返らないように 4 枚より先は同じ値。
     zIndex: 100 - Math.round(Math.min(4, a) * 10),
-    opacity: Math.max(0, 1 - Math.max(0, a - 0.4) * 0.32),
+    // 輪の奥（2 枚より先）はゆっくり薄れて消える。
+    opacity: Math.max(0, Math.min(1, 1 - (a - 2.2) * 0.8)),
   };
 }
 

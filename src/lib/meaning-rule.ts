@@ -45,8 +45,32 @@ export function meaningRule(targetName: string, explanationLanguageName: string)
     `    （どの意味かを短く添える）`,
     `  ・${explanationLanguageName}に**対応する語が無い**とき`,
     "    （その物・その事を短く言い表す）",
+    // R17「湯咖哩の英語の…単語の意味が長すぎる」— 説明文の形で返る回があった。
+    `  **長さの上限: 日本語・中国語なら15字、英語なら4語まで。** 文にしない（読点・コンマで続けない）。`,
     NO_PADDING,
   ].join("\n");
+}
+
+/** 意味として出してよい長さ（これを超えた物は、最初の区切りまでに縮める）。 */
+const MAX_CJK = 18;
+const MAX_LATIN = 32;
+
+/**
+ * **意味を「語」の長さに縮める**（R17「湯咖哩の英語の単語の候補や単語の意味が長すぎる」）。
+ *
+ * 指示でも頼んでいるが、説明文（「Soup curry, a Japanese-style curry dish served in…」）で
+ * 返る回が実際にある。長い時だけ、最初の区切り（、，,；;。(（:）の手前までにする。
+ * 区切りが無ければ触らない — 文の途中で切ると意味が壊れる。
+ */
+export function shortMeaning(text: string | null | undefined): string {
+  const s = (text ?? "").trim();
+  if (!s) return "";
+  const latin = /^[\x00-\x7F\u00C0-\u024F\s]+$/.test(s);
+  if (s.length <= (latin ? MAX_LATIN : MAX_CJK)) return s;
+  const cut = s.search(/[、，,；;。．(（:：—–]|\.\s/);
+  if (cut <= 0) return s;
+  const head = s.slice(0, cut).trim();
+  return head.length >= (latin ? 2 : 1) ? head : s;
 }
 
 /**

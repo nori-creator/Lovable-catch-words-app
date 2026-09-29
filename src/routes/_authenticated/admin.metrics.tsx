@@ -19,7 +19,7 @@ import { BarChart3, Brain, Flag, Loader2, Users, Volume2 } from "lucide-react";
 /** KPI dashboard (roadmap §3) — admin only, one screen, numbers over charts. */
 export const Route = createFileRoute("/_authenticated/admin/metrics")({
   head: () => ({
-    meta: [{ title: "KPI — Catchwords 管理" }, { name: "robots", content: "noindex" }],
+    meta: [{ title: "KPI — CatchWords 管理" }, { name: "robots", content: "noindex" }],
   }),
   component: AdminMetricsPage,
 });

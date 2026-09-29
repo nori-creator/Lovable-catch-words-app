@@ -21,13 +21,13 @@ export const Route = createFileRoute("/privacy")({
       {
         name: "description",
         content:
-          "Catchwordsのプライバシーポリシー。取得する情報、利用目的、第三者提供、位置情報・写真の取り扱い、データ削除手続きについて説明します。",
+          "CatchWordsのプライバシーポリシー。取得する情報、利用目的、第三者提供、位置情報・写真の取り扱い、データ削除手続きについて説明します。",
       },
-      { property: "og:title", content: "プライバシーポリシー — Catchwords" },
+      { property: "og:title", content: "プライバシーポリシー — CatchWords" },
       {
         property: "og:description",
         content:
-          "Catchwordsのプライバシーポリシー。取得する情報、利用目的、第三者提供、位置情報・写真の取り扱い、データ削除手続きについて説明します。",
+          "CatchWordsのプライバシーポリシー。取得する情報、利用目的、第三者提供、位置情報・写真の取り扱い、データ削除手続きについて説明します。",
       },
       { property: "og:type", content: "article" },
       { property: "og:url", content: siteUrlFor("/privacy") },

@@ -1,4 +1,4 @@
-# Catchwords 設計ドキュメント — Historical archive
+# CatchWords 設計ドキュメント — Historical archive
 
 > ⚠️ **このフォルダは過去の設計資料です。現在の Source of Truth ではありません。**
 > 新しい実装・判断はリポジトリ直下の `PRODUCT.md`、`ROADMAP.md`、`ARCHITECTURE.md`、`QA.md` を必ず優先してください。

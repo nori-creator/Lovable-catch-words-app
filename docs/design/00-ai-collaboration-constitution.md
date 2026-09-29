@@ -1,4 +1,4 @@
-# AI協働憲法 — Catchwords開発の思考OS(docs/design/00-ai-collaboration-constitution.md)
+# AI協働憲法 — CatchWords開発の思考OS(docs/design/00-ai-collaboration-constitution.md)
 
 > 目的: 最上位モデルで行った「判断の質」を文書化し、どのAIモデル・どのセッションでも同じ水準の思考を再現する。
 > 使い方: 判断が重い相談をAIにする時、**このファイルと 06(仕様書)・07(ロードマップ)を添付**し、§4のマスタープロンプトで依頼する。

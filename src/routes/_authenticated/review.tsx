@@ -102,6 +102,7 @@ import {
   BookOpen,
 } from "lucide-react";
 import { tStatic } from "@/lib/i18n";
+import { readerText } from "@/lib/note-language";
 
 // ---- prefs -------------------------------------------------------------------
 // Review mode (speaking/choice) lives in profiles.review_mode (DB) so it
@@ -338,14 +339,33 @@ function ReviewPage() {
   useEffect(() => {
     if (!isFetching) replacing.current = false;
   }, [isFetching, cards]);
+  /**
+   * **見えている束は入れ替えない。読み直した束は次の回のために端末へ置く**（R17「復習の
+   * 画面を開くと４択が表示され、すぐ消え新しい４択が表示されるバグ」）。
+   *
+   * 前は書き留めた束が5分より古いと `refetch()` で読み直し、**いま見えている4択を別の
+   * 4択に差し替えていた**（開いた瞬間に出た問題が消えて、別の問題が出る）。束は最長20時間
+   * 前の物だが、期限の来た語を少し早く・遅く出しても学習は壊れない — 目の前の問題が
+   * 入れ替わる方が悪い。読み直した束は端末に書き、次に開いた時に出す。
+   */
+  /** 次の回に出す束（終えた後・書き留めた束を読み直した後に、裏で用意する）。 */
+  const nextBatch = useRef<DueReviewCard[] | null>(null);
   const revalidated = useRef(false);
   useEffect(() => {
-    if (revalidated.current || !cachedBatch) return;
-    if (idx !== 0 || tally.answered !== 0) return;
+    if (revalidated.current || !cachedBatch || wantedSticker) return;
     if (Date.now() - cachedBatch.at <= 5 * 60_000) return;
     revalidated.current = true;
-    void refetch();
-  }, [cachedBatch, idx, tally.answered, refetch]);
+    void fetchDue()
+      .then((next) => {
+        if (!next?.length) return;
+        nextBatch.current = next;
+        const uid = localStorage.getItem(REVIEW_CACHE_USER_KEY);
+        const packed = uid ? packBatch(next, uid, null, Date.now()) : null;
+        if (packed) localStorage.setItem(REVIEW_CACHE_KEY, JSON.stringify(packed));
+        void warmCachedImages(next.flatMap((c) => [stickerPhotoUrl(c, { prefer: "cutout" })]));
+      })
+      .catch(() => undefined);
+  }, [cachedBatch, wantedSticker, fetchDue]);
   // 進んだら憶える。**アプリを閉じても消えない**(`localStorage`、束と同じ4時間)。
   useEffect(() => {
     if (!batch || restoredFor.current !== batch) return;
@@ -433,7 +453,6 @@ function ReviewPage() {
    * 「もう一度」を押したときは読み直さずにこれを出す — 待ち時間 0。
    * アプリを閉じて次に開いたときも、この束から始まる。
    */
-  const nextBatch = useRef<DueReviewCard[] | null>(null);
   useEffect(() => {
     if (!done || wantedSticker) return;
     let off = false;
@@ -1957,6 +1976,7 @@ function FeedbackView({
  */
 export function AnswerExplain({ card }: { card: DueReviewCard }) {
   const t = useT();
+  const uiLang = useUiLang();
   const ex = card.explain;
   const chunks = ex?.chunks ?? [];
   const related = ex?.related ?? [];
@@ -1999,7 +2019,7 @@ export function AnswerExplain({ card }: { card: DueReviewCard }) {
             <Term lang={card.language} className="mt-1 block text-body font-medium">
               {card.example_sentence}
             </Term>
-            {card.example_translation && (
+            {readerText(card.example_translation, uiLang, card.example_sentence) && (
               <span className="mt-0.5 block text-footnote text-muted-foreground">
                 {card.example_translation}
               </span>

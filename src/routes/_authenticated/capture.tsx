@@ -21,7 +21,6 @@ import {
   Camera,
   Volume2,
   Loader2,
-  Image as ImageIcon,
   RotateCcw,
   Sparkles,
   Check,
@@ -1458,7 +1457,6 @@ function CapturePage() {
           initialMode={modeParam ?? "photo"}
           onOpenScan={() => navigate({ to: "/scan" })}
           lastPhotoUrl={lastPhotoUrl}
-          onOpenLibrary={() => void navigate({ to: "/home" })}
           error={error}
         />
       )}
@@ -2129,7 +2127,6 @@ export function CaptureObjectPanel({
   /** シャッターの左に出す、いちばん新しく捕まえた1枚。 */
   lastPhotoUrl = null,
   /** その釦を押したとき（過去の写真を見に行く）。 */
-  onOpenLibrary,
   error,
 }: {
   /** 復習の「もう一度撮ってみる?」から来たときの語。 */
@@ -2152,7 +2149,6 @@ export function CaptureObjectPanel({
    * 撮った写真を表示する」）。まだ1枚も無ければ `null` で記号が出る。
    */
   lastPhotoUrl?: string | null;
-  onOpenLibrary: () => void;
   error: string | null;
 }) {
   const t = useT();
@@ -2383,7 +2379,7 @@ export function CaptureObjectPanel({
         2026-09-16「右上の台湾華語のような言語設定はいらない」）。
       */}
       <p className="capture-brand" aria-hidden="true">
-        Catchwords
+        CatchWords
       </p>
 
       {/* 復習の「もう一度撮ってみる?」から来たとき、何を撮りに来たかを
@@ -2488,22 +2484,8 @@ export function CaptureObjectPanel({
                 className="search-field h-11 rounded-xl pl-9 text-foreground"
               />
             </div>
-            {/*
-              **カメラロールの画像で調べる**（オーナー指示 2026-09-27「検索モードの
-              マイクを消して、カメラロールから画像で検索するボタンを追加して」）。
-              選んだ写真は撮った写真と同じ道（AI が写っている物の語を出す）を通る。
-            */}
-            <Button
-              type="button"
-              size="icon"
-              variant="secondary"
-              onClick={() => libraryInputRef.current?.click()}
-              aria-label={t("capture.searchByImage")}
-              title={t("capture.searchByImage")}
-              disabled={searching}
-            >
-              <ImageIcon />
-            </Button>
+            {/* 端末の写真で調べる口は、左下の「写真」に1つにまとめた（R17「検索の横のカメラロール
+                から追加するボタンを消して、…すべてのモードで左下からスマホにある画像を分析」）。 */}
             <Button type="submit" disabled={searching || !typedWord.trim()} size="icon">
               {searching ? <Loader2 className="animate-spin" /> : <Search />}
             </Button>
@@ -2542,7 +2524,14 @@ export function CaptureObjectPanel({
 
         {/* 写真 ／ シャッター ／ 切替。左右は同じ形・同じ大きさにする。 */}
         <div className="capture-actions">
-          <CameraLibraryButton photoUrl={lastPhotoUrl} onOpen={onOpenLibrary} />
+          {/* **左下は端末の写真を選んで分析する口**（R17「検索、スキャン、カメラのすべてのモードで
+              左下からスマホにある画像を分析できるようにして。今ある過去に撮った画像のアイコンを
+              その機能に変更して」）。選んだ写真は撮った写真と同じ道（写っている物の語を出す）を通る。
+              スキャンの画面も同じ位置で同じ動き（`scan.tsx`）。 */}
+          <CameraLibraryButton
+            photoUrl={lastPhotoUrl}
+            onOpen={() => libraryInputRef.current?.click()}
+          />
           <CameraShutter
             mode={mode}
             label={t("capture.tapToShoot")}

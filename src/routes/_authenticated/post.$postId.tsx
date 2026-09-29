@@ -31,13 +31,13 @@ export const Route = createFileRoute("/_authenticated/post/$postId")({
         {
           name: "description",
           content:
-            "Catchwordsの投稿。ステッカー、コメント、いいねを通じて街で出会った言葉を共有しています。",
+            "CatchWordsの投稿。ステッカー、コメント、いいねを通じて街で出会った言葉を共有しています。",
         },
-        { property: "og:title", content: `投稿 — Catchwords` },
+        { property: "og:title", content: `投稿 — CatchWords` },
         {
           property: "og:description",
           content:
-            "Catchwordsの投稿。ステッカー、コメント、いいねを通じて街で出会った言葉を共有しています。",
+            "CatchWordsの投稿。ステッカー、コメント、いいねを通じて街で出会った言葉を共有しています。",
         },
         { property: "og:type", content: "article" },
         {
@@ -53,7 +53,7 @@ export const Route = createFileRoute("/_authenticated/post/$postId")({
           children: JSON.stringify({
             "@context": "https://schema.org",
             "@type": "Article",
-            headline: `Catchwords post ${id.slice(0, 8)}`,
+            headline: `CatchWords post ${id.slice(0, 8)}`,
             url: siteUrlFor(`/post/${id}`),
           }),
         },

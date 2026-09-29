@@ -97,3 +97,94 @@ export function scrubForeignNotes<T extends NoteBearingExtras>(
   }
   return out;
 }
+
+/**
+ * **訳・注記が、読む人の言語で書かれていないように見えるか**（オーナー報告 2026-09-29
+ * 「例文の訳に中文が混ざってる。例文の訳は母語（表示言語）にして」— 小腿の例文の訳に、
+ * 例文そのもの（中文）がそのまま入っていた）。
+ *
+ * `looksLikeTargetNote` は日本語で読む人の短い注記だけを見ていた。こちらは表示言語ごとに:
+ *  - 元の文（例文）と同じ文字列 → 訳していない写し。どの言語でも落とす
+ *  - 日本語: かなが無く漢字だけのまとまった文（中文）／かなも漢字も無い欧文の文
+ *  - 英語: 漢字・かな・ハングルが混じっている（欧文より多い）
+ *  - 台湾華語: かなが入っている（日本語）／漢字が無い欧文の文
+ * 分からないものは落とさない（正しい訳を消さない方を選ぶ）。
+ */
+export function looksWrongForReader(
+  text: string | null | undefined,
+  readerLang: string | null | undefined,
+  source?: string | null,
+  /**
+   * 漢字だけの文を「中文」とみなさない（意味のような短い語句用。「台湾高速鉄道」のような
+   * 漢字だけの正しい和文を落とさないため）。
+   */
+  opts: { hanOnlyOk?: boolean } = {},
+): boolean {
+  const s = core(text ?? "");
+  if (!s) return false;
+  const norm = (x: string) => core(x).replace(/[。．.,，、!！?？「」『』"'“”‘’]/g, "");
+  if (source && norm(source) && norm(source) === norm(s)) return true;
+  const lang = (readerLang ?? "").toLowerCase();
+  const latinWords = (text ?? "").match(/[A-Za-z]{2,}/g)?.length ?? 0;
+  const cjk = (s.match(/[㐀-䶿一-鿿々ぁ-ゟァ-ヺ가-힯]/g) ?? []).length;
+  const latin = (s.match(/[A-Za-z]/g) ?? []).length;
+  // 欧文だけの訳・意味（「Soup curry」のように2語でも）は、日本語・台湾華語で読む人には
+  // 違う言語（R17「日本語にしてるのに、図鑑のスライドの意味や例文の訳に英語が表示される」）。
+  // 5文字未満（「OK」「USB」）は略語として残す。漢字・かなが在っても、欧文が大半なら違う。
+  const mostlyLatin = latin >= 5 && latin > cjk * 3 && latinWords >= 2;
+  if (lang === "ja") {
+    if (!opts.hanOnlyOk && looksLikeTargetNote(s, "ja")) return true;
+    if (!HAN.test(s) && !KANA.test(s) && latin >= 5) return true;
+    return mostlyLatin;
+  }
+  if (lang.startsWith("zh")) {
+    if (KANA.test(s)) return true;
+    if (!HAN.test(s) && latin >= 5) return true;
+    return mostlyLatin;
+  }
+  if (lang === "en") return cjk >= 2 && cjk > latin;
+  return false;
+}
+
+/** 読む人の言語でない訳は空にする。**書き換えず、落とすだけ。** */
+export function readerText(
+  text: string | null | undefined,
+  readerLang: string | null | undefined,
+  source?: string | null,
+): string {
+  return looksWrongForReader(text, readerLang, source) ? "" : (text ?? "");
+}
+
+/**
+ * カードの中の「訳」をまとめて、読む人の言語でない物だけ落とす（例文の追加分・使い方
+ * チャンクの訳）。`scrubForeignNotes` は日本語で読む人の短い注記だけだったので、英語・
+ * 台湾華語で読む人と、例文の写しにも効くようにしたもの。
+ */
+export function scrubForReader<
+  T extends {
+    examples_extra?: Array<{ zh?: string; ja?: string }> | null;
+    usage_chunks?: Array<{ ja?: string }> | null;
+  },
+>(extras: T, readerLang: string): T {
+  if (!extras || typeof extras !== "object") return extras;
+  const out = { ...extras };
+  if (Array.isArray(out.examples_extra)) {
+    out.examples_extra = out.examples_extra.map((e) =>
+      e && looksWrongForReader(e.ja, readerLang, e.zh) ? { ...e, ja: "" } : e,
+    );
+  }
+  if (Array.isArray(out.usage_chunks)) {
+    out.usage_chunks = out.usage_chunks.map((c) =>
+      c && looksWrongForReader(c.ja, readerLang) ? { ...c, ja: "" } : c,
+    );
+  }
+  return out;
+}
+
+/** 意味（短い語句）用。漢字だけの和文は落とさない。 */
+export function readerMeaning(
+  text: string | null | undefined,
+  readerLang: string | null | undefined,
+): string {
+  return looksWrongForReader(text, readerLang, null, { hanOnlyOk: true }) ? "" : (text ?? "");
+}

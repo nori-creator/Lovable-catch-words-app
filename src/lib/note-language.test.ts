@@ -112,3 +112,30 @@ describe("scrubForeignNotes", () => {
     expect(() => scrubForeignNotes({ usage_chunks: undefined }, "ja")).not.toThrow();
   });
 });
+
+import { looksWrongForReader } from "./note-language";
+
+describe("looksWrongForReader（訳が読む人の言語か。2026-09-29 小腿の例文の訳が中文）", () => {
+  const zh = "這名馬拉松選手因為小腿抽筋，不得不停下來休息。";
+  it("例文そのままの写しは、どの言語でも落とす", () => {
+    expect(looksWrongForReader("這名馬拉松選手因為小腿抽筋，不得不停下來休息。", "ja", zh)).toBe(
+      true,
+    );
+    expect(looksWrongForReader(zh, "zh-TW", zh)).toBe(true);
+  });
+  it("日本語で読む人に中文・英文は出さない。和文は出す", () => {
+    expect(looksWrongForReader("這名選手因為小腿抽筋", "ja")).toBe(true);
+    expect(looksWrongForReader("The runner had a cramp in his calf", "ja")).toBe(true);
+    expect(looksWrongForReader("その選手はふくらはぎがつって休んだ。", "ja")).toBe(false);
+    expect(looksWrongForReader("書類用", "ja")).toBe(false);
+  });
+  it("英語で読む人に漢字・かなの文は出さない", () => {
+    expect(looksWrongForReader("その選手はふくらはぎがつった", "en")).toBe(true);
+    expect(looksWrongForReader("The runner had a cramp in his calf.", "en")).toBe(false);
+  });
+  it("台湾華語で読む人に日本語・英文は出さない。中文は出す", () => {
+    expect(looksWrongForReader("ふくらはぎがつった", "zh-TW")).toBe(true);
+    expect(looksWrongForReader("I bought a new umbrella today", "zh-TW")).toBe(true);
+    expect(looksWrongForReader("我今天買了一把新雨傘。", "zh-TW")).toBe(false);
+  });
+});

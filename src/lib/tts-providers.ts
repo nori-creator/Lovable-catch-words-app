@@ -24,9 +24,9 @@
  */
 
 import { TTS_VOICE_DEFAULT } from "./tts-cache";
-import { TARGET_LANGUAGES } from "./target-lang";
+import { DEFAULT_TARGET_LANGUAGE, TARGET_LANGUAGES } from "./target-lang";
 
-export type TtsProviderId = "azure" | "elevenlabs" | "minimax" | "voai" | "aten";
+export type TtsProviderId = "azure" | "gemini" | "elevenlabs" | "minimax" | "voai" | "aten";
 
 export type TtsProviderInfo = {
   id: TtsProviderId;
@@ -58,6 +58,18 @@ export const TTS_PROVIDERS: TtsProviderInfo[] = [
       en: ["en-US-AvaMultilingualNeural", "en-US-AndrewMultilingualNeural", "en-US-JennyNeural"],
     },
     note: "台湾華語（zh-TW）専用の声がある。",
+  },
+  {
+    id: "gemini",
+    label: "Gemini TTS（3.8）",
+    // 鍵の名前は別名も見る（`tts-provider.server.ts` の `providerKeysPresent`）。
+    keyEnvs: ["GEMINI_API_KEY"],
+    implemented: true,
+    // 先頭が既定。Flash-Lite は速く安い日常の読み上げ向け、Flash は表現力・方言・長文向け
+    // （公式の各モデルのページ）。
+    models: ["gemini-3.8-flash-lite-tts", "gemini-3.8-flash-tts"],
+    voices: {},
+    note: "台湾の声は「診断」で出る zh-TW の声の一覧から選ぶ（声の名前は言語を決めない。台湾なまりは声で決まる）。",
   },
   {
     id: "elevenlabs",
@@ -109,10 +121,41 @@ export type TtsChoice = {
   model?: string;
 };
 
-/** `app_config.key='tts_voice'` の中身。学習言語ごと。 */
+export type TaiwanGender = "female" | "male";
+
+/**
+ * **アプリ全体で使う1つの台湾の声**（オーナー指示 2026-09-29「音声は必ず台湾人で、男性か女性かは
+ * 選べるようにし、アプリ全体で1つの同一の音声を使う」）。
+ *
+ * 決めるのは会社・性別だけ。声そのものは会社ごとに:
+ *  - Azure … 台湾の声の決まった表（`TAIWAN_AZURE_VOICES`。zh-TW の声だけ）
+ *  - Gemini … 診断で出た zh-TW の声から、性別ごとに開発者が選んだ物（`voices`）
+ * これが決まっている間、**学習言語 zh-TW の読み上げはすべてこの声**。ほかの声（前の
+ * 「これまでの声」や端末の声）へは切り替えない（`isVoiceLocked`）。
+ */
+export type TaiwanVoice = {
+  provider: "azure" | "gemini";
+  gender: TaiwanGender;
+  model?: string;
+  /** Gemini の声（性別ごと）。Azure は使わない。 */
+  voices?: Partial<Record<TaiwanGender, string>>;
+};
+
+/** `app_config.key='tts_voice'` の中身。 */
 export type TtsVoiceConfig = {
+  /** 台湾の声（あれば zh-TW はこれが優先）。 */
+  taiwan?: TaiwanVoice;
   languages?: Partial<Record<string, TtsChoice>>;
 };
+
+/** Azure の台湾（zh-TW）の声。Microsoft の声の一覧にある zh-TW の声だけ。 */
+export const TAIWAN_AZURE_VOICES: Record<TaiwanGender, string[]> = {
+  female: ["zh-TW-HsiaoChenNeural", "zh-TW-HsiaoYuNeural"],
+  male: ["zh-TW-YunJheNeural"],
+};
+
+/** 台湾の声を適用する学習言語。 */
+export const TAIWAN_LANGUAGE: string = DEFAULT_TARGET_LANGUAGE;
 
 /** 声を選べる学習言語（学習言語の表をそのまま使う）。 */
 export const TTS_LANGUAGES = TARGET_LANGUAGES;
@@ -126,8 +169,9 @@ const SAFE = /^[A-Za-z0-9_.:()\- ]{1,100}$/;
  */
 export function cleanTtsConfig(raw: unknown): TtsVoiceConfig {
   const out: Partial<Record<string, TtsChoice>> = {};
+  const taiwan = cleanTaiwan((raw as TtsVoiceConfig | null)?.taiwan);
   const langs = (raw as TtsVoiceConfig | null)?.languages;
-  if (!langs || typeof langs !== "object") return {};
+  if (!langs || typeof langs !== "object") return taiwan ? { taiwan } : {};
   for (const lang of TTS_LANGUAGES) {
     const c = (langs as Record<string, unknown>)[lang] as Partial<TtsChoice> | undefined;
     if (!c || typeof c !== "object") continue;
@@ -139,7 +183,51 @@ export function cleanTtsConfig(raw: unknown): TtsVoiceConfig {
     if (model && !SAFE.test(model)) continue;
     out[lang] = { provider: info.id, voice, ...(model ? { model } : {}) };
   }
-  return Object.keys(out).length ? { languages: out } : {};
+  return {
+    ...(taiwan ? { taiwan } : {}),
+    ...(Object.keys(out).length ? { languages: out } : {}),
+  };
+}
+
+/** 台湾の声の掃除。知らない会社・性別・変な字は捨てる（台湾の声を取り消した扱い）。 */
+export function cleanTaiwan(raw: unknown): TaiwanVoice | undefined {
+  const c = raw as Partial<TaiwanVoice> | null | undefined;
+  if (!c || typeof c !== "object") return undefined;
+  if (c.provider !== "azure" && c.provider !== "gemini") return undefined;
+  if (c.gender !== "female" && c.gender !== "male") return undefined;
+  const model = typeof c.model === "string" ? c.model.trim() : "";
+  if (model && !SAFE.test(model)) return undefined;
+  const voices: Partial<Record<TaiwanGender, string>> = {};
+  for (const g of ["female", "male"] as const) {
+    const v = typeof c.voices?.[g] === "string" ? c.voices[g]!.trim() : "";
+    if (v && SAFE.test(v)) voices[g] = v;
+  }
+  return {
+    provider: c.provider,
+    gender: c.gender,
+    ...(model ? { model } : {}),
+    ...(Object.keys(voices).length ? { voices } : {}),
+  };
+}
+
+/**
+ * 台湾の声から、実際に頼む声を決める。決められなければ null（= 台湾の声は無効）。
+ * Azure は台湾の表の声だけ（表に無い声を手で入れても使わない）。Gemini は開発者が
+ * 選んだ声が要る（性別の声が未選択なら無効 — 別の性別・別の声で鳴らさない）。
+ */
+export function taiwanChoice(t: TaiwanVoice | null | undefined): TtsChoice | null {
+  if (!t) return null;
+  if (t.provider === "azure") {
+    const list = TAIWAN_AZURE_VOICES[t.gender];
+    const want = t.voices?.[t.gender];
+    const voice = want && list.includes(want) ? want : list[0];
+    return { provider: "azure", voice };
+  }
+  const voice = t.voices?.[t.gender];
+  if (!voice) return null;
+  const info = providerInfo("gemini");
+  const model = t.model && info?.models.includes(t.model) ? t.model : info?.models[0];
+  return { provider: "gemini", voice, ...(model ? { model } : {}) };
 }
 
 /**
@@ -162,8 +250,21 @@ export function choiceFor(
   config: TtsVoiceConfig | null | undefined,
   language: string,
 ): TtsChoice | null {
+  // 台湾の声が決まっていれば、zh-TW はいつもこれ（アプリ全体で1つの声）。
+  if (language === TAIWAN_LANGUAGE) {
+    const t = taiwanChoice(config?.taiwan);
+    if (t) return t;
+  }
   const c = config?.languages?.[language];
   return c && providerInfo(c.provider)?.implemented ? c : null;
+}
+
+/**
+ * 台湾の声が有効か（= zh-TW の読み上げは他の声へ切り替えない）。
+ * 有効な間、失敗してもこれまでの声・端末の声へは落とさない。
+ */
+export function isVoiceLocked(config: TtsVoiceConfig | null | undefined, language: string) {
+  return language === TAIWAN_LANGUAGE && taiwanChoice(config?.taiwan) !== null;
 }
 
 // ---- 各社への頼み方（純粋な部分） ------------------------------------------
@@ -230,3 +331,99 @@ export function hexToBytes(hex: string): Uint8Array {
   for (let i = 0; i < out.length; i++) out[i] = parseInt(clean.slice(i * 2, i * 2 + 2), 16);
   return out;
 }
+
+// ---- Gemini（3.8 TTS） ---------------------------------------------------------
+
+/**
+ * Gemini TTS の頼み方（`generateContent`）。声は `voiceName` に入れる（内蔵の声・拡張ライブラリ
+ * の声のどちらも名前で指す）。言語は入力の文から自動で判るので指定しない。
+ * 台湾なまりは**声で決める**（公式: なまりの恒久的な変更を style の指示に入れず、地域の
+ * 声を選ぶこと）ので、文章には何も足さない。
+ */
+export function geminiBody(text: string, voice: string) {
+  return {
+    contents: [{ parts: [{ text }] }],
+    generationConfig: {
+      responseModalities: ["AUDIO"],
+      speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: voice } } },
+    },
+  };
+}
+
+/** 16bit モノラルの生の音（PCM）に WAV の頭（RIFF）を付ける。 */
+export function pcmToWav(pcm: Uint8Array, sampleRate = 24000): Uint8Array {
+  const header = new ArrayBuffer(44);
+  const v = new DataView(header);
+  const str = (o: number, s: string) => {
+    for (let i = 0; i < s.length; i++) v.setUint8(o + i, s.charCodeAt(i));
+  };
+  str(0, "RIFF");
+  v.setUint32(4, 36 + pcm.length, true);
+  str(8, "WAVE");
+  str(12, "fmt ");
+  v.setUint32(16, 16, true);
+  v.setUint16(20, 1, true); // PCM
+  v.setUint16(22, 1, true); // mono
+  v.setUint32(24, sampleRate, true);
+  v.setUint32(28, sampleRate * 2, true);
+  v.setUint16(32, 2, true);
+  v.setUint16(34, 16, true);
+  str(36, "data");
+  v.setUint32(40, pcm.length, true);
+  const out = new Uint8Array(44 + pcm.length);
+  out.set(new Uint8Array(header), 0);
+  out.set(pcm, 44);
+  return out;
+}
+
+export function base64ToBytes(b64: string): Uint8Array {
+  const bin = atob(b64);
+  const out = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+  return out;
+}
+
+/**
+ * Gemini の返事から音を取り出す。**3.8 は WAV（RIFF 付き）、以前の TTS モデルは頭の無い PCM
+ * （`audio/L16;rate=24000`）**を返すので、どちらでも鳴る WAV にそろえる。
+ * 音が無い（安全上の拒否・文だけ返った等）ときは投げる。
+ */
+export function geminiAudioFrom(json: unknown): { bytes: Uint8Array; mime: string } {
+  const parts = (
+    json as {
+      candidates?: Array<{
+        content?: { parts?: Array<{ inlineData?: { data?: string; mimeType?: string } }> };
+      }>;
+    }
+  )?.candidates?.[0]?.content?.parts;
+  const inline = parts?.find((p) => p.inlineData?.data)?.inlineData;
+  if (!inline?.data) throw new Error("TTS gemini empty audio");
+  const bytes = base64ToBytes(inline.data);
+  const mime = (inline.mimeType ?? "").toLowerCase();
+  const riff = bytes.length > 4 && String.fromCharCode(...bytes.slice(0, 4)) === "RIFF";
+  if (riff || mime.includes("wav")) return { bytes, mime: "audio/wav" };
+  if (mime.includes("mpeg") || mime.includes("mp3")) return { bytes, mime: "audio/mpeg" };
+  const rate = Number(/rate=(\d+)/.exec(mime)?.[1] ?? 24000);
+  return {
+    bytes: pcmToWav(bytes, Number.isFinite(rate) && rate > 0 ? rate : 24000),
+    mime: "audio/wav",
+  };
+}
+
+export type GeminiVoiceInfo = {
+  id: string;
+  name: string;
+  gender: string;
+  accent: string;
+  languages: string[];
+};
+
+export type GeminiDiagnosis = {
+  keyPresent: boolean;
+  /** 見つけた鍵の**名前**（値ではない）。 */
+  keyEnv: string | null;
+  models: Array<{ id: string; ok: boolean; status: number }>;
+  voices: Record<"female" | "male", GeminiVoiceInfo[]>;
+  /** 声の一覧が取れなかった理由（HTTP 状態と短い説明）。 */
+  voicesError: string | null;
+};

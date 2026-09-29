@@ -1341,7 +1341,7 @@ describe("読む人の言語で書かれていない解説を出さない", () =
     // 言語が混ざってる」。届いた絵では例文の訳は繁体字なのに
     // 追加例文の訳だけ日本語だった。
     const sheet = codeOnly(read("components/StickerSheet.tsx"));
-    expect(sheet).toMatch(/resolveDisplayWord\([\s\S]{0,220}?\n\s*uiLang,\n\s*\);/);
+    expect(sheet).toMatch(/resolveDisplayWord\([\s\S]{0,300}?\n\s*uiLang,\n\s*\);/);
   });
 
   it("目印の言語が違えば解説を落とす", () => {
@@ -2308,7 +2308,7 @@ describe("独自ドメインへ移れる形になっているか", () => {
 
   it("**未設定のときは今の住所を返す**（設定するまで出力は1文字も変わらない）", () => {
     expect(codeOnly(read("lib/site-url.ts"))).toContain(
-      'FALLBACK_SITE_URL = "https://word-snap-journey.lovable.app"',
+      'FALLBACK_SITE_URL = "https://catchwords.lovable.app"',
     );
   });
 });
@@ -2926,6 +2926,13 @@ describe("キャッチの報酬演出", () => {
     expect(serverBranch.slice(0, 120)).toMatch(/resolve\(DEFAULT_THEME\)/);
   });
 
+  it("既定はライト。ダークは本人が設定で選んだ時だけ（R20）", () => {
+    const tp = codeOnly(read("components/theme-provider.tsx"));
+    expect(tp).toMatch(/export const DEFAULT_THEME: Theme = "light";/);
+    // 控えに書くのは設定の釦を押した時（`setTheme`）だけ。
+    expect(tp.match(/localStorage\.setItem\(THEME_STORAGE_KEY/g)?.length).toBe(1);
+  });
+
   /**
    * 動きの曲線と、その出所。
    *
@@ -3241,10 +3248,14 @@ describe("復習の束は、アプリを閉じても残る", () => {
     expect(view()).not.toMatch(/\) : isFetching \? \(/);
   });
 
-  it("解いている最中には束を入れ替えない（1枚目へ戻されるのはラグより悪い）", () => {
+  it("見えている束を入れ替えない（1枚目へ戻される・4択が差し替わるのはラグより悪い）", () => {
     const s = view();
-    const guard = s.slice(s.indexOf("const revalidated"), s.indexOf("const revalidated") + 420);
-    expect(guard).toMatch(/idx !== 0 \|\| tally\.answered !== 0/);
+    const guard = s.slice(s.indexOf("const revalidated"), s.indexOf("const revalidated") + 900);
+    // R17: 見えている束は読み直しで一度も入れ替えない（開いた瞬間の4択が別の4択に変わった）。
+    // 読み直した束は次の回のために端末へ置くだけ。
+    expect(guard).not.toMatch(/refetch\(\)/);
+    expect(guard).toMatch(/nextBatch\.current = next/);
+    expect(guard).toMatch(/localStorage\.setItem\(REVIEW_CACHE_KEY/);
   });
 });
 
@@ -3943,7 +3954,7 @@ describe("N. 下のタブ帯と、札を開く動き", () => {
     expect(at).toBeGreaterThanOrEqual(0);
     const row = src.slice(at, at + 1200);
     expect(row).toMatch(/<ChunkLine/);
-    expect(row).toMatch(/translation=\{chunkTranslation\(chunk\.ja\)\}/);
+    expect(row).toMatch(/translation=\{chunkTranslation\(readerMeaning\(chunk\.ja, uiLang\)\)\}/);
     const rv = codeOnly(read("routes/_authenticated/review.tsx"));
     expect(rv).toMatch(/<ChunkLine/);
     const pills = codeOnly(read("components/ChunkPills.tsx"));
@@ -3963,7 +3974,7 @@ describe("N. 下のタブ帯と、札を開く動き", () => {
     expect(pills).toMatch(/className="chunk-plus"/);
     expect(pills).toMatch(/chunk-slot/);
     // 学ぶ語は入れ替えさせない（R14）。
-    expect(pills).toMatch(/!target && \(c\.alts\?\.length \?\? 0\) > 0/);
+    expect(pills).toMatch(/const slotLike = isSwappableSlot\(c\) && !target;/);
     const css = read("styles.css");
     const boxes = css.slice(css.indexOf(".chunk-set--boxes {"));
     const block = boxes.slice(0, boxes.indexOf("}"));
@@ -4171,16 +4182,22 @@ describe("N. 下のタブ帯と、札を開く動き", () => {
    * 絵柄は決め打ちの記号ではなく、**いちばん新しく捕まえた1枚**。押すと
    * ホーム（アルバム）へ。端末の写真フォルダは開かない。
    */
-  it("「写真」はアプリの中の写真を出す（端末の写真は開かない）", () => {
+  it("左下の「写真」は端末の写真を選んで分析する（R17、どのモードでも同じ）", () => {
     const cap = codeOnly(read("routes/_authenticated/capture.tsx"));
-    // アプリの札から、写真を持っているいちばん新しい1枚を選ぶ。
+    // 絵柄はいちばん新しく捕まえた1枚のまま。
     expect(cap).toMatch(/queryKey: \["stickers"\]/);
     expect(cap).toMatch(/const url = stickerPhotoUrl\(s, \{ thumb: true \}\);/);
-    expect(cap).toMatch(/onOpenLibrary=\{\(\) => void navigate\(\{ to: "\/home" \}\)\}/);
-    // 端末の写真を選ばせる道を、この釦に付けない。
+    // 押すと端末の写真を選ぶ口が開き、撮った写真と同じ道で分析する。
     const at = cap.indexOf("<CameraLibraryButton");
     expect(at).toBeGreaterThanOrEqual(0);
-    expect(cap.slice(at, at + 300)).not.toMatch(/input|accept=|capture=/);
+    expect(cap.slice(at, at + 200)).toMatch(
+      /onOpen=\{\(\) => libraryInputRef\.current\?\.click\(\)\}/,
+    );
+    expect(cap).toMatch(/if \(file\) onObjectFile\(file\);/);
+    expect(cap).not.toMatch(/onOpenLibrary/);
+    // スキャンの画面も同じ位置で端末の写真を選ぶ。
+    const scan = codeOnly(read("routes/_authenticated/scan.tsx"));
+    expect(scan).toMatch(/onOpen=\{\(\) => photoPickRef\.current\?\.click\(\)\}/);
   });
 
   /**
@@ -4374,8 +4391,8 @@ describe("N. 下のタブ帯と、札を開く動き", () => {
     // 2026-09-27「検索モードのマイクを消して、カメラロールから画像で検索するボタンを追加して」。
     const cap = codeOnly(read("routes/_authenticated/capture.tsx"));
     expect(cap).not.toMatch(/useVoiceInput\(\{/);
-    expect(cap).toMatch(/onClick=\{\(\) => libraryInputRef\.current\?\.click\(\)\}/);
-    expect(cap).toMatch(/aria-label=\{t\("capture\.searchByImage"\)\}/);
+    // R17: 検索の横の写真の釦は消し、左下の「写真」1つにまとめた。
+    expect(cap).not.toMatch(/aria-label=\{t\("capture\.searchByImage"\)\}/);
   });
 
   /**
@@ -4988,13 +5005,14 @@ describe("ホームは今日の誌面", () => {
     );
     // 2026-09-24「過去のものが多すぎで画面で確認できないから、過去のものは全て
     // 削除して」: 帯には**今回の依頼の面だけ**。
-    // 2026-09-29 の回（R14）の最後の依頼: 図鑑のスライドを白に・カードの色の案。
-    expect(list.slice(0, list.indexOf("},"))).toMatch(/scene: "dex-cards/);
-    expect(list).toMatch(/\{ scene: "chunk-designs"/);
-    expect(list).toMatch(/\{ scene: "dex-drag"/);
-    expect(list).toMatch(/\{ scene: "scan-found"/);
+    // 2026-09-29 の回（R20）: 開いた瞬間の本棚・台湾の声の聞き比べ・チャンクの差し替え。
+    expect(list.slice(0, list.indexOf("},"))).toMatch(/scene: "home-shelf"/);
+    expect(list).toMatch(/scene: "tts-voices"/);
+    expect(list).toMatch(/scene: "chunk-designs"/);
+    expect(list).not.toMatch(/scene: "capture-object&mode=search"/);
     // 前の回の面は残さない。
     expect(list).not.toMatch(/\{ scene: "motion-compare"/);
+    expect(list).not.toMatch(/scene: "dex-drag&list=1"/);
     expect(list).not.toMatch(/\{ scene: "album-shelf"/);
     expect(list).not.toMatch(/\{ scene: "scan-pick-designs"/);
     expect(list).not.toMatch(/glass=1/);
@@ -5005,7 +5023,7 @@ describe("ホームは今日の誌面", () => {
     // （2026-09-29「netlify の画面が見れない」— 名前ごと探して unknown scene になっていた）。
     expect(main).toMatch(/new URLSearchParams\(`scene=\$\{REVIEW_SCENES\[0\]\.scene\}`\)/);
     expect(main).not.toMatch(/const wanted = explicitScene \?\? REVIEW_SCENES\[0\]\.scene;/);
-    expect(list).not.toMatch(/scene: "tts-voices"/);
+    expect(list).not.toMatch(/scene: "sticker-sheet&variant=pro"/);
     // 何も付けずに開いた人には帯を出す（無いと先頭の1画面しか見られない）。
     expect(main).toMatch(/const showReviewBar = q\.get\("review"\) === "1" \|\| !explicitScene;/);
   });
@@ -5611,7 +5629,7 @@ describe("単語の詳細は既定で8項目（オーナー指示 2026-09-23）"
       expect([id, new RegExp(`\\$\\{\\s*want\\("${id}"\\)\\s*\\?`).test(ai)]).toEqual([id, true]);
     }
     expect(ai).toMatch(
-      /stripUnrequested\(scrubForeignNotes\(card\.extras \?\? \{\}, explainLang\), data\.sections\)/,
+      /stripUnrequested\(\s*scrubForReader\(scrubForeignNotes\(card\.extras \?\? \{\}, explainLang\), explainLang\),\s*data\.sections,?\s*\)/,
     );
   });
 });
@@ -5624,6 +5642,25 @@ describe("図鑑のカード表示と、詳細の写真の横送り（オーナ�
   it("図鑑の表示に「カード」があり、絞り込んだ後の札を受け取る", () => {
     expect(dex).toMatch(/\["cards", GalleryHorizontal, t\("dex\.cards"\)\]/);
     expect(dex).toMatch(/<DexCoverFlow[\s\S]*?stickers=\{filtered\}[\s\S]*?onOpen=\{setOpenId\}/);
+  });
+
+  it("R15: 白いカードが淡い青の空間で輪になって回る。台は置かない・手前で大きく・床に映る", () => {
+    const css = read("styles.css");
+    // 本番の既定（gallery）は輪の置き方。1:1 で指に付く送りの幅も輪に合わせる。
+    expect(cf).toMatch(/theme = "gallery"/);
+    expect(cf).toMatch(/const p = carouselPose\(rel, reduced\);/);
+    expect(cf).toMatch(/themeRef\.current === "gallery" \? CAROUSEL_STEP : COVER_STEP/);
+    // 「カードの下の変な台を削除」: 台座・床板・壁の光・作品札を描かない。
+    expect(cf).not.toMatch(/dex-cf__plinth|dex-cf__gallery-floor|dex-cf__wall-light|dex-cf__lot/);
+    expect(css).not.toMatch(/\.dex-cf__plinth|\.dex-cf__gallery-floor|\.dex-cf__wall-light/);
+    // 「カードは白に」「背景を少し淡い青に」。
+    expect(css).toMatch(
+      /\.dex-cf\[data-theme="gallery"\] \.dex-cf__card \{[^}]*background: #ffffff;/,
+    );
+    expect(css).toMatch(/html\[data-dex-stage="gallery"\] \{\s*background: #e9f0fa;/);
+    // 映り込みは札と同じ層の中（傾きのたびに描き直す box-reflect は使わない）。
+    expect(cf).toMatch(/className="dex-cf__mirror" aria-hidden="true" inert/);
+    expect(css).not.toMatch(/\.dex-cf[^{}]*\{[^}]*-webkit-box-reflect:/);
   });
 
   it("傾きは送った位置から毎フレーム決める（指に吸い付く）。真ん中を押すと詳細、脇は真ん中へ", () => {
@@ -5997,8 +6034,8 @@ describe("撮った後の候補: 1段目は全部同じ大きさ", () => {
 });
 
 describe("本棚の本を開くと、1日＝1見開き（左＝その日のアルバム、右＝日記）（2026-09-28）", () => {
-  const engine = read("../scripts/ui-harness/scenes/shelf3d/engine.ts");
-  const tex = read("../scripts/ui-harness/scenes/shelf3d/textures.ts");
+  const engine = read("components/shelf3d/engine.ts");
+  const tex = read("components/shelf3d/textures.ts");
   const journal = codeOnly(read("lib/journal.functions.ts"));
 
   it("左のページはその日の写真・一言・落書き、右のページは本人が打った日記を選んだ字体で", () => {
@@ -6010,15 +6047,149 @@ describe("本棚の本を開くと、1日＝1見開き（左＝その日のア�
     expect(engine).toMatch(/return day \? paintDiary\(day, font\)/);
   });
 
-  it("開くといちばん新しい日の見開きまでめくれる。字体を変えると右のページを描き直す", () => {
-    expect(engine).toMatch(/const last = b\.days\.length;/);
+  it("開くと**その月の最初の日**の見開き（2026-09-29 に「いちばん新しい日」から変更）。字体を変えると右のページを描き直す", () => {
+    expect(engine).toMatch(/this\.openAt = opts\.openAt \?\? "first";/);
+    expect(engine).toMatch(
+      /const last = this\.openAt === "first" \? Math\.min\(1, b\.days\.length\) : b\.days\.length;/,
+    );
     expect(engine).toMatch(/repaintDiary\(dayIndex\?: number\)/);
+  });
+
+  it("1か月ぶん（最大31日）綴じる。紙の絵は今の見開きの前後だけ描き、遠い紙は白紙へ戻す", () => {
+    expect(engine).toMatch(/const MAX_DAYS = 31;/);
+    expect(engine).toMatch(/const n = b\.days\.length \? b\.days\.length \+ 1 : LEAVES;/);
+    expect(engine).toMatch(/private ensurePages\(b: Book, page = this\.page\)/);
+    expect(engine).toMatch(
+      /else if \(i < page - 4 \|\| i > page \+ 4\) this\.unpaintLeaf\(b, i\);/,
+    );
+  });
+
+  it("見開きの片側は**押すだけ**で全画面（指の揺れを払いに数えない）", () => {
+    expect(engine).toMatch(/const slop = quick \? 16 : 10;/);
+    expect(engine).toMatch(/if \(this\.events\.onPageTap\) this\.events\.onPageTap\(side\);/);
   });
 
   it("打った日記は AI を通さずそのまま保存（添削の列には触らない）", () => {
     expect(journal).toMatch(/export const saveMyDiary = createServerFn\(\{ method: "POST" \}\)/);
     expect(journal).toMatch(
       /\{ user_id: userId, entry_date: data\.date, user_draft: text \|\| null \}/,
+    );
+  });
+});
+
+describe("ホームの一番上の本棚（2026-09-29「ホームのアルバムの一番上に本棚を一列作って」）", () => {
+  const home = codeOnly(read("routes/_authenticated/home.tsx"));
+  const shelf = codeOnly(read("components/HomeShelf.tsx"));
+
+  it("R17: アプリの一番上に、部屋に置いた大きな 3D の棚（撮った月だけ・本の上に少し隙間）", () => {
+    // 上の帯の中ではなく、ホームの中身の一番上（画面の幅いっぱいの帯）。
+    expect(home).not.toMatch(/headerEnd=/);
+    expect(home).toMatch(/<HomeShelf items=\{albumItems\} \/>/);
+    expect(home).toMatch(/<PastDays/);
+    expect(shelf).toMatch(/\{ rows: 1, openAt: "first", room \}/);
+    expect(shelf).toMatch(/const months = useMemo\(\(\) => shelfMonths\(items\), \[items\]\);/);
+    const engine = codeOnly(read("components/shelf3d/engine.ts"));
+    // 本の高さの 1.12 倍の内側（本の上に少し隙間）、8 冊と飾りが並ぶ幅。
+    expect(engine).toMatch(
+      /shelf\.scale\.set\(ROOM_INNER_W \/ SHELF_INNER_W, \(H \* 1\.12\) \/ SHELF_INNER_H, 1\)/,
+    );
+    // 部屋の壁は CSS、3D は透明の上に描く。
+    expect(engine).toMatch(/alpha: !!this\.room/);
+    const css = read("styles.css");
+    for (const r of ["a", "b", "c", "d"])
+      expect(css).toMatch(new RegExp(`\\.home-shelf--room-${r} \\.home-shelf__room \\{`));
+  });
+
+  it("3D は後から読み込み、その月の写真と日記を揃えてから開く", () => {
+    expect(shelf).toMatch(/import\("@\/components\/shelf3d\/engine"\)/);
+    expect(shelf).toMatch(/loadRef\.current\.diary\(key\)/);
+    // 開いた瞬間に 3D が出るよう、ホームの塊を読んだ時点で 3D の塊と棚の 3 ファイルを並べて取りに行く（R19）。
+    expect(shelf).toMatch(/^prewarmShelf\(\);$/m);
+    expect(codeOnly(read("components/shelf3d/prewarm.ts"))).toMatch(/"\/models\/shelf\.glb"/);
+    // 手が空くのを待たない（アルバムの写真を読み込み中は手が空くのが遅れ、仮の棚が長く見えた）。
+    expect(shelf).not.toMatch(/requestIdleCallback/);
+    // 押したページへ 3D の本のまま寄る（R19: 片ページのめくりも見開きと同じ紙）。
+    expect(shelf).toMatch(/world\.current\?\.setFocus\(state\.open \? view : "spread"\);/);
+    expect(codeOnly(read("lib/journal.functions.ts"))).toMatch(
+      /export const listMyDiaryMonth = createServerFn\(\{ method: "GET" \}\)/,
+    );
+  });
+
+  it("R17: 表紙までめくれる・表紙は硬い板としてパタッと倒れる・片ページは払ってめくる", () => {
+    const engine = codeOnly(read("components/shelf3d/engine.ts"));
+    expect(engine).toMatch(/if \(dir === -1 && this\.page === 0 && !this\.coverShut\) \{/);
+    expect(engine).toMatch(/private stepCover\(dt: number\): boolean \{/);
+    // 表紙はばねではなく時間で倒す（ばねの列から外した）
+    expect(engine).toMatch(
+      /const springs = \[this\.pull, this\.present, this\.dim, this\.focus\];/,
+    );
+    // 片ページも同じ紙・同じ動き: 別の絵を滑らせず、3D の本が寄る（R19）。
+    expect(engine).toMatch(/setFocus\(side: "spread" \| "left" \| "right" \| "cover"\) \{/);
+    expect(shelf).not.toMatch(/home-shelf__single-img/);
+    expect(shelf).not.toMatch(/pageCanvas/);
+  });
+
+  it("R20: 開いた瞬間は端末に置いた棚の絵（無ければ同梱の空の棚）を出し、3D が描けたら差し替える", () => {
+    const snap = codeOnly(read("components/shelf3d/snapshot.ts"));
+    expect(snap).toMatch(/caches\.open\(CACHE\)/);
+    expect(snap).toMatch(/SHELF_PLACEHOLDER = "\/shelf\/room-a-empty\.webp"/);
+    expect(fs.existsSync(path.join(process.cwd(), "public/shelf/room-a-empty.webp"))).toBe(true);
+    expect(shelf).toMatch(/src=\{snap \?\? SHELF_PLACEHOLDER\}/);
+    expect(shelf).toMatch(/world\.current\?\.snapshot\(\)/);
+    // 平らな仮の棚はやめた。
+    expect(shelf).not.toMatch(/home-shelf__proxy/);
+  });
+
+  it("R20: 片ページの左で左へ払うと右ページへ横に滑る（逆も）。めくるのは右→次の左", () => {
+    const engine = codeOnly(read("components/shelf3d/engine.ts"));
+    expect(engine).toMatch(/\(one === "left" && dx < 0\) \|\| \(one === "right" && dx > 0\)/);
+    expect(engine).toMatch(/this\.events\.onFocusSide\?\.\(pn\.to\)/);
+    expect(shelf).toMatch(/onFocusSide: \(side\) => setView\(side\)/);
+  });
+
+  it("R17: 日記を書く・書き直すと鉛筆で書き込む（押せば書き上げて戻る）", () => {
+    expect(shelf).toMatch(/else setPencil\(\{ text: text\.trim\(\), after: commit \}\);/);
+    expect(shelf).toMatch(/import\("@\/components\/diary-pencil\/engine"\)/);
+    expect(codeOnly(read("components/diary-pencil/engine.ts"))).toMatch(/finish\(\) \{/);
+  });
+});
+
+describe("図鑑は開くといつもスライド（2026-09-29）", () => {
+  it("既定はカード表示で、前に見ていた表示を覚えて戻さない", () => {
+    const dex = codeOnly(read("routes/_authenticated/dex.tsx"));
+    expect(dex).toMatch(/useState<ViewMode>\("cards"\)/);
+    expect(dex).not.toMatch(/localStorage\.getItem\("dex-view"\)/);
+  });
+});
+
+describe("訳・意味は表示言語の物だけ（2026-09-29「例文の訳に中文が混ざってる」）", () => {
+  it("単語の詳細・復習・図鑑は、読む人の言語でない訳・意味を出さない", () => {
+    const card = codeOnly(read("components/WordCard.tsx"));
+    expect(card).toMatch(/readerText\(word\.example_translation, uiLang, word\.example_sentence\)/);
+    expect(card).toMatch(/readerText\(e\.ja, uiLang, e\.zh\)/);
+    expect(card).toMatch(/readerMeaning\(word\.meaning_ja, uiLang\)/);
+    expect(codeOnly(read("routes/_authenticated/review.tsx"))).toMatch(
+      /readerText\(card\.example_translation, uiLang, card\.example_sentence\)/,
+    );
+    expect(codeOnly(read("routes/_authenticated/dex.tsx"))).toMatch(
+      /<ReaderMeaning text=\{s\.word\.meaning_ja\} wordId=\{s\.word_id\} \/>/,
+    );
+  });
+  it("作る側・貯める側も、読む人の言語でない訳は落とす", () => {
+    const ai = codeOnly(read("lib/ai.functions.ts"));
+    expect(ai).toMatch(
+      /example_translation: readerText\(card\.example_translation, explainLang, card\.example_sentence\)/,
+    );
+    expect(codeOnly(read("lib/word-explanation.functions.ts"))).toMatch(
+      /readerText\(input\.example_translation, key\.explainLang\) \|\| null/,
+    );
+  });
+});
+
+describe("ホームが横にずれない（2026-09-29「ホームのアルバムの左右の余白が均一でない」）", () => {
+  it("殻は縦だけ巻き取り、横には送らせない", () => {
+    expect(read("styles.css")).toMatch(
+      /html\[data-scroll-root="shell"\] \[data-app-shell\]:not\(\.overflow-hidden\) \{[^}]*overflow-y: auto;[^}]*overflow-x: hidden;/,
     );
   });
 });
@@ -6108,5 +6279,30 @@ describe("図鑑に追加する動きは一連（着地＝追加、本物の札�
     expect(reward).toMatch(/await target\.animate\(/);
     expect(codeOnly(read("routes/_authenticated/dex.tsx"))).toMatch(/!wasFlown\(s\.id\)/);
     expect(codeOnly(read("components/DexShelf.tsx"))).toMatch(/!wasFlown\(s\.id\)/);
+  });
+});
+
+describe("同じ人の SIGNED_IN で全部を読み直さない（R17 4択の差し替わり・起動の遅さ）", () => {
+  it("人が変わった時だけ invalidateQueries する", () => {
+    const rootSrc = codeOnly(read("routes/__root.tsx"));
+    expect(rootSrc).toMatch(
+      /const same = event === "SIGNED_IN" && !!before && before === session\?\.user\?\.id;/,
+    );
+    expect(rootSrc).toMatch(/if \(same\) return;[\s\S]*?queryClient\.invalidateQueries\(\)/);
+  });
+});
+
+describe("Pro: 単語の詳細の写真を 3D にする（R17）", () => {
+  it("Pro の人にだけボタンを出し、作った形は端末に置いて作り直さない", () => {
+    const sheet = codeOnly(read("components/StickerSheet.tsx"));
+    expect(sheet).toMatch(/\{isPro && !flipped && !show3d && \(/);
+    expect(sheet).toMatch(/\{isPro && show3d && object3dSource && \(/);
+    const hero = codeOnly(read("components/Object3DHero.tsx"));
+    expect(hero).toMatch(/const cached = await readCached\(stickerId\);/);
+    expect(hero).toMatch(/await c\.put\(/);
+    // サーバ側でも Pro か確かめる（画面の条件だけに頼らない）。
+    expect(codeOnly(read("lib/object3d.functions.ts"))).toMatch(
+      /if \(!object3dAllowed\(\{ isPro: await isProUser\(userId\) \}\)\)/,
+    );
   });
 });

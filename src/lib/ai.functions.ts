@@ -1,5 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
-import { meaningRule, distinctionRule } from "@/lib/meaning-rule";
+import { meaningRule, distinctionRule, shortMeaning } from "@/lib/meaning-rule";
 import { mnemonicRule } from "@/lib/mnemonic-rule";
 import { DEFAULT_TARGET_LANGUAGE } from "./target-lang";
 import { readingPromptNames, targetProfile } from "./target-profile";
@@ -12,7 +12,7 @@ import { pickReportedItem, reportContext } from "@/lib/report-locate";
 import { CATEGORY_KEYS, ROOM_KEYS, normalizeCategory } from "./category";
 import { orderByRegister } from "./candidate-order";
 import { ExtrasSchema, emptyExtras, mergeExtras, normalizeExtras } from "./extras";
-import { scrubForeignNotes } from "./note-language";
+import { readerText, scrubForReader, scrubForeignNotes } from "./note-language";
 import {
   worldExampleRule,
   exampleSourceRule,
@@ -224,6 +224,8 @@ ${distinctionRule(profile.promptName, profile.capture.distinctionExamples)}
       return {
         suggestions: orderByRegister(parsed.suggestions).map((s) => ({
           ...s,
+          // 候補の意味も語の長さに（R17「湯咖哩の英語の単語の候補…が長すぎる」）。
+          meaning_ja: shortMeaning(s.meaning_ja),
           category_key: normalizeCategory(s.headword, s.category_key),
         })),
       };
@@ -361,6 +363,7 @@ ${langRule}
       .map((c) => ({
         ...c,
         headword: coerceTargetHeadword(c.headword, data.targetLanguage) ?? "",
+        meaning_ja: shortMeaning(c.meaning_ja),
       }))
       .filter((c) => c.headword && isTargetHeadword(c.headword, data.targetLanguage))
       .filter((c) => {
@@ -455,7 +458,7 @@ pos は ${cardProfile.chunkRoles.join(" / ")} を使う。
 
 ${
   want("usage_chunks")
-    ? `- usage_chunks: ネイティブが「${data.headword}」を**実際にいちばん高い頻度で**組み合わせて使う型を3〜5個。各 {parts:[{text,pos,slot,alts}], ja:その型の自然な訳だけ(${NL}。説明・注釈・括弧書きは書かない)}。
+    ? `- usage_chunks: ネイティブが「${data.headword}」を**実際にいちばん高い頻度で**組み合わせて使う型を3〜5個。各 {parts:[{text,pos,slot,ja,alts}], ja:その型の自然な訳だけ(${NL}。説明・注釈・括弧書きは書かない)}。
   ${formulaChunkRule(cardProfile.code)}
   **厳選する。思いつく組み合わせを並べない。** その語で口を開いたときに最初に出る形だけを、頻度の高い順に。
   ${specificChunkRule(data.headword, levelGoal)}
@@ -536,7 +539,7 @@ ${data.hintCategory ? `カテゴリのヒント: ${data.hintCategory}` : ""}`;
       `category_key / new_shelf / example_sentence / example_translation / ` +
       `extras{ ` +
       [
-        want("usage_chunks") && "usage_chunks[{parts:[{text,pos,slot,alts?:[{text,ja}]}],ja}]",
+        want("usage_chunks") && "usage_chunks[{parts:[{text,pos,slot,ja?,alts?:[{text,ja}]}],ja}]",
         "example_chunks[{text,pos}]",
         want("examples_extra") && "examples_extra[{zh,ja,scene,chunks:[{text,pos}]}]",
         "usage_context, frequency_level, register_tag, register_scale, encounter_labels[{kind,label}]",
@@ -640,6 +643,8 @@ ${data.hintCategory ? `カテゴリのヒント: ${data.hintCategory}` : ""}`;
         );
       });
     }
+    // 意味は語の長さに（R17。説明文で返った回を保存前に縮める）。
+    card = { ...card, meaning_ja: shortMeaning(card.meaning_ja) };
     if (extrasLookEmpty(card)) {
       // 1回だけ、空を明確に禁止して作り直す。
       try {
@@ -745,6 +750,9 @@ ${data.hintCategory ? `カテゴリのヒント: ${data.hintCategory}` : ""}`;
     }
     return {
       ...card,
+      // **訳は読む人の言語で**（2026-09-29「例文の訳に中文が混ざってる」）。例文の写しや
+      // 別の言語で返ってきた訳は落とす（空なら画面は訳を出さず、作り直しが埋める）。
+      example_translation: readerText(card.example_translation, explainLang, card.example_sentence),
       headword_zh: resolvedHead,
       level: level.stored,
       category_key: categoryKey,
@@ -757,7 +765,10 @@ ${data.hintCategory ? `カテゴリのヒント: ${data.hintCategory}` : ""}`;
       // 返ってきた物のほうを見る(`src/lib/note-language.ts`)。
       extras: {
         // 頼まなかった節の欄は落とす（空の欄で共有の語を上書きしない）。
-        ...stripUnrequested(scrubForeignNotes(card.extras ?? {}, explainLang), data.sections),
+        ...stripUnrequested(
+          scrubForReader(scrubForeignNotes(card.extras ?? {}, explainLang), explainLang),
+          data.sections,
+        ),
         // **辞書の事実で上書きする。** AI が書いた物より後に置く。
         exam_tags: examTags,
         explain_lang: explainLang,
@@ -929,8 +940,18 @@ function formulaChunkRule(code: string): string {
     `\n入れ替えて使う所は「人」「事」「someone」のような広い言い方にしない。` +
     `ネイティブがそこにいちばんよく入れる具体語を1つだけ入れて、そのパーツに slot: true を付ける。` +
     `決まった語のパーツは slot を付けない。` +
+    // R17「加熱（動詞）が点線になってる。点線は…入れ替え可能な具体的なもの」。
+    `**slot を付けてよいのは具体的な物・人・場所を表す名詞（と量詞）だけ。` +
+    `動詞・形容詞・副詞・助詞には絶対に slot を付けない。**` +
+    `\n**型ぜんぶは文法的に正しく、ネイティブが実際にそのまま言う形にする。**` +
+    (zh
+      ? `形容詞（状態動詞）を述語にするときは、裸で置かず程度副詞（很・超・好・太 など）を必ず入れる` +
+        `（✗ 滷味＋入味 → ○ 滷味＋很＋入味、✗ 珍珠奶茶＋好喝 → ○ 珍珠奶茶＋超＋好喝）。`
+      : `冠詞・前置詞・語形変化を省かない（✗ argue with boyfriend → ○ argue with + my boyfriend）。`) +
     `\nslot: true のパーツには alts も付ける: ネイティブがそこに**実際によく入れるほかの具体語**を` +
     `頻度の高い順に4〜6個、[{text, ja: その語の意味（解説の言語で、短く）}]。` +
+    `slot: true のパーツ自身にも ja（その語の意味。型の訳 ja の中で**その語に当たる部分と同じ書き方**）を付ける` +
+    `（例: {text:"男朋友", ja:"彼氏"} と 型の訳「彼氏と喧嘩する」）。` +
     `どれを入れても型ぜんぶが自然に言える語だけ（例: 跟＋男朋友＋吵架 → 女朋友・朋友・同事・爸媽・室友）。` +
     `\n型ぜんぶを続けて読んでも、そのまま自然に言える形にする。＋ などの記号はパーツに入れない。`
   );
@@ -1140,7 +1161,7 @@ async function runSectionRegen(
       }),
     },
     usage_chunks: {
-      prompt: `${base}\nネイティブが「${head}」を**実際にいちばん高い頻度で**組み合わせて使う型を4〜5個。**厳選する。思いつく組み合わせを並べない。**\n${formulaChunkRule(regenProfile.code)}\n${specificChunkRule(head, regenLevelGoal)}\n**短くする**: ${regenProfile.chunkPrompt.lengthRule}\nそのまま声に出せる形にする。${regenProfile.chunkPrompt.styleRule}\n${learnerL1}が崩しやすい型を優先する。\n${l1Gram}\n${chunkRule(word.language as string | null)}\nja はその型の自然な訳だけ（説明・注釈・括弧書きは書かない）。\n{"usage_chunks":[{"parts":[{"text":"","pos":"","slot":false,"alts":[{"text":"","ja":""}]}],"ja":"訳"}]}`,
+      prompt: `${base}\nネイティブが「${head}」を**実際にいちばん高い頻度で**組み合わせて使う型を4〜5個。**厳選する。思いつく組み合わせを並べない。**\n${formulaChunkRule(regenProfile.code)}\n${specificChunkRule(head, regenLevelGoal)}\n**短くする**: ${regenProfile.chunkPrompt.lengthRule}\nそのまま声に出せる形にする。${regenProfile.chunkPrompt.styleRule}\n${learnerL1}が崩しやすい型を優先する。\n${l1Gram}\n${chunkRule(word.language as string | null)}\nja はその型の自然な訳だけ（説明・注釈・括弧書きは書かない）。\n{"usage_chunks":[{"parts":[{"text":"","pos":"","slot":false,"ja":"","alts":[{"text":"","ja":""}]}],"ja":"訳"}]}`,
       schema: z.object({
         usage_chunks: z
           .array(
@@ -1272,18 +1293,26 @@ async function runSectionRegen(
   // 作り直しの経路にも同じ掃除を通す。**片方だけ直すと、もう片方から
   // 中国語の注記が入り続ける**(この app が何度も踏んだ兄弟の取りこぼし)。
   const extrasPatch: Record<string, unknown> = {
-    ...scrubForeignNotes(out as Parameters<typeof scrubForeignNotes>[0], regenLang),
+    ...scrubForReader(
+      scrubForeignNotes(out as Parameters<typeof scrubForeignNotes>[0], regenLang),
+      regenLang,
+    ),
   };
   if (data.section === "meaning") {
     delete extrasPatch.meaning_ja;
-    if (word.source !== "verified") baseUpdate.meaning_ja = out.meaning_ja;
+    if (word.source !== "verified")
+      baseUpdate.meaning_ja = shortMeaning(String(out.meaning_ja ?? ""));
   }
   if (data.section === "example") {
     delete extrasPatch.example_sentence;
     delete extrasPatch.example_translation;
     if (word.source !== "verified") {
       baseUpdate.example_sentence = out.example_sentence;
-      baseUpdate.example_translation = out.example_translation;
+      baseUpdate.example_translation = readerText(
+        out.example_translation as string,
+        regenLang,
+        out.example_sentence as string,
+      );
     }
   }
 

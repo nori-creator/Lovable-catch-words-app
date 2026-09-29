@@ -1,4 +1,5 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { ReaderMeaning } from "@/components/ReaderMeaning";
 import { stickerPhotoUrl } from "@/lib/sticker-photo";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
@@ -37,6 +38,8 @@ import { formatCount } from "@/lib/count";
 import { normalizeTargetLanguage } from "@/lib/target-lang";
 import { useUiLayout, type LayoutId } from "@/lib/ui-pack";
 import { Zh } from "@/components/Zh";
+import { ZhuyinWord, useZhuyinUnits } from "@/components/ZhuyinWord";
+import { neutralReadings, useReadingText } from "@/lib/phonetic";
 import { tStatic } from "@/lib/i18n";
 import { asCategoryKey, categoryEmoji } from "@/lib/category";
 import {
@@ -161,7 +164,13 @@ function DexPage() {
   /** 本当の総数(サーバーが数えたもの)。取れなければ null。 */
   const totalCount = stickers?.total ?? null;
 
-  const [view, setView] = useState<ViewMode>("gallery");
+  /**
+   * **開いた時はいつもスライド（カード）**（オーナー指示 2026-09-29「図鑑を開いたときの
+   * デフォルトはこの画像がたくさん表示されているものではなく、スライドのタイプが開くように
+   * して」）。前に見ていた表示は覚えない — 覚えると、一度写真の升目にした人は毎回升目で
+   * 開き、「既定がスライド」にならない。キャッチ直後の着地だけは升目（下の効果）。
+   */
+  const [view, setView] = useState<ViewMode>("cards");
   const landingStartedRef = useRef<string | null>(null);
 
   // キャッチ演出v2の着弾。**キャッチ1回につき1度だけ**走らせる。
@@ -255,26 +264,11 @@ function DexPage() {
   const [search, setSearch] = useState("");
   useEffect(() => {
     if (justCaught) return; // Arrival must not restore a previous category/view filter.
-    const saved = typeof window !== "undefined" ? localStorage.getItem("dex-view") : null;
-    if (
-      saved === "list" ||
-      saved === "gallery" ||
-      saved === "cards" ||
-      saved === "map" ||
-      saved === "calendar"
-    )
-      setView(saved);
-    else if (saved === "shelf") setView("gallery");
     const savedCat = typeof window !== "undefined" ? localStorage.getItem("dex-category") : null;
     // **日付は覚えない。** 「その日だけ」は今この場の見方で、次に開いた
     // ときまで続くと「図鑑が減った」ようにしか見えない。
     if (savedCat) setFilter((f) => ({ ...f, category: savedCat }));
   }, []);
-  useEffect(() => {
-    if (typeof window !== "undefined") localStorage.setItem("dex-view", view);
-    // 棚から離れたらシートも閉じる(開いたままにすると、後ろが棚でない
-    // のに「後ろの棚がすぐ変わります」と言い続けることになる)。
-  }, [view]);
   useEffect(() => {
     if (typeof window === "undefined") return;
     if (activeCategory) localStorage.setItem("dex-category", activeCategory);
@@ -1016,7 +1010,11 @@ export function PackGallery({
                 {s.word.headword}
               </span>
               <span className="pk-tile-sub">
-                {s.word.meaning_ja || <Zh>{s.word.reading_zhuyin}</Zh>}
+                {s.word.meaning_ja ? (
+                  <ReaderMeaning text={s.word.meaning_ja} wordId={s.word_id} />
+                ) : (
+                  <Zh>{s.word.reading_zhuyin}</Zh>
+                )}
               </span>
             </span>
           </button>
@@ -1083,17 +1081,10 @@ export function DexList({
               )}
             </div>
             <div className="min-w-0 flex-1">
-              <div className="flex items-baseline gap-2">
-                <span lang="zh-Hant" className="text-body font-semibold">
-                  {s.word.headword}
-                </span>
-                {s.word.reading_zhuyin && (
-                  <span lang="zh-Hant" className="truncate text-footnote text-muted-foreground">
-                    {s.word.reading_zhuyin}
-                  </span>
-                )}
+              <ListHeadword word={s.word} />
+              <div className="truncate text-body text-muted-foreground">
+                <ReaderMeaning text={s.word.meaning_ja} wordId={s.word_id} />
               </div>
-              <div className="truncate text-body text-muted-foreground">{s.word.meaning_ja}</div>
             </div>
           </button>
           {/* 発音ボタンは右側に (縦並びリスト) */}
@@ -1105,6 +1096,30 @@ export function DexList({
         </li>
       ))}
     </ul>
+  );
+}
+
+/**
+ * 縦の一覧の見出し語。**注音は字ごとに右へ縦に**（オーナー指示 2026-09-29「図鑑の縦に単語が
+ * 並ぶタイプの注音がそれぞれの漢字の横に配置されてない。4択の選択肢や単語の詳細の見出しの
+ * ように注音を配置して」）。4択・詳細・カードと同じ `ZhuyinWord`。ピンインを選んだ人・注音の
+ * 無い言語は、今までどおり語の横に読みを小さく。
+ */
+function ListHeadword({ word: w }: { word: StickerWithWord["word"] }) {
+  const units = useZhuyinUnits(w.language, w.headword, w.reading_zhuyin);
+  const reading = useReadingText(
+    w.language,
+    neutralReadings(w.language, w.reading_zhuyin, w.pinyin),
+  );
+  if (units)
+    return (
+      <ZhuyinWord units={units} lang={w.language} className="block text-title font-semibold" />
+    );
+  return (
+    <div className="flex items-baseline gap-2">
+      <Zh className="text-body font-semibold">{w.headword}</Zh>
+      {reading && <span className="truncate text-footnote text-muted-foreground">{reading}</span>}
+    </div>
   );
 }
 

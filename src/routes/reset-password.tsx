@@ -12,7 +12,7 @@ export const Route = createFileRoute("/reset-password")({
   head: () => ({
     meta: [
       { title: tStatic("page.reset") },
-      { name: "description", content: "Catchwordsのパスワードを再設定します。" },
+      { name: "description", content: "CatchWordsのパスワードを再設定します。" },
       { name: "robots", content: "noindex, nofollow" },
     ],
   }),

@@ -48,7 +48,7 @@ export function FirstCatchIntro({
       <div className="first-standalone first-intro">
         <header className="first-intro-heading">
           <img src="/icon-192.png" alt="" className="first-intro-logo" />
-          <h1>Catchwords</h1>
+          <h1>CatchWords</h1>
         </header>
         {/* 写真の束は、残りの高さに収まる大きさで描く（`container-type: size`）。
             前は高さを固定していたので、背の低い画面では「はじめる」の上に

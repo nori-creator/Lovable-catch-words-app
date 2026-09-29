@@ -34,7 +34,12 @@ import {
   setImageGenerationSettings,
 } from "@/lib/admin.functions";
 import { testImageGeneration } from "@/lib/images.functions";
-import { getTtsVoiceAdmin, previewTtsVoice, setTtsVoiceAdmin } from "@/lib/tts.functions";
+import {
+  diagnoseGeminiTts,
+  getTtsVoiceAdmin,
+  previewTtsVoice,
+  setTtsVoiceAdmin,
+} from "@/lib/tts.functions";
 import { TtsVoiceForm } from "@/components/TtsVoiceForm";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -1998,6 +2003,7 @@ function TtsVoicePanel() {
   const getFn = useServerFn(getTtsVoiceAdmin);
   const setFn = useServerFn(setTtsVoiceAdmin);
   const tryFn = useServerFn(previewTtsVoice);
+  const diagFn = useServerFn(diagnoseGeminiTts);
   const qc = useQueryClient();
   const { data } = useQuery({
     queryKey: ["tts-voice-admin"],
@@ -2008,8 +2014,9 @@ function TtsVoicePanel() {
     <TtsVoiceForm
       data={data}
       onTry={(language, text, choice) => tryFn({ data: { language, text, choice } })}
-      onSave={async (languages) => {
-        await setFn({ data: { config: { languages } } });
+      onDiagnose={() => diagFn()}
+      onSave={async (languages, taiwan) => {
+        await setFn({ data: { config: { languages, ...(taiwan ? { taiwan } : {}) } } });
         await qc.invalidateQueries({ queryKey: ["tts-voice-admin"] });
         toast.success(t("settings.ttsSaved"));
       }}

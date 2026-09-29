@@ -1,4 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { ReaderMeaning } from "@/components/ReaderMeaning";
 import { useReadableError } from "@/lib/errors";
 import { resolvePrefer, usePhotoPref } from "@/lib/photo-pref";
 import { stickerPhotoUrl } from "@/lib/sticker-photo";
@@ -498,7 +499,9 @@ export function StickerDetailHero({
         <div lang="zh-Hant" className="mt-1 text-body text-muted-foreground">
           {s.word.reading_zhuyin} {s.word.pinyin && `· ${s.word.pinyin}`}
         </div>
-        <div className="mt-2 text-headline font-medium">{s.word.meaning_ja}</div>
+        <div className="mt-2 text-headline font-medium">
+          <ReaderMeaning text={s.word.meaning_ja} wordId={s.word_id} />
+        </div>
         {s.word.part_of_speech && (
           <span className="mt-1 inline-block rounded-full bg-violet-100 px-2 py-0.5 text-caption font-medium text-violet-900 ring-1 ring-violet-200 dark:bg-violet-500/20 dark:text-violet-200 dark:ring-violet-400/30">
             {s.word.part_of_speech}

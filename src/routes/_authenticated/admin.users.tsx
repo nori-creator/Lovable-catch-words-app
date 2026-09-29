@@ -27,7 +27,7 @@ import { CompareRow, DayBars, Kpi, Ring, SplitBars } from "@/components/AdminCha
  */
 export const Route = createFileRoute("/_authenticated/admin/users")({
   head: () => ({
-    meta: [{ title: "Users — Catchwords 管理" }, { name: "robots", content: "noindex" }],
+    meta: [{ title: "Users — CatchWords 管理" }, { name: "robots", content: "noindex" }],
   }),
   validateSearch: (s: Record<string, unknown>): { u?: string } =>
     typeof s.u === "string" && /^[0-9a-f-]{36}$/.test(s.u) ? { u: s.u } : {},

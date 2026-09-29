@@ -1,7 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useSyncExternalStore } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { getTtsVoiceTags, synthesizeSpeech } from "@/lib/tts.functions";
-import { refreshVoiceTagsOnce, voiceTagFor } from "@/lib/tts-voice-tag";
+import {
+  isVoiceLockedFor,
+  refreshVoiceTagsOnce,
+  rememberVoiceLocks,
+  voiceTagFor,
+} from "@/lib/tts-voice-tag";
 import { speak } from "@/lib/speak";
 import { claimAudio, primeAudio, stopOtherAudio } from "@/lib/audio";
 import { decodeSpeech, playSpeechBuffer, unlockSpeechOutput } from "@/lib/speech-buffer";
@@ -55,7 +60,7 @@ export type Pronounce = ((text: string, waitUntilEnded?: boolean) => Promise<voi
 /** いま取りに行っている語。**二重に取りに行かない**(費用と帯域の無駄)。 */
 const inflight = new Map<string, Promise<string | null>>();
 
-type Fetcher = (text: string) => Promise<{ audio_url?: string | null }>;
+type Fetcher = (text: string) => Promise<{ audio_url?: string | null; locked?: boolean }>;
 
 /**
  * 置き場所から音を落として、端末に貯める。
@@ -136,23 +141,32 @@ export function usePronounce(language: string = DEFAULT_TARGET_LANGUAGE): Pronou
   }, [tagsFn]);
   const elRef = useRef<HTMLAudioElement | null>(null);
   const fetcher = useCallback<Fetcher>(
-    (text) => ttsFn({ data: { text, language } }),
+    async (text) => {
+      const r = await ttsFn({ data: { text, language } });
+      // 台湾の声が固定されていて合成できなかった → 以後は端末の声で読まない
+      // （オーナー指示 2026-09-29「アプリ全体で1つの同一の音声」）。
+      if (!r.audio_url && r.locked) rememberVoiceLocks({ [language]: true });
+      return r;
+    },
     [ttsFn, language],
   );
 
   const pronounce = async function pronounce(text: string, waitUntilEnded = false) {
     const word = text.trim();
     if (!word) return;
+    // 声が固定されている言語では、端末の別の声で読まない（黙る）。
     const deviceVoice = () =>
-      waitUntilEnded
-        ? new Promise<void>((resolve) => {
-            const timer = setTimeout(resolve, 2400);
-            speak(word, language, 0.95, () => {
-              clearTimeout(timer);
-              resolve();
-            });
-          })
-        : Promise.resolve(speak(word, language));
+      isVoiceLockedFor(language)
+        ? Promise.resolve()
+        : waitUntilEnded
+          ? new Promise<void>((resolve) => {
+              const timer = setTimeout(resolve, 2400);
+              speak(word, language, 0.95, () => {
+                clearTimeout(timer);
+                resolve();
+              });
+            })
+          : Promise.resolve(speak(word, language));
     // iOS: 再生解禁はタップ内で同期的に行う必要がある(await より前)。
     if (!elRef.current) elRef.current = new Audio();
     primeAudio(elRef.current);

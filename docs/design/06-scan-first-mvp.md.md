@@ -1,6 +1,6 @@
-# Catchwords 統合マスター仕様書 v2 — Scan-First MVP
+# CatchWords 統合マスター仕様書 v2 — Scan-First MVP
 
-> この文書は Catchwords の**唯一の正式仕様(Source of Truth)**である。
+> この文書は CatchWords の**唯一の正式仕様(Source of Truth)**である。
 > リポジトリ内の `docs/design/01〜05` と矛盾する場合は**本書を優先**する。
 > 保存先: `docs/design/06-scan-first-mvp.md`(Lovableにこのファイルを追加させる)。
 

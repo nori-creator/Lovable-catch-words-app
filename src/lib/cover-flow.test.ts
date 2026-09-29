@@ -88,3 +88,37 @@ describe("settleIndex（離したときに着く札）", () => {
     expect(settleIndex(0, 0, 100, 0)).toBe(0);
   });
 });
+
+import { CAROUSEL_REACH, CAROUSEL_STEP, carouselPose } from "./cover-flow";
+
+describe("carouselPose（R15: 図鑑のスライドを輪にして回す）", () => {
+  it("真ん中の札は正面・手前（奥へ下げない — 「カードをもう少し手前に」）", () => {
+    const p = carouselPose(0);
+    expect(p.x).toBe(0);
+    expect(p.z).toBeCloseTo(0);
+    expect(p.rotateY).toBeCloseTo(0);
+    expect(p.opacity).toBe(1);
+  });
+  it("左右の札は輪に沿って奥へ下がり、外側の端が手前に来るよう内へ向く", () => {
+    const r = carouselPose(1);
+    const l = carouselPose(-1);
+    expect(r.x).toBeGreaterThan(0.5);
+    expect(l.x).toBeCloseTo(-r.x);
+    expect(r.z).toBeLessThan(-0.3);
+    // CSS の rotateY は負で右の端が手前に来る。
+    expect(r.rotateY).toBeLessThan(0);
+    expect(l.rotateY).toBeGreaterThan(0);
+    expect(r.zIndex).toBeLessThan(carouselPose(0).zIndex);
+  });
+  it("真ん中の札は指に 1:1 で付く（送りの幅＝輪の上の動き出しの速さ）", () => {
+    const d = 1e-4;
+    expect(carouselPose(d).x / d).toBeCloseTo(CAROUSEL_STEP, 3);
+  });
+  it("輪の奥は薄れて消え、届く所より先は同じ形のまま", () => {
+    expect(carouselPose(3).opacity).toBeLessThan(0.5);
+    expect(carouselPose(CAROUSEL_REACH + 2)).toEqual(carouselPose(CAROUSEL_REACH));
+  });
+  it("動きを減らす設定では向きを変えない", () => {
+    expect(carouselPose(1, true).rotateY).toBe(0);
+  });
+});

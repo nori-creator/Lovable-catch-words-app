@@ -27,13 +27,13 @@ export const Route = createFileRoute("/auth")({
       {
         name: "description",
         content:
-          "Catchwordsにサインインして、街で出会う言葉をステッカーに変えて自分だけの台湾華語の図鑑を作りましょう。",
+          "CatchWordsにサインインして、街で出会う言葉をステッカーに変えて自分だけの台湾華語の図鑑を作りましょう。",
       },
-      { property: "og:title", content: "ログイン — Catchwords" },
+      { property: "og:title", content: "ログイン — CatchWords" },
       {
         property: "og:description",
         content:
-          "Catchwordsにサインインして、街で出会う言葉をステッカーに変えて自分だけの台湾華語の図鑑を作りましょう。",
+          "CatchWordsにサインインして、街で出会う言葉をステッカーに変えて自分だけの台湾華語の図鑑を作りましょう。",
       },
       { property: "og:type", content: "website" },
       { property: "og:url", content: siteUrlFor("/auth") },
@@ -240,7 +240,7 @@ export function AuthView({
       <main className="first-auth-page" aria-labelledby="first-account-title">
         <div className="first-auth-brand">
           <img src="/icon-192.png" alt="" />
-          <strong>Catchwords</strong>
+          <strong>CatchWords</strong>
         </div>
         <div className="first-auth-photos" aria-hidden="true">
           {FIRST_CATCH_PHOTOS.map(({ src }, i) => (

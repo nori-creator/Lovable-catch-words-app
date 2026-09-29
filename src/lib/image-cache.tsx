@@ -147,6 +147,15 @@ function remember(path: string, url: string) {
   // 上限は目安であって、見えているものを壊す理由にはならない。
 }
 
+/**
+ * 署名付き URL を、端末に貯めた写真の URL（blob:）にして返す。無ければ一度だけ落として貯める。
+ * **同じ出どころの URL になる**ので、canvas に描いても汚れない（本棚の 3D のページに写真を
+ * 貼る時に使う）。読めなければ元の URL を返す。
+ */
+export function resolveCachedSrc(signedUrl: string): Promise<string> {
+  return resolveSrc(signedUrl);
+}
+
 async function resolveSrc(signedUrl: string): Promise<string> {
   const path = pathFromSignedUrl(signedUrl);
   if (!path) return signedUrl;

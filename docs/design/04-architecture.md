@@ -109,7 +109,7 @@ React Native 等での書き直しは不要。**同じコードベースのま�
 3. Web Push: SRS due 通知・ストリーク保護通知・友達アクティビティ
    - `push_subscriptions` テーブル(§6)+ 通知送信は Supabase Edge Function を cron 起動(毎朝「今日の復習n件」)
    - 制約: iOS は 16.4 以降かつ**ホーム画面に追加された PWA のみ** Web Push 可。だからこそ「ホーム画面に追加」導線をオンボーディングに組み込む
-4. 共有ターゲット(Web Share Target): カメラロールから写真を Catchwords に共有→captureフローへ
+4. 共有ターゲット(Web Share Target): カメラロールから写真を CatchWords に共有→captureフローへ
 
 ### Phase B: Capacitor ラップ(App Store / Google Play)
 

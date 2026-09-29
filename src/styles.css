@@ -2871,7 +2871,7 @@ html[data-motion="reduce"] {
   }
 }
 
-/* Catchwords camera — the nav lens lifts, becomes a finder, then fills the view. */
+/* CatchWords camera — the nav lens lifts, becomes a finder, then fills the view. */
 .camera-launch {
   position: fixed;
   inset: 0;
@@ -4074,6 +4074,11 @@ html[data-scroll-root="shell"] [data-app-shell]:not(.overflow-hidden) {
   height: 100dvh;
   min-height: 0;
   overflow-y: auto;
+  /* **横には巻き取らせない**（オーナー報告 2026-09-29「ホームのアルバムの左右の余白が
+     均一でない」）。縦だけ auto にすると、CSS の決まりで横も auto になる。傾けた写真の角や
+     テープが画面の端から少しでもはみ出すと殻ごと横に送れてしまい、ホーム全体が左へ
+     約 12px ずれて「左が狭く右が広い」誌面に見えていた。 */
+  overflow-x: hidden;
   overscroll-behavior-y: contain;
   -webkit-overflow-scrolling: touch;
 }
@@ -9367,141 +9372,131 @@ html[data-motion="reduce"] .magic-wait::after {
  * 壁と床の境目（奥行きの手がかり）、真ん中の作品に上から落ちる光、白い台座。
  * ------------------------------------------------------------------------- */
 html[data-dex-stage="gallery"] {
-  background: #ffffff;
+  background: #e9f0fa;
 }
+/* ---------------------------------------------------------------------------
+ * 図鑑のスライド — 淡い青の空間で白いカードが輪になって回る（R15、2026-09-29）。
+ * オーナー指示「カードは白に。添付の画像を参考に背景の色を少し淡い青に。カードの下の
+ * 変な台を削除。カードをもう少し手前に持ってきて大きく。添付の動画を再現」（参考は
+ * カードゲームのパック選び: 真ん中が正面・手前、左右は輪に沿って奥へ、床に映り込み、
+ * 空間に小さな光の粒）。置き場所は `carouselPose`、ここは色・光・映り込み。
+ * ------------------------------------------------------------------------- */
 .dex-cf[data-theme="gallery"] .dex-cf__backdrop {
-  /* **白い部屋**（R14「図鑑のスライドは背景白にして」）。四隅だけごくわずかに落とす
-     （完全な平面だと奥行きが消える）。 */
-  background: radial-gradient(130% 80% at 50% 32%, #ffffff 0%, #ffffff 60%, #f4f4f6 100%);
-}
-/* ── カードの色（`cardTone`）。白い部屋の上で白いカードが溶けないように、地の色と縁を持たせる。 ── */
-.dex-cf[data-theme="gallery"][data-card] .dex-cf__card {
-  background: var(--cf-card-bg);
-  color: var(--cf-card-fg);
-  border-radius: 10px;
-  box-shadow:
-    0 0 0 1px var(--cf-card-edge),
-    0 2px 6px rgb(0 0 0 / 0.06),
-    0 26px 40px -22px rgb(0 0 0 / 0.38);
-}
-.dex-cf[data-card] .dex-cf__card .text-muted-foreground {
-  color: var(--cf-card-sub);
-}
-.dex-cf[data-card="blue"] {
-  --cf-card-bg: #eef4ff;
-  --cf-card-fg: #10213d;
-  --cf-card-sub: #4a5d7c;
-  --cf-card-edge: rgb(10 108 255 / 0.28);
-}
-.dex-cf[data-card="ivory"] {
-  --cf-card-bg: #fbf5e9;
-  --cf-card-fg: #2b2419;
-  --cf-card-sub: #6d614e;
-  --cf-card-edge: rgb(120 92 50 / 0.26);
-}
-.dex-cf[data-card="category"] {
-  --cf-card-bg: color-mix(in oklab, var(--cf-accent) 14%, #ffffff);
-  --cf-card-fg: #1d1d1f;
-  --cf-card-sub: color-mix(in oklab, var(--cf-accent) 45%, #3a3a3c);
-  --cf-card-edge: color-mix(in oklab, var(--cf-accent) 40%, transparent);
-}
-.dex-cf[data-card="ink"] {
-  --cf-card-bg: #16213a;
-  --cf-card-fg: #ffffff;
-  --cf-card-sub: #b9c4da;
-  --cf-card-edge: rgb(0 0 0 / 0.4);
-}
-.dex-cf__gallery-floor {
-  position: absolute;
-  left: -50%;
-  right: -50%;
-  top: calc(1.5rem + var(--cf-w) * 1.48 * 0.86 + 3.2rem);
-  bottom: 0;
-  /* 床は手前へ向かって部屋の地に溶ける（舞台の下端で線が出ない）。 */
+  /* 上は少し濃い淡青 → 真ん中は明るく → カードの足もとは白く光る床 → 下は淡青へ戻る。 */
   background:
-    linear-gradient(180deg, rgb(0 0 0 / 0.07), transparent 8px),
-    linear-gradient(180deg, #e4e0d8, rgb(236 233 227 / 0.6) 55%, transparent 100%);
-  pointer-events: none;
+    radial-gradient(70% 22% at 50% 62%, rgb(255 255 255 / 0.95), rgb(255 255 255 / 0) 70%),
+    linear-gradient(180deg, #d6e3f5 0%, #e6eefa 34%, #f4f8fd 58%, #ffffff 64%, #e8f0fb 100%);
+}
+.dex-cf__spark {
+  /* 光の粒。ゆっくり瞬く（大きさ 3px、上下に少し漂う）。 */
+  position: absolute;
+  width: 3px;
+  height: 3px;
+  border-radius: 9999px;
+  background: #fff;
+  box-shadow:
+    0 0 6px 2px rgb(255 255 255 / 0.9),
+    0 0 14px 4px rgb(120 170 255 / 0.35);
+  opacity: 0;
+  animation: dex-cf-spark 4.2s ease-in-out infinite;
+}
+@keyframes dex-cf-spark {
+  0%,
+  100% {
+    opacity: 0;
+    translate: 0 4px;
+  }
+  45% {
+    opacity: 0.95;
+    translate: 0 -3px;
+  }
+}
+html[data-motion="reduce"] .dex-cf__spark {
+  animation: none;
+  opacity: 0.6;
 }
 .dex-cf[data-theme="gallery"] .dex-cf__stage {
+  /* **手前で大きく**（R15）。真ん中の札は奥へ下げない（z = 0）。高さは下のバーに
+     被らない範囲で: 上の操作 9rem＋札の上 1rem＋札＋映り込み（札の 0.18）＋点と写真の列
+     約 6.25rem＋下のバー 5.75rem＋端末の下の余白 を引いた残り。 */
   --cf-w: min(
-    50vw,
-    220px,
-    max(7.5rem, calc((100dvh - 32.25rem - env(safe-area-inset-bottom, 0px)) / 1.48))
+    72vw,
+    310px,
+    max(8rem, calc((100dvh - 22rem - env(safe-area-inset-bottom, 0px)) / (1.48 * 1.18)))
   );
-  perspective: 900px;
-  perspective-origin: 50% 42%;
-  height: calc(var(--cf-w) * 1.48 + 5.5rem);
+  perspective: 1000px;
+  perspective-origin: 50% 45%;
+  height: calc(1rem + var(--cf-w) * 1.48 * 1.18);
 }
 .dex-cf[data-theme="gallery"] .dex-cf__stage::before {
   display: none;
 }
-.dex-cf__wall-light {
-  /* 真ん中の作品の後ろの壁に落ちる、上からの光の輪。 */
-  position: absolute;
-  left: 50%;
-  top: -1rem;
-  width: calc(var(--cf-w) * 1.9);
-  height: calc(var(--cf-w) * 1.8);
-  translate: -50% 0;
-  background: radial-gradient(
-    50% 55% at 50% 40%,
-    rgb(255 248 232 / 0.95),
-    rgb(255 244 222 / 0.35) 55%,
-    transparent 75%
-  );
-  pointer-events: none;
+.dex-cf[data-theme="gallery"] .dex-cf__slot {
+  top: 1rem;
 }
-.dex-cf__plinth {
-  /* 作品の下の白い台座（奥にあるので小さく、上面が明るい）。 */
+.dex-cf__glow {
+  /* 真ん中の札の足もとに落ちる白い光（台の代わり。形の無い光だけ）。 */
   position: absolute;
   left: 50%;
-  top: calc(1.5rem + var(--cf-w) * 1.48 * 0.86);
-  width: calc(var(--cf-w) * 0.78);
-  height: 3.2rem;
+  top: calc(1rem + var(--cf-w) * 1.48 - var(--cf-w) * 0.12);
+  width: calc(var(--cf-w) * 2.2);
+  height: calc(var(--cf-w) * 0.5);
   translate: -50% 0;
-  background: linear-gradient(180deg, #ffffff 0 18%, #eeebe6 18%, #e2ded7 100%);
-  box-shadow:
-    0 14px 22px -10px rgb(0 0 0 / 0.22),
-    inset 0 -1px 0 rgb(0 0 0 / 0.05);
-  border-radius: 2px;
+  background: radial-gradient(closest-side, rgb(255 255 255 / 0.95), rgb(255 255 255 / 0));
   pointer-events: none;
-  z-index: 0;
 }
 .dex-cf[data-theme="gallery"] .dex-cf__card {
-  /* 額装: 白いマットと細い縁。角は小さく（作品らしく）。 */
-  border-radius: 6px;
+  /* **白いカード**（R15）。淡い青の空間から浮くよう、縁に細い線と柔らかい影。 */
+  background: #ffffff;
+  color: #1d1d1f;
+  border-radius: 14px;
   box-shadow:
-    0 0 0 6px #fff,
-    0 0 0 7px rgb(0 0 0 / 0.08),
-    0 26px 40px -22px rgb(0 0 0 / 0.45);
+    0 0 0 1px rgb(40 80 140 / 0.1),
+    0 2px 6px rgb(40 70 120 / 0.08),
+    0 24px 36px -20px rgb(40 70 120 / 0.35);
 }
-.dex-cf__lot {
-  display: grid;
-  justify-items: center;
-  gap: 1px;
-  margin: 0.1rem auto 0.2rem;
-  text-align: center;
-  color: #2b2724;
+.dex-cf[data-theme="gallery"] .dex-cf__card .text-muted-foreground {
+  color: #5f6b7d;
 }
-.dex-cf__lot-no {
-  font-size: 11px;
-  letter-spacing: 0.22em;
-  color: #8c857b;
-  font-variant-numeric: tabular-nums;
+.dex-cf__gloss {
+  /* 光の筋。札が回ると面を横切る（位置は `DexCoverFlow` が毎フレーム書く）。
+     自分の層を持つので、動いても札の中身は描き直さない。 */
+  position: absolute;
+  inset: -10% -60%;
+  background: linear-gradient(
+    105deg,
+    transparent 38%,
+    rgb(255 255 255 / 0.55) 47%,
+    rgb(255 255 255 / 0.14) 53%,
+    transparent 62%
+  );
+  /* 最初の1コマから面の外に（JS が書く前に筋が真ん中に出ない）。 */
+  transform: translate3d(45%, 0, 0);
+  pointer-events: none;
+  will-change: transform;
 }
-.dex-cf__lot-title {
-  font-size: var(--text-title);
-  font-weight: 700;
-  line-height: 1.2;
+.dex-cf:not([data-theme="gallery"]) .dex-cf__gloss {
+  display: none;
 }
-.dex-cf__lot-sub {
-  font-size: var(--text-footnote);
-  color: #57514a;
+.dex-cf__mirror {
+  /* 床への映り込み: 札の真下に、上下を返した札。足もとだけ淡く見え、すぐ消える。 */
+  position: absolute;
+  left: 0;
+  top: calc(100% + 3px);
+  width: 100%;
+  height: 100%;
+  transform: scaleY(-1);
+  opacity: 0.22;
+  -webkit-mask-image: linear-gradient(to top, #000 0%, transparent 24%);
+  mask-image: linear-gradient(to top, #000 0%, transparent 24%);
+  pointer-events: none;
 }
-.dex-cf__lot-meta {
-  font-size: 11px;
-  color: #8c857b;
+.dex-cf[data-theme="gallery"] .dex-cf__mirror .dex-cf__card {
+  /* 映りには影を付けない（本体の影と重なって足もとが濁る）。 */
+  box-shadow: none;
+  background: #ffffff;
+  color: #1d1d1f;
+  border-radius: 14px;
 }
 .dex-cf[data-theme="gallery"] .dex-cf__dot {
   background: rgb(0 0 0 / 0.18);
@@ -9522,43 +9517,52 @@ html[data-dex-stage="gallery"] {
   opacity: 0.7;
   transition: rotate 0.2s var(--ease-ios, ease);
 }
-.chunk-alts {
-  display: flex;
-  gap: 8px;
-  overflow-x: auto;
+/* 入れ替える語の縦の輪（R17。iOS のピッカーと同じ: 真ん中の帯に止まった語が選ばれる）。 */
+.chunk-wheel {
+  position: relative;
   margin-top: 8px;
-  padding: 2px 2px 6px;
-  scroll-snap-type: x proximity;
-  scrollbar-width: none;
-  overscroll-behavior-x: contain;
+  max-width: 260px;
   animation: chunk-alts-in 0.25s var(--ease-ios, ease) both;
 }
-.chunk-alts::-webkit-scrollbar {
+.chunk-wheel__band {
+  position: absolute;
+  inset: 44px 0 auto;
+  height: 44px;
+  border-radius: 12px;
+  border: 1.5px dashed color-mix(in oklab, var(--primary) 55%, var(--border));
+  background: color-mix(in oklab, var(--primary) 8%, var(--card));
+  pointer-events: none;
+}
+.chunk-wheel__list {
+  position: relative;
+  height: 132px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scroll-snap-type: y mandatory;
+  scrollbar-width: none;
+  padding-block: 44px;
+  -webkit-mask-image: linear-gradient(to bottom, transparent, #000 34%, #000 66%, transparent);
+  mask-image: linear-gradient(to bottom, transparent, #000 34%, #000 66%, transparent);
+}
+.chunk-wheel__list::-webkit-scrollbar {
   display: none;
 }
-.chunk-alts__item {
-  flex: none;
-  scroll-snap-align: start;
-  display: grid;
-  justify-items: center;
-  min-height: 44px;
-  min-width: 56px;
-  padding: 6px 12px;
-  border-radius: 14px;
-  background: var(--card);
-  border: 1.5px dashed color-mix(in oklab, var(--primary) 45%, var(--border));
+.chunk-wheel__item {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  height: 44px;
+  scroll-snap-align: center;
+  line-height: 44px;
 }
-.chunk-alts__item[aria-selected="true"] {
-  border-style: solid;
-  border-color: var(--primary);
-  background: color-mix(in oklab, var(--primary) 10%, var(--card));
-}
-.chunk-alts__word {
+.chunk-wheel__word {
   font-size: var(--text-body);
   font-weight: 700;
 }
-.chunk-alts__ja {
-  font-size: 11px;
+.chunk-wheel__ja {
+  font-size: 12px;
   color: var(--muted-foreground);
 }
 @keyframes chunk-alts-in {
@@ -9567,7 +9571,7 @@ html[data-dex-stage="gallery"] {
     transform: translateY(-4px);
   }
 }
-html[data-motion="reduce"] .chunk-alts {
+html[data-motion="reduce"] .chunk-wheel {
   animation: none;
 }
 
@@ -9967,4 +9971,675 @@ html[data-dex-dragging] {
 .chunk-set--boxes > .chunk-pill:active {
   transform: translateY(1px) scale(0.95);
   transition-duration: 0.08s;
+}
+
+/* ---------------------------------------------------------------------------
+ * ホームの一番上の本棚（`HomeShelf`、オーナー指示 2026-09-29「ホームのアルバムの一番上に
+ * 本棚を一列作って」）。1段の 3D の棚。本を開くと画面いっぱいに広がる。
+ * ------------------------------------------------------------------------- */
+.home-shelf {
+  /* 画面の幅いっぱいの帯（R17「3D のリアルな本棚をアプリの上部に設置して」）。 */
+  margin: -1rem -1rem 0.25rem;
+}
+/* ---------------------------------------------------------------------------
+ * 本棚と今日のアルバムを**1つの作品**にする（オーナー指示 R19「本棚と下の今日のアルバムの
+ * 画像の一体感がないから、デザインを工夫して1つの作品に」）。
+ *
+ * 前は、丸く切った部屋の帯の下に、別の色の画面の地があり、そこへ紙の板が置かれていた。
+ * 3 つがそれぞれ別の物に見えた。今は**同じ 1 枚の壁**: 棚の壁（A 自然光の下半分の色）が
+ * そのまま下へ続き、棚は壁に掛かり、日付は壁に直に書かれ、アルバムは壁に貼られた大きな
+ * 印画紙になる。いちばん下に巾木（はばき）を通して、壁がそこで終わることを見せる。
+ * 壁は明るい色で固定なので、字の色は紙用に差し替える（`.collage-board` と同じ考え方）。
+ * ------------------------------------------------------------------------- */
+.home-scene {
+  --foreground: var(--album-ink);
+  --muted-foreground: var(--album-ink-dim);
+  position: relative;
+  margin: -1rem -1rem 1.5rem;
+  padding: 0 1rem 2.6rem;
+  background: #efe5d6;
+  color: var(--album-ink);
+}
+.home-scene .home-shelf {
+  margin: 0 -1rem 0.5rem;
+}
+.home-scene .home-shelf__stage:not([data-full]) {
+  border-radius: 0;
+}
+/* 棚が壁に落とす影は、帯の下の縁で切れずに壁へ溶ける（縁で切ると、帯と壁の継ぎ目が見える）。 */
+.home-scene .home-shelf__stage:not([data-full]) .home-shelf__canvas,
+.home-scene .home-shelf__stage:not([data-full]) .home-shelf__snap {
+  mask-image: linear-gradient(#000 88%, transparent);
+}
+.home-scene .diary-date__weekday {
+  color: color-mix(in oklab, var(--primary) 82%, #000);
+}
+/* アルバム = 壁に貼った大きな印画紙。壁に対して少し浮かせる。 */
+.home-scene .collage-board {
+  box-shadow:
+    0 2px 3px rgba(60, 42, 18, 0.14),
+    0 26px 34px -18px rgba(60, 42, 18, 0.55);
+}
+/* 巾木。壁の終わり。 */
+.home-scene::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 20px;
+  background: linear-gradient(#c9a47a, #a17b52 60%, #8a6540);
+  box-shadow:
+    0 -1px 0 rgb(255 255 255 / 0.45),
+    0 -14px 16px -10px rgb(60 42 18 / 0.28);
+  pointer-events: none;
+}
+.home-shelf__box {
+  position: relative;
+  height: clamp(190px, 58vw, 290px);
+}
+.home-shelf__stage {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  /* 帯の上では縦に払えばホームが送られる。本を押すのは 3D が受ける。 */
+  touch-action: pan-y;
+  /* 下の端は丸く切って、下のアルバムの紙へ柔らかく続ける（参考画像）。 */
+  border-radius: 0 0 28px 28px;
+}
+.home-shelf__stage[data-full] {
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+  border-radius: 0;
+  touch-action: none;
+}
+/* 部屋（壁・窓・空）。3D は透明の上に棚だけを描くので、ここが後ろに見える。 */
+.home-shelf__room {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.home-shelf__room::before,
+.home-shelf__room::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+}
+/* A 自然光・旅の雰囲気: 明るい空と、左上から差す昼の光。下は暖かい白い壁。 */
+.home-shelf--room-a .home-shelf__room {
+  background:
+    radial-gradient(90% 70% at 12% 0%, rgb(255 250 235 / 0.95), transparent 60%),
+    linear-gradient(180deg, #cfe6fb 0%, #e9f2fa 34%, #f6efe3 56%, #efe5d6 80%);
+}
+.home-shelf--room-a .home-shelf__room::after {
+  /* 窓から差す光の筋 */
+  background: repeating-linear-gradient(
+    115deg,
+    rgb(255 255 255 / 0) 0 38px,
+    rgb(255 255 255 / 0.22) 38px 70px,
+    rgb(255 255 255 / 0) 70px 120px
+  );
+  mask-image: linear-gradient(180deg, #000, transparent 70%);
+}
+/* B 暖かい部屋: 濃い木の壁（縦の羽目板）と、真ん中に落ちる暖色の光。 */
+.home-shelf--room-b .home-shelf__room {
+  background:
+    radial-gradient(70% 60% at 50% 30%, rgb(255 196 128 / 0.35), transparent 70%),
+    repeating-linear-gradient(90deg, rgb(0 0 0 / 0.1) 0 1px, transparent 1px 46px),
+    linear-gradient(180deg, #5a3a22 0%, #6d4629 45%, #3d2616 100%);
+}
+.home-shelf--room-b .home-shelf__room::after {
+  background: radial-gradient(140% 90% at 50% 50%, transparent 55%, rgb(20 10 4 / 0.55));
+}
+/* C シンプル・ミニマル: 生成りの壁に、棚を包む白いアーチの窪み。 */
+.home-shelf--room-c .home-shelf__room {
+  background: linear-gradient(180deg, #f3eee6, #ece4d8);
+}
+.home-shelf--room-c .home-shelf__room::before {
+  inset: 8% 4% -10%;
+  border-radius: 48% 48% 0 0 / 30% 30% 0 0;
+  background: linear-gradient(180deg, #fbf8f3, #f1ebe2);
+  box-shadow:
+    inset 0 14px 24px -12px rgb(120 100 80 / 0.25),
+    0 1px 0 rgb(255 255 255 / 0.8);
+}
+/* D 窓と景色: 窓の外の空と街並み、白い窓枠、右に薄いカーテン。 */
+.home-shelf--room-d .home-shelf__room {
+  background:
+    linear-gradient(180deg, transparent 62%, #efe6d8 62%),
+    linear-gradient(180deg, #8cc4f0 0%, #cfe6f8 45%, #eef5fb 62%);
+}
+.home-shelf--room-d .home-shelf__room::before {
+  /* 街並み（窓の下の方に、ビルの影が並ぶ） */
+  inset: auto 0 38% 0;
+  height: 26%;
+  background: linear-gradient(
+    90deg,
+    transparent 0 4%,
+    #9fb7cc 4% 11%,
+    transparent 11% 14%,
+    #b3c6d6 14% 22%,
+    transparent 22% 26%,
+    #a7bdd0 26% 31%,
+    transparent 31% 58%,
+    #b7c9d8 58% 66%,
+    transparent 66% 70%,
+    #9cb3c8 70% 79%,
+    transparent 79% 83%,
+    #afc3d4 83% 93%,
+    transparent 93%
+  );
+  mask-image: linear-gradient(180deg, transparent 0%, #000 30%);
+  opacity: 0.85;
+}
+.home-shelf--room-d .home-shelf__room::after {
+  /* 窓枠（縦2本・横1本）と右のカーテン */
+  background:
+    linear-gradient(
+      90deg,
+      transparent 0 32.5%,
+      #fff 32.5% 34%,
+      transparent 34% 66%,
+      #fff 66% 67.5%,
+      transparent 67.5%
+    ),
+    linear-gradient(
+      180deg,
+      transparent 0 30%,
+      #fff 30% 31.5%,
+      transparent 31.5% 60%,
+      #f7f3ec 60% 62%,
+      transparent 62%
+    ),
+    linear-gradient(90deg, transparent 84%, rgb(255 255 255 / 0.75) 92%, rgb(255 255 255 / 0.9));
+}
+/* 3D が届くまでの仮の棚: 部屋の中の木の棚に、月の色の背表紙が並ぶ。 */
+/* 3D より先に出す棚の絵（`shelf3d/snapshot.ts`）。3D の canvas と同じ位置・同じ大きさ。 */
+.home-shelf__snap {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  pointer-events: none;
+  user-select: none;
+  transition: opacity 0.22s ease;
+}
+.home-shelf__snap[data-gone] {
+  opacity: 0;
+}
+.home-shelf__canvas {
+  mask-image: linear-gradient(#000 88%, transparent);
+}
+.home-scene .diary-date__weekday {
+  color: color-mix(in oklab, var(--primary) 82%, #000);
+}
+/* アルバム = 壁に貼った大きな印画紙。壁に対して少し浮かせる。 */
+.home-scene .collage-board {
+  box-shadow:
+    0 2px 3px rgba(60, 42, 18, 0.14),
+    0 26px 34px -18px rgba(60, 42, 18, 0.55);
+}
+/* 巾木。壁の終わり。 */
+.home-scene::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 20px;
+  background: linear-gradient(#c9a47a, #a17b52 60%, #8a6540);
+  box-shadow:
+    0 -1px 0 rgb(255 255 255 / 0.45),
+    0 -14px 16px -10px rgb(60 42 18 / 0.28);
+  pointer-events: none;
+}
+.home-shelf__box {
+  position: relative;
+  height: clamp(190px, 58vw, 290px);
+}
+.home-shelf__stage {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  /* 帯の上では縦に払えばホームが送られる。本を押すのは 3D が受ける。 */
+  touch-action: pan-y;
+  /* 下の端は丸く切って、下のアルバムの紙へ柔らかく続ける（参考画像）。 */
+  border-radius: 0 0 28px 28px;
+}
+.home-shelf__stage[data-full] {
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+  border-radius: 0;
+  touch-action: none;
+}
+/* 部屋（壁・窓・空）。3D は透明の上に棚だけを描くので、ここが後ろに見える。 */
+.home-shelf__room {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.home-shelf__room::before,
+.home-shelf__room::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+}
+/* A 自然光・旅の雰囲気: 明るい空と、左上から差す昼の光。下は暖かい白い壁。 */
+.home-shelf--room-a .home-shelf__room {
+  background:
+    radial-gradient(90% 70% at 12% 0%, rgb(255 250 235 / 0.95), transparent 60%),
+    linear-gradient(180deg, #cfe6fb 0%, #e9f2fa 34%, #f6efe3 56%, #efe5d6 80%);
+}
+.home-shelf--room-a .home-shelf__room::after {
+  /* 窓から差す光の筋 */
+  background: repeating-linear-gradient(
+    115deg,
+    rgb(255 255 255 / 0) 0 38px,
+    rgb(255 255 255 / 0.22) 38px 70px,
+    rgb(255 255 255 / 0) 70px 120px
+  );
+  mask-image: linear-gradient(180deg, #000, transparent 70%);
+}
+/* B 暖かい部屋: 濃い木の壁（縦の羽目板）と、真ん中に落ちる暖色の光。 */
+.home-shelf--room-b .home-shelf__room {
+  background:
+    radial-gradient(70% 60% at 50% 30%, rgb(255 196 128 / 0.35), transparent 70%),
+    repeating-linear-gradient(90deg, rgb(0 0 0 / 0.1) 0 1px, transparent 1px 46px),
+    linear-gradient(180deg, #5a3a22 0%, #6d4629 45%, #3d2616 100%);
+}
+.home-shelf--room-b .home-shelf__room::after {
+  background: radial-gradient(140% 90% at 50% 50%, transparent 55%, rgb(20 10 4 / 0.55));
+}
+/* C シンプル・ミニマル: 生成りの壁に、棚を包む白いアーチの窪み。 */
+.home-shelf--room-c .home-shelf__room {
+  background: linear-gradient(180deg, #f3eee6, #ece4d8);
+}
+.home-shelf--room-c .home-shelf__room::before {
+  inset: 8% 4% -10%;
+  border-radius: 48% 48% 0 0 / 30% 30% 0 0;
+  background: linear-gradient(180deg, #fbf8f3, #f1ebe2);
+  box-shadow:
+    inset 0 14px 24px -12px rgb(120 100 80 / 0.25),
+    0 1px 0 rgb(255 255 255 / 0.8);
+}
+/* D 窓と景色: 窓の外の空と街並み、白い窓枠、右に薄いカーテン。 */
+.home-shelf--room-d .home-shelf__room {
+  background:
+    linear-gradient(180deg, transparent 62%, #efe6d8 62%),
+    linear-gradient(180deg, #8cc4f0 0%, #cfe6f8 45%, #eef5fb 62%);
+}
+.home-shelf--room-d .home-shelf__room::before {
+  /* 街並み（窓の下の方に、ビルの影が並ぶ） */
+  inset: auto 0 38% 0;
+  height: 26%;
+  background: linear-gradient(
+    90deg,
+    transparent 0 4%,
+    #9fb7cc 4% 11%,
+    transparent 11% 14%,
+    #b3c6d6 14% 22%,
+    transparent 22% 26%,
+    #a7bdd0 26% 31%,
+    transparent 31% 58%,
+    #b7c9d8 58% 66%,
+    transparent 66% 70%,
+    #9cb3c8 70% 79%,
+    transparent 79% 83%,
+    #afc3d4 83% 93%,
+    transparent 93%
+  );
+  mask-image: linear-gradient(180deg, transparent 0%, #000 30%);
+  opacity: 0.85;
+}
+.home-shelf--room-d .home-shelf__room::after {
+  /* 窓枠（縦2本・横1本）と右のカーテン */
+  background:
+    linear-gradient(
+      90deg,
+      transparent 0 32.5%,
+      #fff 32.5% 34%,
+      transparent 34% 66%,
+      #fff 66% 67.5%,
+      transparent 67.5%
+    ),
+    linear-gradient(
+      180deg,
+      transparent 0 30%,
+      #fff 30% 31.5%,
+      transparent 31.5% 60%,
+      #f7f3ec 60% 62%,
+      transparent 62%
+    ),
+    linear-gradient(90deg, transparent 84%, rgb(255 255 255 / 0.75) 92%, rgb(255 255 255 / 0.9));
+}
+/* 3D が届くまでの仮の棚: 部屋の中の木の棚に、月の色の背表紙が並ぶ。 */
+.home-shelf__proxy {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  pointer-events: none;
+  /* 3D はすぐ出るのが普通。仮の平らな棚は、1 秒以上待たせる時だけ現れる（先に見せると、
+     3D に変わる瞬間に絵が入れ替わって見える。R19「開いた瞬間、仮の絵ではなく 3D」）。 */
+  animation: home-shelf-proxy-in 0.4s ease 1.2s both;
+}
+@keyframes home-shelf-proxy-in {
+  from {
+    opacity: 0;
+  }
+}
+.home-shelf__proxy-shelf {
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  width: 88%;
+  height: 46%;
+  padding: 10px 12px 10px;
+  border-radius: 6px;
+  background: linear-gradient(#a57a50, #7a5534);
+  box-shadow:
+    inset 0 0 0 6px #8a6240,
+    inset 0 12px 16px -8px rgb(0 0 0 / 0.45),
+    0 10px 24px -10px rgb(0 0 0 / 0.45);
+}
+.home-shelf__proxy-shelf span {
+  width: 9%;
+  height: 86%;
+  border-radius: 2px;
+  box-shadow: inset 0 0 0 1px rgb(0 0 0 / 0.15);
+}
+.home-shelf__canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+.home-shelf__status {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  color: rgb(255 255 255 / 0.75);
+  font-size: var(--text-footnote);
+  pointer-events: none;
+}
+.home-shelf__spinner {
+  width: 26px;
+  height: 26px;
+  border-radius: 9999px;
+  border: 3px solid rgb(255 255 255 / 0.25);
+  border-top-color: #fff;
+  animation: home-shelf-spin 0.8s linear infinite;
+}
+@keyframes home-shelf-spin {
+  to {
+    rotate: 360deg;
+  }
+}
+.home-shelf__btn {
+  min-height: 44px;
+  padding: 0 16px;
+  border-radius: 9999px;
+  border: 1px solid rgb(255 255 255 / 0.35);
+  background: rgb(20 16 12 / 0.55);
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+  color: #fff;
+  font-weight: 600;
+  font-size: 14px;
+}
+.home-shelf__top {
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  top: calc(env(safe-area-inset-top, 0px) + 12px);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+.home-shelf__label {
+  display: inline-flex;
+  align-items: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.home-shelf__arrow {
+  position: absolute;
+  top: 42%;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  font-size: 26px;
+  line-height: 40px;
+}
+.home-shelf__arrow[data-side="left"] {
+  left: 6px;
+}
+.home-shelf__arrow[data-side="right"] {
+  right: 6px;
+}
+.home-shelf__bottom {
+  position: absolute;
+  left: 10px;
+  right: 10px;
+  bottom: calc(env(safe-area-inset-bottom, 0px) + 10px);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.home-shelf__font {
+  flex: 1 1 0;
+  min-width: 0;
+  padding: 0 4px;
+  white-space: nowrap;
+  font-weight: 400;
+}
+.home-shelf__font[aria-checked="true"] {
+  background: rgb(255 255 255 / 0.92);
+  color: #1d1a16;
+}
+.home-shelf__write {
+  background: rgb(47 111 214 / 0.92);
+  border: none;
+}
+.home-shelf__sheet {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: flex-end;
+  background: rgb(20 16 12 / 0.55);
+}
+.home-shelf__sheet-card {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 16px 16px calc(env(safe-area-inset-bottom, 0px) + 16px);
+  border-radius: 20px 20px 0 0;
+  background: #f7f2e6;
+}
+.home-shelf__sheet-title {
+  font-size: 20px;
+  color: #3a3128;
+}
+.home-shelf__sheet-card .home-shelf__btn:not(.home-shelf__write) {
+  background: rgb(58 49 40 / 0.8);
+}
+.home-shelf__textarea {
+  width: 100%;
+  resize: none;
+  border: 1px solid rgb(90 120 170 / 0.3);
+  border-radius: 12px;
+  padding: 10px 12px;
+  background: repeating-linear-gradient(#f7f2e6 0 34px, rgb(90 120 170 / 0.22) 34px 35px);
+  line-height: 35px;
+  font-size: 20px;
+  color: #23304a;
+}
+/* 片ページ（全画面）。ページは 3D の本が寄って見せる。この層は釦だけ（間は素通し）。 */
+.home-shelf__single {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  pointer-events: none;
+}
+.home-shelf__single > * {
+  pointer-events: auto;
+}
+.home-shelf__single-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  padding: calc(env(safe-area-inset-top, 0px) + 10px) 12px 8px;
+}
+.home-shelf__single-title {
+  color: #fff;
+  font-weight: 700;
+  font-size: 15px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.home-shelf__seg {
+  display: flex;
+  gap: 2px;
+  padding: 3px;
+  border-radius: 9999px;
+  background: rgb(255 255 255 / 0.16);
+}
+.home-shelf__seg button {
+  min-height: 36px;
+  padding: 0 14px;
+  border-radius: 9999px;
+  border: 0;
+  font-size: 13px;
+  font-weight: 700;
+  background: transparent;
+  color: #fff;
+}
+.home-shelf__seg button[aria-checked="true"] {
+  background: #fff;
+  color: #1d1a16;
+}
+.home-shelf__single-nav {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px calc(env(safe-area-inset-bottom, 0px) + 18px);
+}
+.home-shelf__single-side {
+  color: rgb(255 255 255 / 0.7);
+  font-size: 13px;
+}
+/* 鉛筆で日記を書き込む机（R17）。 */
+.home-shelf__pencil {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  background: #120c08;
+}
+.home-shelf__pencil-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+.home-shelf__pencil-skip {
+  position: absolute;
+  left: 50%;
+  translate: -50% 0;
+  bottom: calc(env(safe-area-inset-bottom, 0px) + 20px);
+}
+
+/* ---------------------------------------------------------------------------
+ * Pro: 単語の詳細の写真を 3D にする（`Object3DHero`、R17）。
+ * ------------------------------------------------------------------------- */
+.object3d-btn {
+  /* 左上（左下は写真の切り替え・右上は記憶の印が使っている）。 */
+  position: absolute;
+  left: 12px;
+  top: 12px;
+  z-index: 5;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 44px;
+  padding: 0 14px;
+  border-radius: 9999px;
+  border: 1px solid rgb(255 255 255 / 0.5);
+  background: rgb(15 20 30 / 0.55);
+  -webkit-backdrop-filter: blur(14px) saturate(160%);
+  backdrop-filter: blur(14px) saturate(160%);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+.object3d-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 6;
+  overflow: hidden;
+  border-radius: 1.5rem;
+  background: radial-gradient(ellipse at 50% 40%, #1c1f26, #07080b 75%);
+  animation: object3d-in 0.32s var(--ease-ios, ease) both;
+}
+.object3d-layer__canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  touch-action: none;
+}
+.object3d-layer__status {
+  position: absolute;
+  left: 50%;
+  bottom: 18px;
+  translate: -50% 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  max-width: calc(100% - 32px);
+  padding: 8px 14px;
+  border-radius: 9999px;
+  background: rgb(255 255 255 / 0.12);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 600;
+  text-align: center;
+}
+.object3d-layer__close {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 9999px;
+  border: 0;
+  background: rgb(255 255 255 / 0.16);
+  color: #fff;
+}
+@keyframes object3d-in {
+  from {
+    opacity: 0;
+    scale: 0.97;
+  }
+}
+html[data-motion="reduce"] .object3d-layer {
+  animation: none;
 }

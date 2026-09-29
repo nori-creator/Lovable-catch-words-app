@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { withoutGenericChunks } from "./generic-chunks";
 import { normalizeTargetLanguage } from "./target-lang";
+import { tidyUsageParts } from "./chunk-grammar";
 
 /**
  * 単語カードの extras の唯一の定義(2026-07-25 詳細カード再構成)。
@@ -27,6 +28,12 @@ export const ChunkPartSchema = z.object({
    * 具体的単語が出る（跟+男朋友+吵架 → 女朋友・朋友…をスクロールで表示）。音声も全部」。
    * `ja` はその語の意味（読み手の言語）。古いカードには無い。
    */
+  /**
+   * 入れ替える所の**その語の意味**（読み手の言語）。語を入れ替えた時に、型の訳の中の
+   * この部分を入れ替えた語の意味に差し替えて出す（R20「点線のなかのほかの単語をタップしたら、
+   * もとの単語と同じように訳が表示され」）。古いカードには無い。
+   */
+  ja: z.string().optional().catch(undefined),
   alts: z
     .array(z.object({ text: z.string(), ja: z.string().catch("") }))
     .max(8)
@@ -662,7 +669,11 @@ export function chunkTranslation(ja: string | null | undefined): string {
 }
 
 export function chunkSpeechText(chunk: UsageChunk, language?: string | null): string {
-  return chunkText(chunk, normalizeTargetLanguage(language) === "en" ? " " : "");
+  // 画面の札と同じ形を読む（台湾華語の「名詞＋形容詞」に 很 を補った後、`chunk-grammar.ts`）。
+  return chunkText(
+    { ...chunk, parts: tidyUsageParts(chunk.parts ?? [], language) },
+    normalizeTargetLanguage(language) === "en" ? " " : "",
+  );
 }
 
 /**

@@ -34,6 +34,7 @@ export function PronounceButton({
   className = "",
   label,
   stopPropagation = false,
+  sticky = false,
 }: {
   text: string;
   /** 読む語の学習言語。渡さないと台湾華語として読む。 */
@@ -55,6 +56,12 @@ export function PronounceButton({
    * 図鑑の一覧は札ごと押せるので、伝えるとカードが開いてしまう。
    */
   stopPropagation?: boolean;
+  /**
+   * **読む文が替わっても引っ込めない**（チャンクの右端。R20「点線の語を替えても、チャンクの
+   * 右端の全体の発音も聞けるように」）。語を入れ替えるたびに読む文が替わるので、支度中に
+   * 消すと右端のボタンが無くなって見える。押せば、その場で作って鳴らす。
+   */
+  sticky?: boolean;
 }) {
   const t = useT();
   const pronounce = usePronounce(language);
@@ -78,7 +85,7 @@ export function PronounceButton({
   // 新しい語のボタンが一瞬出てしまう。
   if (shownFor.current !== text) {
     shownFor.current = text;
-    shown.current = false;
+    if (!sticky) shown.current = false;
   }
   if (state === "ready" || state === "failed") shown.current = true;
   const box = size === "sm" ? "h-9 w-9" : "h-11 w-11";
