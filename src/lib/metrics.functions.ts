@@ -27,7 +27,13 @@ const APP_EVENTS = [
   "leave_review",
   "leave_settings",
   "leave_other",
+  // 保存の失敗（オーナー報告 2026-09-30「画像が保存されなかった。開発者の記録にも
+  // 残っていない」）。利用者ごとの画面の「保存の失敗」に数が出る（`save-failure.ts`）。
+  "save_failed_catch",
+  "save_failed_reencounter",
+  "save_failed_first_transfer",
 ] as const;
+export type AppEventKind = (typeof APP_EVENTS)[number];
 
 export const logAppEvent = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])

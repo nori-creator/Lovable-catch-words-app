@@ -4,6 +4,7 @@ import { CardSchema } from "./card-schema";
 import {
   canRequestAccount,
   firstCatchSticker,
+  hasAddedCatch,
   readFirstCatch,
   writeFirstCatch,
   type FirstCatch,
@@ -84,6 +85,24 @@ describe("signup transfer", () => {
     save: vi.fn(async (_draft: FirstCatch, _path: string | null) => ({ id: draft.id })),
     preferences: vi.fn(async () => {}),
     persist: vi.fn(writeFirstCatch),
+  });
+  it.each(["added", "explore"] as const)(
+    "R25: a peeled catch at %s is still transferred when the person signs in mid-tour",
+    async (stage) => {
+      // オーナー報告 2026-09-30「剥がすアニメーションまでやったのに画像が保存されなかった」。
+      const peeled = { ...draft, stage };
+      expect(canRequestAccount(peeled)).toBe(false);
+      expect(hasAddedCatch(peeled)).toBe(true);
+      const p = ports();
+      await transferFirstCatch(peeled, userId, p);
+      expect(p.upload).toHaveBeenCalledTimes(1);
+      expect(p.save).toHaveBeenCalledTimes(1);
+    },
+  );
+  it("R25: nothing before the peel counts as an added catch", () => {
+    for (const stage of ["camera", "card"] as const)
+      expect(hasAddedCatch({ ...draft, stage })).toBe(false);
+    expect(hasAddedCatch({ ...draft, photo: null })).toBe(false);
   });
   it("does not upload or save a not-yet-added word", async () => {
     const p = ports();

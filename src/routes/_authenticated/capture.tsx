@@ -6,10 +6,19 @@ import { takeScanHandoff } from "@/lib/scan-handoff";
 import { containRect, residualZoom, viewfinderCrop } from "@/lib/capture-framing";
 import { useCutoutClipped } from "@/lib/cutout-clip";
 import { PeelSticker } from "@/components/PeelSticker";
+import { reportSaveFailure } from "@/lib/save-failure";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useTargetLang } from "@/lib/target-lang-pref";
 import { CandidatePicker } from "@/components/CandidatePicker";
-import { useEffect, useMemo, useRef, useState, type CSSProperties, type RefObject } from "react";
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+  type PointerEvent as ReactPointerEvent,
+  type RefObject,
+} from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { AppShell } from "@/components/AppShell";
@@ -80,6 +89,13 @@ import { tStatic } from "@/lib/i18n";
 import { Sound } from "@/lib/sound-engine";
 import { haptic } from "@/lib/haptics";
 import { Capacitor } from "@capacitor/core";
+import {
+  focusAt,
+  focusPointFromTap,
+  focusSupport,
+  pinchDistance,
+  type FocusSupport,
+} from "@/lib/camera-focus";
 import {
   photoLibrarySaveRequiresUserGesture,
   saveCaptureToPhotoLibrary,
@@ -1194,6 +1210,7 @@ function CapturePage() {
         navigate({ to: "/dex", search: { justCaught: res.id } });
       } catch (e) {
         console.error(e);
+        reportSaveFailure("catch", e, { photo: false });
         toast.error(readable(e, t("cap.saveFailed")));
         setStep("card");
       }
@@ -1256,6 +1273,7 @@ function CapturePage() {
         navigate({ to: "/dex", search: {} });
         return;
       }
+      reportSaveFailure("catch", e, { photo: true });
       toast.error(readable(e, t("cap.saveFailed")));
     }
   }
@@ -1374,6 +1392,7 @@ function CapturePage() {
       return true;
     } catch (e) {
       console.error(e);
+      reportSaveFailure("reencounter", e);
       setReencFailed(true);
       toast.error(t("cap.recordFailed"));
       return false;
@@ -2223,6 +2242,43 @@ export function CaptureObjectPanel({
   const [hwZoom, setHwZoom] = useState(1);
   /** 見た目と切り出しの両方が使う、補うぶんの倍率。 */
   const shownZoom = residualZoom(zoom, hwZoom);
+  /** タップでピントを合わせられるか（端末とブラウザが持っている時だけ。`camera-focus.ts`）。 */
+  const [focusCap, setFocusCap] = useState<FocusSupport>(null);
+  /** ピントを合わせた所の印（枠の中の位置）。`key` を変えて押すたびに描き直す。 */
+  const [reticle, setReticle] = useState<{ x: number; y: number; key: number } | null>(null);
+  const reticleTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  /** 枠に触れている指。1本なら「押してピント」、2本なら「つまんで寄る」。 */
+  const pointers = useRef(new Map<number, { x: number; y: number }>());
+  const tap = useRef<{ id: number; x: number; y: number; at: number } | null>(null);
+  const pinch = useRef<{ d0: number; z0: number } | null>(null);
+  const pinchFrame = useRef(0);
+
+  /**
+   * **撮る画面そのものは拡大させない。**（オーナー指示 2026-09-30「この画面で画像と
+   * 関係ないところズームできるのおかしいから修正して。写真撮影の画面は固定して」）
+   *
+   * 2本指でつまむと、ブラウザが画面ごと拡大していた（映像も釦も一緒に大きくなり、
+   * 戻し方も分からない）。CSS の `touch-action: none`（`.capture-viewfinder`）に加えて、
+   * Safari だけが出す `gesturestart` と、2本指の `touchmove` を止める。
+   * つまむ動きは、枠の中では**カメラの倍率**に使う（iPhone のカメラと同じ）。
+   * この画面を離れたら外すので、ほかの画面の拡大（読みにくい人の拡大）は奪わない。
+   */
+  useEffect(() => {
+    const stop = (e: Event) => e.preventDefault();
+    const stopPinch = (e: TouchEvent) => {
+      if (e.touches.length > 1 && e.cancelable) e.preventDefault();
+    };
+    document.addEventListener("gesturestart", stop, { passive: false });
+    document.addEventListener("gesturechange", stop, { passive: false });
+    document.addEventListener("touchmove", stopPinch, { passive: false });
+    return () => {
+      document.removeEventListener("gesturestart", stop);
+      document.removeEventListener("gesturechange", stop);
+      document.removeEventListener("touchmove", stopPinch);
+      clearTimeout(reticleTimer.current);
+      cancelAnimationFrame(pinchFrame.current);
+    };
+  }, []);
 
   useEffect(() => {
     if (onNativeCapture || !navigator.mediaDevices?.getUserMedia) return;
@@ -2270,10 +2326,13 @@ export function CaptureObjectPanel({
         setZoomCaps(next);
         setZoom(1);
         setHwZoom(readTrackZoom(track));
+        setFocusCap(focusSupport(track));
       })
       .catch(() => setCameraReady(false));
     return () => {
       cancelled = true;
+      setFocusCap(null);
+      setReticle(null);
       streamRef.current?.getTracks().forEach((track) => track.stop());
       streamRef.current = null;
       zoomCapsRef.current = null;
@@ -2305,6 +2364,72 @@ export function CaptureObjectPanel({
         setZoomCaps(null);
         setHwZoom(1);
       });
+  };
+
+  /**
+   * **押した物にピントを合わせる。** 端末が持っていない時は何もしない（印も出さない —
+   * 合っていないのに合ったように見せない）。
+   */
+  const focusHere = (clientX: number, clientY: number, frame: HTMLElement) => {
+    const video = videoRef.current;
+    const track = streamRef.current?.getVideoTracks()[0];
+    if (!focusCap || !video || !track) return;
+    const point = focusPointFromTap(
+      clientX,
+      clientY,
+      video.getBoundingClientRect(),
+      video.videoWidth,
+      video.videoHeight,
+    );
+    if (!point) return;
+    const box = frame.getBoundingClientRect();
+    const key = Date.now();
+    setReticle({ x: clientX - box.left, y: clientY - box.top, key });
+    haptic("selection");
+    clearTimeout(reticleTimer.current);
+    reticleTimer.current = setTimeout(() => setReticle(null), 1400);
+    void focusAt(track, focusCap, point).then((ok) => {
+      if (!ok) setReticle((r) => (r?.key === key ? null : r));
+    });
+  };
+  const zoomMin = zoomCaps?.min ?? 1;
+  const zoomMax = zoomCaps?.max ?? 3;
+  const frameGestures = {
+    onPointerDown: (e: ReactPointerEvent<HTMLDivElement>) => {
+      pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      if (pointers.current.size === 1) {
+        tap.current = { id: e.pointerId, x: e.clientX, y: e.clientY, at: Date.now() };
+      } else {
+        tap.current = null;
+        const [a, b] = [...pointers.current.values()];
+        pinch.current = { d0: Math.max(1, pinchDistance(a, b)), z0: zoom };
+      }
+    },
+    onPointerMove: (e: ReactPointerEvent<HTMLDivElement>) => {
+      if (!pointers.current.has(e.pointerId)) return;
+      pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      const t0 = tap.current;
+      if (t0 && Math.hypot(e.clientX - t0.x, e.clientY - t0.y) > 10) tap.current = null;
+      const p = pinch.current;
+      if (!p || pointers.current.size < 2 || onNativeCapture || !cameraReady) return;
+      const [a, b] = [...pointers.current.values()];
+      const next = Math.min(zoomMax, Math.max(zoomMin, (p.z0 * pinchDistance(a, b)) / p.d0));
+      cancelAnimationFrame(pinchFrame.current);
+      pinchFrame.current = requestAnimationFrame(() => applyZoom(Math.round(next * 10) / 10));
+    },
+    onPointerUp: (e: ReactPointerEvent<HTMLDivElement>) => {
+      const t0 = tap.current;
+      pointers.current.delete(e.pointerId);
+      if (pointers.current.size < 2) pinch.current = null;
+      if (t0 && t0.id === e.pointerId && Date.now() - t0.at < 600)
+        focusHere(e.clientX, e.clientY, e.currentTarget);
+      tap.current = null;
+    },
+    onPointerCancel: (e: ReactPointerEvent<HTMLDivElement>) => {
+      pointers.current.delete(e.pointerId);
+      if (pointers.current.size < 2) pinch.current = null;
+      tap.current = null;
+    },
   };
 
   const openCamera = () => {
@@ -2435,7 +2560,11 @@ export function CaptureObjectPanel({
         撮る写真もそこだけだった。枠は映像と同じ縦横比（`--cam-aspect`）。
         四隅の案内（シールに収まる範囲）も枠の中に置く。
       */}
-      <div className="capture-frame" style={{ "--cam-aspect": String(camAspect) } as CSSProperties}>
+      <div
+        className="capture-frame"
+        style={{ "--cam-aspect": String(camAspect) } as CSSProperties}
+        {...frameGestures}
+      >
         {!onNativeCapture && (
           <video
             ref={videoRef}
@@ -2465,6 +2594,15 @@ export function CaptureObjectPanel({
             <span />
             <span />
           </div>
+        )}
+        {reticle && (
+          <span
+            key={reticle.key}
+            className="capture-focus-ring"
+            data-testid="capture-focus-ring"
+            style={{ left: reticle.x, top: reticle.y }}
+            aria-hidden="true"
+          />
         )}
       </div>
       {selfieMode && (
@@ -2527,9 +2665,9 @@ export function CaptureObjectPanel({
           <div className="mb-3 flex justify-center">
             <CameraZoomMeter
               zoom={zoom}
-              min={zoomCaps?.min ?? 1}
+              min={zoomMin}
               // 倍率を持たない端末でも、**見た目の拡大**なら 3× まで出せる。
-              max={zoomCaps?.max ?? 3}
+              max={zoomMax}
               onZoom={applyZoom}
             />
           </div>

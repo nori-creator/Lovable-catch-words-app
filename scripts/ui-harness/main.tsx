@@ -1,4 +1,9 @@
 import { FirstCatchScene } from "./scenes/first-catch";
+import {
+  setWelcomeLayoutPreview,
+  WELCOME_LAYOUTS,
+  type WelcomeLayout,
+} from "@/components/onboarding/FirstCatchPages";
 import { HomeShelfScene } from "./scenes/home-shelf";
 import { InstallAppScene } from "./scenes/install-app";
 import { ChunkDesignsScene } from "./scenes/chunk-designs";
@@ -393,14 +398,15 @@ const q = new URLSearchParams(location.search);
  * 「これを見てください」と差し出すことになる。
  */
 const REVIEW_SCENES: Array<{ scene: string; label: string }> = [
-  // 2026-09-29 夜の依頼（R24: 初回の写真の縦潰れ・チュートリアルを本物の画面に・図鑑の絞り込み）で触った面だけ。
+  // 2026-09-30 の依頼（R25: 初回の写真・ベータテストの指摘・カメラ）で触った面だけ。
   // **毎回ここを入れ替える** — 前の依頼の面は残さない（オーナー指示「過去のものは全て削除して」）。
-  { scene: "first-catch&step=intro", label: "最初の画面: 写真をアルバムと同じ紙に" },
-  { scene: "first-catch&step=questions&question=4", label: "興味の質問: 写真の縦潰れ" },
-  { scene: "first-catch&step=ready", label: "準備ができました: 写真" },
-  { scene: "first-catch&step=account", label: "ログイン: 写真" },
-  { scene: "first-catch&step=home", label: "チュートリアルのホーム＝本物のホーム" },
-  { scene: "dex-cards&swap=1&n=12", label: "図鑑: 絞り込んだ直後もカードが出る" },
+  { scene: "first-catch&step=intro", label: "最初の画面: C（猫が主役の花束）" },
+  { scene: "word-card&measure=ge", label: "量詞「個」を輕聲に" },
+  { scene: "first-catch&step=questions&question=4", label: "興味の質問: 留め具なし" },
+  { scene: "first-catch&step=ready", label: "準備ができました: 留め具なし" },
+  { scene: "capture-object", label: "カメラ: 画面固定・押してピント" },
+  { scene: "home-shelf&lang=zh-TW", label: "日記（台湾華語）: 打っても字が消えない" },
+  { scene: "home-empty&msg=what&lang=zh-TW", label: "說 の字体" },
 ];
 
 const explicitScene = q.get("scene");
@@ -462,6 +468,12 @@ document.documentElement.style.setProperty(
     }
   }
 }
+/** 最初の画面の4枚の並べ方を見比べる（`?layout=mosaic|frame|bouquet`、R25）。 */
+{
+  const layout = q.get("layout");
+  if (layout && (WELCOME_LAYOUTS as readonly string[]).includes(layout))
+    setWelcomeLayoutPreview(layout as WelcomeLayout);
+}
 const Scene = SCENES[wanted];
 // 知らない場面は**印を残して落とす**。以前は静かに `unknown scene` と
 // 描くだけだったので、一覧の綴りを間違えると「文字も押せるものも無い
@@ -510,8 +522,13 @@ function ReviewBar() {
     >
       {REVIEW_SCENES.map((r) => {
         // 場面は `scene&step=…` のように条件付きで並べる。名前で選ばれているかを決める。
-        const [name] = r.scene.split("&");
-        const on = name === wanted;
+        const [name, ...conds] = r.scene.split("&");
+        const on =
+          name === wanted &&
+          conds.every((kv) => {
+            const [k, v = ""] = kv.split("=");
+            return q.get(k) === v;
+          });
         return (
           <a
             key={r.scene}

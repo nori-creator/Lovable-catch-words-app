@@ -85,6 +85,7 @@ import {
 import { nextAutoFillQueue, MAX_AUTO_FILL } from "@/lib/auto-fill";
 import { ChunkPills, ChunkLegend, ChunkLine } from "@/components/ChunkPills";
 import type { WordExtrasDTO } from "@/lib/extras";
+import { neutralizeMeasureGe, neutralizeMeasureGePinyin } from "@/lib/tw-neutral-tone";
 
 // 後方互換の別名(以前この型はここで定義されていた)。
 export type WordExtras = Partial<WordExtrasDTO>;
@@ -1013,8 +1014,8 @@ function HeaderRow({
                 IPA を持っていても読みが空になる。 */}
               <Reading
                 lang={word.language ?? undefined}
-                zhuyin={word.reading_zhuyin}
-                pinyin={word.pinyin}
+                zhuyin={neutralizeMeasureGe(word.headword, word.reading_zhuyin)}
+                pinyin={neutralizeMeasureGePinyin(word.headword, word.pinyin)}
                 ipaUs={word.reading_primary}
                 ipaUk={word.reading_alt}
               />
@@ -2085,7 +2086,12 @@ function MeasureWordRow({
           <span lang="zh-Hant" className="text-body font-semibold">
             {word}
           </span>
-          <Reading zhuyin={zhuyin} pinyin={pinyin} className="text-caption text-muted-foreground" />
+          {/* 量詞の「個」は輕聲（˙ㄍㄜ）で読む（オーナー指示 2026-09-30、`tw-neutral-tone.ts`）。 */}
+          <Reading
+            zhuyin={neutralizeMeasureGe(word, zhuyin, { measureWord: true })}
+            pinyin={neutralizeMeasureGePinyin(word, pinyin, { measureWord: true })}
+            className="text-caption text-muted-foreground"
+          />
         </span>
         {note && <span className="mt-0.5 block text-caption text-muted-foreground">{note}</span>}
       </span>

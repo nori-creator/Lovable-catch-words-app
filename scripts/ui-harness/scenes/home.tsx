@@ -173,10 +173,12 @@ export function WallpaperPickerScene() {
  * 台紙を選ぶ列は出さない — ルート側も、台紙が描かれていない日は出さない。
  * ここで出してしまうと、実物に無いものを検査することになる。
  */
-export function HomeEmptyScene() {
+export function HomeEmptyScene({ q }: { q?: URLSearchParams }) {
+  // `?msg=what` … 初めての日の一言（「眼前的東西，要怎麼說？」— R25 の說の字体の確認）。
+  const message = q?.get("msg") === "what" ? undefined : tStatic("home.blankStreak", { n: 3 });
   return (
     <>
-      <HomeEmptyState message={tStatic("home.blankStreak", { n: 3 })} />
+      <HomeEmptyState message={message} />
     </>
   );
 }

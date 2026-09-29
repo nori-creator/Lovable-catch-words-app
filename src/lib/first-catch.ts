@@ -103,6 +103,23 @@ export function canRequestAccount(draft: FirstCatch): boolean {
     !!draft.capturedAt
   );
 }
+/**
+ * **剥がして図鑑へ入れた後の下書き**（まだ登録前の端末にだけある1枚）。
+ *
+ * 登録の案内まで進んでいなくても、ログインした時点で**必ず引き継ぐ**。
+ * （オーナー報告 2026-09-30「手掌の画像を撮ってステッカーを剥がすアニメーションまで
+ * やったのに、画像が保存されなかった。開発者の記録にも残っていない」）
+ * 以前は `canRequestAccount`（案内を最後まで見た）だけを引き継いでいたので、
+ * 途中で別の入口からログインすると、剥がした写真は端末に置き去りになっていた。
+ */
+export function hasAddedCatch(draft: FirstCatch): boolean {
+  return (
+    ["added", "explore", "complete", "account"].includes(draft.stage) &&
+    !!draft.photo &&
+    !!draft.card &&
+    !!draft.capturedAt
+  );
+}
 export function firstCatchSticker(draft: FirstCatch): StickerWithWord | null {
   if (!draft.card || !draft.photo || !draft.capturedAt) return null;
   return {

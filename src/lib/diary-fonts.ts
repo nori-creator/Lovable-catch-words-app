@@ -23,7 +23,13 @@ export const DIARY_FONTS: ReadonlyArray<{
   leading: number;
 }> = [
   // 既定。撮影時の一言と同じ手書き（Zen Kurenaido は本体の styles.css が持つ）。
-  { id: "hand", key: "diary.fontHand", family: '"Zen Kurenaido", cursive', leading: 1.9 },
+  // 和文の手書きに無い字（台湾の字形の `說` など）は、同じ手書き風の芫荽で描く。
+  {
+    id: "hand",
+    key: "diary.fontHand",
+    family: '"Zen Kurenaido", "Iansui", cursive',
+    leading: 1.9,
+  },
   // 鉛筆で丁寧に書いた字（教科書体に近い）。
   {
     id: "pencil",
@@ -152,4 +158,46 @@ export function wrapDiaryLines(
     out.push(line.trimEnd());
   }
   return out;
+}
+
+/**
+ * **打つ欄の字体**（オーナー報告 2026-09-30「日記を書いてる時に文字が消えたり、現れたり
+ * するバグ」）。
+ *
+ * 手書きの書体は字の切り分けごとに取りに行き、`font-display: block` で届くまで字を
+ * 描かない。打っている最中に新しい字（注音・まだ出ていない漢字）を打つと、その間
+ * **欄の字が全部消えていた**。打つ欄だけは同じファイルを `swap` で名乗る別名
+ * （`"<書体名> Input"`、`scripts/make-diary-input-fonts.mjs` が作る）で描き、届くまでは
+ * 端末の字で見せておく。見せる所（ページ・本棚）は `block` のまま。
+ */
+const INPUT_FAMILIES = new Set(["Zen Kurenaido", "Klee One", "Yomogi", "LXGW WenKai TC", "Iansui"]);
+
+/** 書体名 → 別名の CSS の置き場所（`make-diary-input-fonts.mjs` の `slug` と同じ変換）。 */
+export function inputCssSlug(family: string): string {
+  return family.toLowerCase().replace(/[^a-z0-9]+/g, "-");
+}
+
+function quotedFamilies(family: string): string[] {
+  return [...family.matchAll(/"([^"]+)"/g)].map((m) => m[1]);
+}
+
+export function diaryInputFamily(id: string | null | undefined): string {
+  return diaryFont(id).family.replace(/"([^"]+)"/g, (whole, name: string) =>
+    INPUT_FAMILIES.has(name) ? `"${name} Input"` : whole,
+  );
+}
+
+/** 打つ欄の別名の CSS を、選んだ字体の分だけ差し込む（1度だけ）。 */
+export function ensureDiaryInputFontCss(id: string | null | undefined): void {
+  if (typeof document === "undefined") return;
+  for (const name of quotedFamilies(diaryFont(id).family)) {
+    if (!INPUT_FAMILIES.has(name)) continue;
+    const slug = inputCssSlug(name);
+    if (document.querySelector(`link[data-diary-input="${slug}"]`)) continue;
+    const link = document.createElement("link");
+    link.rel = "stylesheet";
+    link.href = `/fonts/diary/input/${slug}.css`;
+    link.dataset.diaryInput = slug;
+    document.head.appendChild(link);
+  }
 }

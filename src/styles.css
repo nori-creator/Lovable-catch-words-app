@@ -3072,6 +3072,18 @@ html[data-motion="reduce"] .camera-launch__morph {
   inset: 0;
   z-index: 20;
   isolation: isolate;
+  /*
+   * **撮る画面は拡大させない・動かさない。**（オーナー指示 2026-09-30「画像と関係ない
+   * ところズームできるのおかしい。写真撮影の画面は固定して」）
+   * 2本指のつまみ・2回たたく拡大・引っぱりの跳ね返りを、この画面では全部止める。
+   * 指の動き（撮り方の帯を払う・倍率のつまみ・枠の中でつまんで寄る）は、どれも
+   * Pointer Events で自前で受けているので、ブラウザに渡す必要が無い。
+   */
+  touch-action: none;
+  overscroll-behavior: none;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
   /* 地はカメラの本体色で固定（上の `.capture-controls` と同じ理由）。 */
   background: var(--cam-body);
   color: var(--cam-ink);
@@ -3180,6 +3192,53 @@ html[data-motion="reduce"] .camera-launch__morph {
   pointer-events: none;
   /* 明るい景色の上でも四隅が見えるよう、薄い影を敷く。 */
   filter: drop-shadow(0 0 1.5px rgb(0 0 0 / 0.55));
+}
+/**
+ * **押した所にピントを合わせた印**（`camera-focus.ts`）。iPhone のカメラと同じく、
+ * 少し大きく出てから縮んで止まり、しばらくして消える。色はカメラの差し色。
+ * 端末がピント合わせを持っていない時は出さない（合っていないのに合ったと見せない）。
+ */
+.capture-focus-ring {
+  position: absolute;
+  width: 4.5rem;
+  height: 4.5rem;
+  margin: -2.25rem 0 0 -2.25rem;
+  border: 1.5px solid var(--cam-accent);
+  border-radius: 0.9rem;
+  pointer-events: none;
+  filter: drop-shadow(0 0 1.5px rgb(0 0 0 / 0.55));
+  animation: capture-focus-ring 1.4s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+}
+@keyframes capture-focus-ring {
+  0% {
+    opacity: 0;
+    scale: 1.45;
+  }
+  12% {
+    opacity: 1;
+  }
+  30% {
+    scale: 1;
+  }
+  75% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    scale: 1;
+  }
+}
+html[data-motion="reduce"] .capture-focus-ring {
+  animation-name: capture-focus-ring-fade;
+}
+@keyframes capture-focus-ring-fade {
+  0%,
+  75% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
 }
 /* 物が写真の縁で切れているときの知らせ。黄色は「気を付けて」、赤ほど強くない。 */
 .capture-clip-warning {
@@ -6645,7 +6704,9 @@ html[data-motion="reduce"] .tabbar__lens--gone {
 :root {
   /* 和文の手書き。ラテンも Zen Kurenaido が持っているので、数字混じりの
      1行でも書体が割れない。 */
-  --font-hand-ja: "Zen Kurenaido", "Caveat", var(--font-ui);
+  /* 和文の手書きに無い字（台湾の字形の `說` など）は、同じ手書き風の芫荽で描く
+     （ゴシックに落ちると1文の中で字体が割れる）。 */
+  --font-hand-ja: "Zen Kurenaido", "Iansui", "Caveat", var(--font-ui);
   /* 見出しの明朝。自前の 12KB（日付に出る字だけ）→ 端末の明朝 → 総称 serif。 */
   --font-serif-ja:
     "Shippori Mincho", "Hiragino Mincho ProN", "Yu Mincho", "Noto Serif JP", "Noto Serif CJK JP",
@@ -6658,7 +6719,10 @@ html[data-motion="reduce"] .tabbar__lens--gone {
    字形なので、そのまま当てると台湾の人の画面で日本の字形が出る
    （`.label-caps` と同じ考え方で、言語の出し分けは CSS に1箇所だけ置く）。 */
 :lang(zh) .handwritten-ja {
-  font-family: var(--font-ui);
+  /* 繁體中文の手書きは**芫荽（Iansui）1つ**で描く（オーナー報告 2026-09-30
+     「眼前的東西，要怎麼說？ の說だけフォントが異なる」）。台湾の教育部の字形で、
+     全部の字が同じ書体に揃う。読めない端末では UI の字に落ちる。 */
+  font-family: "Iansui", var(--font-ui);
 }
 .font-serif-ja {
   font-family: var(--font-serif-ja);

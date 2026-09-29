@@ -95,6 +95,10 @@ settings persistence;
 language switching.
 Use CI gates before merge.
 
+Photo-save failures are never silent (2026-09-30): capture, re-encounter and the guest first-catch transfer call `reportSaveFailure` (`src/lib/save-failure.ts`), which sends the error to Lovable error capture and a whitelisted `save_failed_*` row to the existing `usage_events` table; the developer-only user page counts them. A guest catch that was peeled (`hasAddedCatch`) is transferred on the next sign-in even if the tour was not finished.
+
+Fonts: display text keeps `font-display: block`; the diary input field uses generated swap aliases (`"<Family> Input"`, `public/fonts/diary/input/`, `scripts/make-diary-input-fonts.mjs`) so IME input never blanks. Traditional Chinese handwriting uses self-hosted Iansui (OFL, `scripts/fetch-tc-hand-font.mjs`). Pages opt out of machine translation (`notranslate`) and set `<html lang>` before first paint from the stored UI language.
+
 ## Scaling
 
 Do not load an entire growing personal collection when a screen only needs a subset.

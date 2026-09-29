@@ -1,4 +1,4 @@
-import { canRequestAccount, type FirstCatch } from "./first-catch";
+import { hasAddedCatch, type FirstCatch } from "./first-catch";
 
 /** Transfer orchestration has no UI/provider dependencies. The caller's authenticated
  * server functions enforce ownership; the draft never chooses an account to write to. */
@@ -13,7 +13,7 @@ export async function transferFirstCatch(
   },
 ): Promise<void> {
   if (draft.stage === "done" && draft.importedUserId === userId) return;
-  if (!canRequestAccount(draft)) throw new Error("Catch has not been added");
+  if (!hasAddedCatch(draft)) throw new Error("Catch has not been added");
   // The sample photo/word is not the user's catch: carry over their answers only.
   if (draft.sample) {
     await ports.preferences(draft);

@@ -8,6 +8,7 @@ import { getMyProfile, updateMyProfile } from "@/lib/profile.functions";
 import { uploadStickerImage } from "@/lib/sticker-upload";
 import { readFirstCatch, writeFirstCatch, type FirstCatch } from "@/lib/first-catch";
 import { useT } from "@/lib/i18n";
+import { reportSaveFailure } from "@/lib/save-failure";
 import { supabase } from "@/integrations/supabase/client";
 import { learningPreferencesOf, LearningPreferencesSchema } from "@/lib/learning-preferences";
 import { FirstCatchHome } from "./FirstCatchHome";
@@ -107,7 +108,9 @@ export function FirstCatchTransfer({
       .then(() => {
         if (active) onDone();
       })
-      .catch(() => {
+      .catch((e) => {
+        // 失敗は開発者の記録に残す（前は画面に「失敗」と出すだけで、どこにも届かなかった）。
+        reportSaveFailure("first_transfer", e, { attempt, stage: draft.stage });
         if (active) setError(true);
       });
     return () => {

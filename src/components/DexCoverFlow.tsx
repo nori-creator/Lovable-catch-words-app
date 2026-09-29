@@ -549,7 +549,7 @@ function CardFace({
   // いるのに、図鑑の横にスライドするやつが注音のまま」）。英語の語なら IPA。
   const reading = useReadingText(
     s.word.language,
-    neutralReadings(s.word.language, s.word.reading_zhuyin, s.word.pinyin),
+    neutralReadings(s.word.language, s.word.reading_zhuyin, s.word.pinyin, s.word.headword),
   );
   // 注音は**字の右に縦に**（オーナー指示 2026-09-27）。組めない語は下の行。
   const zhuyinUnits = useZhuyinUnits(s.word.language, s.word.headword, s.word.reading_zhuyin);

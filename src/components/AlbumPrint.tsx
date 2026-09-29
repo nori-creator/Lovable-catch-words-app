@@ -57,6 +57,7 @@ export function AlbumPrint({
   ratio,
   note,
   plainWord = false,
+  fasteners = true,
   className,
   style,
 }: {
@@ -71,6 +72,12 @@ export function AlbumPrint({
   note?: string;
   /** 語ではなく画面の言葉（「食べ物」など）を書くとき。学習言語の字組みにしない。 */
   plainWord?: boolean;
+  /**
+   * テープ・四隅留めを付けるか。初回の画面（最初の画面・興味の質問・準備ができました・
+   * ログイン）では付けない（オーナー指示 2026-09-30「付箋や角の装飾はいらない」）。
+   * 紙・下の余白の語・影はホームと同じまま。
+   */
+  fasteners?: boolean;
   className?: string;
   style?: CSSProperties;
 }) {
@@ -99,7 +106,7 @@ export function AlbumPrint({
           )}
         </span>
       </span>
-      <CollageFasteners id={id} wall="paper" />
+      {fasteners && <CollageFasteners id={id} wall="paper" />}
       {note && (
         <span className="collage__cap album-print__cap">
           <span className="collage__note handwritten-ja ja-phrase">{note}</span>

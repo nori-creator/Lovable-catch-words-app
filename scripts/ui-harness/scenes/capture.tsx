@@ -247,8 +247,28 @@ function useFakeCamera() {
       };
       draw();
       window.setInterval(draw, 500);
-      return c.captureStream(2);
+      const stream = c.captureStream(2);
+      /**
+       * **押してピントを合わせる（R25）の見本。** 絵から作った映像にはピントが無いので、
+       * ピント合わせを持つ端末（Android の Chrome など）と同じ返事をする。
+       * 印の出方を見るためだけの物で、本物の端末が持っているかどうかとは関係ない。
+       */
+      const track = stream.getVideoTracks()[0];
+      if (track) {
+        const caps = track.getCapabilities?.bind(track);
+        track.getCapabilities = () =>
+          ({
+            ...(caps?.() ?? {}),
+            focusMode: ["continuous", "single-shot"],
+            exposureMode: ["continuous"],
+          }) as MediaTrackCapabilities;
+        track.applyConstraints = async () => {};
+      }
+      return stream;
     };
+    const supported = md.getSupportedConstraints?.bind(md);
+    md.getSupportedConstraints = () =>
+      ({ ...(supported?.() ?? {}), pointsOfInterest: true }) as MediaTrackSupportedConstraints;
     return true;
   });
 }
