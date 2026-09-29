@@ -1,5 +1,6 @@
 import { FirstCatchScene } from "./scenes/first-catch";
 import { HomeShelfScene } from "./scenes/home-shelf";
+import { InstallAppScene } from "./scenes/install-app";
 import { ChunkDesignsScene } from "./scenes/chunk-designs";
 import { PeelStickerScene } from "./scenes/peel-sticker";
 /**
@@ -172,6 +173,7 @@ const SCENES: Record<string, ((p: { q: URLSearchParams }) => ReactNode) | undefi
   auth: AuthScene,
   home: HomeScene,
   "home-shelf": HomeShelfScene,
+  "install-app": InstallAppScene,
   "home-album": HomeAlbumScene,
   "home-ink": HomeInkScene,
   "home-memorial": HomeMemorialScene,
@@ -391,15 +393,9 @@ const q = new URLSearchParams(location.search);
  * 「これを見てください」と差し出すことになる。
  */
 const REVIEW_SCENES: Array<{ scene: string; label: string }> = [
-  // 2026-09-29 の依頼（R20）で触った面だけ。**毎回ここを入れ替える**
+  // 2026-09-29 の依頼（スマホにアプリとして入れる）で触った面だけ。**毎回ここを入れ替える**
   // — 前の依頼の面は残さない（オーナー指示「過去のものは全て削除して」）。
-  // 先頭は最後に頼まれた物（R20: 開いた瞬間の本棚・片ページの横移動）。
-  {
-    scene: "home-shelf",
-    label: "ホーム: 開いた瞬間の本棚 → 本を押す → 片ページで左右に払う",
-  },
-  { scene: "tts-voices", label: "台湾の声: Azure と Gemini を聞き比べ・アプリの設定画面" },
-  { scene: "chunk-designs", label: "チャンク: 点線の語を替えると訳・語の発音・全体の発音" },
+  { scene: "install-app", label: "スマホにアプリとして入れる案内（iPhone・Android・LINE の中）" },
 ];
 
 const explicitScene = q.get("scene");

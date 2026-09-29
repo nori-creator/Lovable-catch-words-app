@@ -5005,10 +5005,9 @@ describe("ホームは今日の誌面", () => {
     );
     // 2026-09-24「過去のものが多すぎで画面で確認できないから、過去のものは全て
     // 削除して」: 帯には**今回の依頼の面だけ**。
-    // 2026-09-29 の回（R20）: 開いた瞬間の本棚・台湾の声の聞き比べ・チャンクの差し替え。
-    expect(list.slice(0, list.indexOf("},"))).toMatch(/scene: "home-shelf"/);
-    expect(list).toMatch(/scene: "tts-voices"/);
-    expect(list).toMatch(/scene: "chunk-designs"/);
+    // 2026-09-29 の回（スマホにアプリとして入れる）: 案内の面だけ。
+    expect(list.slice(0, list.indexOf("},"))).toMatch(/scene: "install-app"/);
+    expect(list).not.toMatch(/scene: "tts-voices"/);
     expect(list).not.toMatch(/scene: "capture-object&mode=search"/);
     // 前の回の面は残さない。
     expect(list).not.toMatch(/\{ scene: "motion-compare"/);

@@ -18,6 +18,7 @@ import {
 } from "@/lib/review-mode-pref";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
+import { InstallAppCard } from "@/components/InstallApp";
 import { AppShell } from "@/components/AppShell";
 import { LoadFailed } from "@/components/LoadFailed";
 import {
@@ -917,6 +918,7 @@ function SettingsPage() {
               ]}
             />
             <MotionChoiceRow />
+            <InstallAppCard />
             {/* ホームの壁紙。**選ぶ所はここだけ**（ホームの上の丸はやめた —
                 オーナー指示 2026-09-23）。押せば、その場で端末に残る。 */}
             <div>

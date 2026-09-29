@@ -2666,6 +2666,62 @@ export const DICT: Record<string, Record<UiLang, string>> = {
     en: "Point your camera at a sign or menu and your first photo lands here.",
     "zh-TW": "把相機對準街上的招牌或菜單，第一張就會貼在這裡。",
   },
+  "install.title": {
+    ja: "アプリとしてスマホに入れる",
+    en: "Install as an app",
+    "zh-TW": "安裝成手機 App",
+  },
+  "install.bannerTitle": {
+    ja: "CatchWords をホーム画面に",
+    en: "Add CatchWords to your home screen",
+    "zh-TW": "把 CatchWords 加到主畫面",
+  },
+  "install.why": {
+    ja: "ホーム画面のアイコンから、アプリのように全画面ですぐ開けます。",
+    en: "Open it full screen from your home screen, just like an app.",
+    "zh-TW": "從主畫面的圖示就能像 App 一樣全螢幕開啟。",
+  },
+  "install.button": { ja: "インストール", en: "Install", "zh-TW": "安裝" },
+  "install.done": {
+    ja: "インストール済みです。",
+    en: "Already installed.",
+    "zh-TW": "已安裝。",
+  },
+  "install.iosStep1": {
+    ja: "Safari の共有ボタンを押す（見当たらない時は「…」の中）",
+    en: "Tap Share in Safari (inside “…” if you don't see it)",
+    "zh-TW": "點 Safari 的分享按鈕（找不到時在「…」裡）",
+  },
+  "install.iosStep2": {
+    ja: "「ホーム画面に追加」を選ぶ",
+    en: "Choose “Add to Home Screen”",
+    "zh-TW": "選擇「加入主畫面」",
+  },
+  "install.iosStep3": {
+    ja: "右上の「追加」を押す",
+    en: "Tap “Add” in the top right",
+    "zh-TW": "點右上角的「新增」",
+  },
+  "install.androidStep1": {
+    ja: "Chrome の右上のメニュー（︙）を押す",
+    en: "Tap the menu (⋮) in Chrome",
+    "zh-TW": "點 Chrome 右上角的選單（⋮）",
+  },
+  "install.androidStep2": {
+    ja: "「アプリをインストール」か「ホーム画面に追加」を選ぶ",
+    en: "Choose “Install app” or “Add to Home screen”",
+    "zh-TW": "選擇「安裝應用程式」或「加到主畫面」",
+  },
+  "install.desktopStep": {
+    ja: "アドレスバーの右のインストールの印を押す",
+    en: "Click the install icon at the right of the address bar",
+    "zh-TW": "點網址列右側的安裝圖示",
+  },
+  "install.inApp": {
+    ja: "LINE などのアプリの中では入れられません。右上のメニューから「Safari（または Chrome）で開く」を選んでください。",
+    en: "You can't install from inside apps like LINE. Use the menu to open this page in Safari or Chrome.",
+    "zh-TW": "在 LINE 等 App 內無法安裝。請從選單選擇「用 Safari（或 Chrome）開啟」。",
+  },
   "home.emptyCta": { ja: "今日の一枚を撮る", en: "Take today's photo", "zh-TW": "拍下今天的一張" },
   // 白紙の日の一言（オーナー指示 2026-09-23、`lib/home-blank.ts`）。
   "home.blankLearnOne": {

@@ -34,6 +34,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { readHomeSnapshot, writeHomeSnapshot } from "@/lib/home-cache";
 import { useServerFn } from "@tanstack/react-start";
 import { AppShell } from "@/components/AppShell";
+import { InstallBanner } from "@/components/InstallApp";
 import { HomeShelf } from "@/components/HomeShelf";
 import { LoadFailed } from "@/components/LoadFailed";
 import { StickerSheet } from "@/components/StickerSheet";
@@ -501,6 +502,8 @@ function HomePage() {
           }}
         />
       )}
+      {/* 1度だけ出す「ホーム画面に追加」の案内（閉じたら出さない。設定からはいつでも）。 */}
+      <InstallBanner />
       <StickerSheet
         stickerId={openId}
         openPhotoPicker={openPhotoPicker}
