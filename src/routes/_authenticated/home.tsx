@@ -456,8 +456,7 @@ function HomePage() {
               向かいには今までどおり出るし、書く画面(`/journal`)も残っている。 */}
           </>
         )}
-      </div>
-      {/* **下へスクロールすると過去が続く形に戻した**(オーナー指示
+        {/* **下へスクロールすると過去が続く形に戻した**(オーナー指示
           2026-08-25「ホームの本棚の機能を全削除して、前のように
           下スクロールで過去が見える形に戻して」)。
 
@@ -466,24 +465,27 @@ function HomePage() {
 
           日/週/月の切替も出さない(オーナー指摘「ホームの画面の
           日、週、月のボタンを消して」)。日ごとに素直に並べる。 */}
-      {pastGroups.length > 0 && (
-        <PastDays
-          surface={surfaceClass}
-          days={pastGroups.map((g) => [g.key, g.items] as [string, StickerWithWord[]])}
-          onOpen={(id, from) => {
-            setOpenId(baseStickerId(id));
-            setOpenFrom(from ?? null);
-          }}
-          onLongPress={(id) => {
-            setOpenId(baseStickerId(id));
-            setOpenFrom(null);
-            setOpenPhotoPicker(true);
-          }}
-          truncated={truncated}
-          shown={shown}
-          total={total}
-        />
-      )}
+        {pastGroups.length > 0 && (
+          <PastDays
+            surface={surfaceClass}
+            days={pastGroups.map((g) => [g.key, g.items] as [string, StickerWithWord[]])}
+            onOpen={(id, from) => {
+              setOpenId(baseStickerId(id));
+              setOpenFrom(from ?? null);
+            }}
+            onLongPress={(id) => {
+              setOpenId(baseStickerId(id));
+              setOpenFrom(null);
+              setOpenPhotoPicker(true);
+            }}
+            truncated={truncated}
+            shown={shown}
+            total={total}
+          />
+        )}
+        {/* ↑ 本棚・今日・過去の日まで**1枚の壁**（`.home-scene`。オーナー指示 2026-09-29「9/29 の
+          周りのデザインをそれより下のすべての日にちにも適用して」）。巾木は一番下の日の後。 */}
+      </div>
       {memorialOpen !== null && memorialPicks.length > 0 && (
         <MemorialAlbum
           n={memorialOpen}

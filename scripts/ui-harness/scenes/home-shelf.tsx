@@ -8,7 +8,7 @@
  * その場だけ）。上の帯の右端に小さな棚（本番と同じ並び）、下には今日のアルバムが続く。
  */
 import { HomeShelf } from "@/components/HomeShelf";
-import { FIXTURES, HomeScene, makeSticker } from "./home";
+import { FIXTURES, HomePastScene, HomeScene, makeSticker } from "./home";
 
 const PHOTOS = [
   "/first-catch-cafe.webp",
@@ -77,6 +77,8 @@ export function HomeShelfScene({ q }: { q: URLSearchParams }) {
         }}
       />
       <HomeScene q={q} />
+      {/* 過去の日も同じ壁の上（本番と同じ並び。2026-09-29「9/28 以下が白くなってる」）。 */}
+      <HomePastScene q={q} />
     </div>
   );
 }

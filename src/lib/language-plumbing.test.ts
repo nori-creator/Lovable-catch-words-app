@@ -6133,6 +6133,19 @@ describe("ホームの一番上の本棚（2026-09-29「ホームのアルバム
     expect(shelf).not.toMatch(/pageCanvas/);
   });
 
+  it("本棚・今日・過去の日まで1枚の壁（2026-09-29「9/28 以下が白くなってる」）", () => {
+    const home = codeOnly(read("routes/_authenticated/home.tsx"));
+    const open = home.indexOf('"home-scene"');
+    const past = home.indexOf("<PastDays");
+    const memorial = home.indexOf("<MemorialAlbum");
+    expect(open).toBeGreaterThan(0);
+    expect(past).toBeGreaterThan(open);
+    // 壁（div）は過去の日の後で閉じる。
+    expect(home.slice(past, memorial)).toMatch(/<\/div>/);
+    // 棚の下端のぼかしは壁の中の帯だけ（全画面で本を開いた時にはかけない）。
+    expect(read("styles.css")).not.toMatch(/\n\.home-shelf__canvas \{\n  mask-image/);
+  });
+
   it("R20: 開いた瞬間は端末に置いた棚の絵（無ければ同梱の空の棚）を出し、3D が描けたら差し替える", () => {
     const snap = codeOnly(read("components/shelf3d/snapshot.ts"));
     expect(snap).toMatch(/caches\.open\(CACHE\)/);
