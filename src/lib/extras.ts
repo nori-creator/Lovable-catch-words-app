@@ -21,6 +21,17 @@ export const ChunkPartSchema = z.object({
    * 「チャンクは公式、定理のように…跟＋人＋見面」。古いカードには無い。
    */
   slot: z.boolean().optional().catch(undefined),
+  /**
+   * 入れ替える所に、ネイティブがよく入れる**ほかの具体語**（頻度の高い順）。
+   * オーナー指示 2026-09-27「汎用部分（人・もの）はタップすると、ネイティブ頻出の
+   * 具体的単語が出る（跟+男朋友+吵架 → 女朋友・朋友…をスクロールで表示）。音声も全部」。
+   * `ja` はその語の意味（読み手の言語）。古いカードには無い。
+   */
+  alts: z
+    .array(z.object({ text: z.string(), ja: z.string().catch("") }))
+    .max(8)
+    .optional()
+    .catch(undefined),
 });
 export type ChunkPart = z.infer<typeof ChunkPartSchema>;
 

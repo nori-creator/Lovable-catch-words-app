@@ -244,7 +244,13 @@ export function AuthView({
         </div>
         <div className="first-auth-photos" aria-hidden="true">
           {FIRST_CATCH_PHOTOS.map(({ src }, i) => (
-            <img key={src} src={src} alt="" loading="eager" className={`first-auth-photo first-auth-photo-${i}`} />
+            <img
+              key={src}
+              src={src}
+              alt=""
+              loading="eager"
+              className={`first-auth-photo first-auth-photo-${i}`}
+            />
           ))}
         </div>
         <div className="first-auth-content">

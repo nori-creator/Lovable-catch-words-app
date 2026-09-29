@@ -70,7 +70,6 @@ export const SCORE = {
     shimmer: [84, 88, 91, 96],
   },
   land: {
-    timpani: 36, // C2
     chord: [60, 64, 67, 72],
     ping: 96, // C7
   },
@@ -312,18 +311,17 @@ export const Score = {
     releaseHeld(b, t + 0.3);
   },
 
-  /** **着地**（図鑑に収まる瞬間）。ティンパニの主音＋短い主和音＋高い一点。 */
+  /**
+   * **着地**（図鑑に収まる瞬間）。短い主和音をそっと＋高い一点。
+   * 前はティンパニの主音（C2 の低い「ドン」）と低い雑音を重ねていたが、ドスンと
+   * 強すぎた（オーナー指示 2026-09-28 R14「もっと柔らかく着地する音に」）ので外し、
+   * 和音も半分の大きさにした。
+   */
   land(): void {
     const b = open();
     if (!b) return;
     const t = b.c.currentTime;
-    voice(b, midiHz(SCORE.land.timpani) * 1.5, t, 0.5, {
-      type: "sine",
-      gain: 0.3,
-      glideTo: midiHz(SCORE.land.timpani),
-    });
-    noise(b, t, 0.08, { lp: 900, gain: 0.06 });
-    brass(b, SCORE.land.chord, t, 0.35, 0.16);
+    brass(b, SCORE.land.chord, t, 0.35, 0.08);
     bell(b, SCORE.land.ping, t + 0.04, 0.6, 0.05);
     releaseHeld(b, t);
   },

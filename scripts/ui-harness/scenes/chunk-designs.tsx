@@ -3,7 +3,8 @@ import type { ChunkPart } from "@/lib/extras";
 import { readySpeech } from "../speech";
 
 /**
- * チャンクの公式の形（F、オーナー決定 2026-09-27）。入れ替える所（点線の枠）
+ * チャンクの公式の形（F、オーナー決定 2026-09-27）を**1本のカプセル**に継いだ形
+ * （2026-09-28「チャンクだから固まりとして見せたい」）。入れ替える所（点線の下線と ▾）
  * にも、いちばんよく入る具体語が入る。「単語の詳細」と「復習の解説」が
  * 同じ部品（`ChunkLine`）を使っていることも一緒に確かめられる。
  *
@@ -16,7 +17,18 @@ const WORD_CHUNKS: Sample[] = [
   {
     parts: [
       { text: "跟", pos: "Prep" },
-      { text: "男朋友", pos: "N", slot: true },
+      {
+        text: "男朋友",
+        pos: "N",
+        slot: true,
+        alts: [
+          { text: "女朋友", ja: "彼女" },
+          { text: "朋友", ja: "友だち" },
+          { text: "同事", ja: "同僚" },
+          { text: "爸媽", ja: "両親" },
+          { text: "室友", ja: "ルームメイト" },
+        ],
+      },
       { text: "吵架", pos: "V-sep" },
     ],
     ja: "彼氏と喧嘩する",
@@ -24,7 +36,16 @@ const WORD_CHUNKS: Sample[] = [
   {
     parts: [
       { text: "為了", pos: "Prep" },
-      { text: "錢", pos: "N", slot: true },
+      {
+        text: "錢",
+        pos: "N",
+        slot: true,
+        alts: [
+          { text: "小事", ja: "ささいな事" },
+          { text: "家事", ja: "家事" },
+          { text: "工作", ja: "仕事" },
+        ],
+      },
       { text: "吵架", pos: "V-sep" },
     ],
     ja: "お金のことで喧嘩する",
@@ -51,7 +72,16 @@ const REVIEW_CHUNKS: Sample[] = [
   {
     parts: [
       { text: "點", pos: "V" },
-      { text: "一杯", pos: "M", slot: true },
+      {
+        text: "一杯",
+        pos: "M",
+        slot: true,
+        alts: [
+          { text: "兩杯", ja: "2杯" },
+          { text: "大杯", ja: "Lサイズ" },
+          { text: "中杯", ja: "Mサイズ" },
+        ],
+      },
       { text: "珍珠奶茶", pos: "N" },
     ],
     ja: "タピオカミルクティーを1杯頼む",
@@ -71,6 +101,10 @@ readySpeech([...WORD_CHUNKS, ...REVIEW_CHUNKS].map(speech));
 export function ChunkDesignsScene() {
   return (
     <div style={{ padding: "12px 16px 96px", display: "grid", gap: 16 }}>
+      <p style={{ margin: 0, fontSize: 12, color: "#6e6e73" }}>
+        点線の四角（▾）を押すと、ネイティブがよく入れる語が並び、送って選べます。学ぶ語（{WORD}
+        ）は入れ替えません。
+      </p>
       <section className="rounded-3xl border border-border bg-card p-4 shadow-sm">
         <h3 className="mb-2 text-body font-semibold">単語の詳細: 使い方チャンク（{WORD}）</h3>
         <div className="usage-chunks">
@@ -80,6 +114,7 @@ export function ChunkDesignsScene() {
                 parts={c.parts}
                 translation={c.ja}
                 lang="zh-TW"
+                headword={WORD}
                 speakText={speech(c)}
                 onSpeak={() => {}}
               />
@@ -100,6 +135,7 @@ export function ChunkDesignsScene() {
               parts={c.parts}
               translation={c.ja}
               lang="zh-TW"
+              headword={REVIEW_WORD}
               speakText={speech(c)}
               onSpeak={() => {}}
             />

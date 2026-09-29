@@ -3,7 +3,8 @@ import { useServerFn } from "@tanstack/react-start";
 import { getTtsVoiceTags, synthesizeSpeech } from "@/lib/tts.functions";
 import { refreshVoiceTagsOnce, voiceTagFor } from "@/lib/tts-voice-tag";
 import { speak } from "@/lib/speak";
-import { claimAudio, primeAudio } from "@/lib/audio";
+import { claimAudio, primeAudio, stopOtherAudio } from "@/lib/audio";
+import { decodeSpeech, playSpeechBuffer, unlockSpeechOutput } from "@/lib/speech-buffer";
 import { DEFAULT_TARGET_LANGUAGE } from "@/lib/target-lang";
 import {
   audioCacheKey,
@@ -70,7 +71,11 @@ async function download(
 ): Promise<string | null> {
   try {
     const local = await getCachedAudio(key);
-    if (local) return markSpeechReady(key, local);
+    if (local) {
+      // 端末に在る音は**先に読み解いておく**（押した瞬間に鳴らすため、`speech-buffer.ts`）。
+      void decodeSpeech(key, local);
+      return markSpeechReady(key, local);
+    }
     setSpeechState(key, "loading");
     let url = signedUrl;
     if (!url && fetcher) url = (await fetcher(text)).audio_url ?? null;
@@ -84,6 +89,7 @@ async function download(
     if (!res.ok) throw new Error(`audio ${res.status}`);
     const blob = await res.blob();
     void putCachedAudio(key, blob);
+    void decodeSpeech(key, blob);
     return markSpeechReady(key, blob);
   } catch {
     // 端末の声に落ちる道が残っているので、ここで画面を壊さない。
@@ -150,9 +156,21 @@ export function usePronounce(language: string = DEFAULT_TARGET_LANGUAGE): Pronou
     // iOS: 再生解禁はタップ内で同期的に行う必要がある(await より前)。
     if (!elRef.current) elRef.current = new Audio();
     primeAudio(elRef.current);
+    unlockSpeechOutput();
     // **鍵に言語を混ぜる。** 同じ綴りが両方の言語に在り得る("a" / "in")。
     // 混ぜないと、先に鳴らしたほうの声が残る。
     const key = audioCacheKey(language, word, voiceTagFor(language));
+    /**
+     * **読み解き済みなら、その場で鳴らす**（オーナー指示 2026-09-28「発音ボタン押して
+     * から発音が実践されるまで…タイムラグがある」）。`<audio>` に入れ直して mp3 を
+     * 読み解く待ち（iPhone で 0.1〜0.3 秒）を飛ばす。無ければ下の今まで通りの道。
+     */
+    stopOtherAudio();
+    const quick = playSpeechBuffer(key);
+    if (quick) {
+      if (waitUntilEnded) await quick;
+      return;
+    }
     /**
      * **一度駄目だった語で、押すたびに待たせない**(オーナー指摘 2026-08-26
      * 「発音のラグがまだある」)。

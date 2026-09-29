@@ -18,7 +18,10 @@ import {
  * **自分の行だけ**を触る — RLS も同じことを言うが、ここでも `user_id` で絞る。
  */
 type Result = { error: { message: string } | null };
-type Filter = PromiseLike<Result> & { eq: (column: string, value: string) => Filter };
+type Filter = PromiseLike<Result> & {
+  eq: (column: string, value: string) => Filter;
+  in: (column: string, values: string[]) => Filter;
+};
 type Table = {
   upsert: (row: object, options: { onConflict: string }) => PromiseLike<Result>;
   update: (row: object) => Filter;
@@ -43,6 +46,38 @@ export const setStickerCategory = createServerFn({ method: "POST" })
       .eq("user_id", userId);
     if (error) throw new Error(error.message);
     return { saved: true as const };
+  });
+
+/**
+ * **カテゴリーの側から、入れる単語をまとめて変える**（オーナー指示 2026-09-28
+ * 「ある単語をあるカテゴリーに追加削除できるようにして」）。1枚ごとの移し先
+ * （`shelf_key`）を、行き先ごとにまとめて書く。どう書くかは `category-members.ts`。
+ */
+export const setStickersCategory = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) =>
+    z
+      .object({
+        changes: z
+          .array(z.object({ sticker_id: z.string().uuid(), key: KEY.nullable() }))
+          .min(1)
+          .max(500),
+      })
+      .parse(input),
+  )
+  .handler(async ({ context, data }) => {
+    const { supabase, userId } = context;
+    const byKey = new Map<string | null, string[]>();
+    for (const c of data.changes) byKey.set(c.key, [...(byKey.get(c.key) ?? []), c.sticker_id]);
+    for (const [key, ids] of byKey) {
+      const { error } = await tables(supabase)
+        .from("stickers")
+        .update({ shelf_key: key })
+        .eq("user_id", userId)
+        .in("id", ids);
+      if (error) throw new Error(error.message);
+    }
+    return { saved: data.changes.length };
   });
 
 /**

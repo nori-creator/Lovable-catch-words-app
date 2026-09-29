@@ -8,6 +8,47 @@ import { Zh } from "@/components/Zh";
 import { localeOf, useT, useUiLang } from "@/lib/i18n";
 import { useSwipeBack } from "@/hooks/use-tab-swipe";
 import { dayKeyOf, layoutTimeline, minutesOfDay, monthCells, weekOf } from "@/lib/day-timeline";
+import { CATEGORY_META, ROOM_ACCENT, asCategoryKey } from "@/lib/category";
+
+/**
+ * **月ごとの色**（オーナー指示 2026-09-27「地図は A、もう少しカラフルに
+ * デザイン向上」）。季節の色を月の見出しと升の地に薄く敷く。
+ * 並びは1月から: 冬の藍 → 梅 → 若葉 → 桜 → 新緑 → 紫陽花 → 海 → 向日葵 →
+ * 金木犀 → 紅葉 → 柿 → 柊。
+ */
+/**
+ * **色は意味で塗る**（オーナー指示 2026-09-28 R11「カレンダーをアプリの色の哲学に沿って
+ * カラフルに」）。このアプリの色は飾りではなく**分類の色**（食べ物は橙、町は青…
+ * `ROOM_ACCENT`）とアプリの青だけ。前は月ごとに決め打ちの12色を塗っていたが、その色は
+ * 何も表していなかった。いまは:
+ *  - 月の見出しと枚数の札・写真の日の縁 = **アプリの青**（R14 で分類の色から変更）
+ *  - 右上に**その日の分類の色の粒**（最大3つ）
+ *  - 今日 = アプリの青
+ */
+function monthAccent(_days: Array<StickerWithWord[] | undefined>): string {
+  // **青を基調にする**（オーナー指示 2026-09-28 R14「カレンダーの色オレンジではなく、
+  // 青を基調にして」）。前はその月にいちばん多く撮った分類の色（食べ物が多いと橙）で
+  // 月全体を塗っていた。いまは月の見出し・札・升の地はいつもアプリの青。分類の色は
+  // 右上の小さな粒（`dayColors`）にだけ残す。
+  return "var(--primary)";
+}
+
+/** その日に撮った分類の色（重ならない順に、最大3つ）。 */
+function dayColors(items: StickerWithWord[]): string[] {
+  const out: string[] = [];
+  for (const s of items) {
+    const c = ROOM_ACCENT[CATEGORY_META[asCategoryKey(s.word.category_key)].room];
+    if (!out.includes(c)) out.push(c);
+    if (out.length === 3) break;
+  }
+  return out;
+}
+
+/** その日の1枚目の分類の色（写真の縁と枚数の丸に使う）。 */
+function dayAccent(_items: StickerWithWord[]): string {
+  // 写真の日の縁も青（R14）。
+  return "var(--primary)";
+}
 
 /**
  * 図鑑のカレンダー。**その日に撮った写真が、その日の升に入る。**
@@ -146,17 +187,28 @@ export function DexCalendar({
   }
 
   return (
-    <section className="dex-cal" onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}>
+    <section
+      className="dex-cal"
+      onTouchStart={onTouchStart}
+      onTouchEnd={onTouchEnd}
+      style={
+        {
+          "--month-hue": monthAccent(
+            cells.map((d) => (d == null ? undefined : byDay.get(dayKeyOf(cursor.y, cursor.m, d)))),
+          ),
+        } as CSSProperties
+      }
+    >
       <div className="mb-3 flex items-end justify-between pt-1">
         <div>
           <p className="text-caption font-medium text-muted-foreground">
             {first.toLocaleDateString(locale, { year: "numeric" })}
           </p>
-          <h2 className="text-title font-bold leading-tight">
+          <h2 className="dex-cal__month text-title font-bold leading-tight">
             {first.toLocaleDateString(locale, { month: "long" })}
           </h2>
           {monthPhotos > 0 && (
-            <p className="mt-0.5 text-footnote text-muted-foreground">
+            <p className="dex-cal__summary mt-1 text-footnote font-semibold">
               {t("dex.calMonthSummary", { n: monthPhotos, d: monthDays })}
             </p>
           )}
@@ -181,7 +233,8 @@ export function DexCalendar({
 
       <div className="mb-1.5 grid grid-cols-7 text-center text-caption font-semibold text-muted-foreground">
         {weekdays.map((w, i) => (
-          <span key={i} aria-hidden>
+          // 日曜は赤、土曜は青（日本・台湾の暦と同じ）。
+          <span key={i} aria-hidden data-wd={i === 0 ? "sun" : i === 6 ? "sat" : undefined}>
             {w}
           </span>
         ))}
@@ -197,14 +250,13 @@ export function DexCalendar({
             return (
               <div
                 key={key}
-                className="dex-cal__cell grid place-items-center rounded-2xl"
+                className="dex-cal__cell dex-cal__cell--empty grid place-items-center rounded-2xl"
                 aria-label={`${day}${t("dex.dayUnit")}`}
+                data-wd={i % 7 === 0 ? "sun" : i % 7 === 6 ? "sat" : undefined}
               >
                 <span
                   className={`grid h-8 w-8 place-items-center rounded-full text-footnote tabular-nums ${
-                    isToday
-                      ? "bg-primary font-bold text-primary-foreground"
-                      : "text-muted-foreground"
+                    isToday ? "dex-cal__today font-bold text-white" : "dex-cal__num"
                   }`}
                 >
                   {day}
@@ -219,8 +271,9 @@ export function DexCalendar({
               onClick={() => (onPickDay ? onPickDay(key) : setOpenDay(key))}
               aria-label={`${day}${t("dex.dayUnit")} — ${t("dex.calPhotos", { n: items.length })}`}
               className={`dex-cal__cell dex-cal__cell--photo press-in relative overflow-hidden rounded-[10px] bg-secondary ${
-                isToday ? "ring-2 ring-primary ring-offset-2 ring-offset-background" : ""
+                isToday ? "is-today" : ""
               }`}
+              style={{ "--day-accent": dayAccent(items) } as CSSProperties}
             >
               {thumb ? (
                 <CachedImg
@@ -240,8 +293,15 @@ export function DexCalendar({
                 {day}
               </span>
               {items.length > 1 && (
-                <span className="absolute right-1 top-1 rounded-full bg-black/55 px-1.5 text-caption font-bold tabular-nums text-white">
+                <span className="dex-cal__count absolute right-1 top-1 rounded-full px-1.5 text-caption font-bold tabular-nums text-white">
                   {items.length}
+                </span>
+              )}
+              {dayColors(items).length > 1 && (
+                <span className="dex-cal__cats" aria-hidden>
+                  {dayColors(items).map((c) => (
+                    <i key={c} style={{ background: c }} />
+                  ))}
                 </span>
               )}
             </button>

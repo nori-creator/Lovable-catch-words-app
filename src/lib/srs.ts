@@ -56,6 +56,26 @@
  * どの語も出題日ちょうど 90% になり、**覚えにくい語という信号が消える**。
  * `S = 間隔 × ease × K` の形のまま K を決めたので、ease 1.3 の語は
  * 出題日に 82%、ease 3.0 の語は 92% と、難しさが定着度に残る。
+ *
+ * # 再点検 2026-09-28（オーナー指示 R11「復習アルゴリズム・記憶判定・復習タイミングを
+ * 科学的根拠で再精査」）
+ *
+ * ## 直した: **遅れて復習して思い出せた分を数えていなかった**
+ * 10日後の予定を 20日後に復習して正解した語は、記憶が 20日もったことを示している。
+ * SM-2 の原典は予定の間隔（10日）だけを伸ばすので、この証拠を捨てていた。
+ * Anki は遅れた日数を間隔に足し（「Good」で半分、「Easy」で全部）、FSRS は安定度の
+ * 更新に実際の経過日数を使う（open-spaced-repetition/fsrs4anki の式）。ここでは Anki と
+ * 同じ足し方にした: 採点 5（すぐ・ぼかし無し）は遅れた日数を全部、4 は半分、3 は足さない。
+ * 早く復習した時（予定より前）は何も変えない。経過日数が分からない時も今まで通り。
+ *
+ * ## 直さない（理由つき）
+ * - **忘却曲線の形**: 学習者全体の平均は指数より**べき関数**に近い（Wixted & Ebbesen
+ *   1991、FSRS-4.5 以降の `R = (1 + t/(9S))^-1` の系統）。1語ごとの曲線は指数でよく
+ *   近似できるので、画面の「記憶の%」は指数のまま（数字が急に変わると混乱するため）。
+ *   次の間隔の決め方は Jev（柵つき）に移っているので、形の違いは出題日には効かない。
+ * - **間違えた時に間隔を 1日へ戻す**: FSRS は安定度をゼロにはしない（学び直しは速い
+ *   = Ebbinghaus の節約）。ここでは「明日もう一度」は残し、その後の伸び方で取り戻す。
+ *   学び直しの時点で ease を削らないのは原典どおり（上の表）。
  */
 
 export type SrsState = {
@@ -81,7 +101,12 @@ export const MIN_EASE = 1.3;
  * - 3以上: 1回目→1日、2回目→**3日**、それ以降は ease 倍に伸ばす。
  *   原典の SM-2 は2回目が **6日**。短くしてあるのは意図（上の点検 ①）。
  */
-export function nextSrs(prev: SrsState, score: number): SrsState {
+export function nextSrs(
+  prev: SrsState,
+  score: number,
+  /** 前の復習から実際に経った日数（分かる時だけ）。遅れて思い出せた分を間隔に足す。 */
+  opts: { elapsedDays?: number | null } = {},
+): SrsState {
   let { ease, interval_days, repetitions } = prev;
   if (score < LAPSE_SCORE) {
     repetitions = 0;
@@ -90,7 +115,11 @@ export function nextSrs(prev: SrsState, score: number): SrsState {
     repetitions += 1;
     if (repetitions === 1) interval_days = 1;
     else if (repetitions === 2) interval_days = 3;
-    else interval_days = Math.round(interval_days * ease);
+    else {
+      const late = Math.max(0, (opts.elapsedDays ?? 0) - interval_days);
+      const credit = score >= 5 ? 1 : score === 4 ? 0.5 : 0;
+      interval_days = Math.round((interval_days + late * credit) * ease);
+    }
     ease = Math.max(MIN_EASE, ease + (0.1 - (5 - score) * (0.08 + (5 - score) * 0.02)));
   }
   return { ease, interval_days, repetitions };

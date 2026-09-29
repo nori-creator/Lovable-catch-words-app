@@ -1,4 +1,3 @@
-import { StickerCategoryChip } from "@/components/StickerCategoryChip";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useReadableError } from "@/lib/errors";
 import { resolvePrefer, usePhotoPref } from "@/lib/photo-pref";
@@ -14,14 +13,16 @@ import { usePhotoAttach } from "@/lib/use-photo-attach";
 import { usePlaceName } from "@/lib/use-place-name";
 import { HeroPhotoPicker } from "@/components/HeroPhotoPicker";
 import type { PhotoRole } from "@/lib/sticker-photo";
-import { WordTreeView } from "@/components/WordTreeView";
-import { ForgettingCurveChart } from "@/components/ForgettingCurveChart";
+/** グラフは開いたときに読み込む（起動時の束に recharts を入れない）。 */
+const ForgettingCurveChart = lazy(() =>
+  import("@/components/ForgettingCurveChart").then((m) => ({ default: m.ForgettingCurveChart })),
+);
 import { getSticker, setStickerHeroRole } from "@/lib/stickers.functions";
 import { SEED_UPDATED_AT, seedStickerFromList } from "@/lib/sticker-seed";
 import { getStickerMemoryHistory } from "@/lib/reviews.functions";
 import { listStickerPhotos } from "@/lib/encounters.functions";
 import { StickerPhotoHistory } from "@/components/StickerPhotoHistory";
-import { useRef, useState } from "react";
+import { lazy, Suspense, useRef, useState } from "react";
 import { ArrowLeft, MapPin, Brain, ChevronDown, Clock } from "lucide-react";
 import { useAutoHero } from "@/hooks/use-auto-hero";
 import { localeOf, useT } from "@/lib/i18n";
@@ -182,20 +183,6 @@ export function StickerDetailBody({
     <>
       <StickerDetailHero sticker={s} dateLocale={dateLocale} />
 
-      {/* §6 word tree: photo at the center, branches unlock per review */}
-      <div className="mb-4">
-        <WordTreeView
-          headword={s.word.headword}
-          photoUrl={stickerPhotoUrl(s, {
-            prefer: s.hero_role ?? resolvePrefer(photoPref, "cutout"),
-          })}
-          emoji={s.word.silhouette_emoji}
-          branchPlanRaw={s.branch_plan}
-          extras={s.word.extras}
-          reviewCount={s.review_count ?? 0}
-        />
-      </div>
-
       {/* 同じものに何度も出会った記録。再会が無ければ何も出ない。 */}
       <StickerPhotoHistory photos={photoData?.photos ?? []} dateLocale={dateLocale} />
 
@@ -237,14 +224,16 @@ export function StickerDetailBody({
             </div>
           )}
         </div>
-        <ForgettingCurveChart
-          history={mem?.history ?? []}
-          currentEase={mem?.current?.ease ?? 2.5}
-          currentIntervalDays={mem?.current?.interval_days ?? 1}
-          lastReviewedAt={mem?.current?.last_reviewed_at ?? null}
-          takenAt={mem?.taken_at ?? null}
-          stickerId={s.id}
-        />
+        <Suspense fallback={<div className="h-52 w-full" />}>
+          <ForgettingCurveChart
+            history={mem?.history ?? []}
+            currentEase={mem?.current?.ease ?? 2.5}
+            currentIntervalDays={mem?.current?.interval_days ?? 1}
+            lastReviewedAt={mem?.current?.last_reviewed_at ?? null}
+            takenAt={mem?.taken_at ?? null}
+            stickerId={s.id}
+          />
+        </Suspense>
       </section>
 
       {/* **一番下の地図は消した**(オーナー指示)。上の「撮った所」に
@@ -514,13 +503,6 @@ export function StickerDetailHero({
           <span className="mt-1 inline-block rounded-full bg-violet-100 px-2 py-0.5 text-caption font-medium text-violet-900 ring-1 ring-violet-200 dark:bg-violet-500/20 dark:text-violet-200 dark:ring-violet-400/30">
             {s.word.part_of_speech}
           </span>
-        )}
-        {/* その1枚のカテゴリー。押すと移せる・名前を変えられる（2026-09-27）。
-            持ち主にだけ出す（友だちの投稿から開いた札は変えられない）。 */}
-        {s.is_owner && (
-          <div>
-            <StickerCategoryChip sticker={s} />
-          </div>
         )}
       </section>
     </>

@@ -25,6 +25,8 @@ import {
   PastDays,
   PendingCapturesCard,
   DayCollage,
+  MemorialAlbum,
+  MemorialEntry,
 } from "@/routes/_authenticated/home";
 import { JournalWritingPage } from "@/components/JournalWritingPage";
 import { JournalComposer } from "@/components/JournalComposer";
@@ -32,7 +34,8 @@ import { groupBySpan, type AlbumSpan } from "@/lib/album-span";
 import type { StickerWithWord } from "@/lib/stickers.functions";
 import type { PendingCapture } from "@/lib/offline-queue";
 import { tStatic } from "@/lib/i18n";
-import { AlbumInk, type InkItem } from "@/components/AlbumInk";
+import { StoryInk, type StoryItem } from "@/components/StoryInk";
+import { photo as samplePhoto } from "./peel-sticker";
 import { parseWallpaper, wallClass } from "@/lib/wallpaper";
 import { WallpaperPicker } from "@/components/WallpaperPicker";
 
@@ -218,8 +221,23 @@ export function HomePastScene({ q }: { q: URLSearchParams }) {
  * ホームそのもの（`HomeScene`）は表紙も過去の日も付くので、
  * 置き方・重なり・時刻の出方だけを見たいときはこちらを開く。
  */
-export function HomeAlbumScene() {
-  return <DayCollage stickers={today} onOpen={() => {}} />;
+export function HomeAlbumScene({ q }: { q?: URLSearchParams }) {
+  /**
+   * `?saved=1`: 並べ替えて保存した写真（2枚）の日に、新しく撮った写真が来た形
+   * （2026-09-28「デフォルトで画像を配置するとき、ほかの画像と被らないように」）。
+   * 前は新しい写真が保存した写真の真上に積まれていた。
+   */
+  const stickers =
+    q?.get("saved") === "1"
+      ? today.map((s, i) =>
+          i === 3
+            ? { ...s, album_x: 0.3, album_y: 0.32, album_scale: 1.7, album_rot: -3 }
+            : i === 4
+              ? { ...s, album_x: 0.72, album_y: 0.25, album_scale: 1.2, album_rot: 4 }
+              : s,
+        )
+      : today;
+  return <DayCollage stickers={stickers} onOpen={() => {}} />;
 }
 
 /** 圏外で撮って預かっている写真の帯。**オフラインでしか出ない面。** */
@@ -391,16 +409,82 @@ export function HomeTapScene() {
  * 透明な紙を重ね、ペン・ラベル・丸・四角・矢印を6色で描ける。保存はしない。
  * 最初の絵が分かるよう、見本の書き込みを3つ置いておく（1つ戻す・全部消すで消せる）。
  */
+/**
+ * **アルバムに書き込む — ストーリー風**（試作、オーナー指示 2026-09-27）。
+ * 写真・手書き・文字を、1本指で動かし、2本指で大きさと傾きを変える。
+ * 「手書き」は大きな書く欄で書いてから貼る。動かすと下にごみ箱が出る。
+ */
 export function HomeInkScene() {
-  const [items, setItems] = useState<InkItem[]>([
-    { kind: "label", color: "#ff375f", x: 0.3, y: 0.18, text: "初めての夜市!" },
-    { kind: "circle", color: "#0a84ff", x1: 0.52, y1: 0.3, x2: 0.92, y2: 0.52 },
-    { kind: "arrow", color: "#ff9f0a", x1: 0.3, y1: 0.62, x2: 0.5, y2: 0.46 },
-  ]);
+  const initial: StoryItem[] = [
+    {
+      id: "p1",
+      kind: "photo",
+      src: samplePhoto,
+      caption: "珍珠奶茶",
+      x: 0.3,
+      y: 0.32,
+      w: 0.46,
+      rot: -5,
+      z: 1,
+    },
+    {
+      id: "p2",
+      kind: "photo",
+      src: samplePhoto,
+      caption: "夜市",
+      x: 0.7,
+      y: 0.62,
+      w: 0.42,
+      rot: 4,
+      z: 2,
+    },
+    {
+      id: "t1",
+      kind: "text",
+      text: "初めての夜市!",
+      font: "signature",
+      color: "#ff375f",
+      bg: "soft",
+      x: 0.62,
+      y: 0.16,
+      w: 0.5,
+      rot: -4,
+      z: 3,
+    },
+  ];
+  return <StoryInk initial={initial} />;
+}
+
+/**
+ * **節目の日の記念アルバム**（オーナー指示 2026-09-27、`lib/milestone-album.ts`）。
+ * 上: 節目の日にホームの上に出る入口。下: 押して開いた1枚（`?open=1` で開いた所から）。
+ * 30日ぶんの札から、日をまたいで8枚を選んだ形。
+ */
+export function HomeMemorialScene({ q }: { q: URLSearchParams }) {
+  const [open, setOpen] = useState(q.get("open") === "1");
+  const picks = [0, 3, 7, 11, 15, 19, 24, 29].map((d, i) =>
+    makeSticker(FIXTURES[i % FIXTURES.length], i, d),
+  );
   return (
-    <div className="relative">
-      <DayCollage stickers={today} onOpen={() => {}} />
-      <AlbumInk items={items} onChange={setItems} />
-    </div>
+    <>
+      <MemorialEntry
+        n={30}
+        words={86}
+        picks={picks}
+        onOpen={() => setOpen(true)}
+        onDismiss={() => {}}
+      />
+      <DayCollage stickers={today} onOpen={() => {}} heading={<DiaryDate date={new Date()} />} />
+      {open && (
+        <MemorialAlbum
+          n={30}
+          words={86}
+          picks={picks}
+          surface={wallClass("paper")}
+          onOpen={() => {}}
+          onClose={() => setOpen(false)}
+        />
+      )}
+    </>
   );
 }

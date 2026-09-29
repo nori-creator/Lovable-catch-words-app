@@ -2,7 +2,13 @@ import { useMemo } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { listMyShelves } from "./stickers.functions";
-import { deleteMyCategory, saveMyCategory, setStickerCategory } from "./categories.functions";
+import {
+  deleteMyCategory,
+  saveMyCategory,
+  setStickerCategory,
+  setStickersCategory,
+} from "./categories.functions";
+import type { MemberChange } from "./category-members";
 import { useT } from "./i18n";
 import type { UserCategory } from "./user-category";
 
@@ -19,6 +25,7 @@ export function useCategories() {
   const save = useServerFn(saveMyCategory);
   const remove = useServerFn(deleteMyCategory);
   const move = useServerFn(setStickerCategory);
+  const moveMany = useServerFn(setStickersCategory);
   const { data } = useQuery({
     queryKey: ["user-shelves"],
     queryFn: () => list(),
@@ -48,6 +55,12 @@ export function useCategories() {
     },
     remove: async (key: string) => {
       await remove({ data: { key } });
+      await refresh();
+    },
+    /** カテゴリーの側から、入れる／外す単語をまとめて変える。 */
+    setMembers: async (changes: MemberChange[]) => {
+      if (changes.length === 0) return;
+      await moveMany({ data: { changes } });
       await refresh();
     },
     move: async (stickerId: string, key: string | null) => {

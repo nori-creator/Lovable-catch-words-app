@@ -3955,10 +3955,22 @@ describe("N. 下のタブ帯と、札を開く動き", () => {
     // 札を1つ押すとその語が鳴る — 呼び出し側が渡さなくても、ここが鳴らす
     // （復習の解説は渡していなかったので、押しても鳴らなかった）。
     expect(line).toMatch(/onSpeak=\{onSpeak \?\? \(\(text\) => void pronounce\(text\)\)\}/);
-    // 形は公式の1つだけ（2026-09-27「F にして」）。案を切り替える仕組みは残さない。
+    // 形は1つだけ（案を切り替える仕組みは残さない）。**語ごとの四角を「＋」でつなぎ、
+    // 台は付けない**（オーナー決定 2026-09-29「規定のものから台を取り除いて、それで決定して」）。
     expect(fs.existsSync(path.join(root, "lib/chunk-design.ts"))).toBe(false);
-    expect(pills).toMatch(/chunk-set chunk-set--formula/);
+    expect(pills).toMatch(/"chunk-set chunk-set--boxes"/);
+    expect(pills).not.toMatch(/\blook\b/);
+    expect(pills).toMatch(/className="chunk-plus"/);
     expect(pills).toMatch(/chunk-slot/);
+    // 学ぶ語は入れ替えさせない（R14）。
+    expect(pills).toMatch(/!target && \(c\.alts\?\.length \?\? 0\) > 0/);
+    const css = read("styles.css");
+    const boxes = css.slice(css.indexOf(".chunk-set--boxes {"));
+    const block = boxes.slice(0, boxes.indexOf("}"));
+    // 台（背景・枠の影）は無い。
+    expect(block).not.toMatch(/background/);
+    expect(block).not.toMatch(/box-shadow/);
+    expect(css).not.toMatch(/chunk-set--formula|chunk-set--lite/);
     // 入れ替える所にも具体語を入れる（「人」「someone」にしない）。
     const ai = codeOnly(read("lib/ai.functions.ts"));
     expect(ai).toMatch(/いちばんよく入れる具体語を1つだけ入れて/);
@@ -4514,7 +4526,8 @@ describe("N. 下のタブ帯と、札を開く動き", () => {
     // 写しが残っていないこと。
     for (const file of [
       "routes/_authenticated/review.tsx",
-      "components/ForgettingCurveChart.tsx",
+      // 計算はグラフの部品から分けた（起動時に recharts を読まないため）。
+      "lib/memory-curve-from.ts",
     ]) {
       const src = codeOnly(read(file));
       expect([file, /Math\.max\(0\.5,[^\n]*Math\.max\(1, ease\)/.test(src)]).toEqual([file, false]);
@@ -4576,7 +4589,7 @@ describe("N. 下のタブ帯と、札を開く動き", () => {
     // 2026-09-27 から映像の箱そのものがシートのすぐ上で終わる（上下の余白を
     // 詰めた）。粒は箱の下端に付くので、同じくシートの上に来る。
     expect(src).toMatch(
-      /bottom: `calc\(5rem \+ env\(safe-area-inset-bottom, 0px\) \+ \$\{sheetSize\.h\}px \+ 0\.5rem\)`/,
+      /`calc\(5rem \+ env\(safe-area-inset-bottom, 0px\) \+ \$\{sheetSize\.h\}px \+ 0\.5rem\)`/,
     );
     expect(src).toMatch(/zoomBottom="0\.5rem"/);
     // 画面の下端に貼り付ける書き方が残っていないこと。
@@ -4713,7 +4726,7 @@ describe("ホームは今日の誌面", () => {
     // 桁が揃わないと、誌面の中で時刻が列に見えない。
     expect(cssBlock(".collage__time {", "\n}")).toMatch(/font-variant-numeric: tabular-nums/);
     // **写真の札も字だけの札も、同じ1つの値を書く。**
-    expect(cl.match(/collage__time">\{time\}/g) ?? []).toHaveLength(2);
+    expect(cl.match(/collage__time[^"]*">\{time\}/g) ?? []).toHaveLength(2);
   });
 
   it("**撮ったときに書いた1言を出す**", () => {
@@ -4801,8 +4814,9 @@ describe("ホームは今日の誌面", () => {
     // （360px 以上では偶然足りていた）。
     const home = codeOnly(read("routes/_authenticated/home.tsx"));
     expect(home).not.toMatch(/const CAP_ROW_H|const CAP_NOTE_H|const PLAIN_RATIO/);
-    // 語を 19px にした（オーナー指示 2026-09-23）ので 32px。
-    expect(home).toMatch(/const CAP_ROW_PX = 32;/);
+    // 語と時刻は写真の下の白い余白（34px）に書く（オーナー指示 2026-09-27）ので、
+    // 余白 ＋ 一言との間 4px で 38px。
+    expect(home).toMatch(/const CAP_ROW_PX = 38;/);
     expect(home).toMatch(/const CAP_NOTE_PX = 56;/);
     // 台紙の幅で割って、`packCollage` が積む割合に直す。
     expect(home).toMatch(/\(CAP_ROW_PX \+ \(s\.caption \? CAP_NOTE_PX : 0\)\) \/ board\.w/);
@@ -4973,11 +4987,24 @@ describe("ホームは今日の誌面", () => {
       main.indexOf("const explicitScene"),
     );
     // 2026-09-24「過去のものが多すぎで画面で確認できないから、過去のものは全て
-    // 削除して」: 帯には**今回の依頼の面だけ**。先頭はホーム。
-    expect(list.slice(0, list.indexOf("},"))).toMatch(/scene: "first-catch"/);
-    expect(list).toMatch(/step=home/);
-    expect((list.match(/\{ scene: "/g) ?? []).length).toBeLessThanOrEqual(6);
-    expect(list).toMatch(/scene: "first-catch"/);
+    // 削除して」: 帯には**今回の依頼の面だけ**。
+    // 2026-09-29 の回（R14）の最後の依頼: 図鑑のスライドを白に・カードの色の案。
+    expect(list.slice(0, list.indexOf("},"))).toMatch(/scene: "dex-cards/);
+    expect(list).toMatch(/\{ scene: "chunk-designs"/);
+    expect(list).toMatch(/\{ scene: "dex-drag"/);
+    expect(list).toMatch(/\{ scene: "scan-found"/);
+    // 前の回の面は残さない。
+    expect(list).not.toMatch(/\{ scene: "motion-compare"/);
+    expect(list).not.toMatch(/\{ scene: "album-shelf"/);
+    expect(list).not.toMatch(/\{ scene: "scan-pick-designs"/);
+    expect(list).not.toMatch(/glass=1/);
+    expect(main).not.toMatch(/dataset\.glass/);
+    expect(read("styles.css")).not.toMatch(/data-glass/);
+    expect((list.match(/\{ scene: "/g) ?? []).length).toBeLessThanOrEqual(40);
+    // 先頭に条件（`&n=24` など）が付いていても、何も付けずに開いた時に場面が見つかる
+    // （2026-09-29「netlify の画面が見れない」— 名前ごと探して unknown scene になっていた）。
+    expect(main).toMatch(/new URLSearchParams\(`scene=\$\{REVIEW_SCENES\[0\]\.scene\}`\)/);
+    expect(main).not.toMatch(/const wanted = explicitScene \?\? REVIEW_SCENES\[0\]\.scene;/);
     expect(list).not.toMatch(/scene: "tts-voices"/);
     // 何も付けずに開いた人には帯を出す（無いと先頭の1画面しか見られない）。
     expect(main).toMatch(/const showReviewBar = q\.get\("review"\) === "1" \|\| !explicitScene;/);
@@ -5295,7 +5322,10 @@ describe("報告は項目ごと。全部の作り直しは Pro だけ", () => {
       card.indexOf("function SectionCard("),
     );
     expect(rb).toMatch(/useServerFn\(reportAndFixSection\)/);
-    expect(rb).toMatch(/fixFn\(\{ data: \{ word_id: wordId!, item \} \}\)/);
+    expect(rb).toMatch(/fixFn\(\{\s*data: \{\s*word_id: wordId!,\s*item,/);
+    // 項目が分からない人は「AIに見つけてもらう」（2026-09-27）。範囲は画面に出ている項目。
+    expect(rb).toMatch(/send\("auto", note\.trim\(\)\)/);
+    expect(rb).toMatch(/item === "auto" \? \{ candidates: items \} : \{\}/);
     // 記録だけの古い通報には戻さない。
     expect(card).not.toMatch(/reportEntry/);
     // 画面に出ている節から選ぶ（発音と品詞を先頭に）。
@@ -5312,8 +5342,10 @@ describe("報告は項目ごと。全部の作り直しは Pro だけ", () => {
     );
     expect(fn).toMatch(/runSectionRegen\(\s*context,[\s\S]*?"propose",\s*\)/);
     expect(fn).toMatch(
-      /if \(!shouldApplyCorrection\(verdict\)\) return \{ fixed: false, by: verdict\.by \};/,
+      /if \(!shouldApplyCorrection\(verdict\)\) return \{ fixed: false, by: verdict\.by, item \};/,
     );
+    // AI が見つけた項目は、画面に出ている範囲の名前だけを採る（`pickReportedItem`）。
+    expect(ai).toMatch(/return pickReportedItem\(parseJsonFromAiText\(res\.text\), candidates\);/);
     // 発音・品詞は AI に作らせず、辞書と照らす。
     expect(fn).toMatch(/dictionaryFixPatch\(/);
     // 報告は直せても直せなくても残す。
@@ -5395,6 +5427,11 @@ describe("記憶のグラフ（オーナー指摘 2026-09-22「記憶のグラ�
   const chart = codeOnly(read("components/ForgettingCurveChart.tsx"));
   const review = codeOnly(read("routes/_authenticated/review.tsx"));
 
+  it("**横に辿り始めたら縦の巻き取りに指を取られない**（R11「押したまま横に滑らせると引っかかる」）", () => {
+    expect(chart).toMatch(/addEventListener\("touchmove", move, \{ passive: false \}\)/);
+    expect(chart).toMatch(/if \(lock === "x" && e\.cancelable\) e\.preventDefault\(\);/);
+  });
+
   it("**復習した回数は履歴の行数**（SM-2 の「続けて正解した回数」ではない）", () => {
     // 「復習5回となってるのに5回復習したあとない」— 数と点が別の物を数えていた。
     expect(review).toMatch(/const reviewCount = data \? data\.history\.length : word\.repetitions/);
@@ -5418,7 +5455,9 @@ describe("記憶のグラフ（オーナー指摘 2026-09-22「記憶のグラ�
     expect(lines).toMatch(/jumps\.map\(\(j\) => \(\s*<ReferenceLine/);
     expect(lines).toMatch(/<CartesianGrid vertical=\{false\} stroke="var\(--border\)" \/>/);
     // 全体のグラフも同じ。
-    const mini = review.slice(review.indexOf("export function MiniRetentionGraph"));
+    // 全体のグラフは部品に分けた（押すまで読み込まない。2026-09-27）。
+    const miniSrc = read("components/MiniRetentionGraph.tsx");
+    const mini = miniSrc.slice(miniSrc.indexOf("export function MiniRetentionGraph"));
     const miniLines = mini.slice(mini.indexOf("<LineChart"), mini.indexOf("</LineChart>"));
     expect(miniLines.match(/strokeDasharray=/g)?.length).toBe(1);
     expect(miniLines).not.toMatch(/ReferenceLine/);
@@ -5445,31 +5484,41 @@ describe("スキャンの後の下の段（オーナー指摘 2026-09-22）", ()
   const css = read("styles.css");
 
   it("**写真は覗いていた映像と同じ見え方**で止める（2026-09-24 から撮れる範囲を全部見せる contain）", () => {
+    expect(scan).toMatch(/<ScanSnapshotPhoto\s+src=\{snapshot\}/);
     expect(scan).toMatch(
-      /src=\{snapshot\}\s+alt=""\s+className="absolute inset-0 h-full w-full object-contain"/,
+      /src=\{src\}\s+alt=""\s+className="absolute inset-0 h-full w-full object-contain"/,
     );
     expect(scan).not.toMatch(/calc\(100% - \$\{sheetSize\.h \+ 24\}px\)/);
     // 点は写真と同じ切り落としで置く。
     expect(scan).toMatch(/containPoint\(it\.point, snapshotSize, boxSize\)/);
   });
 
+  it("**黒い帯を作らない**: 写真の縦横比の余りは同じ写真をぼかして敷く（2026-09-28）", () => {
+    expect(scan).toMatch(/<img src=\{src\} alt="" aria-hidden className="scan-frame__fill" \/>/);
+    expect(css).toMatch(/\.scan-frame__fill \{[^}]*object-fit: cover;[^}]*filter: blur\(/);
+  });
+
   it("**撮った後も `<video>` を外さない**（外すと「もう一度」で真っ黒・再スキャンが必ず失敗）", () => {
     expect(scan).not.toMatch(/\{!snapshot && \(\s*<video/);
   });
 
-  it("**候補は下の箱の中で縦に送る。画面は動かない**（2026-09-23 の指示で横送りから変更）", () => {
+  it("**候補は写真に繋がった1枚の面。行ごとに右端の追加、撮り直しは写真の右上**（R13 2026-09-28）", () => {
     expect(scan).toMatch(/<ScanCandidateStrip/);
     expect(scan).not.toMatch(/ScanFoundList/);
     expect(scan).not.toMatch(/t\("scan\.rescan"\)/);
-    // 1行の箱は巻き取りに任せず、払った分だけ1つずつ送る（2026-09-23 の
-    // 4回目の指示「スクロールしにくい」）。画面は動かない。
-    expect(scan).toMatch(/className="scan-box relative touch-none overflow-hidden p-1"/);
-    expect(scan).toMatch(/const n = Math\.round\(-dy \/ 32\) \|\| -Math\.sign\(dy\);/);
-    // 数の札は押せば次の候補へ。追加のボタンはいま出ている候補を図鑑へ。
-    expect(scan).toMatch(/aria-label=\{t\("scan\.nextCandidate"\)\}/);
-    expect(scan).toMatch(/onClick=\{\(\) => onOpen\(active\)\}/);
-    // 一番下の1行ぶん（2026-09-23 の3回目の指示）。
-    expect(css).toMatch(/\.scan-box \{[^}]*max-height: calc\(3rem \+ 0\.5rem\);/);
+    expect(scan).not.toMatch(/scan-wheel/);
+    // 面は画面の下端まで届き、写真は面の裏まで伸びる（間に地が覗かない）。
+    expect(scan).toMatch(/"scan-sheet fixed inset-x-0 bottom-0 z-30/);
+    expect(scan).toMatch(/bottom: showList\s*\?\s*`calc\(\$\{sheetSize\.h\}px - 1\.5rem\)`/);
+    expect(css).toMatch(/\.scan-sheet \{[^}]*border-radius: 1\.5rem 1\.5rem 0 0;/);
+    // 行ごとの追加。
+    const strip = scan.slice(scan.indexOf("export function ScanCandidateStrip"));
+    expect(strip.slice(0, strip.indexOf("export function ScanAgainButton"))).toMatch(
+      /onClick=\{\(\) => onOpen\(it\)\}/,
+    );
+    // 撮り直しは写真の箱の中（右上）。
+    expect(scan).toMatch(/\{showList && <ScanAgainButton onAgain=\{reset\} \/>\}/);
+    expect(scan).toMatch(/className="scan-again press-in absolute right-2 top-2/);
   });
 
   it("**注目している候補の光が大きくなって揺れる**。動きを減らす設定では揺らさない", () => {
@@ -5495,8 +5544,11 @@ describe("スキャンの後の下の段（オーナー指摘 2026-09-22）", ()
     expect(scan).toMatch(/boxWidth=\{boxSize\.w\}/);
   });
 
-  it("**こちらから列を送っている間は注目を奪わない**（点を押した候補が送りの途中で別の候補に替わった）", () => {
-    expect(scan).toMatch(/if \(performance\.now\(\) < programmaticUntil\.current\) return;/);
+  it("**一覧を送っても注目は奪わない**（点を押した候補が送りの途中で別の候補に替わった。R13 からは送り自体が注目を変えない）", () => {
+    const strip = scan.slice(scan.indexOf("export function ScanCandidateStrip"));
+    expect(strip.slice(0, strip.indexOf("export function ScanAgainButton"))).not.toMatch(
+      /onScroll=/,
+    );
   });
 });
 
@@ -5614,8 +5666,15 @@ describe("開発者だけ: 機能ごとの AI を OpenRouter から選ぶ（オ�
   });
 
   it("設定の機能ごとの欄は一覧から選ぶ。スキャンは画像を読めるモデルだけ", () => {
-    expect(settings).toMatch(/<ModelPicker/);
-    expect(settings).toMatch(/visionOnly=\{f\.id === "scan"\}/);
+    // 2026-09-28「複雑すぎる。直感的に」: OpenRouter の数百の一覧から、**鍵のある会社 →
+    // その会社に聞いたモデルの一覧**の2段に変えた。手で名前を打たない・スキャンは画像を
+    // 読めるモデルだけ、の2つの約束はそのまま。
+    expect(settings).toMatch(/listProviderModels/);
+    expect(settings).toMatch(/id !== "scan" \|\| supportsVision\(c, m\)/);
+    const fn = admin.slice(admin.indexOf("export const listProviderModels"));
+    expect(fn).toMatch(/if \(!isAdmin\) throw new Error\("管理者のみ"\)/);
+    // 鍵の値は返さない（入っているかどうかだけ）。
+    expect(fn).not.toMatch(/key: key\.value|value: key/);
   });
 });
 
@@ -5712,14 +5771,6 @@ describe("スキャンの候補を押したら撮影モードと同じ流れ（�
     expect(cap).toMatch(/setStep\("select"\);[\s\S]{0,80}void confirmWord\(h\.headword, first\)/);
     // 渡された写真は、同じ描画のうちに ref から読む。
     expect(cap).toMatch(/const photo = objectImageRef\.current \?\? objectImg;/);
-  });
-
-  it("撮り直しは右下の端（箱の後ろに置く）", () => {
-    const strip = scan.slice(scan.indexOf("export function ScanCandidateStrip"));
-    const box = strip.indexOf('className="scan-box');
-    const again = strip.indexOf('aria-label={t("scan.again")}');
-    expect(box).toBeGreaterThan(0);
-    expect(again).toBeGreaterThan(box);
   });
 });
 
@@ -5842,7 +5893,8 @@ describe("キャッチの祝福の BGM（オーナー指示 2026-09-23）", () =
     expect(v5).toMatch(/root\.dataset\.stage = "lift";\s*Score\.build\(\);/);
     expect(v5).toMatch(/root\.dataset\.stage = "break";\s*haptic\("success"\);\s*Score\.hit\(\);/);
     expect(v5).toMatch(/root\.dataset\.stage = "reveal";\s*Score\.resolve\(\);/);
-    expect(v5).toMatch(/Sound\.shelfLand\(\);\s*Score\.land\(\);/);
+    // 着地は柔らかい音（R14「ドスンと強すぎる」）→ 着地の和音。
+    expect(v5).toMatch(/Sound\.softLand\(\);\s*Score\.land\(\);/);
   });
 
   it("語は打撃の後に、BGM を下げてから読む（発音を聞き取れることが先）", () => {
@@ -5888,5 +5940,173 @@ describe("地図は寄りで・時間軸で移る（オーナー指示 2026-09-2
     expect(dm).not.toMatch(/styles:/);
     expect(dm).not.toMatch(/MAP_STYLE_/);
     expect(dm).toMatch(/className="dex-pin__time"/);
+  });
+});
+
+describe("復習の通知の設定は3つだけ", () => {
+  it("オフ / 自動 / 時刻を指定。自動の細かい項目と「次の通知」の行は出さない", () => {
+    // 2026-09-28「オフ、自動、またユーザーが時刻を設定できるようにの3つにして。
+    // 復習がたまる時刻、昨日のアプリを開いたとか、次の項目とかの項目は消して」。
+    const src = codeOnly(read("routes/_authenticated/settings.tsx"));
+    const at = src.indexOf("export function ReviewReminderSettings");
+    const body = src.slice(at, src.indexOf("export function PlaceReminderToggle"));
+    const values = [...body.matchAll(/\{ value: "(\w+)", label: t\("remind\.\w+"\) \}/g)].map(
+      (m) => m[1],
+    );
+    expect(values).toEqual(["off", "ai", "custom"]);
+    expect(body).not.toMatch(/remind\.aiSrs|remind\.aiHabit|remind\.next|remind\.quiet/);
+    // 通知を押すと、その1語から復習が始まる。
+    const sched = codeOnly(read("lib/review-reminder-schedule.ts"));
+    expect(sched).toMatch(/sticker_id: it\.stickerId/);
+  });
+});
+
+describe("記念アルバムは開いた瞬間に祝う", () => {
+  it("誌面の前に `MemorialReveal`（数え上げ・紙吹雪・音・触覚）を出し、幕が上がってから誌面", () => {
+    // 2026-09-28「記念アルバムはただのアルバムではなく、特別感のあるアルバムで、
+    // アニメーションやセレブレーション、ユーザーの快感を刺激する演出を入れて」。
+    const home = codeOnly(read("routes/_authenticated/home.tsx"));
+    const album = home.slice(home.indexOf("export function MemorialAlbum"));
+    expect(album.indexOf("<MemorialReveal")).toBeGreaterThan(0);
+    expect(album.indexOf("<MemorialReveal")).toBeLessThan(album.indexOf("<DayCollage"));
+    expect(album).toMatch(/\{revealed && \(\s*<DayCollage/);
+    const reveal = codeOnly(read("components/MemorialReveal.tsx"));
+    // 絵・音・手応えを同じ瞬間に。
+    const burst = reveal.slice(
+      reveal.indexOf('haptic("success")'),
+      reveal.indexOf("runConfetti(confetti"),
+    );
+    expect(burst).toMatch(/playCelebrate\(\)/);
+    // 動きを減らす設定では最後の絵を静かに出すだけ。
+    expect(reveal).toMatch(/dataset\.motion === "reduce"/);
+  });
+});
+
+describe("撮った後の候補: 1段目は全部同じ大きさ", () => {
+  it("1段目に大きな札（HeroWord）を置かず、使い分けの一言も出さない。砕けた言い方も並べる", () => {
+    // 2026-09-28「柚子みたいにこれだけ大きく表示したり、単語の解説を長く書くのではなく、
+    // 他にも写ってるものと同じ大きさで表示して」「説明が長すぎる文はなしで」。
+    const src = codeOnly(read("components/CandidatePicker.tsx"));
+    const stage1 = src.slice(src.indexOf('data-stage="1"'), src.indexOf("function HeroWord"));
+    expect(stage1).not.toMatch(/<HeroWord/);
+    expect(stage1).toMatch(/note=\{false\}/);
+    expect(src).toMatch(/line-clamp-2/);
+    expect(codeOnly(read("lib/candidate-order.ts"))).toMatch(/casual: 1/);
+    expect(codeOnly(read("lib/ai.functions.ts"))).toMatch(/distinction は15文字以内/);
+  });
+});
+
+describe("本棚の本を開くと、1日＝1見開き（左＝その日のアルバム、右＝日記）（2026-09-28）", () => {
+  const engine = read("../scripts/ui-harness/scenes/shelf3d/engine.ts");
+  const tex = read("../scripts/ui-harness/scenes/shelf3d/textures.ts");
+  const journal = codeOnly(read("lib/journal.functions.ts"));
+
+  it("左のページはその日の写真・一言・落書き、右のページは本人が打った日記を選んだ字体で", () => {
+    expect(tex).toMatch(/export function paintAlbumDay\(s: DaySpread\)/);
+    expect(tex).toMatch(/export function paintDiary\(s: DaySpread, font: DiaryFontId\)/);
+    expect(tex).toMatch(/for \(const d of s\.doodles \?\? \[\]\)/);
+    expect(tex).toMatch(/wrapDiaryLines\(text, maxW/);
+    expect(engine).toMatch(/return day \? paintAlbumDay\(day\)/);
+    expect(engine).toMatch(/return day \? paintDiary\(day, font\)/);
+  });
+
+  it("開くといちばん新しい日の見開きまでめくれる。字体を変えると右のページを描き直す", () => {
+    expect(engine).toMatch(/const last = b\.days\.length;/);
+    expect(engine).toMatch(/repaintDiary\(dayIndex\?: number\)/);
+  });
+
+  it("打った日記は AI を通さずそのまま保存（添削の列には触らない）", () => {
+    expect(journal).toMatch(/export const saveMyDiary = createServerFn\(\{ method: "POST" \}\)/);
+    expect(journal).toMatch(
+      /\{ user_id: userId, entry_date: data\.date, user_draft: text \|\| null \}/,
+    );
+  });
+});
+
+describe("指の端末ではページ全体を巻き取らず、殻だけを巻き取る（下のバーが隠れる件、2026-09-28）", () => {
+  const css = read("styles.css");
+  const rootSrc = read("routes/__root.tsx");
+  const shell = codeOnly(read("components/AppShell.tsx"));
+
+  it("頭の script が指の端末に印を立て、殻を画面の高さに固定して中だけ巻き取る", () => {
+    expect(rootSrc).toMatch(
+      /matchMedia\("\(pointer: coarse\)"\)\.matches\)document\.documentElement\.dataset\.scrollRoot="shell"/,
+    );
+    expect(css).toMatch(
+      /html\[data-scroll-root="shell"\]:has\(\[data-app-shell\]\) body \{\s*height: 100%;\s*overflow: hidden;/,
+    );
+    expect(css).toMatch(
+      /html\[data-scroll-root="shell"\] \[data-app-shell\]:not\(\.overflow-hidden\) \{\s*height: 100dvh;[^}]*overflow-y: auto;/,
+    );
+    expect(shell).toMatch(/ensureScrollRootMark\(\)/);
+    expect(shell).toMatch(/data-scroll-restoration-id="app-shell"/);
+  });
+
+  it("巻き取りを読む所は殻も見る（上のバーの縁・案内の位置合わせ）", () => {
+    expect(read("hooks/use-scrolled.tsx")).toMatch(/scrollTopNow\(\) > threshold/);
+    expect(read("components/onboarding/Spotlight.tsx")).toMatch(/scrollByY\(-90\)/);
+    expect(read("router.tsx")).toMatch(/scrollToTopSelectors: \["\[data-app-shell\]"\]/);
+  });
+});
+
+describe("図鑑のカテゴリーに単語を入れる・外す（2026-09-28）", () => {
+  const dex = codeOnly(read("routes/_authenticated/dex.tsx"));
+  const sheet = codeOnly(read("components/CategorySheet.tsx"));
+  const fns = codeOnly(read("lib/categories.functions.ts"));
+
+  it("図鑑のカテゴリー編集から、そのカテゴリーの単語選びを開ける", () => {
+    expect(sheet).toMatch(/onEditMembers\?: \(key: string\) => void/);
+    expect(dex).toMatch(/onEditMembers=\{\(key\) => setMembersKey\(key\)\}/);
+    expect(dex).toMatch(/<CategoryMembersSheet/);
+    expect(dex).toMatch(/onApply=\{cats\.setMembers\}/);
+  });
+
+  it("まとめて書く口は自分の札だけを触る", () => {
+    expect(fns).toMatch(/export const setStickersCategory = createServerFn/);
+    expect(fns).toMatch(/\.eq\("user_id", userId\)\s*\.in\("id", ids\)/);
+  });
+});
+
+describe("ホームのアルバムの赤いバツ＝アルバムからだけ外す（2026-09-28）", () => {
+  const home = codeOnly(read("routes/_authenticated/home.tsx"));
+  const fns = codeOnly(read("lib/album-hidden.functions.ts"));
+  it("並べ替え中に赤いバツ。外した物は貼らず、下の「外した写真」から戻せる。図鑑の札は消さない", () => {
+    expect(home).toMatch(/className="album-remove"/);
+    expect(home).toMatch(/allStickers\.filter\(\(s\) => !albumHidden\.hidden\.has\(s\.id\)\)/);
+    expect(home).toMatch(/className="album-hidden-tray"/);
+    expect(home).toMatch(/onClick=\{\(\) => restoreToAlbum\(s\.id\)\}/);
+    // 札は消さない: 印を書き換えるだけ（delete しない）。
+    expect(fns).toMatch(/\.update\(\{ album_hidden: data\.hidden \}\)/);
+    expect(fns).not.toMatch(/\.delete\(\)/);
+  });
+});
+
+describe("単語の詳細が開いた直後に別の文へ入れ替わらない（2026-09-28）", () => {
+  const sheet = codeOnly(read("components/StickerSheet.tsx"));
+  it("解説は端末に覚えた物を先に出し、返事待ちの間は古い共有解説を出さない。埋め直しは見えている項目を残す", () => {
+    expect(sheet).toMatch(/initialData: cachedExplanation/);
+    expect(sheet).toMatch(/writeCachedExplanation\(cacheKey, r\)/);
+    expect(sheet).toMatch(/explanationPending=\{explanation === undefined\}/);
+    expect(sheet).toMatch(/extras: explanationPending \? null : s\.word\.extras/);
+    expect(sheet).toMatch(/extras: keepShownFields\(/);
+  });
+});
+
+describe("復習4択の答え合わせに「図鑑で見る」（正解・不正解どちらも、2026-09-28）", () => {
+  const review = codeOnly(read("routes/_authenticated/review.tsx"));
+  it("当てたときも外したときも出す", () => {
+    expect(review).toMatch(/\{t\("review\.openInDex"\)\}/);
+    expect(review).not.toMatch(/\{!correct && \(\s*<button[\s\S]{0,200}setDetailOpen\(true\)/);
+  });
+});
+
+describe("図鑑に追加する動きは一連（着地＝追加、本物の札がつぶれて戻る。2026-09-28）", () => {
+  const reward = codeOnly(read("components/effects/catch-landing/v5_reward.ts"));
+  it("着いた瞬間に本物の札を見せ、その札が跳ねる。図鑑の側では落とし直さない", () => {
+    expect(reward).toMatch(/if \(targetId\) markFlown\(targetId\)/);
+    expect(reward).toMatch(/target\.style\.visibility = "";\s*hiddenCell = null;/);
+    expect(reward).toMatch(/await target\.animate\(/);
+    expect(codeOnly(read("routes/_authenticated/dex.tsx"))).toMatch(/!wasFlown\(s\.id\)/);
+    expect(codeOnly(read("components/DexShelf.tsx"))).toMatch(/!wasFlown\(s\.id\)/);
   });
 });

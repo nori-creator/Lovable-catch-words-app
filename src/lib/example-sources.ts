@@ -1,3 +1,4 @@
+import { DEFAULT_TARGET_LANGUAGE } from "./target-lang";
 /**
  * 例文を**どこから作るか**の指示。
  *
@@ -53,15 +54,41 @@ export function hasPersonalMaterial(m: PersonalMaterial): boolean {
  * 世界の側の指示。
  * `nl` は解説の言語の呼び名(「日本語」/「英語」)。
  */
-export function worldExampleRule(nl: string): string {
+export function worldExampleRule(
+  nl: string,
+  target: string = DEFAULT_TARGET_LANGUAGE,
+  now: Date = new Date(),
+): string {
+  const zh = target.startsWith("zh");
+  const local = zh
+    ? "台湾の芸能人・歌手・スポーツ選手・歴史上の人物、台湾の文化・習慣・食べ物・街"
+    : "英語圏と世界で広く知られた人物・作品・スポーツ・文化・習慣";
+  const month = `${now.getFullYear()}年${now.getMonth() + 1}月`;
+  // 優先の順（オーナー指示 2026-09-27「例文は、レベルに合わせて語彙・文法を限定。
+  // ネイティブが最も頻繁に使う場面・シチュエーション・感情の例文。ニュース・
+  // 世界の出来事・現在のトレンドなどで楽しい生きた例文（決まりきった退屈な
+  // ものではない）。最重要はネイティブが使う最も自然な例文」）。
+  // 2026-09-28 追記「一番重要なのはその単語をネイティブが使うときに最も自然で頻繁に
+  // 使う例文にすること。無理やり固有名詞を入れた不自然な文を作らないで」— 現実の話題は
+  // **自然に合う時だけ**の味付けに下げ、固有名詞は入れなくてよいと明記する。
   return [
-    `例文は**現実から作る**。次のどれかに結びつける:`,
-    `実在の人物(台湾の芸能人・歌手・スポーツ選手・歴史上の人物)、実際に起きた出来事、`,
-    `ニュース、歴史、台湾の文化・習慣、いま流行っているもの。台湾のものを優先する。`,
-    `**ただし事実を作らない**: 日付・数字・順位・受賞歴・「〜年に〜した」のような`,
+    `例文の作り方（上ほど大事）:`,
+    `\n1. **いちばん大事: ネイティブがその語を使う時に、最も自然で、最も頻繁に口にする一文。**`,
+    `その語が実際にいちばんよく使われる言い回し・組み合わせ（よく一緒に出る語）で書く。`,
+    `教科書の作文・直訳調・説明文は書かない。語順・語尾・口癖までネイティブの話し言葉のまま。`,
+    `\n2. **学習者のレベルに合わせる**: 語彙と文型はそのレベルの範囲に収め、`,
+    `新しく覚えるのは見出し語だけで済むようにする。`,
+    `\n3. **いちばんよく出会う場面・状況・気持ち**で言う（誰に・どこで・どんな気持ちで）。`,
+    `\n4. **生きた話題は、自然に合う時だけ**: ${local}、実在の人物、実際の出来事、ニュース、`,
+    `歴史、流行、豆知識、季節の行事（今は${month}）などは、**その語をいちばん自然に使う文に`,
+    `そのまま収まる時だけ**使う。**固有名詞を無理に入れない。** 入れると不自然になるなら、`,
+    `固有名詞のない日常の一文でよい（その方がよい）。`,
+    zh ? `使うなら台湾のものを優先する。` : ``,
+    `決まりきった退屈な文・教科書的な無名の文(「我是學生。」)は書かない。`,
+    `\n**ただし事実を作らない**: 日付・数字・順位・受賞歴・「〜年に〜した」のような`,
     `検証が要る細部は書かない。「〜が好きな人が多い」「〜でよく見る」のように、`,
-    `間違いようのない書き方にする。教科書的な無名の文(「我是學生。」)は書かない。`,
-    `scene には、その文が出てくる現実の場面を${nl}で短く書く。`,
+    `間違いようのない書き方にする。流行は、長く続いていて外れようのないものだけ。`,
+    `\nscene には、その文が出てくる現実の場面を${nl}で短く書く。`,
   ].join("");
 }
 
@@ -94,7 +121,12 @@ export function personalExampleRule(m: PersonalMaterial, nl: string): string {
 }
 
 /** 2系統をまとめた、例文の作り方の指示。 */
-export function exampleSourceRule(m: PersonalMaterial, nl: string): string {
+export function exampleSourceRule(
+  m: PersonalMaterial,
+  nl: string,
+  target: string = DEFAULT_TARGET_LANGUAGE,
+): string {
   const personal = personalExampleRule(m, nl);
-  return personal ? `${worldExampleRule(nl)}${personal}` : worldExampleRule(nl);
+  const world = worldExampleRule(nl, target);
+  return personal ? `${world}${personal}` : world;
 }

@@ -1,3 +1,4 @@
+import { markFlown } from "@/lib/catch-flight";
 import { Sound } from "@/lib/sound-engine";
 import { Score, SCORE } from "@/lib/celebration-score";
 import { haptic } from "@/lib/haptics";
@@ -101,6 +102,10 @@ export const v5reward: LandingRunner = async ({
   // 0–120ms release; 120–600ms entrance + signature; 600ms name/voice;
   // voice end: glint 180ms + 280ms afterglow; ascent 320ms; drop 240ms; bounce 560ms.
   root.dataset.stage = "grip";
+  // 着地の音（録った「シュッ→ドン」）を先に読み解いておく。着地まで2秒以上ある。
+  // 弾ける瞬間の 3D の紙吹雪も、ここで読み始める（three.js は重いので、この演出の
+  // 時にだけ読む）。0.6 秒後の「弾ける」には間に合う。
+  const confetti = import("@/components/three/confetti3d").catch(() => null);
   Sound.rewardGrip();
   haptic("selection");
   await fly.animate(
@@ -127,6 +132,12 @@ export const v5reward: LandingRunner = async ({
   root.dataset.stage = "break";
   haptic("success");
   Score.hit();
+  // 札の後ろから、光を受けて明滅する本物の紙と金の箔が弾ける（`confetti3d.ts`）。
+  // 演出の層の中で、札（z 84）の後ろ・光の粒（z 83）の手前に置く。WebGL が無ければ
+  // 何も出さない（今まで通り）。
+  void confetti.then((m) =>
+    m?.burstConfetti3d({ from: { x: 0.5, y: 0.38 }, count: 120 }, 83, root),
+  );
   // **語は打撃の響きが引いてから読む**。読む間は BGM を 20dB 下げる
   // （発音を聞き取れることが、このアプリでいちばん大事）。
   const spoken = wait(SCORE.speechDelayMs)
@@ -201,6 +212,8 @@ export const v5reward: LandingRunner = async ({
   handoffImage.style.opacity = "1";
   // 着地先は**いま**読む。冒頭で分解した値は、押した時点ではまだ null。
   const targetId = getDestinationId?.() ?? destinationId;
+  // この札の着地はここが受け持つ。図鑑の側の落下演出はもう走らせない（`catch-flight.ts`）。
+  if (targetId) markFlown(targetId);
   document.documentElement.dataset.rewardFlight = targetId ?? "active";
   document.body.appendChild(handoff);
   root.style.opacity = "0";
@@ -279,6 +292,9 @@ export const v5reward: LandingRunner = async ({
       ).finished,
       ...backgroundMotion,
     ]);
+    // 落ちる間は軽い「ひゅっ」だけ。着いた瞬間に柔らかい音（`Sound.softLand`）。
+    // 前は録った「シュッ→ドン」を鳴らしていたが、ドスンと強すぎた（オーナー指示
+    // 2026-09-28 R14「もっと柔らかく着地する音に」）。
     Sound.itemDrop();
     await handoffImage.animate(
       [
@@ -289,9 +305,21 @@ export const v5reward: LandingRunner = async ({
     ).finished;
 
     handoff.dataset.stage = "impact";
-    Sound.shelfLand();
+    Sound.softLand();
     Score.land();
-    haptic("heavy");
+    haptic("light");
+    /**
+     * **着地した瞬間に、本物の札へ入れ替える**（オーナー指示 2026-09-28「着地すると
+     * 同時に図鑑に追加されるタイミング画像が少し縮むようなバウンス…一連にして」）。
+     *
+     * 前は飛んできた写しが着地先の上で跳ね（560ms）、跳ね終わってから本物と
+     * 入れ替えていた。入れ替えの瞬間に本物の側の落下演出が頭から走り、写真が
+     * 一度消えて上から落ち直していた。いまは着いた瞬間に写しを外して本物を見せ、
+     * **本物の札そのもの**が少しつぶれて戻る — 飛ぶ・着く・収まるが1つの動きになる。
+     */
+    target.style.visibility = "";
+    hiddenCell = null;
+    handoffImage.style.opacity = "0";
     target.animate([{ boxShadow: "0 0 0 0 #58d7ff99" }, { boxShadow: "0 0 0 24px #58d7ff00" }], {
       duration: 600,
       easing: "ease-out",
@@ -300,29 +328,28 @@ export const v5reward: LandingRunner = async ({
     shelf?.animate(
       [
         { transform: "translateY(0)" },
-        { transform: "translateY(5px)", offset: 0.2 },
-        { transform: "translateY(-2px)", offset: 0.5 },
+        { transform: "translateY(4px)", offset: 0.2 },
+        { transform: "translateY(-1px)", offset: 0.5 },
         { transform: "translateY(0)" },
       ],
       { duration: 320, easing: "ease-out" },
     );
-    // 着弾の跳ね。ここが中断されても外側の `finally` が借り物を返すので、
-    // 以前あった内側の `try/finally` は要らない(同じ後始末の二重書きだった)。
-    await handoffImage.animate(
-      [
-        { transform: `translate3d(${dx}px,${dy}px,0) scale(${sx},${sy})` },
-        {
-          transform: `translate3d(${dx}px,${dy + targetRect.height * 0.07}px,0) scale(${sx * 1.12},${sy * 0.83})`,
-          offset: 0.14,
-        },
-        {
-          transform: `translate3d(${dx}px,${dy - targetRect.height * 0.15}px,0) scale(${sx * 0.98},${sy * 1.04})`,
-          offset: 0.46,
-        },
-        { transform: `translate3d(${dx}px,${dy}px,0) scale(${sx},${sy})` },
-      ],
-      { duration: 560, easing: "cubic-bezier(.2,.9,.3,1)", fill: "forwards" },
-    ).finished;
+    const origin = target.style.transformOrigin;
+    target.style.transformOrigin = "50% 100%";
+    try {
+      await target.animate(
+        [
+          { transform: "scale(1, 1)" },
+          { transform: "scale(1.08, 0.86)", offset: 0.18 },
+          { transform: "scale(0.97, 1.04)", offset: 0.5 },
+          { transform: "scale(1.01, 0.99)", offset: 0.75 },
+          { transform: "scale(1, 1)" },
+        ],
+        { duration: 460, easing: "cubic-bezier(.2,.9,.3,1)" },
+      ).finished;
+    } finally {
+      target.style.transformOrigin = origin;
+    }
   } finally {
     // 借りた物を返す。どの経路で抜けても、ここだけは通る。
     // BGM の鳴り残し（語の下で続く和音）もここで必ず消す。

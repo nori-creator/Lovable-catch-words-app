@@ -9,18 +9,26 @@ import { Zh } from "@/components/Zh";
 import { MemoryBadge } from "@/components/MemoryBadge";
 import type { MemoryBadgeInfo } from "@/lib/memory-badge";
 import { useMemoryBadges } from "@/lib/use-memory-map";
-import { CATEGORY_META, asCategoryKey, categoryEmoji, type RoomKey } from "@/lib/category";
+import {
+  CATEGORY_META,
+  ROOM_ACCENT,
+  asCategoryKey,
+  categoryEmoji,
+  type RoomKey,
+} from "@/lib/category";
 import { localeOf, useT, useUiLang } from "@/lib/i18n";
 import { neutralReadings, useReadingText } from "@/lib/phonetic";
 import {
   COVER_STEP,
   coverFlowPose,
+  galleryPose,
   poseTransform,
   progressDots,
   settleIndex,
 } from "@/lib/cover-flow";
 import { APPLE_SPRING, createSpring, rubberband, velocityFrom, type Spring } from "@/lib/spring";
 import { motionReducedNow } from "@/hooks/use-reduced-motion";
+import { playSfx, preloadSfx } from "@/lib/sfx-files";
 
 /**
  * 図鑑の**カード表示**。1語1枚のカードを横に送る（カバーフロー）。
@@ -44,19 +52,32 @@ export function DexCoverFlow({
   memory,
   initialIndex = 0,
   onBrowse,
-  theme = "stage",
+  theme = "gallery",
+  cardTone = "blue",
 }: {
   stickers: StickerWithWord[];
   onOpen: (id: string) => void;
   /**
    * 背景の見せ方（オーナー指示 2026-09-27「黒系の背景・奥行き・真ん中に
    * ステージ／円。カテゴリー別の背景やアニメの案を複数」）。
-   *  ・`stage`    … 暗い部屋に、真ん中のカードだけ光る円の舞台（既定）
+   *  ・`stage`    … 暗い部屋に、真ん中のカードだけ光る円の舞台
    *  ・`category` … 舞台の光と背景の色が、真ん中のカードの分類の色になる
    *  ・`motion`   … `category` に、分類ごとの小さな動き（湯気・葉・雨…）
    *  ・`museum`   … 美術館。暗い壁、上からの光、カードの下に小さな札
+   *  ・`gallery`  … **白い展示室（既定。R14「背景白にして」で本番もこれ）**。作品は奥の台座の上、
+   *                  左右の作品は壁ぞいに奥へ。下にオークションの札（番号・名・日・所）
    */
-  theme?: "stage" | "category" | "motion" | "museum";
+  theme?: "stage" | "category" | "motion" | "museum" | "gallery";
+  /**
+   * **カードの色**（オーナー指示 2026-09-28 R14「図鑑のスライドは背景白にして。
+   * カードと背景が同じ色で見にくいから、カードの色を少し調整して。色のデザイン案だして」）。
+   * 白い部屋の上で白いカードが溶けていたので、カードに地の色を持たせる。
+   *  ・`blue`     … アプリの青をごく薄く（既定）。縁に細い青の線
+   *  ・`ivory`    … 生成りの紙（温かい白）。縁は薄い茶
+   *  ・`category` … 真ん中のカードの分類の色をごく薄く
+   *  ・`ink`      … 濃紺の額（白い部屋の中でいちばん締まる）
+   */
+  cardTone?: "blue" | "ivory" | "category" | "ink";
   /** 札の id → 記憶の印。雛形は通信できないので、こちらで渡す。 */
   memory?: Map<string, MemoryBadgeInfo>;
   /** 最初に真ん中へ置く札（雛形で送った途中の形を見るため）。 */
@@ -64,6 +85,7 @@ export function DexCoverFlow({
   onBrowse?: () => void;
 }) {
   const t = useT();
+  const locale = localeOf(useUiLang());
   const fetched = useMemoryBadges(memory === undefined);
   const memoryById = memory ?? fetched;
   const stageRef = useRef<HTMLDivElement | null>(null);
@@ -76,6 +98,8 @@ export function DexCoverFlow({
   centerRef.current = center;
   const onOpenRef = useRef(onOpen);
   onOpenRef.current = onOpen;
+  const themeRef = useRef(theme);
+  themeRef.current = theme;
   const countRef = useRef(stickers.length);
   countRef.current = stickers.length;
 
@@ -114,9 +138,11 @@ export function DexCoverFlow({
         hidden.current[i] = false;
         el.style.visibility = "";
       }
-      const pose = coverFlowPose(rel, reduced);
+      const pose =
+        themeRef.current === "gallery" ? galleryPose(rel, reduced) : coverFlowPose(rel, reduced);
       el.style.transform = `translate3d(${(i * s - x).toFixed(2)}px,0,0) ${poseTransform(pose)}`;
       el.style.zIndex = String(pose.zIndex);
+      el.style.opacity = "opacity" in pose ? (pose.opacity as number).toFixed(3) : "";
     });
     const c = Math.max(0, Math.min(countRef.current - 1, Math.round(x / s)));
     setCenter((prev) => (prev === c ? prev : c));
@@ -258,11 +284,32 @@ export function DexCoverFlow({
    */
   useEffect(() => {
     const root = document.documentElement;
-    root.dataset.dexStage = "";
+    root.dataset.dexStage = theme === "gallery" ? "gallery" : "";
     return () => {
       delete root.dataset.dexStage;
     };
+  }, [theme]);
+
+  /**
+   * 札が真ん中に来るたび、録った短い「スッ」を鳴らす（`el-gallery-slide.mp3`、オーナー指示
+   * 2026-09-28「図鑑のスライド…本物の映画の効果音のクオリティ」）。開いた最初の1枚では
+   * 鳴らさない。勢いよく払って何枚も通過する時は詰まって聞こえないよう 70ms 空ける。
+   */
+  const slideSound = useRef({ first: true, at: 0 });
+  useEffect(() => {
+    void preloadSfx(["gallery-slide"]);
   }, []);
+  useEffect(() => {
+    const s = slideSound.current;
+    if (s.first) {
+      s.first = false;
+      return;
+    }
+    const now = performance.now();
+    if (now - s.at < 70) return;
+    s.at = now;
+    playSfx("gallery-slide", { gain: 0.8 });
+  }, [center]);
 
   const current = stickers[center];
   const room: RoomKey = current
@@ -273,6 +320,7 @@ export function DexCoverFlow({
       aria-label={t("dex.cards")}
       className="dex-cf -mx-4"
       data-theme={theme}
+      data-card={cardTone}
       data-room={room}
       style={{ "--cf-accent": ROOM_ACCENT[room] } as React.CSSProperties}
     >
@@ -296,8 +344,16 @@ export function DexCoverFlow({
         tabIndex={0}
         className="dex-cf__stage"
       >
-        {/* 真ん中のカードが立つ円の舞台。 */}
-        <span className="dex-cf__floor" aria-hidden="true" />
+        {/* 真ん中のカードが立つ円の舞台（展示室では台座と壁の光）。 */}
+        {theme === "gallery" ? (
+          <>
+            <span className="dex-cf__gallery-floor" aria-hidden="true" />
+            <span className="dex-cf__wall-light" aria-hidden="true" />
+            <span className="dex-cf__plinth" aria-hidden="true" />
+          </>
+        ) : (
+          <span className="dex-cf__floor" aria-hidden="true" />
+        )}
         {stickers.map((s, i) => (
           <CoverCard
             key={s.id}
@@ -310,6 +366,18 @@ export function DexCoverFlow({
           />
         ))}
       </div>
+      {theme === "gallery" && current && (
+        // オークションの作品札: 番号・作品名（語と意味）・いつ・どこで。
+        <div className="dex-cf__lot">
+          <span className="dex-cf__lot-no">LOT {String(center + 1).padStart(3, "0")}</span>
+          <Zh className="dex-cf__lot-title">{current.word.headword}</Zh>
+          <span className="dex-cf__lot-sub">{current.word.meaning_ja}</span>
+          <span className="dex-cf__lot-meta">
+            {lotDate(current.taken_at, locale)}
+            {current.location_name ? ` · ${current.location_name}` : ""}
+          </span>
+        </div>
+      )}
       {theme === "museum" && current && (
         <p className="dex-cf__plaque">
           <Zh className="font-semibold">{current.word.headword}</Zh>
@@ -344,18 +412,6 @@ export function DexCoverFlow({
     </section>
   );
 }
-
-/** 分類の部屋ごとの色（`category` / `motion` の案で、舞台の光と背景に使う）。 */
-const ROOM_ACCENT: Record<RoomKey, string> = {
-  eat: "#ff9f43",
-  town: "#4ea8ff",
-  house: "#d9b38c",
-  wear: "#ff7eb6",
-  play: "#a78bfa",
-  nature: "#4ade80",
-  people: "#fbbf24",
-  marks: "#94a3b8",
-};
 
 /** 下の写真の列。**いまの1枚が見える所まで、列を自分で送る。** */
 function ThumbStrip({
@@ -501,3 +557,11 @@ const CoverCard = memo(function CoverCard({
     </div>
   );
 });
+
+/** 作品札の日付（年月日）。 */
+function lotDate(iso: string, locale: string): string {
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime())
+    ? ""
+    : d.toLocaleDateString(locale, { year: "numeric", month: "short", day: "numeric" });
+}

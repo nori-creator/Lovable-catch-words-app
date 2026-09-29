@@ -250,6 +250,18 @@ export const ROOM_KEYS = [
 
 export type RoomKey = (typeof ROOM_KEYS)[number];
 
+/** 分類の部屋ごとの色（図鑑のスライドの光、暦の写真の縁など）。 */
+export const ROOM_ACCENT: Record<RoomKey, string> = {
+  eat: "#ff9f43",
+  town: "#4ea8ff",
+  house: "#d9b38c",
+  wear: "#ff7eb6",
+  play: "#a78bfa",
+  nature: "#4ade80",
+  people: "#fbbf24",
+  marks: "#94a3b8",
+};
+
 export type CategoryMeta = {
   /** どの部屋の棚か。 */
   room: RoomKey;

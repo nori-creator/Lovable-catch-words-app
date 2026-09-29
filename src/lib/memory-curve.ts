@@ -202,6 +202,15 @@ export function nextLevelDrop(
  * 復習の瞬間は同じ日に2点（直前と 100）が並ぶ — **復習した後の値**を返す。
  */
 export function curveValueAt(curve: Pick<MemoryCurve, "past" | "future">, d: number): number {
+  return Math.round(curveValueAtExact(curve, d));
+}
+
+/**
+ * `curveValueAt` の**丸めない**版。指で辿る点の高さに使う
+ * （オーナー報告 2026-09-27「タップするとかくかく」）。丸めた値で点を置くと、
+ * 横に滑らかに動かしても縦は 1% 刻みで跳ねる。札の数字だけ丸める。
+ */
+export function curveValueAtExact(curve: Pick<MemoryCurve, "past" | "future">, d: number): number {
   const line = d <= 0 ? curve.past : curve.future;
   if (line.length === 0) return 0;
   if (d <= line[0].d) return line[0].r;
@@ -210,7 +219,7 @@ export function curveValueAt(curve: Pick<MemoryCurve, "past" | "future">, d: num
     const b = line[i];
     if (d < b.d || (d === b.d && (i + 1 >= line.length || line[i + 1].d !== b.d))) {
       const k = b.d === a.d ? 1 : (d - a.d) / (b.d - a.d);
-      return Math.round(a.r + (b.r - a.r) * Math.min(1, Math.max(0, k)));
+      return a.r + (b.r - a.r) * Math.min(1, Math.max(0, k));
     }
   }
   return line[line.length - 1].r;

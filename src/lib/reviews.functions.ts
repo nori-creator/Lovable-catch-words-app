@@ -960,9 +960,13 @@ export const gradeReview = createServerFn({ method: "POST" })
     }
     score = Math.max(0, Math.min(5, score));
 
+    const elapsedDays = row.last_reviewed_at
+      ? (Date.now() - new Date(row.last_reviewed_at).getTime()) / 86400_000
+      : null;
     const srs = nextSrs(
       { ease: row.ease, interval_days: row.interval_days, repetitions: row.repetitions },
       score,
+      { elapsedDays },
     );
 
     /**
@@ -1667,3 +1671,109 @@ ${l1Order}
 
     return { ...scaffold, caption_seed: captionSeed };
   });
+
+/**
+ * **これから24時間で復習の時が来る語の時刻**（通知の「おまかせ」用。
+ * `review-reminder.ts` の `srsBestTime`）。時が過ぎている語も含む。
+ * 絞りは `getDueReviews` と同じ学習言語（ほかの言語の語で鳴らさない）。
+ */
+export const getUpcomingDueTimes = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { supabase, userId } = context;
+    const horizon = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+    const langFilter = wordLanguageFilter(await getUserTargetLanguage(userId));
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const db = supabase as any;
+    let res = await db
+      .from("reviews")
+      .select("due_at, stickers!inner(words!inner(language))")
+      .eq("user_id", userId)
+      .lte("due_at", horizon)
+      .or(langFilter, { referencedTable: "stickers.words" })
+      .order("due_at", { ascending: true })
+      .limit(200);
+    if (res.error) {
+      res = await db
+        .from("reviews")
+        .select("due_at")
+        .eq("user_id", userId)
+        .lte("due_at", horizon)
+        .order("due_at", { ascending: true })
+        .limit(200);
+    }
+    const rows = (res.error ? [] : (res.data ?? [])) as Array<{ due_at: string | null }>;
+    return {
+      dueTimes: rows.map((r) => r.due_at).filter((v): v is string => !!v),
+      quiz: await reminderQuiz(db, userId, horizon, langFilter),
+    };
+  });
+
+/**
+ * **通知の1問**（オーナー指示 2026-09-28「通知は写真付きで1問だけのタイプにする」）。
+ *
+ * これから24時間で時が来る語のうち、**いちばん早い・写真のある**1語。写真の
+ * ある語が無ければ、いちばん早い語（文字から作った語 — 意味で問う）。
+ * 通知を押すと `/review?sticker=…` でこの語から始まる（`deep-link.ts`）。
+ *
+ * 写真は非公開の保存場所なので**署名した URL**（6時間で切れる。切れても通知の
+ * 文は出る）。読めない・列が無いときは `null`（通知は語数だけの文に戻る）。
+ */
+export type ReminderQuiz = {
+  sticker_id: string;
+  headword: string;
+  meaning_ja: string | null;
+  image_url: string | null;
+};
+async function reminderQuiz(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  db: any,
+  userId: string,
+  horizon: string,
+  langFilter: string,
+): Promise<ReminderQuiz | null> {
+  try {
+    const { data, error } = await db
+      .from("reviews")
+      .select(
+        "sticker_id, due_at, stickers!inner(object_image_url, cutout_image_url, placeholder_image_url, words!inner(headword, language, meaning_ja))",
+      )
+      .eq("user_id", userId)
+      .lte("due_at", horizon)
+      .or(langFilter, { referencedTable: "stickers.words" })
+      .order("due_at", { ascending: true })
+      .limit(20);
+    if (error || !data?.length) return null;
+    type Row = {
+      sticker_id: string;
+      stickers: {
+        object_image_url: string | null;
+        cutout_image_url: string | null;
+        placeholder_image_url: string | null;
+        words: { headword: string; meaning_ja: string | null } | null;
+      } | null;
+    };
+    const rows = (data as Row[]).filter((r) => r.stickers?.words?.headword);
+    const photoOf = (r: Row) =>
+      r.stickers?.object_image_url ??
+      r.stickers?.cutout_image_url ??
+      r.stickers?.placeholder_image_url ??
+      null;
+    const pick = rows.find((r) => photoOf(r)) ?? rows[0];
+    if (!pick) return null;
+    const path = photoOf(pick);
+    let image_url: string | null = null;
+    if (path) {
+      const { signUrlMap } = await import("./stickers.functions");
+      image_url = (await signUrlMap(db, [path])).get(path) ?? null;
+    }
+    return {
+      sticker_id: pick.sticker_id,
+      headword: pick.stickers!.words!.headword,
+      meaning_ja: pick.stickers!.words!.meaning_ja,
+      image_url,
+    };
+  } catch {
+    return null;
+  }
+}

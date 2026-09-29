@@ -7,22 +7,79 @@
  *
  * | 名前 | 値 | 意味 |
  * |---|---|---|
- * | `IMAGE_PROVIDER` | `lovable`（既定）/ `openrouter` / `off` | どこで作るか |
+ * | `IMAGE_PROVIDER` | `lovable`（既定）/ `openrouter` / `higgsfield` / `off` | どこで作るか |
+ * | `HF_CREDENTIALS` | `鍵ID:鍵の秘密` | Higgsfield の鍵。これがあり `IMAGE_PROVIDER` が空なら Higgsfield |
  * | `IMAGE_MODEL` | 例 `bytedance-seed/seedream-5-0-pro` | OpenRouter のときの型番 |
  * | `IMAGE_SEARCH_MODE` | `photo-first`（既定）/ `ai-first` | 写真と AI のどちらを先に出すか |
  *
  * 手順書は `docs/image-generation-guide.md`。ここは**値の読み方だけ**を
  * 決める純粋な関数（外の世界に触れないので試せる）。
  */
-export type ImageProviderId = "lovable" | "openrouter" | "google" | "openai" | "off";
+export type ImageProviderId = "lovable" | "openrouter" | "google" | "openai" | "higgsfield" | "off";
 export type ImageSearchMode = "photo-first" | "ai-first";
 
 export type ImageConfig = {
   provider: ImageProviderId;
-  /** OpenRouter の型番。`lovable` のときは使わない。 */
+  /** OpenRouter / Higgsfield の型番。`lovable` のときは使わない。 */
   model: string;
   mode: ImageSearchMode;
 };
+
+/**
+ * Higgsfield の既定の絵の型（1回ごとに Higgsfield の残高から引かれる）。
+ * 型番は Higgsfield の「モデル」画面の API の欄に出ている文字列。
+ */
+export const DEFAULT_HIGGSFIELD_IMAGE_MODEL = "bytedance/seedream/v4/text-to-image";
+export const HIGGSFIELD_BASE_URL = "https://api.higgsfield.ai";
+
+/**
+ * **Higgsfield の鍵を探す**（オーナー指示 2026-09-28「HIGGSFIELD の api を lovable で
+ * 設定したから実際に検査して」）。Lovable に入れた名前が分からないので、公式の
+ * SDK が読む名前と、よく付けられる名前を順に見る。返すのは**名前と値**。値は
+ * サーバの中だけで使い、画面・記録には**名前だけ**を出す。
+ *
+ * 形は2つ: 1つの秘密に `鍵ID:鍵の秘密`（公式の推奨）／ID と秘密を別々の2つ。
+ */
+export function readHiggsfieldCredentials(
+  env: Record<string, string | undefined>,
+): { credentials: string; source: string } | null {
+  for (const name of ["HF_CREDENTIALS", "HF_KEY", "HIGGSFIELD_CREDENTIALS", "HIGGSFIELD_KEY"]) {
+    const v = (env[name] ?? "").trim();
+    if (v.includes(":")) return { credentials: v, source: name };
+  }
+  for (const [idName, secretName] of [
+    ["HF_API_KEY", "HF_API_SECRET"],
+    ["HIGGSFIELD_API_KEY", "HIGGSFIELD_API_SECRET"],
+    ["HIGGSFIELD_KEY_ID", "HIGGSFIELD_KEY_SECRET"],
+  ] as const) {
+    const id = (env[idName] ?? "").trim();
+    const secret = (env[secretName] ?? "").trim();
+    if (id && secret)
+      return { credentials: `${id}:${secret}`, source: `${idName} + ${secretName}` };
+    // 1つの名前に `ID:秘密` を丸ごと入れた場合も拾う。
+    if (id.includes(":") && !secret) return { credentials: id, source: idName };
+  }
+  return null;
+}
+
+/** Higgsfield の状態の返事から、終わったか・絵/動画の URL を取り出す。 */
+export function pickHiggsfieldResult(json: unknown): {
+  status: string;
+  requestId: string | null;
+  url: string | null;
+} {
+  const j = json as {
+    status?: string;
+    request_id?: string;
+    images?: Array<{ url?: string }>;
+    video?: { url?: string };
+  };
+  return {
+    status: typeof j?.status === "string" ? j.status : "unknown",
+    requestId: typeof j?.request_id === "string" ? j.request_id : null,
+    url: j?.images?.[0]?.url || j?.video?.url || null,
+  };
+}
 
 /** 型番を指定しなかったときの OpenRouter の既定。 */
 export const DEFAULT_OPENROUTER_IMAGE_MODEL = "bytedance-seed/seedream-5-0-pro";
@@ -42,6 +99,7 @@ export function resolveImageConfig(
     candidate === "openrouter" ||
     candidate === "google" ||
     candidate === "openai" ||
+    candidate === "higgsfield" ||
     candidate === "off"
       ? candidate
       : fallback.provider;
@@ -50,6 +108,7 @@ export function resolveImageConfig(
     openrouter: DEFAULT_OPENROUTER_IMAGE_MODEL,
     google: DEFAULT_GOOGLE_IMAGE_MODEL,
     openai: DEFAULT_OPENAI_IMAGE_MODEL,
+    higgsfield: DEFAULT_HIGGSFIELD_IMAGE_MODEL,
     off: "",
   };
   const model =
@@ -61,8 +120,14 @@ export function resolveImageConfig(
 /** 秘密の値から設定を読む。**知らない値は既定に戻す**（打ち間違いで止めない）。 */
 export function readImageConfig(env: Record<string, string | undefined>): ImageConfig {
   const p = (env.IMAGE_PROVIDER ?? "").trim().toLowerCase();
+  // **Higgsfield の鍵があって、どこで作るかを決めていないなら Higgsfield**。
+  // 鍵を入れただけで使われる（名前を1つ足す手間を省く）。
   const provider: ImageProviderId =
-    p === "openrouter" || p === "google" || p === "openai" || p === "off" ? p : "lovable";
+    p === "openrouter" || p === "google" || p === "openai" || p === "higgsfield" || p === "off"
+      ? p
+      : !p && readHiggsfieldCredentials(env)
+        ? "higgsfield"
+        : "lovable";
   const m = (env.IMAGE_MODEL ?? "").trim();
   const model =
     m ||
@@ -71,6 +136,7 @@ export function readImageConfig(env: Record<string, string | undefined>): ImageC
         openrouter: DEFAULT_OPENROUTER_IMAGE_MODEL,
         google: DEFAULT_GOOGLE_IMAGE_MODEL,
         openai: DEFAULT_OPENAI_IMAGE_MODEL,
+        higgsfield: DEFAULT_HIGGSFIELD_IMAGE_MODEL,
         lovable: DEFAULT_LOVABLE_IMAGE_MODEL,
         off: "",
       } as const

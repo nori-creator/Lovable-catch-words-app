@@ -36,7 +36,13 @@ import { resolveSurfaceRole, setSurfaceRole, useSurfaceRole } from "@/lib/photo-
 import { useAutoHero } from "@/hooks/use-auto-hero";
 import { generateCard } from "@/lib/ai.functions";
 import { getMyProfile } from "@/lib/profile.functions";
-import { getWordExplanation } from "@/lib/word-explanation.functions";
+import { getWordExplanation, type WordExplanationResult } from "@/lib/word-explanation.functions";
+import {
+  explanationCacheKey,
+  keepShownFields,
+  readCachedExplanation,
+  writeCachedExplanation,
+} from "@/lib/explanation-cache";
 import {
   explanationKey,
   needsGeneration,
@@ -246,20 +252,40 @@ export function StickerSheet({ stickerId, onClose, openPhotoPicker, from, local 
    * 下の `useEffect` が回り続ける。
    */
   const wantKey = useMemo(() => explanationKey(uiLang, nativeLang), [uiLang, nativeLang]);
+  /**
+   * **端末に覚えた解説を先に出す**（オーナー報告 2026-09-28「開いたときに表示された
+   * ものが、ぱっと消えて新しいものが表示されるバグ」）。前は解説の返事を待つ間、
+   * 古い共有の列（`words.extras`）を出しておき、返事が来たらその人向けの解説に
+   * **差し替えて**いた — それが「ぱっと消えて入れ替わる」の正体。
+   * 覚えた物があれば最初からそれを出し（`initialData`）、裏で確かめ直す。
+   */
+  const cacheKey = s?.word_id
+    ? explanationCacheKey(s.word_id, wantKey.explainLang, wantKey.l1)
+    : null;
+  const cachedExplanation = useMemo(
+    () => (cacheKey ? readCachedExplanation<WordExplanationResult>(cacheKey) : undefined),
+    [cacheKey],
+  );
   const { data: explanation } = useQuery({
     queryKey: ["word-explanation", s?.word_id ?? null, wantKey.explainLang, wantKey.l1],
-    queryFn: () =>
-      fetchExplanation({
+    queryFn: async () => {
+      const r = await fetchExplanation({
         data: { word_id: s!.word_id, explain_lang: wantKey.explainLang, l1: wantKey.l1 },
-      }),
+      });
+      if (cacheKey && !r.unavailable && r.picked) writeCachedExplanation(cacheKey, r);
+      return r;
+    },
     enabled: !!s?.word_id && !local,
+    initialData: cachedExplanation,
+    // 覚えた物は「少し古い」扱いにして、開くたびに裏で確かめ直す。
+    initialDataUpdatedAt: cachedExplanation ? 0 : undefined,
     staleTime: 30 * 60 * 1000,
+    gcTime: 60 * 60 * 1000,
   });
   const [flipped, setFlipped] = useState(false);
   const [editing, setEditing] = useState(false);
   const [enriching, setEnriching] = useState(false);
   const [enrichError, setEnrichError] = useState<string | null>(null);
-  const [regenerating, setRegenerating] = useState(false);
   const enrichedRef = useRef<Set<string>>(new Set());
 
   /**
@@ -426,40 +452,6 @@ export function StickerSheet({ stickerId, onClose, openPhotoPicker, from, local 
   function heroPressEnd() {
     if (longPressTimer.current) clearTimeout(longPressTimer.current);
     longPressTimer.current = null;
-  }
-
-  // A9: Pro限定の手動再生成。auto-enrichのenrichedRefガードを無視して
-  // generateCard→updateWordExtrasを強制実行し、詳細を作り直す。
-  async function regenerate() {
-    if (local) return;
-    if (!s || regenerating) return;
-    setRegenerating(true);
-    try {
-      const card = await enrichWord({
-        data: { headword: s.word.headword, targetLanguage: s.word.language ?? undefined },
-      });
-      await saveExtras({
-        data: {
-          word_id: s.word_id,
-          extras: card.extras,
-          patch: {
-            reading_zhuyin: card.reading_zhuyin,
-            pinyin: card.pinyin,
-            part_of_speech: card.part_of_speech,
-            level: card.level,
-            example_sentence: card.example_sentence,
-            example_translation: card.example_translation,
-            meaning_ja: card.meaning_ja,
-          },
-        },
-      });
-      await qc.invalidateQueries({ queryKey: ["sticker", stickerId] });
-      await qc.invalidateQueries({ queryKey: ["stickers"] });
-    } catch (e) {
-      console.warn("Regenerate failed", e);
-    } finally {
-      setRegenerating(false);
-    }
   }
 
   // B3: カードを削除(確認あり)。成功したらシートを閉じて一覧を更新。
@@ -647,10 +639,36 @@ export function StickerSheet({ stickerId, onClose, openPhotoPicker, from, local 
             sections: cardSectionsNow(),
           },
         });
+        // いま画面に出ている項目は残し、空だった項目だけ埋める（`keepShownFields`）。
+        //
+        // **その人向けの解説がまだ無い時も、いま見えている物を残す**（オーナー報告
+        // 2026-09-28 R14「単語の詳細開くとチャンクが表示され、すぐに違うものに変化する」）。
+        // 解説の行が無い語は、共有の古い解説（`words.extras`、読む人の言語で書かれた物
+        // だけ）を先に出している。前はここで「見えている物」を null とみなしていたので、
+        // 作り終えた瞬間にチャンクが丸ごと別の型へ入れ替わっていた。
+        const shownExtras =
+          explanation.picked &&
+          explanation.picked.explain_lang === wantKey.explainLang &&
+          explanation.picked.l1 === wantKey.l1
+            ? explanation.picked.extras
+            : explanation.picked
+              ? null
+              : resolveDisplayWord(
+                  {
+                    meaning: s.word.meaning_ja,
+                    exampleTranslation: s.word.example_translation,
+                    extras: s.word.extras,
+                  },
+                  null,
+                  uiLang,
+                ).extras;
         await saveExtras({
           data: {
             word_id: s.word_id,
-            extras: card.extras,
+            extras: keepShownFields(
+              shownExtras as Record<string, unknown> | null,
+              card.extras as Record<string, unknown>,
+            ) as typeof card.extras,
             patch: !sharedMissing
               ? undefined
               : {
@@ -797,6 +815,8 @@ export function StickerSheet({ stickerId, onClose, openPhotoPicker, from, local 
             uiLang={uiLang}
             // その人向けの解説(共有キャッシュ)。無ければ古い列に落ちる。
             explanation={explanation?.picked ?? null}
+            // 返事がまだ（端末にも無い）間は、古い解説を出さない。後から差し替わるので。
+            explanationPending={explanation === undefined}
             isPro={isPro}
             flipped={flipped}
             setFlipped={setFlipped}
@@ -819,8 +839,6 @@ export function StickerSheet({ stickerId, onClose, openPhotoPicker, from, local 
               enrichedRef.current.clear();
               void qc.invalidateQueries({ queryKey: ["sticker", stickerId] });
             }}
-            regenerating={regenerating}
-            regenerate={regenerate}
             webCandidates={webCandidates}
             swapping={swapping}
             swapWebImage={swapWebImage}
@@ -882,6 +900,7 @@ export function StickerSheetBody({
   personalContext,
   uiLang,
   explanation,
+  explanationPending = false,
   isPro,
   flipped,
   setFlipped,
@@ -900,8 +919,6 @@ export function StickerSheetBody({
   enrichError,
   setEnrichError,
   onEnrichRetry,
-  regenerating,
-  regenerate,
   webCandidates,
   swapping,
   swapWebImage,
@@ -920,6 +937,8 @@ export function StickerSheetBody({
    * キャッシュにまだ無い語でも、いままでどおり出る。
    */
   explanation: ExplanationRow | null;
+  /** その人向けの解説の返事を待っている間（古い解説を出さない）。 */
+  explanationPending?: boolean;
   isPro: boolean;
   /** 写真の裏(自撮り)を見ているか。 */
   flipped: boolean;
@@ -943,8 +962,6 @@ export function StickerSheetBody({
   setEnrichError: Dispatch<SetStateAction<string | null>>;
   /** 「もう一度作る」。印を消して問い合わせをやり直す。 */
   onEnrichRetry: () => void;
-  regenerating: boolean;
-  regenerate: () => void;
   webCandidates: Array<{ url: string; credit?: { name?: string; link?: string }; source: string }>;
   swapping: string | null;
   swapWebImage: (cand: {
@@ -997,7 +1014,8 @@ export function StickerSheetBody({
     {
       meaning: s.word.meaning_ja,
       exampleTranslation: s.word.example_translation,
-      extras: s.word.extras,
+      // 返事を待つ間は古い解説を出さない — 出すと、届いた瞬間に別の文へ入れ替わる。
+      extras: explanationPending ? null : s.word.extras,
     },
     explanation,
     uiLang,
@@ -1228,8 +1246,6 @@ export function StickerSheetBody({
           )}
         </div>
         {s.caption && <p className="mt-2 text-body">「{s.caption}」</p>}
-        {/* その1枚のカテゴリー。押すと移せる・名前を変えられる（2026-09-27）。 */}
-        {s.is_owner && <StickerCategoryChip sticker={s} />}
       </section>
 
       {/* 同じものに何度も出会った記録。
@@ -1300,27 +1316,8 @@ export function StickerSheetBody({
         </div>
       )}
 
-      {/* A9: 手動再生成(Pro限定)。freeユーザーには🔒でProの見せ場に。 */}
-      {!enriching &&
-        (isPro ? (
-          <button
-            onClick={regenerate}
-            disabled={regenerating}
-            className="mt-3 flex w-full items-center justify-center gap-2 rounded-2xl min-h-11 border border-primary/30 bg-primary/5 py-3 text-footnote font-semibold text-primary-ink disabled:border-border disabled:bg-secondary disabled:text-muted-foreground"
-          >
-            {regenerating ? (
-              <Loader2 className="h-3.5 w-3.5 animate-spin" />
-            ) : (
-              <Sparkles className="h-3.5 w-3.5" />
-            )}
-            {regenerating ? t("card.regenerating") : t("card.regenAll")}
-          </button>
-        ) : (
-          <div className="mt-3 flex w-full items-center justify-center gap-2 rounded-2xl border border-dashed border-border bg-secondary/40 py-2.5 text-footnote text-muted-foreground">
-            <Lock className="h-3.5 w-3.5" />
-            {t("card.regenPro")}
-          </div>
-        ))}
+      {/* **一番下の「解説を再生成」の帯は消した**（オーナー指示 2026-09-27）。
+          作り直しは項目ごとの ↻ と、見出しの行の「報告」から行う。 */}
 
       {/* **「意味や発音が変？報告してAIに直させる」の帯は消した**
           （オーナー指示 2026-09-22）。押すと**全部の解説を作り直して**

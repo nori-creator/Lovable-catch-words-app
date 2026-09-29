@@ -33,10 +33,13 @@ import { Route as AuthenticatedReviewRouteImport } from './routes/_authenticated
 import { Route as AuthenticatedScanRouteImport } from './routes/_authenticated/scan'
 import { Route as AuthenticatedSettingsRouteImport } from './routes/_authenticated/settings'
 import { Route as AuthenticatedWordbooksRouteImport } from './routes/_authenticated/wordbooks'
+import { Route as ApiObject3dModelRouteImport } from './routes/api.object3d-model'
+import { Route as ApiStripeWebhookRouteImport } from './routes/api.stripe-webhook'
 import { Route as DotlovableOauthConsentRouteImport } from './routes/[.]lovable.oauth.consent'
 import { Route as Char91DotmcpChar93InvokeToolToolRouteImport } from './routes/[.mcp]/invoke-tool/$tool'
 import { Route as AuthenticatedAdminDictionaryRouteImport } from './routes/_authenticated/admin.dictionary'
 import { Route as AuthenticatedAdminMetricsRouteImport } from './routes/_authenticated/admin.metrics'
+import { Route as AuthenticatedAdminUsersRouteImport } from './routes/_authenticated/admin.users'
 import { Route as AuthenticatedDexStickerIdRouteImport } from './routes/_authenticated/dex.$stickerId'
 import { Route as AuthenticatedPostPostIdRouteImport } from './routes/_authenticated/post.$postId'
 import { Route as AuthenticatedUUserIdRouteImport } from './routes/_authenticated/u.$userId'
@@ -163,6 +166,16 @@ const AuthenticatedWordbooksRoute = AuthenticatedWordbooksRouteImport.update({
   path: '/wordbooks',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const ApiObject3dModelRoute = ApiObject3dModelRouteImport.update({
+  id: '/api/object3d-model',
+  path: '/api/object3d-model',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiStripeWebhookRoute = ApiStripeWebhookRouteImport.update({
+  id: '/api/stripe-webhook',
+  path: '/api/stripe-webhook',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const DotlovableOauthConsentRoute = DotlovableOauthConsentRouteImport.update({
   id: '/.lovable/oauth/consent',
   path: '/.lovable/oauth/consent',
@@ -186,6 +199,11 @@ const AuthenticatedAdminMetricsRoute =
     path: '/admin/metrics',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const AuthenticatedAdminUsersRoute = AuthenticatedAdminUsersRouteImport.update({
+  id: '/admin/users',
+  path: '/admin/users',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 const AuthenticatedDexStickerIdRoute =
   AuthenticatedDexStickerIdRouteImport.update({
     id: '/$stickerId',
@@ -227,10 +245,13 @@ export interface FileRoutesByFullPath {
   '/scan': typeof AuthenticatedScanRoute
   '/settings': typeof AuthenticatedSettingsRoute
   '/wordbooks': typeof AuthenticatedWordbooksRoute
+  '/api/object3d-model': typeof ApiObject3dModelRoute
+  '/api/stripe-webhook': typeof ApiStripeWebhookRoute
   '/.lovable/oauth/consent': typeof DotlovableOauthConsentRoute
   '/.mcp/invoke-tool/$tool': typeof Char91DotmcpChar93InvokeToolToolRoute
   '/admin/dictionary': typeof AuthenticatedAdminDictionaryRoute
   '/admin/metrics': typeof AuthenticatedAdminMetricsRoute
+  '/admin/users': typeof AuthenticatedAdminUsersRoute
   '/dex/$stickerId': typeof AuthenticatedDexStickerIdRoute
   '/post/$postId': typeof AuthenticatedPostPostIdRoute
   '/u/$userId': typeof AuthenticatedUUserIdRoute
@@ -259,10 +280,13 @@ export interface FileRoutesByTo {
   '/scan': typeof AuthenticatedScanRoute
   '/settings': typeof AuthenticatedSettingsRoute
   '/wordbooks': typeof AuthenticatedWordbooksRoute
+  '/api/object3d-model': typeof ApiObject3dModelRoute
+  '/api/stripe-webhook': typeof ApiStripeWebhookRoute
   '/.lovable/oauth/consent': typeof DotlovableOauthConsentRoute
   '/.mcp/invoke-tool/$tool': typeof Char91DotmcpChar93InvokeToolToolRoute
   '/admin/dictionary': typeof AuthenticatedAdminDictionaryRoute
   '/admin/metrics': typeof AuthenticatedAdminMetricsRoute
+  '/admin/users': typeof AuthenticatedAdminUsersRoute
   '/dex/$stickerId': typeof AuthenticatedDexStickerIdRoute
   '/post/$postId': typeof AuthenticatedPostPostIdRoute
   '/u/$userId': typeof AuthenticatedUUserIdRoute
@@ -293,10 +317,13 @@ export interface FileRoutesById {
   '/_authenticated/scan': typeof AuthenticatedScanRoute
   '/_authenticated/settings': typeof AuthenticatedSettingsRoute
   '/_authenticated/wordbooks': typeof AuthenticatedWordbooksRoute
+  '/api/object3d-model': typeof ApiObject3dModelRoute
+  '/api/stripe-webhook': typeof ApiStripeWebhookRoute
   '/.lovable/oauth/consent': typeof DotlovableOauthConsentRoute
   '/.mcp/invoke-tool/$tool': typeof Char91DotmcpChar93InvokeToolToolRoute
   '/_authenticated/admin/dictionary': typeof AuthenticatedAdminDictionaryRoute
   '/_authenticated/admin/metrics': typeof AuthenticatedAdminMetricsRoute
+  '/_authenticated/admin/users': typeof AuthenticatedAdminUsersRoute
   '/_authenticated/dex/$stickerId': typeof AuthenticatedDexStickerIdRoute
   '/_authenticated/post/$postId': typeof AuthenticatedPostPostIdRoute
   '/_authenticated/u/$userId': typeof AuthenticatedUUserIdRoute
@@ -327,10 +354,13 @@ export interface FileRouteTypes {
     | '/scan'
     | '/settings'
     | '/wordbooks'
+    | '/api/object3d-model'
+    | '/api/stripe-webhook'
     | '/.lovable/oauth/consent'
     | '/.mcp/invoke-tool/$tool'
     | '/admin/dictionary'
     | '/admin/metrics'
+    | '/admin/users'
     | '/dex/$stickerId'
     | '/post/$postId'
     | '/u/$userId'
@@ -359,10 +389,13 @@ export interface FileRouteTypes {
     | '/scan'
     | '/settings'
     | '/wordbooks'
+    | '/api/object3d-model'
+    | '/api/stripe-webhook'
     | '/.lovable/oauth/consent'
     | '/.mcp/invoke-tool/$tool'
     | '/admin/dictionary'
     | '/admin/metrics'
+    | '/admin/users'
     | '/dex/$stickerId'
     | '/post/$postId'
     | '/u/$userId'
@@ -392,10 +425,13 @@ export interface FileRouteTypes {
     | '/_authenticated/scan'
     | '/_authenticated/settings'
     | '/_authenticated/wordbooks'
+    | '/api/object3d-model'
+    | '/api/stripe-webhook'
     | '/.lovable/oauth/consent'
     | '/.mcp/invoke-tool/$tool'
     | '/_authenticated/admin/dictionary'
     | '/_authenticated/admin/metrics'
+    | '/_authenticated/admin/users'
     | '/_authenticated/dex/$stickerId'
     | '/_authenticated/post/$postId'
     | '/_authenticated/u/$userId'
@@ -413,6 +449,8 @@ export interface RootRouteChildren {
   WelcomeRoute: typeof WelcomeRoute
   Char91DotmcpChar93ListToolsRoute: typeof Char91DotmcpChar93ListToolsRoute
   Char91DotwellKnownChar93OauthProtectedResourceRoute: typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
+  ApiObject3dModelRoute: typeof ApiObject3dModelRoute
+  ApiStripeWebhookRoute: typeof ApiStripeWebhookRoute
   DotlovableOauthConsentRoute: typeof DotlovableOauthConsentRoute
   Char91DotmcpChar93InvokeToolToolRoute: typeof Char91DotmcpChar93InvokeToolToolRoute
 }
@@ -587,6 +625,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedWordbooksRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/api/object3d-model': {
+      id: '/api/object3d-model'
+      path: '/api/object3d-model'
+      fullPath: '/api/object3d-model'
+      preLoaderRoute: typeof ApiObject3dModelRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/stripe-webhook': {
+      id: '/api/stripe-webhook'
+      path: '/api/stripe-webhook'
+      fullPath: '/api/stripe-webhook'
+      preLoaderRoute: typeof ApiStripeWebhookRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/.lovable/oauth/consent': {
       id: '/.lovable/oauth/consent'
       path: '/.lovable/oauth/consent'
@@ -613,6 +665,13 @@ declare module '@tanstack/react-router' {
       path: '/admin/metrics'
       fullPath: '/admin/metrics'
       preLoaderRoute: typeof AuthenticatedAdminMetricsRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/admin/users': {
+      id: '/_authenticated/admin/users'
+      path: '/admin/users'
+      fullPath: '/admin/users'
+      preLoaderRoute: typeof AuthenticatedAdminUsersRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/dex/$stickerId': {
@@ -666,6 +725,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedWordbooksRoute: typeof AuthenticatedWordbooksRoute
   AuthenticatedAdminDictionaryRoute: typeof AuthenticatedAdminDictionaryRoute
   AuthenticatedAdminMetricsRoute: typeof AuthenticatedAdminMetricsRoute
+  AuthenticatedAdminUsersRoute: typeof AuthenticatedAdminUsersRoute
   AuthenticatedPostPostIdRoute: typeof AuthenticatedPostPostIdRoute
   AuthenticatedUUserIdRoute: typeof AuthenticatedUUserIdRoute
 }
@@ -686,6 +746,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedWordbooksRoute: AuthenticatedWordbooksRoute,
   AuthenticatedAdminDictionaryRoute: AuthenticatedAdminDictionaryRoute,
   AuthenticatedAdminMetricsRoute: AuthenticatedAdminMetricsRoute,
+  AuthenticatedAdminUsersRoute: AuthenticatedAdminUsersRoute,
   AuthenticatedPostPostIdRoute: AuthenticatedPostPostIdRoute,
   AuthenticatedUUserIdRoute: AuthenticatedUUserIdRoute,
 }
@@ -706,6 +767,8 @@ const rootRouteChildren: RootRouteChildren = {
   Char91DotmcpChar93ListToolsRoute: Char91DotmcpChar93ListToolsRoute,
   Char91DotwellKnownChar93OauthProtectedResourceRoute:
     Char91DotwellKnownChar93OauthProtectedResourceRoute,
+  ApiObject3dModelRoute: ApiObject3dModelRoute,
+  ApiStripeWebhookRoute: ApiStripeWebhookRoute,
   DotlovableOauthConsentRoute: DotlovableOauthConsentRoute,
   Char91DotmcpChar93InvokeToolToolRoute: Char91DotmcpChar93InvokeToolToolRoute,
 }

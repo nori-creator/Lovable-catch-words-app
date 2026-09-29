@@ -18,7 +18,9 @@ describe("first photo on iOS-like browsers", () => {
       onload: (() => void) | null = null;
       onerror: (() => void) | null = null;
       decode = () => Promise.reject(new Error("Safari decode failed"));
-      set src(_value: string) { queueMicrotask(() => this.onload?.()); }
+      set src(_value: string) {
+        queueMicrotask(() => this.onload?.());
+      }
     }
     const drawImage = vi.fn();
     const canvas = {
@@ -45,12 +47,15 @@ describe("first photo on iOS-like browsers", () => {
       complete = false;
       onload: (() => void) | null = null;
       onerror: (() => void) | null = null;
-      set src(_value: string) { queueMicrotask(() => this.onerror?.()); }
+      set src(_value: string) {
+        queueMicrotask(() => this.onerror?.());
+      }
     }
     vi.stubGlobal("Image", UnsupportedImage);
     vi.stubGlobal("window", { setTimeout, clearTimeout });
-    await expect(firstCatchPhoto({ type: "image/heic", size: 1024 } as File))
-      .rejects.toThrow("FIRST_CATCH_PHOTO_UNSUPPORTED");
+    await expect(firstCatchPhoto({ type: "image/heic", size: 1024 } as File)).rejects.toThrow(
+      "FIRST_CATCH_PHOTO_UNSUPPORTED",
+    );
     expect(revoke).toHaveBeenCalledWith("blob:unsupported");
   });
 });

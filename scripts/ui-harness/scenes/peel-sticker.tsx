@@ -24,7 +24,7 @@ const cup = `<defs><linearGradient id="tea" x2=".8" y2="1"><stop stop-color="#ee
   )}</g><path d="M96 102h132l-17 170q-48 18-97 0z" fill="url(#glass)"/><rect x="119" y="139" width="84" height="60" rx="4" fill="#f8f3e5"/><text x="161" y="163" text-anchor="middle" font-size="10" font-family="sans-serif" fill="#574634" letter-spacing="2">TAIPEI</text><text x="161" y="184" text-anchor="middle" font-size="16" font-family="serif" fill="#574634">tea time</text></g>`;
 const svg = (body: string) =>
   `data:image/svg+xml;charset=utf-8,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="320" height="320" viewBox="0 0 320 320">${body}</svg>`)}`;
-const cutout = svg(cup);
+export const cutout = svg(cup);
 export const photo = svg(
   `<rect width="320" height="320" fill="#a9b2a2"/><rect y="175" width="320" height="145" fill="#c8b394"/><path d="M0 195L320 215M0 265L320 285" stroke="#af9a7d" stroke-width="3"/><rect x="12" y="12" width="85" height="148" fill="#55664e"/><rect x="109" y="12" width="199" height="148" fill="#d9ded1"/>${cup}`,
 );

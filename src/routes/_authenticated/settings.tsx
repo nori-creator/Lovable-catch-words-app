@@ -33,6 +33,7 @@ import {
   getImageGenerationSettings,
   setImageGenerationSettings,
 } from "@/lib/admin.functions";
+import { testImageGeneration } from "@/lib/images.functions";
 import { getTtsVoiceAdmin, previewTtsVoice, setTtsVoiceAdmin } from "@/lib/tts.functions";
 import { TtsVoiceForm } from "@/components/TtsVoiceForm";
 import { Button } from "@/components/ui/button";
@@ -70,12 +71,24 @@ import {
   setPlaceReminderEnabled,
   requestNotificationPermissionDetailed,
 } from "@/lib/place-reminder";
-import { getAiModelConfig, listOpenRouterModels, setAiModelConfig } from "@/lib/admin.functions";
-import { ModelPicker } from "@/components/ModelPicker";
+import { getAiModelConfig, listProviderModels, setAiModelConfig } from "@/lib/admin.functions";
+import { recommendedKind, splitSpec, supportsVision } from "@/lib/ai-provider-models";
+import { getAdConfig, setAdConfig } from "@/lib/monetization.functions";
+import { createCheckoutSession, getBillingStatus } from "@/lib/billing.functions";
+import { billingSurface } from "@/lib/stripe-billing";
+import type { AdConfig } from "@/lib/ad-policy";
+import {
+  MAX_CUSTOM_TIMES,
+  writeLocalReminderPrefs,
+  type ReminderMode,
+  type ReminderPrefs,
+} from "@/lib/review-reminder";
+import { loadReminderPrefs } from "@/components/ReviewReminderWatcher";
+import { Capacitor } from "@capacitor/core";
 import { WallpaperPicker } from "@/components/WallpaperPicker";
 import { downscaleDataUrl } from "@/lib/cutout";
 import { supabase } from "@/integrations/supabase/client";
-import { LogOut, Loader2, Trash2, User } from "lucide-react";
+import { LogOut, Loader2, Plus, Trash2, User, X } from "lucide-react";
 import { tStatic } from "@/lib/i18n";
 import {
   Sound,
@@ -875,6 +888,13 @@ function SettingsPage() {
             />
           </div>
           <PhotoLibrarySyncToggle />
+        </SettingsCard>
+
+        {/* 通知（オーナー指示 2026-09-27「チュートリアル中に通知の時刻を設定できる
+            ようにしてるんだけど、それを設定の項目に追加して実装して」）。
+            時刻の通知と、場所の通知をここにまとめる。 */}
+        <SettingsCard title={t("settings.notifications")}>
+          <ReviewReminderSettings />
           <PlaceReminderToggle />
         </SettingsCard>
 
@@ -902,6 +922,8 @@ function SettingsPage() {
         </SettingsCard>
 
         <SoundAndHapticsPanel />
+
+        <ProPlanCard />
 
         <AdminOnlySection />
         <AdminOnlyDeveloperPanel />
@@ -1176,9 +1198,15 @@ function DeveloperPanel() {
           )}
         </div>
         {adm?.isAdmin && (
-          <Link to="/admin/metrics" className="block text-footnote text-primary underline">
-            {t("settings.kpiLink")}
-          </Link>
+          <>
+            <Link to="/admin/metrics" className="block text-footnote text-primary underline">
+              {t("settings.kpiLink")}
+            </Link>
+            {/* 利用者ごとの詳しい情報（開発者だけ、オーナー指示 2026-09-27）。 */}
+            <Link to="/admin/users" className="block text-footnote text-primary underline">
+              {t("settings.usersLink")}
+            </Link>
+          </>
         )}
       </div>
     </details>
@@ -1334,6 +1362,114 @@ export function PhotoLibrarySyncToggle() {
           setPhotoLibrarySyncEnabled(next);
         }}
       />
+    </div>
+  );
+}
+
+/**
+ * **復習の通知。**（`review-reminder.ts`）
+ *
+ * **オフ / 自動 / 時刻を指定 の3つだけ**（オーナー指示 2026-09-28「復習の通知の設定は
+ * もっとシンプルに、オフ、自動、またユーザーが時刻を設定できるようにの3つにして。
+ * 復習がたまる時刻、昨日のアプリを開いたとか、次の項目とかの項目は消して」）。
+ *
+ * - 「自動」の中身（復習がたまる時刻・昨日開いた時刻）は**両方いつも使う**。選ばせない。
+ * - 選んだその場で保存（アカウントと端末の写し）し、予約を置き直す。
+ * - オフから入れたときに通知の許可を求め、断られたらオフのまま理由を出す
+ *   （「オンなのに鳴らない」を作らない。場所の通知と同じ考え）。
+ */
+export function ReviewReminderSettings() {
+  const t = useT();
+  const [prefs, setPrefs] = useState<ReminderPrefs | null>(null);
+  const [denied, setDenied] = useState(false);
+  useEffect(() => {
+    void loadReminderPrefs().then(setPrefs);
+  }, []);
+  if (!prefs) return null;
+
+  const save = async (next: ReminderPrefs) => {
+    if (prefs.mode === "off" && next.mode !== "off") {
+      const res = await requestNotificationPermissionDetailed();
+      if (!res.ok) {
+        setDenied(true);
+        return;
+      }
+    }
+    // 自動の手がかりは両方使う（前に片方を切っていた人も、ここで戻る）。
+    const fixed: ReminderPrefs = { ...next, ai: { srs: true, habit: true } };
+    setDenied(false);
+    setPrefs(fixed);
+    writeLocalReminderPrefs(fixed);
+    window.dispatchEvent(new Event("review-reminder-changed"));
+    // アカウントにも残す（機種変更しても同じ時刻で鳴るように）。失敗しても端末では効く。
+    void supabase.auth.updateUser({ data: { notification_preferences: fixed } }).catch(() => {});
+  };
+
+  return (
+    <div className="space-y-3">
+      <ChoiceRow<ReminderMode>
+        cols={3}
+        label={t("remind.label")}
+        value={prefs.mode}
+        onChange={(mode) => void save({ ...prefs, mode })}
+        options={[
+          { value: "off", label: t("remind.off") },
+          { value: "ai", label: t("remind.ai") },
+          { value: "custom", label: t("remind.custom") },
+        ]}
+      />
+      {prefs.mode === "custom" && (
+        <div className="space-y-2">
+          {prefs.times.map((time, i) => (
+            <div key={i} className="flex items-center gap-2">
+              <Input
+                type="time"
+                value={time}
+                aria-label={t("remind.custom")}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  if (!/^\d{2}:\d{2}$/.test(v)) return;
+                  const times = prefs.times.map((x, j) => (j === i ? v : x));
+                  void save({ ...prefs, times });
+                }}
+                className="h-11 w-32 text-body tabular-nums"
+              />
+              {prefs.times.length > 1 && (
+                <button
+                  type="button"
+                  aria-label={t("remind.removeTime")}
+                  onClick={() =>
+                    void save({ ...prefs, times: prefs.times.filter((_, j) => j !== i) })
+                  }
+                  className="grid h-11 w-11 place-items-center rounded-full text-muted-foreground"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              )}
+            </div>
+          ))}
+          {prefs.times.length < MAX_CUSTOM_TIMES && (
+            <button
+              type="button"
+              onClick={() => void save({ ...prefs, times: [...prefs.times, "20:00"] })}
+              className="inline-flex min-h-11 items-center gap-1 rounded-full px-2 text-footnote font-semibold text-primary"
+            >
+              <Plus className="h-4 w-4" />
+              {t("remind.addTime")}
+            </button>
+          )}
+        </div>
+      )}
+      {/* ブラウザ版の限り（閉じている間は鳴らせない）だけは黙らない — 「オンなのに
+          鳴らない」を作らないため。スマホのアプリでは出さない。 */}
+      {prefs.mode !== "off" && !Capacitor.isNativePlatform() && (
+        <p className="text-caption leading-relaxed text-muted-foreground">{t("remind.webOnly")}</p>
+      )}
+      {denied && (
+        <p className="rounded-xl bg-amber-50 p-2 text-caption leading-relaxed text-amber-900 dark:bg-amber-500/10 dark:text-amber-200">
+          {t("remind.denied")}
+        </p>
+      )}
     </div>
   );
 }
@@ -1541,7 +1677,247 @@ function AdminOnlySection() {
       <AiModelPanel />
       <ImageGenerationPanel />
       <TtsVoicePanel />
+      <ImageGenTestPanel />
+      <AdsPanel />
     </div>
+  );
+}
+
+/**
+ * **画像生成を実際に1枚作って確かめる（開発者だけ）**（オーナー指示 2026-09-28
+ * 「HIGGSFIELD の api を lovable で設定したから実際に検査して」）。
+ * どこで作ったか・鍵が見つかった名前（値は出さない）・結果の絵・かかった秒を出す。
+ */
+function ImageGenTestPanel() {
+  const t = useT();
+  const testFn = useServerFn(testImageGeneration);
+  const [busy, setBusy] = useState(false);
+  const [result, setResult] = useState<Awaited<ReturnType<typeof testImageGeneration>> | null>(
+    null,
+  );
+  const [err, setErr] = useState<string | null>(null);
+  const run = async () => {
+    setBusy(true);
+    setErr(null);
+    setResult(null);
+    try {
+      setResult(await testFn({ data: {} }));
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <details className="rounded-2xl border border-border bg-card p-4">
+      <summary className="cursor-pointer list-none text-body font-semibold [&::-webkit-details-marker]:hidden">
+        {t("imageTest.title")}
+      </summary>
+      <div className="mt-3 space-y-3">
+        <p className="text-caption leading-relaxed text-muted-foreground">{t("imageTest.desc")}</p>
+        <Button
+          type="button"
+          onClick={() => void run()}
+          disabled={busy}
+          className="min-h-11 w-full"
+        >
+          {busy ? t("imageTest.running") : t("imageTest.run")}
+        </Button>
+        {result && (
+          <div
+            className="space-y-2 text-footnote"
+            data-image-test-result={result.ok ? "ok" : "fail"}
+          >
+            <p
+              className={
+                result.ok ? "font-semibold text-primary" : "font-semibold text-destructive"
+              }
+            >
+              {result.ok ? t("imageTest.ok") : t("imageTest.fail")}
+              <span className="ml-2 font-normal text-muted-foreground tabular-nums">
+                {(result.ms / 1000).toFixed(1)}s
+              </span>
+            </p>
+            <p>
+              {t("imageTest.provider")}: <code>{result.provider}</code> ·{" "}
+              <code>{result.model}</code>
+            </p>
+            <p>
+              {t("imageTest.key")}: <code>{result.credentialName ?? t("imageTest.noKey")}</code>
+            </p>
+            {result.reason && <p className="text-destructive">{result.reason}</p>}
+            {result.image && (
+              <img
+                src={result.image}
+                alt=""
+                className="aspect-square w-40 rounded-xl object-cover"
+              />
+            )}
+          </div>
+        )}
+        {err && <p className="text-footnote text-destructive">{err}</p>}
+      </div>
+    </details>
+  );
+}
+
+/**
+ * **Pro の購入口**（オーナー指示 2026-09-28「サブスクも開始して。stripe つないで」）。
+ *
+ * - 開発者のスイッチ（`subscriptionEnabled`）がオフの間は、開発者にだけ見える。
+ * - **Web 版だけ**（`billingSurface`）。iPhone・Android のアプリの中で Stripe だけを
+ *   出すとストアの決まりに触れる（`stripe-billing.ts` の注）。
+ * - 押すと Stripe の支払い画面へ移る。払い終えると Stripe の知らせで Pro になる。
+ */
+function ProPlanCard() {
+  const t = useT();
+  const statusFn = useServerFn(getBillingStatus);
+  const checkoutFn = useServerFn(createCheckoutSession);
+  const { data: s } = useQuery({
+    queryKey: ["billing-status"],
+    queryFn: () => statusFn(),
+    staleTime: 60_000,
+  });
+  const [busy, setBusy] = useState<null | "monthly" | "yearly">(null);
+  if (!s || !s.enabled || billingSurface(Capacitor.isNativePlatform()) === "none") return null;
+  const go = async (period: "monthly" | "yearly") => {
+    setBusy(period);
+    try {
+      const { url } = await checkoutFn({ data: { period } });
+      window.location.assign(url);
+    } catch {
+      toast.error(t("pro.failed"));
+      setBusy(null);
+    }
+  };
+  return (
+    <SettingsCard title={t("pro.title")}>
+      {s.isPro ? (
+        <p className="text-body font-semibold">{t("pro.active")}</p>
+      ) : !s.configured ? (
+        <p className="text-footnote text-muted-foreground">{t("pro.notConfigured")}</p>
+      ) : (
+        <div className="grid gap-2">
+          {s.prices.monthly && (
+            <Button onClick={() => void go("monthly")} disabled={busy !== null} className="h-12">
+              {busy === "monthly" ? <Loader2 className="h-4 w-4 animate-spin" /> : t("pro.monthly")}
+            </Button>
+          )}
+          {s.prices.yearly && (
+            <Button
+              variant="outline"
+              onClick={() => void go("yearly")}
+              disabled={busy !== null}
+              className="h-12"
+            >
+              {busy === "yearly" ? <Loader2 className="h-4 w-4 animate-spin" /> : t("pro.yearly")}
+            </Button>
+          )}
+        </div>
+      )}
+      {s.isAdmin && <p className="mt-2 text-caption text-muted-foreground">{t("pro.devOnly")}</p>}
+    </SettingsCard>
+  );
+}
+
+/**
+ * **広告のオン・オフと出し方（開発者だけ）**（オーナー指示 2026-09-27「広告は開発者の
+ * 私はオンオフできるようにして」）。決まりそのものは `lib/ad-policy.ts`。
+ * オンにしても、AdMob（広告の部品）を入れるまで実際の広告は出ない（`docs/monetization.md`）。
+ */
+function AdsPanel() {
+  const t = useT();
+  const getFn = useServerFn(getAdConfig);
+  const setFn = useServerFn(setAdConfig);
+  const qc = useQueryClient();
+  const { data } = useQuery({ queryKey: ["ad-config"], queryFn: () => getFn(), staleTime: 30_000 });
+  const [draft, setDraft] = useState<AdConfig | null>(null);
+  useEffect(() => {
+    if (data) setDraft(data);
+  }, [data]);
+  if (!draft) return null;
+  const save = async (next: AdConfig) => {
+    setDraft(next);
+    try {
+      await setFn({ data: { ads: next } });
+      await qc.invalidateQueries({ queryKey: ["ad-config"] });
+      toast.success(t("ads.saved"));
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : t("settings.saveFailed"));
+    }
+  };
+  const num = (k: keyof AdConfig, label: string, min: number, max: number) => (
+    <label className="flex min-h-11 items-center justify-between gap-3 text-footnote">
+      <span>{label}</span>
+      <Input
+        type="number"
+        inputMode="numeric"
+        min={min}
+        max={max}
+        value={String(draft[k])}
+        onChange={(e) => setDraft({ ...draft, [k]: Number(e.target.value) })}
+        onBlur={() => void save(draft)}
+        className="h-11 w-20 text-right tabular-nums"
+      />
+    </label>
+  );
+  return (
+    <details className="rounded-2xl border border-border bg-card p-4">
+      <summary className="cursor-pointer list-none text-body font-semibold [&::-webkit-details-marker]:hidden">
+        {t("settings.ads")}
+      </summary>
+      <div className="mt-3 space-y-2">
+        <ToggleRow
+          label={t("ads.enabled")}
+          description={t("ads.enabledDesc")}
+          value={draft.enabled}
+          onChange={(v) => void save({ ...draft, enabled: v })}
+        />
+        {num("graceDays", t("ads.grace"), 0, 60)}
+        {num("batchesPerInterstitial", t("ads.batches"), 1, 20)}
+        {num("minGapMin", t("ads.gap"), 0, 240)}
+        {num("maxPerDay", t("ads.maxDay"), 0, 20)}
+        {num("nativeEvery", t("ads.native"), 4, 100)}
+        {num("diaryEvery", t("ads.diaryEvery"), 2, 60)}
+        {/* 場所ごとのオン・オフ（2026-09-28「あとからどこに広告つけるか変更できるように」）。 */}
+        <p className="pt-2 text-footnote font-semibold">{t("ads.places")}</p>
+        <ToggleRow
+          label={t("ads.reviewEnd")}
+          value={draft.reviewEndEnabled}
+          onChange={(v) => void save({ ...draft, reviewEndEnabled: v })}
+        />
+        <ToggleRow
+          label={t("ads.dexNative")}
+          value={draft.dexNativeEnabled}
+          onChange={(v) => void save({ ...draft, dexNativeEnabled: v })}
+        />
+        <ToggleRow
+          label={t("ads.diaryNative")}
+          value={draft.diaryNativeEnabled}
+          onChange={(v) => void save({ ...draft, diaryNativeEnabled: v })}
+        />
+        <ToggleRow
+          label={t("ads.rewarded")}
+          value={draft.rewardedEnabled}
+          onChange={(v) => void save({ ...draft, rewardedEnabled: v })}
+        />
+        <ToggleRow
+          label={t("ads.afterCatch")}
+          value={draft.afterCatchEnabled}
+          onChange={(v) => void save({ ...draft, afterCatchEnabled: v })}
+        />
+        {draft.afterCatchEnabled && num("catchesPerInterstitial", t("ads.catches"), 1, 50)}
+        <div className="border-t border-border pt-2">
+          <ToggleRow
+            label={t("ads.subscription")}
+            description={t("ads.subscriptionDesc")}
+            value={draft.subscriptionEnabled}
+            onChange={(v) => void save({ ...draft, subscriptionEnabled: v })}
+          />
+        </div>
+        <p className="text-caption leading-relaxed text-muted-foreground">{t("ads.note")}</p>
+      </div>
+    </details>
   );
 }
 
@@ -1785,10 +2161,10 @@ function AiModelPanel() {
   const [premium, setPremium] = useState("");
   const [features, setFeatures] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
-  const orFn = useServerFn(listOpenRouterModels);
-  const { data: orData } = useQuery({
-    queryKey: ["openrouter-models"],
-    queryFn: () => orFn(),
+  const pmFn = useServerFn(listProviderModels);
+  const { data: companies } = useQuery({
+    queryKey: ["provider-models"],
+    queryFn: () => pmFn(),
     staleTime: 60 * 60_000,
   });
 
@@ -1814,130 +2190,209 @@ function AiModelPanel() {
     }
   }
 
+  /**
+   * **機能ごとに、何に使う AI かを1行で**（オーナー指示 2026-09-27「開発者の使う AI を
+   * 変更する設定、初心者の私には設定しづらいから、もっと見やすく、簡潔に機能ごとに
+   * どのように AI を使い分けるようにするのか、設定を分かりやすく見やすくして」）。
+   *
+   * 上から: ①動いているか（1行）②機能ごとの AI（説明つき・押して選ぶ）
+   * ③詳しい設定（既定の AI・キーの状況。ふだんは閉じたまま）。
+   */
+  const FEATURE_ORDER = ["scan", "card", "review", "journal", "audit"] as const;
   return (
     <details className="rounded-2xl border border-border bg-card p-4">
       <summary className="cursor-pointer list-none text-body font-semibold [&::-webkit-details-marker]:hidden">
         {t("settings.aiSwitch")}
       </summary>
 
+      {/* ① 動いているか。キーが1つも無いと全部止まる（2026-07-28 の障害）ので最初に言う。 */}
+      <p
+        className={`mt-2 rounded-xl p-2 text-caption font-semibold leading-relaxed ${
+          data?.effective ? "bg-ok/10 text-ok-ink" : "bg-destructive/10 text-destructive-ink"
+        }`}
+      >
+        {data?.effective ? t("settings.aiOk", { p: data.effective.provider }) : t("settings.aiNg")}
+      </p>
       {data?.effective && (
-        <div className="mt-2 rounded-xl bg-secondary/60 p-2 text-caption leading-relaxed">
-          <div className="font-semibold">{t("settings.aiRunning")}</div>
-          <div className="text-muted-foreground">
-            {t("set.aiEffective", {
-              p: data.effective.provider,
-              f: data.effective.fast,
-              r: data.effective.rich,
-            })}
-            {" / "}Pro {data.effective.rich_premium}
-          </div>
-        </div>
+        <p className="mt-1 text-caption text-muted-foreground">
+          {t("settings.aiDefaultModels", { f: data.effective.fast, r: data.effective.rich })}
+        </p>
       )}
 
-      {/* 診断: 障害(2026-07-28のスキャン全滅)の原因はキー未設定だった。
-          「どのキーが実際に見えているか」を最初に出す。 */}
-      <div className="mt-2 rounded-xl border border-border p-2 text-caption leading-relaxed">
-        <div className="font-semibold">{t("settings.aiKeys")}</div>
-        <ul className="mt-1 space-y-0.5">
-          {(data?.presets ?? []).map((p) => (
-            <li key={p.id} className="flex items-center justify-between gap-2">
-              <span className="truncate">{p.label}</span>
-              <span className={p.key_present ? "text-ok-ink" : "text-muted-foreground"}>
-                {p.key_present
-                  ? `✅ ${p.key_env_found} ${t("settings.aiKeyFound")}`
-                  : `— ${p.api_key_env} ${t("settings.aiKeyMissing")}`}
-              </span>
-            </li>
-          ))}
-        </ul>
-        <p className="mt-1 text-caption text-muted-foreground">{t("settings.aiKeysHint")}</p>
-        {data?.keyError && (
-          <p className="mt-1 rounded-lg bg-destructive/10 p-1.5 text-caption text-destructive-ink">
-            {data.keyError}
-          </p>
-        )}
+      {/* ② 機能ごと。何に使うかを1行添え、空なら既定のまま。 */}
+      <div className="mt-3 space-y-3">
+        {/* ② 機能ごと: ①会社 → ②モデル の2つを選ぶだけ（2026-09-28「複雑すぎる。直感的に」）。
+            会社は Secrets に鍵が入っている所だけ選べる。モデルはその会社に「いま使える物」を
+            聞いた一覧（手で名前を打たない — 綴り違い・古い名前で機能が止まるのを防ぐ）。 */}
+        <p className="rounded-xl bg-secondary/60 p-2 text-caption leading-relaxed">
+          {t("set.aiHowTo")}
+        </p>
+        {FEATURE_ORDER.filter((id) => (data?.features ?? []).some((f) => f.id === id)).map((id) => {
+          const cur = splitSpec(features[id]);
+          const company = (companies ?? []).find((c) => c.id === cur.provider);
+          const want = recommendedKind(id);
+          // スキャンは写真を読む。**画像を読めるモデルだけ**を並べる（2026-09-22 の約束）。
+          const usable = (c: string, m: string) => id !== "scan" || supportsVision(c, m);
+          const models = [...(company?.models ?? [])]
+            .filter((m) => usable(cur.provider, m.id))
+            .sort((a, b) => Number(b.kind === want) - Number(a.kind === want));
+          const setSpec = (provider: string, model: string) =>
+            setFeatures((prev) => {
+              const next = { ...prev };
+              if (!provider) delete next[id];
+              else next[id] = `${provider}:${model}`;
+              return next;
+            });
+          return (
+            <div key={id} className="rounded-xl border border-border p-2.5">
+              <p className="text-footnote font-semibold">{t(`settings.aiFeature.${id}`)}</p>
+              <p className="mt-0.5 text-caption leading-snug text-muted-foreground">
+                {t(`settings.aiFeatureDesc.${id}`)}
+              </p>
+              <div className="mt-2 grid gap-2 sm:grid-cols-2">
+                <select
+                  aria-label={t("set.aiCompany")}
+                  value={cur.provider}
+                  onChange={(e) => {
+                    const p = e.target.value;
+                    const list = (companies ?? [])
+                      .find((c) => c.id === p)
+                      ?.models.filter((m) => usable(p, m.id));
+                    setSpec(p, (list?.find((m) => m.kind === want) ?? list?.[0])?.id ?? "");
+                  }}
+                  className="min-h-11 w-full rounded-md border border-input bg-background px-3 text-field"
+                >
+                  <option value="">{t("set.aiDefault")}</option>
+                  {(companies ?? []).map((c) => (
+                    <option key={c.id} value={c.id} disabled={!c.keyFound}>
+                      {c.label}
+                      {c.keyFound ? "" : ` — ${t("set.aiNoKey")}`}
+                    </option>
+                  ))}
+                </select>
+                {cur.provider && (
+                  <select
+                    aria-label={t("set.aiModel")}
+                    value={cur.model}
+                    onChange={(e) => setSpec(cur.provider, e.target.value)}
+                    className="min-h-11 w-full rounded-md border border-input bg-background px-3 text-field"
+                  >
+                    {cur.model && !models.some((m) => m.id === cur.model) && (
+                      <option value={cur.model}>{cur.model}</option>
+                    )}
+                    {models.map((m, i) => (
+                      <option key={m.id} value={m.id}>
+                        {m.kind === "fast" ? "⚡ " : "🧠 "}
+                        {m.label}
+                        {i === 0 && m.kind === want ? ` — ${t("set.aiRecommended")}` : ""}
+                      </option>
+                    ))}
+                  </select>
+                )}
+              </div>
+              {company?.error && (
+                <p className="mt-1 text-caption text-destructive-ink">
+                  {t("set.aiListFailed", { p: company.label, e: company.error })}
+                </p>
+              )}
+            </div>
+          );
+        })}
+        <p className="text-caption text-muted-foreground">{t("settings.aiPerFeatureHint")}</p>
       </div>
 
-      <div className="mt-3 space-y-2">
-        <div>
-          <Label className="text-footnote">{t("settings.aiProvider")}</Label>
-          <select
-            aria-label={t("set.aiProviderAria")}
-            value={provider}
-            onChange={(e) => setProvider(e.target.value)}
-            className="mt-1 min-h-11 w-full rounded-md border border-input bg-background px-3 text-field"
-          >
-            <option value="">{t("settings.aiEnvDefault")}</option>
+      {/* ③ 詳しい設定。既定の AI とキーの状況。 */}
+      <details className="mt-3 rounded-xl border border-border p-2">
+        <summary className="min-h-11 cursor-pointer list-none content-center text-footnote font-semibold [&::-webkit-details-marker]:hidden">
+          {t("settings.aiAdvanced")}
+        </summary>
+        {data?.effective && (
+          <div className="mt-2 rounded-xl bg-secondary/60 p-2 text-caption leading-relaxed">
+            <div className="font-semibold">{t("settings.aiRunning")}</div>
+            <div className="text-muted-foreground">
+              {t("set.aiEffective", {
+                p: data.effective.provider,
+                f: data.effective.fast,
+                r: data.effective.rich,
+              })}
+              {" / "}Pro {data.effective.rich_premium}
+            </div>
+          </div>
+        )}
+        {/* 診断: 障害(2026-07-28のスキャン全滅)の原因はキー未設定だった。
+            「どのキーが実際に見えているか」を出す。 */}
+        <div className="mt-2 rounded-xl border border-border p-2 text-caption leading-relaxed">
+          <div className="font-semibold">{t("settings.aiKeys")}</div>
+          <ul className="mt-1 space-y-0.5">
             {(data?.presets ?? []).map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.label}
-                {p.key_present ? "" : t("set.keyMissing", { env: p.api_key_env })}
-              </option>
+              <li key={p.id} className="flex items-center justify-between gap-2">
+                <span className="truncate">{p.label}</span>
+                <span className={p.key_present ? "text-ok-ink" : "text-muted-foreground"}>
+                  {p.key_present
+                    ? `✅ ${p.key_env_found} ${t("settings.aiKeyFound")}`
+                    : `— ${p.api_key_env} ${t("settings.aiKeyMissing")}`}
+                </span>
+              </li>
             ))}
-          </select>
-          <p className="mt-1 text-caption text-muted-foreground">{t("settings.aiKeyNote")}</p>
-        </div>
-        <div>
-          <Label className="text-footnote">{t("settings.aiFast")}</Label>
-          <Input
-            value={fast}
-            onChange={(e) => setFast(e.target.value)}
-            placeholder="gemini-2.5-flash"
-          />
-        </div>
-        <div>
-          <Label className="text-footnote">{t("settings.aiRich")}</Label>
-          <Input
-            value={rich}
-            onChange={(e) => setRich(e.target.value)}
-            placeholder="gemini-2.5-flash"
-          />
-        </div>
-        <div>
-          <Label className="text-footnote">{t("settings.aiPremium")}</Label>
-          <Input
-            value={premium}
-            onChange={(e) => setPremium(e.target.value)}
-            placeholder="gemini-2.5-pro"
-          />
-        </div>
-
-        {/* 機能ごとに別のAI。**OpenRouter の一覧から押して選ぶ**
-            （オーナー指示 2026-09-22「これみたいに簡単に設定したい」）。
-            一覧が取れないときだけ、前と同じ手で打つ欄に落ちる。 */}
-        <div className="rounded-xl border border-border p-2">
-          <div className="text-footnote font-semibold">{t("settings.aiPerFeature")}</div>
-          {orData && !orData.keyFound && (
-            <p className="mt-1 text-caption text-muted-foreground">{t("set.orNoKey")}</p>
-          )}
-          {orData?.error && (
-            <p className="mt-1 text-caption text-destructive-ink">
-              {t("set.orLoadFailed", { e: orData.error })}
+          </ul>
+          <p className="mt-1 text-caption text-muted-foreground">{t("settings.aiKeysHint")}</p>
+          {data?.keyError && (
+            <p className="mt-1 rounded-lg bg-destructive/10 p-1.5 text-caption text-destructive-ink">
+              {data.keyError}
             </p>
           )}
-          <div className="mt-2 space-y-2">
-            {(data?.features ?? []).map((f) => (
-              <ModelPicker
-                key={f.id}
-                label={t(`settings.aiFeature.${f.id}`)}
-                value={features[f.id] ?? ""}
-                onChange={(v) => setFeatures((prev) => ({ ...prev, [f.id]: v }))}
-                models={orData?.models ?? []}
-                // スキャンは写真を読む。画像を読めないモデルを選ぶと、スキャンが丸ごと止まる。
-                visionOnly={f.id === "scan"}
-                unavailable={!orData || orData.models.length === 0}
-              />
-            ))}
-          </div>
-          <p className="mt-2 text-caption text-muted-foreground">
-            {t("settings.aiPerFeatureHint")}
-          </p>
         </div>
+        <div className="mt-3 space-y-2">
+          <div>
+            <Label className="text-footnote">{t("settings.aiProvider")}</Label>
+            <select
+              aria-label={t("set.aiProviderAria")}
+              value={provider}
+              onChange={(e) => setProvider(e.target.value)}
+              className="mt-1 min-h-11 w-full rounded-md border border-input bg-background px-3 text-field"
+            >
+              <option value="">{t("settings.aiEnvDefault")}</option>
+              {(data?.presets ?? []).map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.label}
+                  {p.key_present ? "" : t("set.keyMissing", { env: p.api_key_env })}
+                </option>
+              ))}
+            </select>
+            <p className="mt-1 text-caption text-muted-foreground">{t("settings.aiKeyNote")}</p>
+          </div>
+          <div>
+            <Label className="text-footnote">{t("settings.aiFast")}</Label>
+            <Input
+              value={fast}
+              onChange={(e) => setFast(e.target.value)}
+              placeholder="gemini-2.5-flash"
+            />
+          </div>
+          <div>
+            <Label className="text-footnote">{t("settings.aiRich")}</Label>
+            <Input
+              value={rich}
+              onChange={(e) => setRich(e.target.value)}
+              placeholder="gemini-2.5-flash"
+            />
+          </div>
+          <div>
+            <Label className="text-footnote">{t("settings.aiPremium")}</Label>
+            <Input
+              value={premium}
+              onChange={(e) => setPremium(e.target.value)}
+              placeholder="gemini-2.5-pro"
+            />
+          </div>
+          <p className="text-caption text-muted-foreground">{t("settings.aiModelNote")}</p>
+        </div>
+      </details>
 
+      <div className="mt-3 space-y-2">
         <Button className="w-full" onClick={save} disabled={saving}>
           {saving ? t("settings.saving") : t("settings.aiApply")}
         </Button>
-        <p className="text-caption text-muted-foreground">{t("settings.aiModelNote")}</p>
       </div>
     </details>
   );

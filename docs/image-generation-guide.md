@@ -15,12 +15,13 @@
 3. アプリを管理者アカウントで開き、**設定 → 開発者用 → 文字検索のAI画像**でそのサービスを選んで保存する。モデル名はそのままでよい。
 4. 文字で単語を検索して保存し、**単語の詳細・復習に画像があり、ホームには文字だけ**なのを確かめる。
 
-| 選ぶサービス | Lovable Secrets に追加する名前 | 初期モデル | 請求元 |
-|---|---|---|---|
-| Lovable AI（既定） | `LOVABLE_API_KEY`（Lovable Cloud が提供する場合は追加不要） | `openai/gpt-image-1-mini` | Lovable の AI 利用枠 |
-| OpenRouter | `OPENROUTER_API_KEY` | `bytedance-seed/seedream-5-0-pro` | OpenRouter |
-| Google AI Studio | `GEMINI_API_KEY` | `gemini-2.5-flash-image` | Google |
-| OpenAI API | `OPENAI_API_KEY` | `gpt-image-1-mini` | OpenAI API |
+| 選ぶサービス       | Lovable Secrets に追加する名前                              | 初期モデル                            | 請求元               |
+| ------------------ | ----------------------------------------------------------- | ------------------------------------- | -------------------- |
+| Lovable AI（既定） | `LOVABLE_API_KEY`（Lovable Cloud が提供する場合は追加不要） | `openai/gpt-image-1-mini`             | Lovable の AI 利用枠 |
+| OpenRouter         | `OPENROUTER_API_KEY`                                        | `bytedance-seed/seedream-5-0-pro`     | OpenRouter           |
+| Google AI Studio   | `GEMINI_API_KEY`                                            | `gemini-2.5-flash-image`              | Google               |
+| OpenAI API         | `OPENAI_API_KEY`                                            | `gpt-image-1-mini`                    | OpenAI API           |
+| Higgsfield         | `HF_CREDENTIALS`（`鍵ID:鍵の秘密`）                         | `bytedance/seedream/v4/text-to-image` | Higgsfield           |
 
 **おすすめの最初の選択:** すでに Lovable AI が動いていれば何もしなくてよい。Lovable の画像生成枠とは別に画像費用を管理したいなら、ひとつだけ外部サービスを選んで、そのキーだけ追加する。OpenRouter/Google/OpenAIのキーを全部用意する必要はない。
 
@@ -31,12 +32,41 @@
 
 「OpenAI の ChatGPT 契約」と「OpenAI API」は別です。OpenAI API に直接切り替える場合は API キーと API 側の課金設定を確認してください。画像生成は検索・保存ごとに費用がかかるので、各サービスで利用上限や残高を設定してください。
 
+## 手順（Higgsfield を使う — 2026-09-28 追加）
+
+Higgsfield は、1つの鍵で Seedream・Seedance・Soul など 50 以上の画像・動画 AI を使える窓口です。
+
+1. Higgsfield の API の画面（https://cloud.higgsfield.ai または https://console.higgsfield.ai）で鍵を作る。
+   鍵は **鍵ID** と **鍵の秘密** の2つで1組です。
+2. Lovable のプロジェクト → Cloud → Secrets を開く。
+3. 名前 `HF_CREDENTIALS`、値 `鍵ID:鍵の秘密`（間にコロン `:`）で1つ追加する。
+   - 既に別の名前（`HIGGSFIELD_API_KEY` と `HIGGSFIELD_API_SECRET`、`HF_API_KEY` と `HF_API_SECRET` など）で入れた場合も、アプリはそのまま読みます。
+4. `IMAGE_PROVIDER` は**空のまま**でよい（鍵があれば Higgsfield を使う）。明示するなら `higgsfield`。
+5. 絵の型を変えたいときだけ `IMAGE_MODEL` に Higgsfield の型番を入れる（空なら `bytedance/seedream/v4/text-to-image`）。
+6. **確かめ方**: アプリの 設定 → 開発者の欄 → 「画像生成のテスト」→「1枚作って試す」。
+   成功なら絵と秒数、失敗なら理由（鍵が違う・残高不足・型番違いなど）が出ます。鍵の**値**は出ません（見つかった名前だけ）。
+7. Higgsfield が失敗したときは、Lovable の口で1枚作って代わりに出します（画面が空にならない）。
+
+### 動画（Seedance 2.5）を作る見本
+
+`scripts/higgsfield/index.ts` に公式 SDK（`@higgsfield/client`）の見本があります。
+リポジトリの一番上に `.env.local`（Git に載らない）を作り `HF_CREDENTIALS=鍵ID:鍵の秘密` を書いて、
+`scripts/higgsfield` で `bun install` → `node index.ts`。**1回ごとに有料**です。
+
 ## 画像が出ないとき
 
 1. 設定の「文字検索のAI画像」で選択先のキーが「あります」になっているか確認。
 2. 提供元でモデルの利用権限・残高・APIキーの有効性を確認。
 3. 管理者設定のモデル名を元の値に戻す。モデル ID は提供元によって違う。通常の「AIモデル切替」（スキャン・カード・添削）とは別の設定です。
 4. 画像生成が失敗しても単語は保存できます。管理者設定を直してから新しく文字検索して確かめてください。
+
+開発者向けメモ:
+
+- 設定の読み方: `src/lib/image-provider.ts`（テストあり）
+- 作る所: `src/lib/images.functions.ts` の `generateOneAiImage`
+- Higgsfield の呼び方: `src/lib/higgsfield.server.ts`（SDK と同じ手順を `fetch` で。受付→`/requests/<id>/status` を2秒ごと→完了。`failed`・`nsfw`・取り消しは失敗として返す）
+- Higgsfield の絵はサーバで取りに行き data URL にして返すので、保存の許可リストを広げていません
+- Seedream のような画像専用モデルは OpenRouter の `/api/v1/images` で受け付けます。そこで断られた型は `/api/v1/chat/completions`（`modalities: ["image","text"]`）で頼み直します。
 
 APIキーはサーバだけが読む Secrets に置き、アプリの公開環境変数・画面・`app_config` には入れません。管理者画面には鍵の有無だけを表示します。
 

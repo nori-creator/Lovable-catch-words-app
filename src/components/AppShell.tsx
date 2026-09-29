@@ -4,6 +4,7 @@ import { Link, useNavigate, useRouter, useRouterState } from "@tanstack/react-ro
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useState, type ReactNode } from "react";
+import { ensureScrollRootMark } from "@/lib/scroll-root";
 import { logAppEvent } from "@/lib/metrics.functions";
 import { getMyProfile } from "@/lib/profile.functions";
 import { getMyStats, type UserStats } from "@/lib/stats.functions";
@@ -13,6 +14,9 @@ import { useLanguagePrefsSync, useRefreshOnTargetLanguage } from "@/lib/use-lang
 import { unlockAudio, Sound } from "@/lib/sound-engine";
 import { haptic } from "@/lib/haptics";
 import { PlaceMemoryWatcher } from "@/components/PlaceMemory";
+import { ReviewReminderWatcher } from "@/components/ReviewReminderWatcher";
+import { NativeLinkListener } from "@/components/NativeLinkListener";
+import { installSessionTracker } from "@/lib/session-tracker";
 import { useScrolled } from "@/hooks/use-scrolled";
 import { useSwipeBack, useTabSwipe } from "@/hooks/use-tab-swipe";
 import { playCameraLaunch } from "@/lib/camera-launch";
@@ -311,6 +315,14 @@ export function AppShell({
   // (アルバム・図鑑・復習・記憶・単語帳)。判断は1箇所。
   useRefreshOnTargetLanguage();
 
+  // 滞在時間と離れる直前の画面（`session-tracker.ts`）。1回だけ仕掛ける。
+  useEffect(() => installSessionTracker(), []);
+
+  // 指の端末では殻が巻き取り役（iOS 26 Safari の下端固定のずれ対策、`lib/scroll-root.ts`）。
+  useEffect(() => {
+    ensureScrollRootMark();
+  }, []);
+
   // KPI (roadmap §3): one app_open per local day → D1/D7 retention source.
   useEffect(() => {
     try {
@@ -333,7 +345,15 @@ export function AppShell({
       immersive={immersive}
       headerless={headerless}
       brandMenu={<BrandMenu />}
-      watchers={<PlaceMemoryWatcher />}
+      watchers={
+        <>
+          <PlaceMemoryWatcher />
+          {/* 復習の通知の予約（設定で「時刻を決める / 自動」にした人だけ鳴る）。 */}
+          <ReviewReminderWatcher />
+          {/* 通知・ウィジェットから開かれたら、その画面へ（スマホのアプリだけ）。 */}
+          <NativeLinkListener />
+        </>
+      }
       navigation={
         <AppNavigation
           cursor={cursor}
@@ -437,6 +457,8 @@ export function AppShellFrame({
   return (
     <div
       data-app-shell=""
+      // 指の端末では殻が巻き取り役（`lib/scroll-root.ts`）。戻った時の位置を覚える。
+      data-scroll-restoration-id="app-shell"
       className={appFrameClass(fixedViewport)}
       style={
         headerless

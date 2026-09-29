@@ -29,7 +29,6 @@ import {
   Sparkles,
   Bug,
   ChevronDown,
-  ChevronsUpDown,
   Search,
   Plus,
 } from "lucide-react";
@@ -55,13 +54,7 @@ import { haptic } from "@/lib/haptics";
 import { useReadableError } from "@/lib/errors";
 import { useT, useUiLang } from "@/lib/i18n";
 import { Zh } from "@/components/Zh";
-import {
-  clampToVisible,
-  containPoint,
-  focusedIndex,
-  SCAN_FRAME_Y,
-  zoomCrop,
-} from "@/lib/scan-layout";
+import { clampToVisible, containPoint, SCAN_FRAME_Y, zoomCrop } from "@/lib/scan-layout";
 import { rankScanCandidates } from "@/lib/jev.functions";
 import { putScanHandoff } from "@/lib/scan-handoff";
 import { motionReducedNow } from "@/hooks/use-reduced-motion";
@@ -240,6 +233,7 @@ function ScanPage() {
   const [scanStage, setScanStage] = useState<"idle" | "sensing" | "reading" | "matching">("idle");
   const [items, setItems] = useState<DetectedItem[] | null>(null);
   const [snapshot, setSnapshot] = useState<string | null>(null);
+  const photoPickRef = useRef<HTMLInputElement | null>(null);
   /** 撮った写真の元の大きさ。光の点を `object-cover` の写真に合わせて置くのに要る。 */
   const [snapshotSize, setSnapshotSize] = useState<{ w: number; h: number }>({ w: 0, h: 0 });
   /**
@@ -467,136 +461,149 @@ function ScanPage() {
     return c.toDataURL("image/jpeg", 0.82);
   }, [zoom]);
 
-  const doScan = useCallback(async () => {
-    if (scanning) return;
-    unlockAudio();
-    haptic("medium");
-    setError(null);
-    setChip(null);
-    setItems(null);
-    setRankOrder(null);
-    rankAsked.current = false;
-    touchedRef.current = false;
-    setEntries({});
-    setDetectMs(null);
-    setLookupMs(null);
-    setTapToAudioMs(null);
-    const frame = grabFrame();
-    if (!frame) {
-      setError(t("scan.noFrame"));
-      return;
-    }
-    void saveCaptureToPhotoLibrary(frame).then((result) => {
-      if (result === "failed") toast.error(t("cap.photoLibrarySaveFailed"));
-    });
-    setSnapshot(frame);
-    setScanning(true);
-    // KPI: first scan ever (localStorage-deduped).
-    try {
-      if (!localStorage.getItem("kpi-first-scan")) {
-        localStorage.setItem("kpi-first-scan", "1");
-        void logEvent({ data: { kind: "first_scan" } }).catch(() => {});
+  /**
+   * **前に撮った写真からもスキャンする**（オーナー指示 2026-09-28 R14「過去に撮ったもの
+   * でも追加できるように」）。`fromPhoto` を渡すと、カメラの今の絵の代わりにその写真を
+   * 読む。写真は端末にある物なので、写真ライブラリへの保存と今いる場所は使わない
+   * （撮った場所と今の場所は違う）。
+   */
+  const doScan = useCallback(
+    async (fromPhoto?: string) => {
+      if (scanning) return;
+      unlockAudio();
+      haptic("medium");
+      setError(null);
+      setChip(null);
+      setItems(null);
+      setRankOrder(null);
+      rankAsked.current = false;
+      touchedRef.current = false;
+      setEntries({});
+      setDetectMs(null);
+      setLookupMs(null);
+      setTapToAudioMs(null);
+      const frame = typeof fromPhoto === "string" ? fromPhoto : grabFrame();
+      if (!frame) {
+        setError(t("scan.noFrame"));
+        return;
       }
-    } catch {
-      /* ignore */
-    }
-    setScanStage("sensing");
-    // Cycle status text so the wait feels intentional. Cleared in finally.
-    const stageTimer1 = window.setTimeout(() => setScanStage("reading"), 700);
-    const stageTimer2 = window.setTimeout(() => setScanStage("matching"), 1500);
-    const t0 = performance.now();
-    try {
-      // location best-effort (§3.7): warm watchPosition first, then one
-      // patient getCurrentPosition — never block the scan for more than 5s.
-      let lat: number | null = null,
-        lng: number | null = null;
-      const warm = warmPosRef.current;
-      if (warm && Date.now() - warm.at < 2 * 60_000) {
-        lat = warm.lat;
-        lng = warm.lng;
-      } else {
-        // **上限は約束の外でも数える**（`deadline.ts`）。iPhone の Safari は
-        // 位置の許可を聞いている間 `timeout` を数えないので、答えないと
-        // スキャンが「分析中」のまま進まなかった。
-        const pos = await withDeadline(
-          new Promise<GeolocationPosition>((res, rej) => {
-            navigator.geolocation.getCurrentPosition(res, rej, {
-              timeout: 5000,
-              maximumAge: 120_000,
+      if (typeof fromPhoto !== "string") {
+        void saveCaptureToPhotoLibrary(frame).then((result) => {
+          if (result === "failed") toast.error(t("cap.photoLibrarySaveFailed"));
+        });
+      }
+      setSnapshot(frame);
+      setScanning(true);
+      // KPI: first scan ever (localStorage-deduped).
+      try {
+        if (!localStorage.getItem("kpi-first-scan")) {
+          localStorage.setItem("kpi-first-scan", "1");
+          void logEvent({ data: { kind: "first_scan" } }).catch(() => {});
+        }
+      } catch {
+        /* ignore */
+      }
+      setScanStage("sensing");
+      // Cycle status text so the wait feels intentional. Cleared in finally.
+      const stageTimer1 = window.setTimeout(() => setScanStage("reading"), 700);
+      const stageTimer2 = window.setTimeout(() => setScanStage("matching"), 1500);
+      const t0 = performance.now();
+      try {
+        // location best-effort (§3.7): warm watchPosition first, then one
+        // patient getCurrentPosition — never block the scan for more than 5s.
+        let lat: number | null = null,
+          lng: number | null = null;
+        const warm = warmPosRef.current;
+        if (typeof fromPhoto === "string") {
+          // 前の写真: 今の場所は付けない。
+        } else if (warm && Date.now() - warm.at < 2 * 60_000) {
+          lat = warm.lat;
+          lng = warm.lng;
+        } else {
+          // **上限は約束の外でも数える**（`deadline.ts`）。iPhone の Safari は
+          // 位置の許可を聞いている間 `timeout` を数えないので、答えないと
+          // スキャンが「分析中」のまま進まなかった。
+          const pos = await withDeadline(
+            new Promise<GeolocationPosition>((res, rej) => {
+              navigator.geolocation.getCurrentPosition(res, rej, {
+                timeout: 5000,
+                maximumAge: 120_000,
+              });
+            }),
+            5000,
+            null,
+          );
+          if (pos) {
+            lat = pos.coords.latitude;
+            lng = pos.coords.longitude;
+          }
+        }
+        setScanLoc({ lat, lng, name: null });
+        if (lat != null && lng != null) {
+          // 地名(「士林」級)は非同期で追いつかせる — スキャンは待たない。
+          const glat = lat,
+            glng = lng;
+          void geocodeFn({ data: { lat: glat, lng: glng } })
+            .then(({ location_name }) => {
+              if (location_name) {
+                setScanLoc((cur) =>
+                  cur.lat === glat && cur.lng === glng ? { ...cur, name: location_name } : cur,
+                );
+              }
+            })
+            .catch(() => {});
+        }
+
+        const { items } = await detectFn({ data: { imageBase64: frame, lat, lng } });
+        const dt = Math.round(performance.now() - t0);
+        setDetectMs(dt);
+        setItems(items);
+
+        if (items.length > 0) {
+          setScanStage("matching");
+          const tl = performance.now();
+          // **辞書が引けなくても、見つけた語は出す。** 前はここで落ちると、
+          // 見つけた語ごと「検出に失敗しました」になっていた（オーナー報告
+          // 2026-09-23）。読みと意味は AI の答えにも入っているので、それで出す。
+          try {
+            const { entries } = await lookupFn({
+              data: {
+                headwords: items.map((i) => i.headword),
+                language: targetLanguage,
+                explain_lang: uiLang,
+              },
             });
-          }),
-          5000,
-          null,
-        );
-        if (pos) {
-          lat = pos.coords.latitude;
-          lng = pos.coords.longitude;
+            setLookupMs(Math.round(performance.now() - tl));
+            setEntries(entries);
+          } catch (lookupErr) {
+            console.warn("[scan] dictionary lookup failed", lookupErr);
+          }
         }
+      } catch (e) {
+        // 生の英語(`fetch failed` / `PGRST116`)は出さない。日本語で
+        // 使っている人には何も分からないし、対処もできない。
+        // ただし**こちらが日本語で投げたメッセージは通す** — 「1日の利用
+        // 上限に達しました」のような、理由も対処も分かるものまで
+        // 「検出に失敗しました」に潰すと、ユーザーは直らないものを
+        // 押し続けることになる(監査の指摘)。
+        console.error(e);
+        setError(readable(e, t("scan.detectFailed")));
+        haptic("warning");
+      } finally {
+        window.clearTimeout(stageTimer1);
+        window.clearTimeout(stageTimer2);
+        setScanning(false);
+        setScanStage("idle");
+        // Peak-End: reward the wait with a shimmer if anything landed.
+        setTimeout(() => {
+          if ((items?.length ?? 0) > 0 || (Array.isArray(items) && items.length === 0)) {
+            // no-op guard; success sound fires from the items effect below
+          }
+        }, 0);
       }
-      setScanLoc({ lat, lng, name: null });
-      if (lat != null && lng != null) {
-        // 地名(「士林」級)は非同期で追いつかせる — スキャンは待たない。
-        const glat = lat,
-          glng = lng;
-        void geocodeFn({ data: { lat: glat, lng: glng } })
-          .then(({ location_name }) => {
-            if (location_name) {
-              setScanLoc((cur) =>
-                cur.lat === glat && cur.lng === glng ? { ...cur, name: location_name } : cur,
-              );
-            }
-          })
-          .catch(() => {});
-      }
-
-      const { items } = await detectFn({ data: { imageBase64: frame, lat, lng } });
-      const dt = Math.round(performance.now() - t0);
-      setDetectMs(dt);
-      setItems(items);
-
-      if (items.length > 0) {
-        setScanStage("matching");
-        const tl = performance.now();
-        // **辞書が引けなくても、見つけた語は出す。** 前はここで落ちると、
-        // 見つけた語ごと「検出に失敗しました」になっていた（オーナー報告
-        // 2026-09-23）。読みと意味は AI の答えにも入っているので、それで出す。
-        try {
-          const { entries } = await lookupFn({
-            data: {
-              headwords: items.map((i) => i.headword),
-              language: targetLanguage,
-              explain_lang: uiLang,
-            },
-          });
-          setLookupMs(Math.round(performance.now() - tl));
-          setEntries(entries);
-        } catch (lookupErr) {
-          console.warn("[scan] dictionary lookup failed", lookupErr);
-        }
-      }
-    } catch (e) {
-      // 生の英語(`fetch failed` / `PGRST116`)は出さない。日本語で
-      // 使っている人には何も分からないし、対処もできない。
-      // ただし**こちらが日本語で投げたメッセージは通す** — 「1日の利用
-      // 上限に達しました」のような、理由も対処も分かるものまで
-      // 「検出に失敗しました」に潰すと、ユーザーは直らないものを
-      // 押し続けることになる(監査の指摘)。
-      console.error(e);
-      setError(readable(e, t("scan.detectFailed")));
-      haptic("warning");
-    } finally {
-      window.clearTimeout(stageTimer1);
-      window.clearTimeout(stageTimer2);
-      setScanning(false);
-      setScanStage("idle");
-      // Peak-End: reward the wait with a shimmer if anything landed.
-      setTimeout(() => {
-        if ((items?.length ?? 0) > 0 || (Array.isArray(items) && items.length === 0)) {
-          // no-op guard; success sound fires from the items effect below
-        }
-      }, 0);
-    }
-  }, [scanning, grabFrame, detectFn, lookupFn, logEvent, items, t, geocodeFn]);
+    },
+    [scanning, grabFrame, detectFn, lookupFn, logEvent, items, t, geocodeFn],
+  );
 
   // Success chime when items arrive.
   useEffect(() => {
@@ -748,6 +755,8 @@ function ScanPage() {
   const boxSize = useBoxSize(boxRef);
   const sheetRef = useRef<HTMLDivElement | null>(null);
   const sheetSize = useBoxSize(sheetRef);
+  /** 撮った後の候補の面を出している間（写真と面を1枚に繋ぐ形）。 */
+  const showList = !!snapshot && !scanning;
   /**
    * 光の点の位置。写真は覗いていた映像と同じ `object-contain`（撮れる範囲を
    * 全部見せる）なので、点も同じ置き方で置く（`lib/scan-layout.ts`）。
@@ -871,7 +880,12 @@ function ScanPage() {
           ref={boxRef}
           className="scan-frame fixed z-20 overflow-hidden"
           style={{
-            bottom: `calc(5rem + env(safe-area-inset-bottom, 0px) + ${sheetSize.h}px + 0.5rem)`,
+            // 撮った後は、下の候補の面（画面の下端まで届く）の**裏まで**写真を伸ばす。
+            // 面が写真に 1.5rem 重なって始まるので、間に地が覗かない（R13）。
+            bottom: showList
+              ? `calc(${sheetSize.h}px - 1.5rem)`
+              : `calc(5rem + env(safe-area-inset-bottom, 0px) + ${sheetSize.h}px + 0.5rem)`,
+            ...(showList ? { borderBottomLeftRadius: 0, borderBottomRightRadius: 0 } : null),
           }}
           onTouchStart={onTouchStart}
           onTouchMove={onTouchMove}
@@ -901,21 +915,7 @@ function ScanPage() {
           />
           {/* frozen snapshot after scan */}
           {snapshot && (
-            // **覗いていた映像と同じ見え方**（画面いっぱい）で止める。
-            // 以前は「シートの上まで」の短い箱に押し込んでいたので、箱の下に
-            // カメラの黒い地がむき出しになっていた（「候補の下に黒い余白」）。
-            <img
-              src={snapshot}
-              alt=""
-              className="absolute inset-0 h-full w-full object-contain"
-              style={{ objectPosition: `50% ${SCAN_FRAME_Y * 100}%` }}
-              onLoad={(e) =>
-                setSnapshotSize({
-                  w: e.currentTarget.naturalWidth,
-                  h: e.currentTarget.naturalHeight,
-                })
-              }
-            />
+            <ScanSnapshotPhoto src={snapshot} onSize={(w, h) => setSnapshotSize({ w, h })} />
           )}
 
           {/* Vision Pro–style scan overlay (see ScanEffect.tsx) */}
@@ -947,9 +947,12 @@ function ScanPage() {
             zoomBottom="0.5rem"
           />
 
+          {/* 撮り直し: 写真の右上に小さく（R13）。 */}
+          {showList && <ScanAgainButton onAgain={reset} />}
+
           {/* compact metrics badge (always visible after a scan) */}
           {(detectMs !== null || tapToAudioMs !== null) && (
-            <div className="absolute right-3 top-3 rounded-full bg-black/50 px-2 py-1 text-caption text-white backdrop-blur">
+            <div className="absolute left-3 top-3 rounded-full bg-black/50 px-2 py-1 text-caption text-white backdrop-blur">
               {detectMs !== null && <span>{t("scan.detectMs", { ms: detectMs })}</span>}
               {tapToAudioMs !== null && (
                 <span className="ml-2">{t("scan.audioMs", { ms: tapToAudioMs })}</span>
@@ -967,31 +970,38 @@ function ScanPage() {
         */}
         <div
           ref={sheetRef}
-          className="fixed inset-x-0 bottom-[calc(5rem+env(safe-area-inset-bottom))] z-30 space-y-2 px-4"
+          className={
+            showList
+              ? // 撮った後: 下端まで届く1枚の面（下のバーはこの面の上に浮く）。
+                "scan-sheet fixed inset-x-0 bottom-0 z-30 space-y-2 pb-[calc(5.25rem+env(safe-area-inset-bottom))] pt-3"
+              : "fixed inset-x-0 bottom-[calc(5rem+env(safe-area-inset-bottom))] z-30 space-y-2 px-4"
+          }
         >
           {/* 1) チップ: ドットをタップした単語 — 常に一番上・すぐキャッチできる */}
           {chip && (
-            <ScanChip
-              headword={displayHeadword}
-              zhuyin={displayZhuyin}
-              pinyin={displayPinyin}
-              meaning={displayMeaning}
-              pos={displayPos}
-              verified={verified}
-              state={dotStateFor(displayHeadword, scanCtx)}
-              foundAt={scanCtx?.owned[normHead(displayHeadword)]?.found_at ?? null}
-              candidates={
-                chip.showingCandidates ? [chip.item.headword, ...chip.item.alternatives] : []
-              }
-              onPickCandidate={(h) => pickCandidate(h, chip.item)}
-              onPlay={() => playAudio(displayHeadword, chip.item)}
-              onCatch={() => {
-                if (!chip.chosenHeadword || !snapshot) return;
-                startPrefetch(chip.chosenHeadword);
-                setCatchOpen({ headword: chip.chosenHeadword, item: chip.item });
-              }}
-              onClose={() => setChip(null)}
-            />
+            <div className={showList ? "px-4" : undefined}>
+              <ScanChip
+                headword={displayHeadword}
+                zhuyin={displayZhuyin}
+                pinyin={displayPinyin}
+                meaning={displayMeaning}
+                pos={displayPos}
+                verified={verified}
+                state={dotStateFor(displayHeadword, scanCtx)}
+                foundAt={scanCtx?.owned[normHead(displayHeadword)]?.found_at ?? null}
+                candidates={
+                  chip.showingCandidates ? [chip.item.headword, ...chip.item.alternatives] : []
+                }
+                onPickCandidate={(h) => pickCandidate(h, chip.item)}
+                onPlay={() => playAudio(displayHeadword, chip.item)}
+                onCatch={() => {
+                  if (!chip.chosenHeadword || !snapshot) return;
+                  startPrefetch(chip.chosenHeadword);
+                  setCatchOpen({ headword: chip.chosenHeadword, item: chip.item });
+                }}
+                onClose={() => setChip(null)}
+              />
+            </div>
           )}
 
           {error && (
@@ -1033,15 +1043,33 @@ function ScanPage() {
                   }
                 />
                 <div className="capture-actions">
+                  {/* **写真から**: 前に撮った写真を選んでスキャンする（R14）。 */}
                   <CameraLibraryButton
                     photoUrl={lastPhotoUrl}
-                    onOpen={() => void navigate({ to: "/home" })}
+                    onOpen={() => photoPickRef.current?.click()}
+                  />
+                  <input
+                    ref={photoPickRef}
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    aria-hidden
+                    tabIndex={-1}
+                    onChange={(e) => {
+                      const f = e.target.files?.[0];
+                      e.target.value = "";
+                      if (!f) return;
+                      void downscalePhoto(f).then((url) => {
+                        if (url) void doScan(url);
+                        else setError(t("scan.noFrame"));
+                      });
+                    }}
                   />
                   <CameraShutter
                     mode="scan"
                     label={t("scan.button")}
                     busy={!ready || scanning}
-                    onPress={doScan}
+                    onPress={() => void doScan()}
                   />
                   <CameraFlipButton
                     facing={facing}
@@ -1154,6 +1182,37 @@ function ScanPage() {
  * scan で映像が要るのは撮る前の1箇所だけで、**撮った後の面は静止画で全部
  * 描ける**(`capture` と同じ構図だった)。
  */
+/**
+ * **撮った写真を止めて見せる面。黒い帯を作らない**（オーナー指示 2026-09-28
+ * 「スキャンの候補を表示する画面、黒い余白は作らないで。変だから」）。
+ *
+ * 写真そのものは覗いていた映像と同じ `object-contain`（撮れる範囲を全部見せる。
+ * 光の点の位置 `containPoint` もこれに合わせてある — 切り落とすと点が物からずれる）。
+ * 箱と写真の縦横比が違うと左右（または上下）に余りが出る。そこを黒い地のままに
+ * せず、**同じ写真をぼかして箱いっぱいに敷く**（写真アプリ・ストーリーの縦横比
+ * 違いと同じ埋め方）。写真の中身は1画素も切らないので、点はずれない。
+ */
+export function ScanSnapshotPhoto({
+  src,
+  onSize,
+}: {
+  src: string;
+  onSize?: (w: number, h: number) => void;
+}) {
+  return (
+    <>
+      <img src={src} alt="" aria-hidden className="scan-frame__fill" />
+      <img
+        src={src}
+        alt=""
+        className="absolute inset-0 h-full w-full object-contain"
+        style={{ objectPosition: `50% ${SCAN_FRAME_Y * 100}%` }}
+        onLoad={(e) => onSize?.(e.currentTarget.naturalWidth, e.currentTarget.naturalHeight)}
+      />
+    </>
+  );
+}
+
 export function ScanChip({
   headword,
   zhuyin,
@@ -1426,13 +1485,55 @@ function useBoxSize(ref: React.RefObject<HTMLDivElement | null>) {
  *  ・行を押すと**撮影モードと同じ流れ**で足す（`onOpen`）。
  *  ・出会い方は色だけに頼らない: 持っている語はチェック、再会は字の札。
  */
+/** 候補の1行の高さ（2行: 語と意味。44px の押せる釦が真ん中に収まる）。 */
+const LIST_ROW = 56;
+
+/**
+ * 端末の写真を、スキャンに送る大きさ（長い辺 1024px の JPEG）にする。
+ * カメラの絵（`grabFrame`）と同じ大きさにそろえる — 送る量と AI の読み方を変えない。
+ */
+export async function downscalePhoto(file: File): Promise<string | null> {
+  try {
+    const bmp = await createImageBitmap(file, { imageOrientation: "from-image" });
+    const scale = Math.min(1, 1024 / Math.max(bmp.width, bmp.height));
+    const w = Math.round(bmp.width * scale);
+    const h = Math.round(bmp.height * scale);
+    const c = document.createElement("canvas");
+    c.width = w;
+    c.height = h;
+    const ctx = c.getContext("2d");
+    if (!ctx) return null;
+    ctx.drawImage(bmp, 0, 0, w, h);
+    bmp.close();
+    return c.toDataURL("image/jpeg", 0.82);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * **撮った後の候補の一覧**（オーナー指示 2026-09-28 R13「スキャンの単語の候補とスキャン後の
+ * 画面が黒い隙間があって汚い。一からデザイン考え直して。スキャンのやり直しボタンは右上に
+ * 小さく、追加ボタンは単語の候補の右にそれぞれつけて。上のスキャンの画面と下の単語の候補を
+ * きれいにつなげて」）。
+ *
+ * 前は写真の下に浮いたガラスの箱＋右に縦並びの丸い釦2つで、箱と写真の間・箱の右・
+ * 箱と下のバーの間に**暗い地が3か所**覗いていた。いまは:
+ *  ・一覧は**画面の下端まで届く1枚の面**（上の角だけ丸い）。写真はこの面の上端の
+ *    裏まで伸びていて、面が写真に少し重なって始まる — 間に地が見える所が無い。
+ *  ・行ごとに右端へ「＋」（44px）。押した行をそのまま図鑑に足す（撮影モードと同じ流れ）。
+ *    持っている語はチェックの印（押すと同じ流れで開く）。
+ *  ・行を押すと、写真の上のその語の光の点が光る（`onFocus`）。点を押した時は一覧が
+ *    その行まで送られる。
+ *  ・撮り直しは写真の右上の小さな丸（`ScanAgainButton`）。
+ *  ・出会い方は色だけに頼らない: 持っている語はチェック、再会は字の札。
+ */
 export function ScanCandidateStrip({
   items,
   scanCtx,
   activeId,
   onFocus,
   onOpen,
-  onAgain,
   nothingFound = false,
 }: {
   items: DetectedItem[];
@@ -1440,227 +1541,156 @@ export function ScanCandidateStrip({
   activeId: string | null;
   onFocus: (id: string) => void;
   onOpen: (it: DetectedItem) => void;
-  onAgain: () => void;
+  /** 撮り直しは写真の右上（`ScanAgainButton`）に移った。互換のため受けるだけ。 */
+  onAgain?: () => void;
   nothingFound?: boolean;
 }) {
   const t = useT();
-  const scrollerRef = useRef<HTMLDivElement | null>(null);
-  const frameRef = useRef(0);
-  const rowRefs = useRef(new Map<string, HTMLButtonElement>());
-  /**
-   * 箱を**こちらから**送っている間は、送りの途中で真ん中を通り過ぎる候補に
-   * 注目を移さない。移すと、点を押して選んだ候補が送りの途中の別の候補に
-   * 奪われる（実測: 「吸管」の点を押しても、送り終わると「珍珠」が光っていた）。
-   */
-  const programmaticUntil = useRef(0);
+  const scrollerRef = useRef<HTMLUListElement | null>(null);
+  const rowRefs = useRef(new Map<string, HTMLLIElement>());
 
-  // 最初は先頭の候補に注目する（何も光っていないと、箱と点の対応が読めない）。
+  // 最初は先頭の候補に注目する（何も光っていないと、一覧と点の対応が読めない）。
   useEffect(() => {
     if (!activeId && items[0]) onFocus(items[0].id);
   }, [activeId, items, onFocus]);
 
-  // 点を押して注目が移ったら、箱もその候補を真ん中へ。
+  // 点を押して注目が移ったら、一覧もその行が見える所まで送る（見えていれば動かさない）。
   useEffect(() => {
     if (!activeId) return;
     const el = rowRefs.current.get(activeId);
     const sc = scrollerRef.current;
     if (!el || !sc) return;
-    const max = sc.scrollHeight - sc.clientHeight;
-    const target = Math.max(
-      0,
-      Math.min(max, el.offsetTop + el.offsetHeight / 2 - sc.clientHeight / 2),
-    );
-    if (Math.abs(sc.scrollTop - target) < 4) return;
-    const reduce = motionReducedNow();
-    programmaticUntil.current = performance.now() + (reduce ? 100 : 700);
-    sc.scrollTo({ top: target, behavior: reduce ? "auto" : "smooth" });
+    const top = el.offsetTop;
+    const bottom = top + el.offsetHeight;
+    if (top >= sc.scrollTop && bottom <= sc.scrollTop + sc.clientHeight) return;
+    sc.scrollTo({ top: Math.max(0, top - 4), behavior: motionReducedNow() ? "auto" : "smooth" });
   }, [activeId]);
 
-  const onScroll = () => {
-    if (performance.now() < programmaticUntil.current) return;
-    cancelAnimationFrame(frameRef.current);
-    frameRef.current = requestAnimationFrame(() => {
-      const sc = scrollerRef.current;
-      if (!sc) return;
-      // 横の列と同じ選び方を、縦に読み替えて使う。
-      const boxes = items.map((it) => {
-        const el = rowRefs.current.get(it.id);
-        return { left: el?.offsetTop ?? 0, width: el?.offsetHeight ?? 0 };
-      });
-      const i = focusedIndex(boxes, {
-        scrollLeft: sc.scrollTop,
-        width: sc.clientHeight,
-        scrollWidth: sc.scrollHeight,
-      });
-      if (i >= 0 && items[i].id !== activeId) onFocus(items[i].id);
-    });
-  };
-  useEffect(() => () => cancelAnimationFrame(frameRef.current), []);
-
-  /**
-   * **1行の箱は、払った分だけ1つずつ送る。**（オーナー報告 2026-09-23
-   * 「スキャン後の候補のスクロールがしにくい」）
-   *
-   * 1行ぶんの高さしかない箱をブラウザの巻き取りに任せると、指の動きが
-   * 小さすぎて止まる所が読めない（吸い付く前に戻ってしまう）。時計の
-   * ダイヤルと同じく、**上へ払えば次、下へ払えば前**。大きく払えば
-   * その分だけ進む（32px で1つ）。押しただけなら、その候補を選ぶ。
-   */
-  const activeIndex = Math.max(
-    0,
-    items.findIndex((it) => it.id === activeId),
-  );
-  const step = (n: number) => {
-    if (!items.length) return;
-    const j = Math.max(0, Math.min(items.length - 1, activeIndex + n));
-    if (items[j]) onFocus(items[j].id);
-  };
-  const swipe = useRef<{ y: number; id: number; moved: boolean } | null>(null);
-  const swallowClick = useRef(false);
-  const active = items[activeIndex];
-
+  if (nothingFound) {
+    return (
+      <div className="scan-list px-5 pb-2 pt-1 text-center" data-scan-strip>
+        <p className="text-body font-medium">{t("scan.nothingFound")}</p>
+        <p className="ja-phrase mt-1 text-footnote text-muted-foreground">
+          {t("scan.nothingFoundHint")}
+        </p>
+      </div>
+    );
+  }
+  // **2行まで**（オーナー指示 2026-09-28 R14「見つかった単語を表示する部分がでかすぎる。
+  // 2つまでにしてスキャンした画面を大きくして」）。3つ目からは箱の中を縦に送る。
+  // 下にまだある時は、下端を薄く消して「続きがある」と見せる。
+  const visible = Math.min(items.length, 2);
+  const more = items.length > 2;
   return (
-    <div className="flex items-end gap-2" data-scan-strip>
-      {nothingFound ? (
-        <div className="min-w-0 flex-1 rounded-2xl px-3 py-2 shadow-lg material-thick">
-          <p className="text-footnote font-medium">{t("scan.nothingFound")}</p>
-          <p className="ja-phrase text-caption text-muted-foreground">
-            {t("scan.nothingFoundHint")}
-          </p>
-        </div>
-      ) : (
-        <div className="relative min-w-0 flex-1 overflow-hidden rounded-3xl shadow-lg material-thick">
-          {items.length > 1 && (
-            // 1行しか見えないので、**まだ下にある**ことを数で言う。押すと次へ
-            // （最後なら先頭へ）。指の当たりは 44px。
-            <button
-              type="button"
-              onClick={() => (activeIndex >= items.length - 1 ? step(-items.length) : step(1))}
-              aria-label={t("scan.nextCandidate")}
-              className="absolute right-1 top-1/2 z-10 flex h-11 min-w-11 -translate-y-1/2 items-center justify-center gap-0.5 rounded-full px-2 text-caption tabular-nums text-muted-foreground"
+    <div className="scan-list" data-scan-strip>
+      <h2 className="sr-only">{t("scan.found")}</h2>
+      <ul
+        ref={scrollerRef}
+        aria-label={t("scan.found")}
+        className="scan-list__scroll"
+        data-more={more || undefined}
+        style={{ maxHeight: LIST_ROW * visible }}
+      >
+        {items.map((it) => {
+          const st = dotStateFor(it.headword, scanCtx);
+          const on = it.id === activeId;
+          return (
+            <li
+              key={it.id}
+              ref={(el) => {
+                if (el) rowRefs.current.set(it.id, el);
+                else rowRefs.current.delete(it.id);
+              }}
+              className="scan-list__row"
+              data-on={on || undefined}
+              style={{ height: LIST_ROW }}
             >
-              {activeIndex + 1}/{items.length}
-              <ChevronsUpDown className="h-3.5 w-3.5" />
-            </button>
-          )}
-          <div
-            ref={scrollerRef}
-            onScroll={onScroll}
-            onPointerDown={(e) => {
-              // 払った後にブラウザが押しを出さないこともあるので、次の押しで
-              // 必ず解く（残ると、次に本当に押した候補が開かない）。
-              swallowClick.current = false;
-              swipe.current = { y: e.clientY, id: e.pointerId, moved: false };
-            }}
-            onPointerMove={(e) => {
-              const sw = swipe.current;
-              if (sw && sw.id === e.pointerId && Math.abs(e.clientY - sw.y) > 8) sw.moved = true;
-            }}
-            onPointerUp={(e) => {
-              const sw = swipe.current;
-              swipe.current = null;
-              if (!sw || sw.id !== e.pointerId || !sw.moved) return;
-              const dy = e.clientY - sw.y;
-              const n = Math.round(-dy / 32) || -Math.sign(dy);
-              swallowClick.current = true;
-              step(n);
-            }}
-            onPointerCancel={() => {
-              swipe.current = null;
-            }}
-            onWheel={(e) => {
-              if (Math.abs(e.deltaY) < 4) return;
-              step(Math.sign(e.deltaY));
-            }}
-            role="listbox"
-            aria-label={t("scan.found")}
-            className="scan-box relative touch-none overflow-hidden p-1"
-          >
-            {items.map((it) => {
-              const st = dotStateFor(it.headword, scanCtx);
-              const on = it.id === activeId;
-              return (
-                <button
-                  key={it.id}
-                  ref={(el) => {
-                    if (el) rowRefs.current.set(it.id, el);
-                    else rowRefs.current.delete(it.id);
-                  }}
-                  role="option"
-                  aria-selected={on}
-                  onClick={() => {
-                    if (swallowClick.current) {
-                      swallowClick.current = false;
-                      return;
-                    }
-                    onOpen(it);
-                  }}
-                  className={`press-in flex min-h-12 w-full items-center gap-2.5 rounded-2xl pl-3 pr-16 text-left transition-[box-shadow,background-color] ${
-                    on ? "bg-card shadow-sm ring-2 ring-primary" : ""
+              <button
+                type="button"
+                aria-pressed={on}
+                onClick={() => onFocus(it.id)}
+                className="flex min-w-0 flex-1 items-center gap-3 self-stretch pl-5 text-left"
+              >
+                <span
+                  aria-hidden
+                  className={`h-2.5 w-2.5 shrink-0 rounded-full ${
+                    st === "owned"
+                      ? "bg-emerald-400"
+                      : st === "reunion"
+                        ? "bg-amber-400"
+                        : "bg-sky-400"
                   }`}
-                >
-                  <span
-                    aria-hidden
-                    className={`h-2.5 w-2.5 shrink-0 rounded-full ${
-                      st === "owned"
-                        ? "bg-emerald-400"
-                        : st === "reunion"
-                          ? "bg-amber-400"
-                          : "bg-sky-400"
-                    }`}
-                  />
-                  <span lang="zh-Hant" className="shrink-0 text-body font-semibold">
-                    {it.headword}
-                  </span>
-                  {/* 注音は長い語で数の札に潜っていた（360px 実測）。縮めて省く側に回す。 */}
-                  {it.zhuyin && (
-                    <span className="min-w-0 shrink truncate text-caption text-muted-foreground">
-                      {it.zhuyin}
+                />
+                <span className="min-w-0 flex-1">
+                  <span className="flex min-w-0 items-baseline gap-2">
+                    <span lang="zh-Hant" className="shrink-0 text-body font-semibold">
+                      {it.headword}
                     </span>
-                  )}
-                  <span className="min-w-0 flex-1 truncate text-footnote text-muted-foreground">
+                    {it.zhuyin && (
+                      <span className="min-w-0 truncate text-caption text-muted-foreground">
+                        {it.zhuyin}
+                      </span>
+                    )}
+                    {st === "reunion" && (
+                      <span className="shrink-0 rounded-full bg-amber-100 px-1.5 py-0.5 text-caption font-semibold text-amber-900 dark:bg-amber-500/20 dark:text-amber-200">
+                        {t("scan.reunion")}
+                      </span>
+                    )}
+                  </span>
+                  <span className="block truncate text-footnote text-muted-foreground">
                     {it.meaning_ja}
                   </span>
-                  {st === "owned" ? (
-                    <Check
-                      className="h-3.5 w-3.5 shrink-0 text-muted-foreground"
-                      aria-label={t("scan.owned")}
-                    />
-                  ) : st === "reunion" ? (
-                    <span className="shrink-0 rounded-full bg-amber-100 px-1.5 py-0.5 text-caption font-semibold text-amber-900 dark:bg-amber-500/20 dark:text-amber-200">
-                      {t("scan.reunion")}
-                    </span>
-                  ) : null}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      )}
-      {/* **図鑑に追加**（オーナー指示 2026-09-23「スキャンした単語を図鑑に追加する
-          ボタンを追加して」）。いま箱に出ている候補を、撮影モードと同じ流れで足す。 */}
-      {!nothingFound && active && (
-        <button
-          onClick={() => onOpen(active)}
-          aria-label={t("scan.addToDex")}
-          className="press-in grid h-12 w-12 shrink-0 place-items-center rounded-full bg-primary text-primary-foreground shadow-lg shadow-primary/30"
-        >
-          <span className="grid place-items-center leading-none">
-            <Plus className="h-5 w-5" aria-hidden />
-            <span className="mt-0.5 text-[10px] font-semibold">{t("scan.addShort")}</span>
-          </span>
-        </button>
-      )}
-      {/* 撮り直しは**右下の端**（オーナー指示 2026-09-23）。親指の届く所で、
-          候補の行を押す指と重ならない。 */}
-      <button
-        onClick={onAgain}
-        aria-label={t("scan.again")}
-        className="press-in grid h-12 w-12 shrink-0 place-items-center rounded-full shadow-lg material-thick"
-      >
-        <RotateCcw className="h-5 w-5" />
-      </button>
+                </span>
+              </button>
+              {/*
+                **行ごとの追加**（R14「図鑑に追加するボタンを工夫して」）。丸い＋だけだと
+                何が起きるか読めなかったので、**字の付いた札**にした: 「＋ 追加」。
+                押すと札が小さく沈んで、図鑑の小さな本の印が跳ねる（押した手応え）。
+                持っている語は「✓ 取得済み」の控えめな札（押すと同じ流れで開く）。
+              */}
+              <button
+                type="button"
+                onClick={() => onOpen(it)}
+                aria-label={
+                  st === "owned"
+                    ? `${it.headword} ${t("scan.owned")}`
+                    : `${it.headword} ${t("scan.addToDex")}`
+                }
+                className="scan-add press-in mr-3 shrink-0"
+                data-owned={st === "owned" || undefined}
+              >
+                {st === "owned" ? (
+                  <Check className="h-4 w-4" aria-hidden />
+                ) : (
+                  <Plus className="h-4 w-4" aria-hidden strokeWidth={2.75} />
+                )}
+                <span>{st === "owned" ? t("scan.owned") : t("scan.addShort")}</span>
+              </button>
+            </li>
+          );
+        })}
+      </ul>
     </div>
+  );
+}
+
+/**
+ * **撮り直し**は写真の右上に小さく（オーナー指示 2026-09-28 R13）。見た目は 36px の
+ * 丸、押せる範囲は 44px（HIG の下限）。
+ */
+export function ScanAgainButton({ onAgain }: { onAgain: () => void }) {
+  const t = useT();
+  return (
+    <button
+      type="button"
+      onClick={onAgain}
+      aria-label={t("scan.again")}
+      className="scan-again press-in absolute right-2 top-2 z-10 grid h-11 w-11 place-items-center"
+    >
+      <span className="grid h-9 w-9 place-items-center rounded-full bg-black/45 text-white backdrop-blur-md">
+        <RotateCcw className="h-4 w-4" aria-hidden />
+      </span>
+    </button>
   );
 }
 

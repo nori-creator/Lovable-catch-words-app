@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { scrollTopNow } from "@/lib/scroll-root";
 
 /**
  * 中身が上のバーの下に潜り込んでいるか。
@@ -10,10 +11,12 @@ import { useEffect, useState } from "react";
 export function useScrolled(threshold = 4): boolean {
   const [scrolled, setScrolled] = useState(false);
   useEffect(() => {
-    const read = () => setScrolled(window.scrollY > threshold);
+    // 指の端末では殻（`[data-app-shell]`）が巻き取る（`lib/scroll-root.ts`）。
+    // 殻の巻き取りは window に届かないので、文書で拾う（capture）。
+    const read = () => setScrolled(scrollTopNow() > threshold);
     read();
-    window.addEventListener("scroll", read, { passive: true });
-    return () => window.removeEventListener("scroll", read);
+    document.addEventListener("scroll", read, { passive: true, capture: true });
+    return () => document.removeEventListener("scroll", read, { capture: true });
   }, [threshold]);
   return scrolled;
 }

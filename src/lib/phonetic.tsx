@@ -31,6 +31,7 @@
  * 外の世界に触れるものをここに入れないこと。
  */
 
+import { learnerIpa } from "@/lib/learner-ipa";
 import { useEffect, useState } from "react";
 import {
   ZH_TW_PROFILE,
@@ -134,9 +135,15 @@ export function pickReadingOf(
 ): string {
   for (const k of [kind, ...profile.readings]) {
     const v = readings[k]?.trim();
-    if (v) return v;
+    // IPA は**学習者の見慣れた形**で出す（`learner-ipa.ts`、オーナー報告
+    // 2026-09-27「英単語の下の発音記号が見たことない記号」）。
+    if (v) return k === "ipa-us" || k === "ipa-uk" || isIpaProfile(profile) ? learnerIpa(v) : v;
   }
   return "";
+}
+
+function isIpaProfile(profile: TargetProfile): boolean {
+  return profile.readings.some((r) => r === "ipa-us" || r === "ipa-uk");
 }
 
 /**

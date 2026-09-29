@@ -33,6 +33,7 @@ import {
   PhoneticRow,
   PhotoLibrarySyncToggle,
   PlaceReminderToggle,
+  ReviewReminderSettings,
   SettingsCard,
   SoundAndHapticsPanel,
   LEVEL_OPTIONS,
@@ -296,6 +297,40 @@ export function SettingsPolishScene() {
         <PlaceReminderToggle />
       </SettingsCard>
       <SettingsChoicesScene />
+    </div>
+  );
+}
+
+/**
+ * **通知**（オーナー指示 2026-09-27「チュートリアル中に通知の時刻を設定できる
+ * ようにしてるんだけど、それを設定の項目に追加して実装して」）。
+ *
+ * `?mode=custom|ai|off`（既定は「おまかせ」）。昨日 8:15 に開いた記録を置いて、
+ * 「次の通知」がどう決まるかを見せる。
+ */
+export function SettingsNotifyScene({ q }: { q: URLSearchParams }) {
+  useState(() => {
+    const mode = q.get("mode") ?? "ai";
+    try {
+      localStorage.setItem(
+        "review-reminder-prefs-v1",
+        JSON.stringify({ mode, times: ["08:30", "21:00"], ai: { srs: true, habit: true } }),
+      );
+      const y = new Date();
+      y.setDate(y.getDate() - 1);
+      y.setHours(8, 15, 0, 0);
+      localStorage.setItem("app-opens-v1", JSON.stringify([y.toISOString()]));
+    } catch {
+      /* 使えない環境では既定のまま */
+    }
+    return null;
+  });
+  return (
+    <div className="space-y-7">
+      <SettingsCard title={t("settings.notifications")}>
+        <ReviewReminderSettings />
+        <PlaceReminderToggle />
+      </SettingsCard>
     </div>
   );
 }

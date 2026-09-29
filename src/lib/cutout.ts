@@ -186,6 +186,15 @@ export async function removeBackgroundSmart(dataUrl: string): Promise<string> {
     // 落とし続けることになる(その判断は次の返事に任せる)。
     rememberServerCutout(r.available === true);
     if (r.available && r.image) return r.image;
+    // 無料の1日の枚数を使い切った（`plan-limits.ts`）。**端末での切り抜きにも逃げない** —
+    // 逃げると上限が無いのと同じになる。写真はそのまま使う。
+    if ("limit" in r && r.limit === "free_daily") return dataUrl;
+    if (!r.available) {
+      // 鍵が無く端末で切り抜く時も、同じ枠で数える。
+      const { consumeLocalCutout } = await import("./cutout.functions");
+      const ok = await consumeLocalCutout().catch(() => ({ allowed: true }));
+      if (!ok.allowed) return dataUrl;
+    }
   } catch {
     /* fall back to local */
   }

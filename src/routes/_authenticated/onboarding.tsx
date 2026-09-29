@@ -22,7 +22,9 @@ function LegacyOnboardingRedirect() {
       .catch(() => {
         if (active) void navigate({ to: "/welcome", replace: true });
       });
-    return () => { active = false; };
+    return () => {
+      active = false;
+    };
   }, [navigate, fetchProfile]);
   return <div className="min-h-screen" role="status" aria-label={t("common.loading")} />;
 }

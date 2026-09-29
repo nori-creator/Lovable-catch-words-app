@@ -812,25 +812,13 @@ export function InputCatchSheet({ initialMode, initialText, autoLookup, onClose 
               {attachedDataUrl
                 ? t("input.attachChange")
                 : initialMode === "text" && !isPhrase && imageLoading
-                  ? uiLang === "en"
-                    ? "Creating an image for this word…"
-                    : uiLang === "zh-TW"
-                      ? "正在為這個詞生成圖片…"
-                      : "この単語の画像を生成しています…"
+                  ? t("input.aiImageLoading")
                   : candidates.length > 0
                     ? initialMode === "text" && !isPhrase
-                      ? uiLang === "en"
-                        ? "AI image for the word · saved to the card and review"
-                        : uiLang === "zh-TW"
-                          ? "AI 圖片會保存到單詞詳情與複習"
-                          : "AI画像は単語の詳細と復習に保存されます"
+                      ? t("input.aiImageSaved")
                       : t("input.autoImage")
                     : initialMode === "text" && !isPhrase
-                      ? uiLang === "en"
-                        ? "Image unavailable. The word can still be saved."
-                        : uiLang === "zh-TW"
-                          ? "無法生成圖片，但仍可保存單詞。"
-                          : "画像を生成できませんでした。単語は保存できます。"
+                      ? t("input.aiImageFailed")
                       : t("input.noImageOk")}
             </p>
             {!attachedDataUrl && candidates.length > 1 && (

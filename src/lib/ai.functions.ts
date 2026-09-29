@@ -8,6 +8,7 @@ import { LEVEL_INDEXES } from "./level-scale";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { generateText } from "ai";
 import { z } from "zod";
+import { pickReportedItem, reportContext } from "@/lib/report-locate";
 import { CATEGORY_KEYS, ROOM_KEYS, normalizeCategory } from "./category";
 import { orderByRegister } from "./candidate-order";
 import { ExtrasSchema, emptyExtras, mergeExtras, normalizeExtras } from "./extras";
@@ -42,6 +43,7 @@ import {
   type CorrectionVerdict,
 } from "./correction-judge";
 import { choice as jevChoice, choiceProb } from "./jev";
+import { reportMayRegenerate } from "./plan-limits";
 import {
   DICTIONARY_SELECT,
   resolveDictionaryFields,
@@ -95,12 +97,19 @@ const SuggestionSchema = z.object({
          * いちばんよく口にする呼び方、`specific` = 正確・専門的な名前、
          * `proper` = 固有名詞。並べ替えにだけ使う（**消さない**）。
          */
-        register: z.enum(["common", "specific", "proper"]).optional().catch(undefined),
+        register: z.enum(["common", "casual", "specific", "proper"]).optional().catch(undefined),
+        /**
+         * **写真のどの物か**の番号（2026-09-27）。写っている別々の物に 0,1,2…、
+         * 同じ物の別の呼び方には同じ番号。画面はこれで1段目（物ごとに1語）と
+         * 2段目（その物のほかの言い方）に分ける（`groupCandidates`）。
+         */
+        group: z.number().int().min(0).max(20).optional().catch(undefined),
       }),
     )
     // 件数も固定しない。4件返ってきた回に**1件も出さない**のは重すぎる。
+    // 物ごとに別の言い方も返すので、上限は 12。
     .min(1)
-    .max(8),
+    .max(12),
 });
 
 export const suggestWords = createServerFn({ method: "POST" })
@@ -152,6 +161,14 @@ ${langRule}
 - **確からしい順に並べる。** 1つ目が「これは何か」への答え。
   自信の無いものを上に置かない。
 
+**写っている物ごとに分ける（group）:**
+- 写っている**別々の物**に 0 から順に group の番号を振る（確からしい物ほど小さい番号）。
+- 同じ物に別の呼び方（正確な名前・固有名詞・**砕けた言い方（略語・口語）**など）があれば、
+  **同じ group の番号で**続けて出す。register は ふだん=common / 砕けた=casual /
+  くわしい・専門的=specific / 固有名詞=proper。
+  別の呼び方が無い物は1つだけでよい。無理に作らない。
+- 物は最大5つ、1つの物の呼び方は最大3つ。
+
 **同じ物の呼び方が複数あるときの並び（ふだんの呼び方を上に）:**
 - ネイティブが日常でいちばんよく口にする呼び方を上に置く。正確・専門的な名前や
   固有名詞は**下に置くが、消さない**（register で印を付ける）。
@@ -172,7 +189,10 @@ ${langRule}
 
 **"other" は本当にどのカテゴリにも当てはまらないときの最終手段。手やマウスを "other" にするのは間違い。**
 
-${distinctionRule(profile.promptName, profile.capture.distinctionExamples)}`;
+${distinctionRule(profile.promptName, profile.capture.distinctionExamples)}
+- **distinction は15文字以内**。meaning_ja も**短く**（言い換え1つ。説明文にしない）。
+  候補の画面は横に動かないので、長い文は読まれない（オーナー指示 2026-09-28
+  「単語の説明が長すぎて、横にスクロールしないと見れないことがある。長すぎる文はなしで」）。`;
 
     let content: string;
     try {
@@ -184,7 +204,7 @@ ${distinctionRule(profile.promptName, profile.capture.distinctionExamples)}`;
             content: [
               {
                 type: "text",
-                text: `${prompt}\n\n必ずJSONだけを返してください。**${profile.promptName}の語を出す。他の言語の語を混ぜない。**\n形式: {"suggestions":[{"headword":"${profile.capture.jsonHeadwordHint}",${profile.capture.jsonReadingHint},"meaning_ja":"意味(上で指定した解説の言語で)","distinction":"使い分けの一言","category_key":"${CATEGORY_KEYS.join("|のどれか: ")}","register":"common|specific|proper のどれか"}]}。**確からしい順に並べ**、3〜5件返してください(無理に5件に埋めない — 写っていない物を足すぐらいなら少なくてよい)。`,
+                text: `${prompt}\n\n必ずJSONだけを返してください。**${profile.promptName}の語を出す。他の言語の語を混ぜない。**\n形式: {"suggestions":[{"headword":"${profile.capture.jsonHeadwordHint}",${profile.capture.jsonReadingHint},"meaning_ja":"意味(上で指定した解説の言語で)","distinction":"使い分けの一言","category_key":"${CATEGORY_KEYS.join("|のどれか: ")}","register":"common|casual|specific|proper のどれか","group":0}]}。**確からしい順に並べ**、物は3〜5つ返してください(無理に5つに埋めない — 写っていない物を足すぐらいなら少なくてよい)。同じ物の別の呼び方は同じ group で。`,
               },
               { type: "image", image: data.imageBase64 },
             ],
@@ -424,7 +444,7 @@ ${cardProfile.capture.readingRule}
   room_label: 部屋の名前(${NL}・24字まで)}。
   棚は「街で見かけて集めたくなるまとまり」の粒度で。1語専用の棚は作らない。
 - example_sentence: ネイティブが「${data.headword}」を使う**いちばん自然で、いちばんよく出会う場面を1つだけ**選び、その場面でそのまま言う一文（${cardProfile.promptName}）。辞書的な作文・説明文にしない。学習者の目標レベルは ${levelGoal} — 語彙・文型はこのレベル以下に抑える（上のレベルほど、その場面らしい言い回しを使ってよい）
-  ${worldExampleRule(NL)}
+  ${worldExampleRule(NL, cardProfile.code)}
 - example_translation: 例文の訳(${NL})
 
 extras 項目（**すべて具体的な内容で必ず埋めること**。空文字・空配列で返さない）:
@@ -435,7 +455,7 @@ pos は ${cardProfile.chunkRoles.join(" / ")} を使う。
 
 ${
   want("usage_chunks")
-    ? `- usage_chunks: ネイティブが「${data.headword}」を**実際にいちばん高い頻度で**組み合わせて使う型を3〜5個。各 {parts:[{text,pos,slot}], ja:その型の自然な訳だけ(${NL}。説明・注釈・括弧書きは書かない)}。
+    ? `- usage_chunks: ネイティブが「${data.headword}」を**実際にいちばん高い頻度で**組み合わせて使う型を3〜5個。各 {parts:[{text,pos,slot,alts}], ja:その型の自然な訳だけ(${NL}。説明・注釈・括弧書きは書かない)}。
   ${formulaChunkRule(cardProfile.code)}
   **厳選する。思いつく組み合わせを並べない。** その語で口を開いたときに最初に出る形だけを、頻度の高い順に。
   ${specificChunkRule(data.headword, levelGoal)}
@@ -450,7 +470,7 @@ ${l1Gram}`
 ${
   want("examples_extra")
     ? `- examples_extra: 追加例文2つ {zh, ja, scene:いつ・どんな気持ちで言うか(短く、${NL}で), chunks:[{text,pos}]}（語彙は ${levelGoal} 以下）
-  ${worldExampleRule(NL)}`
+  ${worldExampleRule(NL, cardProfile.code)}`
     : ""
 }
 - usage_context: ネイティブがこの語をどこで見て・使うか（スーパー/夜市/レストラン/ニュース/SNS/新聞など具体的な場所・メディア）と頻度感を1〜2文(${NL})で
@@ -516,7 +536,7 @@ ${data.hintCategory ? `カテゴリのヒント: ${data.hintCategory}` : ""}`;
       `category_key / new_shelf / example_sentence / example_translation / ` +
       `extras{ ` +
       [
-        want("usage_chunks") && "usage_chunks[{parts:[{text,pos,slot}],ja}]",
+        want("usage_chunks") && "usage_chunks[{parts:[{text,pos,slot,alts?:[{text,ja}]}],ja}]",
         "example_chunks[{text,pos}]",
         want("examples_extra") && "examples_extra[{zh,ja,scene,chunks:[{text,pos}]}]",
         "usage_context, frequency_level, register_tag, register_scale, encounter_labels[{kind,label}]",
@@ -909,6 +929,9 @@ function formulaChunkRule(code: string): string {
     `\n入れ替えて使う所は「人」「事」「someone」のような広い言い方にしない。` +
     `ネイティブがそこにいちばんよく入れる具体語を1つだけ入れて、そのパーツに slot: true を付ける。` +
     `決まった語のパーツは slot を付けない。` +
+    `\nslot: true のパーツには alts も付ける: ネイティブがそこに**実際によく入れるほかの具体語**を` +
+    `頻度の高い順に4〜6個、[{text, ja: その語の意味（解説の言語で、短く）}]。` +
+    `どれを入れても型ぜんぶが自然に言える語だけ（例: 跟＋男朋友＋吵架 → 女朋友・朋友・同事・爸媽・室友）。` +
     `\n型ぜんぶを続けて読んでも、そのまま自然に言える形にする。＋ などの記号はパーツに入れない。`
   );
 }
@@ -923,7 +946,11 @@ function specificChunkRule(headword: string, levelGoal: string): string {
     `基準は「**その語を別の語に入れ替えたら成り立たなくなるか**」。成り立つ形は書かない。\n` +
     `語彙のネットワーク（一緒に立つ語）と構文の型（公式）の2種類を混ぜて返す。\n` +
     `**学習者の目標レベル ${levelGoal} に合わせる** — このレベルで実際に口に出せる` +
-    `語彙・文型に収める。難しい型を並べても言えるようにはならない。`
+    `語彙・文型に収める。難しい型を並べても言えるようにはならない。\n` +
+    // R14「決して該当の単語はスクロールできるようにはしないで。この単語を学習したいから」。
+    `**「${headword}」自身のパーツは必ず slot:false・alts なし**（学ぶ語は入れ替えない）。` +
+    `入れ替えられるのは周りの語だけで、alts にはネイティブが実際によく入れる具体語を` +
+    `頻度の高い順に3〜5個。`
   );
 }
 
@@ -1088,7 +1115,7 @@ async function runSectionRegen(
       }),
     },
     example: {
-      prompt: `${base}\nネイティブが「${head}」を使う**いちばん自然で、いちばんよく出会う場面を1つだけ**選び、その場面でそのまま言う例文を1つ。辞書的な作文・説明文にしない。目標レベルは ${regenLevelGoal} — 語彙・文型はこのレベル以下。\n${exampleSourceRule(material, NL)}\n${chunkRule(word.language as string | null)}\n{"example_sentence":"${targetName}の例文","example_translation":"訳(${NL})","example_chunks":[{"text":"","pos":""}]}`,
+      prompt: `${base}\nネイティブが「${head}」を使う**いちばん自然で、いちばんよく出会う場面を1つだけ**選び、その場面でそのまま言う例文を1つ。辞書的な作文・説明文にしない。目標レベルは ${regenLevelGoal} — 語彙・文型はこのレベル以下。\n${exampleSourceRule(material, NL, regenProfile.code)}\n${chunkRule(word.language as string | null)}\n{"example_sentence":"${targetName}の例文","example_translation":"訳(${NL})","example_chunks":[{"text":"","pos":""}]}`,
       schema: z.object({
         example_sentence: z.string().min(1),
         example_translation: z.string().catch(""),
@@ -1098,7 +1125,7 @@ async function runSectionRegen(
       }),
     },
     examples_extra: {
-      prompt: `${base}\n追加の例文2つ。それぞれ scene(いつ・どんな気持ちで言うか)と chunks を付ける。\n${exampleSourceRule(material, NL)}\n${chunkRule(word.language as string | null)}\n{"examples_extra":[{"zh":"","ja":"","scene":"","chunks":[{"text":"","pos":""}]}]}`,
+      prompt: `${base}\n追加の例文2つ。それぞれ scene(いつ・どんな気持ちで言うか)と chunks を付ける。目標レベルは ${regenLevelGoal} — 語彙・文型はこのレベル以下。1つ目の例文と違う場面・気持ちにする。\n${exampleSourceRule(material, NL, regenProfile.code)}\n${chunkRule(word.language as string | null)}\n{"examples_extra":[{"zh":"","ja":"","scene":"","chunks":[{"text":"","pos":""}]}]}`,
       schema: z.object({
         examples_extra: z
           .array(
@@ -1113,7 +1140,7 @@ async function runSectionRegen(
       }),
     },
     usage_chunks: {
-      prompt: `${base}\nネイティブが「${head}」を**実際にいちばん高い頻度で**組み合わせて使う型を4〜5個。**厳選する。思いつく組み合わせを並べない。**\n${formulaChunkRule(regenProfile.code)}\n${specificChunkRule(head, regenLevelGoal)}\n**短くする**: ${regenProfile.chunkPrompt.lengthRule}\nそのまま声に出せる形にする。${regenProfile.chunkPrompt.styleRule}\n${learnerL1}が崩しやすい型を優先する。\n${l1Gram}\n${chunkRule(word.language as string | null)}\nja はその型の自然な訳だけ（説明・注釈・括弧書きは書かない）。\n{"usage_chunks":[{"parts":[{"text":"","pos":"","slot":false}],"ja":"訳"}]}`,
+      prompt: `${base}\nネイティブが「${head}」を**実際にいちばん高い頻度で**組み合わせて使う型を4〜5個。**厳選する。思いつく組み合わせを並べない。**\n${formulaChunkRule(regenProfile.code)}\n${specificChunkRule(head, regenLevelGoal)}\n**短くする**: ${regenProfile.chunkPrompt.lengthRule}\nそのまま声に出せる形にする。${regenProfile.chunkPrompt.styleRule}\n${learnerL1}が崩しやすい型を優先する。\n${l1Gram}\n${chunkRule(word.language as string | null)}\nja はその型の自然な訳だけ（説明・注釈・括弧書きは書かない）。\n{"usage_chunks":[{"parts":[{"text":"","pos":"","slot":false,"alts":[{"text":"","ja":""}]}],"ja":"訳"}]}`,
       schema: z.object({
         usage_chunks: z
           .array(
@@ -1281,9 +1308,30 @@ async function runSectionRegen(
       },
     };
   }
+  /**
+   * **書く直前に extras を読み直してから重ねる**（2026-09-27）。
+   *
+   * 撮った後の項目は**並べて同時に**作るようにした（オーナー指示
+   * 「6つ全てを一気にパッと表示」）。AI を待つ数秒のあいだに別の項目が
+   * 書き込まれるので、最初に読んだ extras に重ねると**先に書かれた項目を
+   * 消してしまう**。読み直せば、ぶつかる幅は AI の数秒から読み書きの
+   * 一瞬に縮む。万一消えた項目は「まだ無い」に戻るだけで、次に開いたとき
+   * 裏でもう一度作られる（壊れた中身は残らない）。
+   */
+  const { data: fresh } = await supabaseAdmin
+    .from("words")
+    .select("extras")
+    .eq("id", data.word_id)
+    .maybeSingle();
+  const latest = fresh
+    ? mergeExtras(
+        ((fresh as { extras?: unknown }).extras ?? null) as Parameters<typeof mergeExtras>[0],
+        extrasPatch as Parameters<typeof mergeExtras>[1],
+      )
+    : merged;
   const { error: upErr } = await supabaseAdmin
     .from("words")
-    .update({ ...baseUpdate, extras: merged as never } as never)
+    .update({ ...baseUpdate, extras: latest as never } as never)
     .eq("id", data.word_id);
   if (upErr) throw new Error(upErr.message);
 
@@ -1306,6 +1354,8 @@ export const regenerateCardSection = createServerFn({ method: "POST" })
   .inputValidator((input: unknown) => RegenInput.parse(input))
   .handler(async ({ context, data }) => {
     const r = await runSectionRegen(context, data, "write");
+    // 作り直しの回数（開発者の利用者ごとの画面。新しく作った解説と分けて数える）。
+    if (!data.only_if_empty) await logUsage(context.supabase, context.userId, "card_regen");
     return { ok: r.ok, section: r.section, filled: r.filled };
   });
 
@@ -1329,15 +1379,29 @@ export const regenerateCardSection = createServerFn({ method: "POST" })
  * **全員**。直すのはその項目1つだけで、全部の作り直しは Pro のまま
  * （`regenerateCardSection`）。1日の上限は作り直しと同じ枠を使う。
  */
+const ReportItemSchema = z.union([
+  z.enum(REGEN_SECTIONS),
+  z.literal("pronunciation"),
+  z.literal("pos"),
+]);
+type ReportItemId = z.infer<typeof ReportItemSchema>;
 const ReportFixInput = z.object({
   word_id: z.string().uuid(),
-  item: z.union([z.enum(REGEN_SECTIONS), z.literal("pronunciation"), z.literal("pos")]),
+  /**
+   * `auto` … 利用者は項目を選ばない。AI が語の中身と一言から間違っている
+   * 項目を1つ見つける（オーナー指示 2026-09-27、`lib/report-locate.ts`）。
+   */
+  item: z.union([ReportItemSchema, z.literal("auto")]),
+  /** `auto` のとき、見つける範囲（画面に出ている項目）。 */
+  candidates: z.array(ReportItemSchema).max(24).optional(),
   note: z.string().max(500).optional().default(""),
 });
 
 export type ReportFixResult = {
   /** 直して語に書いたか。 */
   fixed: boolean;
+  /** 直した（または見つけた）項目。`auto` で見つからなければ null。 */
+  item?: ReportItemId | null;
   /** 誰が確かめたか（`dictionary` は辞書と照らした）。 */
   by: "dictionary" | "jev" | "llm" | "none";
 };
@@ -1373,20 +1437,82 @@ export const reportAndFixSection = createServerFn({ method: "POST" })
       part_of_speech: string | null;
     };
 
+    await logUsage(supabase, userId, "report_fix");
+    /**
+     * **無料の人の報告は記録するだけ**（オーナー決定 2026-09-28「解説の作り直しは
+     * プロユーザーのみで、無料ユーザーはエラーの報告だけ。無料ユーザーがエラーの報告として
+     * 解答を再生成する裏技を避けたい」、`plan-limits.ts` の `reportMayRegenerate`）。
+     * AI に作らせる直しは Pro だけ。確かな辞書と照らすだけの直し（読み・品詞）は全員。
+     * 記録した報告は開発者の確認待ちに残る。
+     */
+    const pro = await isProUser(userId);
+    const recordOnly = async (it: ReportItemId | "auto") => {
+      const kind = it === "pronunciation" || it === "pos" || it === "meaning" ? it : "other";
+      await supabase
+        .from("entry_reports")
+        .insert({
+          user_id: userId,
+          headword: w.headword,
+          kind,
+          note: `[item:${it}] ${data.note}`.trim(),
+        })
+        .then(
+          () => undefined,
+          () => undefined,
+        );
+      return { fixed: false, by: "none" as const, item: it === "auto" ? null : it };
+    };
+    if (data.item === "auto" && !pro) return recordOnly("auto");
+    if (
+      data.item !== "auto" &&
+      reportMayRegenerate({ isPro: pro, item: data.item }) === "record_only"
+    )
+      return recordOnly(data.item);
+    // 0. 項目を選ばずに報告された（`auto`）なら、AI に間違っている項目を1つ探させる。
+    let item: ReportItemId;
+    if (data.item === "auto") {
+      const candidates = (
+        data.candidates?.length ? data.candidates : ["meaning"]
+      ) as ReportItemId[];
+      const found = await locateReportedItem(
+        data.word_id,
+        w.headword,
+        w.language,
+        data.note,
+        candidates,
+      );
+      if (!found) {
+        // 見つからなかった。報告だけ残し、人が後で確かめる。
+        await supabase
+          .from("entry_reports")
+          .insert({
+            user_id: userId,
+            headword: w.headword,
+            kind: "other",
+            note: `[item:auto] ${data.note}`.trim(),
+          })
+          .then(
+            () => undefined,
+            () => undefined,
+          );
+        return { fixed: false, by: "none", item: null };
+      }
+      item = found;
+    } else {
+      item = data.item;
+    }
+
     // 1. 報告を残す。**直せても直せなくても残す** — 人が後で確かめられる。
     //    種類の列は4つしか取れない（`entry_reports` の制約）ので、
     //    どの項目かは本文の頭に書く。
-    const kind =
-      data.item === "pronunciation" || data.item === "pos" || data.item === "meaning"
-        ? data.item
-        : "other";
+    const kind = item === "pronunciation" || item === "pos" || item === "meaning" ? item : "other";
     const { data: reportRow } = await supabase
       .from("entry_reports")
       .insert({
         user_id: userId,
         headword: w.headword,
         kind,
-        note: `[item:${data.item}] ${data.note}`.trim(),
+        note: `[item:${item}] ${data.note}`.trim(),
       })
       .select("id")
       .maybeSingle()
@@ -1409,7 +1535,7 @@ export const reportAndFixSection = createServerFn({ method: "POST" })
     };
 
     // 2a. 発音・品詞 … 辞書と照らす。
-    if (data.item === "pronunciation" || data.item === "pos") {
+    if (item === "pronunciation" || item === "pos") {
       const { data: rows } = await supabaseAdmin
         .from("dictionary_entries")
         .select(DICTIONARY_SELECT)
@@ -1420,7 +1546,7 @@ export const reportAndFixSection = createServerFn({ method: "POST" })
       const row = rows?.[0] ?? null;
       const f = row ? resolveDictionaryFields(row, "ja") : null;
       const patch = dictionaryFixPatch(
-        data.item,
+        item,
         w,
         row && f
           ? { source: row.source, reading: f.reading, readingAlt: f.readingAlt, pos: row.pos }
@@ -1433,60 +1559,62 @@ export const reportAndFixSection = createServerFn({ method: "POST" })
           .eq("id", data.word_id);
         if (error) throw new Error(error.message);
         await markResolved();
-        return { fixed: true, by: "dictionary" };
+        return { fixed: true, by: "dictionary", item };
       }
       // 確かな辞書の行があって今の値と同じなら、今の値が正しい（直さない）。
       const licensed = row && row.source && row.source !== "ai";
-      if (licensed) return { fixed: false, by: "dictionary" };
+      if (licensed) return { fixed: false, by: "dictionary", item };
+      // ここから先は AI に答えさせる直し — Pro だけ（無料の人の報告は確認待ちに残る）。
+      if (!pro) return { fixed: false, by: "none", item };
 
       // **確かな辞書に無い語**: 2つの別の AI の答えが一致し、さらに Jev が
       // 「直した方が正しい」と言えたときだけ直す（`consensusFixPatch` の注）。
       const answers = await askReadingTwice(w.headword, w.language);
       const cPatch = consensusFixPatch(
-        data.item,
+        item,
         { ...w, source: (word as { source: string | null }).source },
         answers,
       );
-      if (!cPatch) return { fixed: false, by: "none" };
+      if (!cPatch) return { fixed: false, by: "none", item };
       const cVerdict = await judgeCorrection({
         headword: w.headword,
         language: w.language,
-        item: data.item,
+        item: item,
         before: Object.fromEntries(
           Object.keys(cPatch).map((k) => [k, (w as Record<string, unknown>)[k] ?? ""]),
         ),
         after: cPatch,
         note: data.note,
       });
-      if (!shouldApplyCorrection(cVerdict)) return { fixed: false, by: cVerdict.by };
+      if (!shouldApplyCorrection(cVerdict)) return { fixed: false, by: cVerdict.by, item };
       const { error: cErr } = await supabaseAdmin
         .from("words")
         .update(cPatch as never)
         .eq("id", data.word_id);
       if (cErr) throw new Error(cErr.message);
       await markResolved();
-      return { fixed: true, by: cVerdict.by };
+      return { fixed: true, by: cVerdict.by, item };
     }
 
     // 2b. それ以外 … その項目だけの案を作る（まだ書かない）。
     const r = await runSectionRegen(
       context,
-      { word_id: data.word_id, section: data.item, only_if_empty: false },
+      { word_id: data.word_id, section: item, only_if_empty: false },
       "propose",
     );
     const proposal = r.proposal;
-    if (!proposal) return { fixed: false, by: "none" };
+    if (!proposal) return { fixed: false, by: "none", item };
 
     // 3. 別の目で確かめる。
     const verdict = await judgeCorrection({
       headword: proposal.headword,
       language: proposal.language,
-      item: data.item,
+      item: item,
       before: proposal.before,
       after: proposal.after,
       note: data.note,
     });
-    if (!shouldApplyCorrection(verdict)) return { fixed: false, by: verdict.by };
+    if (!shouldApplyCorrection(verdict)) return { fixed: false, by: verdict.by, item };
 
     const { error: upErr } = await supabaseAdmin
       .from("words")
@@ -1494,8 +1622,45 @@ export const reportAndFixSection = createServerFn({ method: "POST" })
       .eq("id", data.word_id);
     if (upErr) throw new Error(upErr.message);
     await markResolved();
-    return { fixed: true, by: verdict.by };
+    return { fixed: true, by: verdict.by, item };
   });
+
+/**
+ * **報告された語で、間違っている項目を1つ探す**（`auto`）。
+ * 見せる範囲は画面に出ている項目だけ。答えは `pickReportedItem` を通し、
+ * 範囲の外の名前や「なし」は null（直さない側）。
+ */
+async function locateReportedItem(
+  wordId: string,
+  headword: string,
+  language: string | null,
+  note: string,
+  candidates: ReportItemId[],
+): Promise<ReportItemId | null> {
+  try {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: full } = await supabaseAdmin
+      .from("words")
+      .select("*")
+      .eq("id", wordId)
+      .maybeSingle();
+    if (!full) return null;
+    const ai = await getAiFor("audit");
+    const prompt =
+      `語学カードについて、学習者から「どこかが間違っている」と報告がありました。\n` +
+      `語: ${headword}（${language ?? ""}）\n報告の一言: ${note || "(なし)"}\n` +
+      `カードの項目（[項目名] 内容）:\n${reportContext(candidates, full as Record<string, unknown>)}\n\n` +
+      `報告の一言とカードの内容から、**間違っている可能性がいちばん高い項目を1つ**選んでください。` +
+      `一言が無ければ、事実として誤っている・不自然な項目を探してください。どれも正しければ none。\n` +
+      `出力はJSONだけ: {"item":"${candidates.join('"|"')}"|"none","reason":"短く"}`;
+    const res = await withModelFallback(ai, ai.modelRich, (m) =>
+      generateText({ model: ai.gateway(m), prompt }),
+    );
+    return pickReportedItem(parseJsonFromAiText(res.text), candidates);
+  } catch {
+    return null;
+  }
+}
 
 /**
  * 読み・品詞を**2つの別の AI に独立に**聞く（`consensusFixPatch` が突き合わせる）。

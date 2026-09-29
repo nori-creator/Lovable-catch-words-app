@@ -272,3 +272,39 @@ describe("保存された値の読み方", () => {
     expect(Number.isFinite(n.x) && Number.isFinite(n.scale)).toBe(true);
   });
 });
+
+describe("自分で置いた写真を避けて、自動の写真を置き直す（2026-09-28）", () => {
+  it("保存した写真と重なる自動の写真は、その下まで下がる。重ならない物は動かない", async () => {
+    const { avoidFixed, boxOf, boxesOverlap, BASE_WIDTH } = await import("./album-place");
+    const fixedPlace = { x: 0.3, y: 0.3, scale: 0.5 / BASE_WIDTH, rot: 0 };
+    const fixed = [boxOf(fixedPlace, 1)];
+    const autoA = { x: 0.3, y: 0.3, scale: 0.4 / BASE_WIDTH, rot: 2 }; // 真上に重なる
+    const autoB = { x: 0.8, y: 0.2, scale: 0.3 / BASE_WIDTH, rot: -1 }; // 右の空き
+    const out = avoidFixed(
+      [
+        { place: autoA, ratio: 1 },
+        { place: autoB, ratio: 1 },
+      ],
+      fixed,
+    );
+    expect(boxesOverlap(boxOf(out[0], 1), fixed[0])).toBe(false);
+    expect(out[0].y).toBeGreaterThan(0.55);
+    expect(out[0].x).toBe(0.3);
+    expect(out[1]).toEqual(autoB);
+  });
+
+  it("下げた写真の下に居た自動の写真も、続けて下がる（自動どうしも重ならない）", async () => {
+    const { avoidFixed, boxOf, boxesOverlap, BASE_WIDTH } = await import("./album-place");
+    const fixed = [boxOf({ x: 0.25, y: 0.25, scale: 0.45 / BASE_WIDTH, rot: 0 }, 1)];
+    const a = { x: 0.25, y: 0.25, scale: 0.45 / BASE_WIDTH, rot: 0 };
+    const b = { x: 0.25, y: 0.8, scale: 0.45 / BASE_WIDTH, rot: 0 };
+    const out = avoidFixed(
+      [
+        { place: a, ratio: 1 },
+        { place: b, ratio: 1 },
+      ],
+      fixed,
+    );
+    expect(boxesOverlap(boxOf(out[0], 1), boxOf(out[1], 1))).toBe(false);
+  });
+});

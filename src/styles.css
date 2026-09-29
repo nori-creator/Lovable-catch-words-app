@@ -2588,15 +2588,23 @@
    このアプリで何度もやっている「同じ所を2箇所に書いて片方だけ直す」形。
    粒はこちらに畳み込み、あちらは消した。 */
 .album-bg-paper {
+  /* **本物のノートの紙**（オーナー指示 2026-09-27「この紙ダサいからやっぱり
+     やめて。本物のノートブックのような紙の質にして」）。
+     水彩紙の凹凸（光を当てた起伏）はやめた。手帳の紙（ほぼ日・モレスキン）は
+     **滑らかで、わずかに温かい生成り色**、近くで見ると細かい粒と、漉いた方向に
+     流れる薄い繊維が見えるだけ。凹凸は付けない。 */
+  --paper-texture: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='220'%3E%3Cfilter id='g' x='0' y='0' width='1' height='1'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' seed='4' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.42 0 0 0 0 0.36 0 0 0 0 0.26 0 0 0 0.05 0'/%3E%3C/filter%3E%3Crect width='220' height='220' filter='url(%23g)'/%3E%3C/svg%3E");
+  --paper-fiber: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='360' height='360'%3E%3Cfilter id='f' x='0' y='0' width='1' height='1'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.012 0.18' numOctaves='2' seed='9' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.45 0 0 0 0 0.39 0 0 0 0 0.29 0 0 0 0.035 0'/%3E%3C/filter%3E%3Crect width='360' height='360' filter='url(%23f)'/%3E%3C/svg%3E");
   background:
-    /* 紙の粒（近く）。 */
-    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='f'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2'/%3E%3CfeColorMatrix values='0 0 0 0 0.4 0 0 0 0 0.33 0 0 0 0 0.22 0 0 0 0.055 0'/%3E%3C/filter%3E%3Crect width='200' height='200' filter='url(%23f)'/%3E%3C/svg%3E"),
-    /* 漉きムラ（離れて見たときの斑）。 */
-    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='380' height='380'%3E%3Cfilter id='m'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.03' numOctaves='3'/%3E%3CfeColorMatrix values='0 0 0 0 0.45 0 0 0 0 0.37 0 0 0 0 0.25 0 0 0 0.055 0'/%3E%3C/filter%3E%3Crect width='380' height='380' filter='url(%23m)'/%3E%3C/svg%3E"),
-    /* **筋は入れない。** 規則正しい周期の筋は、紙ではなく縞模様の壁紙に
-       見える（実測の絵で確認）。不規則なノイズ2枚だけで作る。 */
-    /* 端がわずかに焼けた地。 */
-    radial-gradient(circle at 22% 12%, #fffefb 0%, #fbf8f1 58%, #f3eee2 100%);
+    var(--paper-texture),
+    var(--paper-fiber),
+    /* 光の当たり方のごく薄いムラ（左上がわずかに明るい）。 */
+    radial-gradient(130% 90% at 18% 8%, #fffdf8 0%, #fbf8f1 55%, #f5f1e7 100%);
+  background-color: #faf7f0;
+  background-size:
+    220px 220px,
+    360px 360px,
+    auto;
 }
 /* 額縁。**絵画の額**（オーナー指示 2026-09-23）: 木の縁（外側が濃く、
    内側に金の細い線）＋白いマット。角は丸めない — 額は四角い。 */
@@ -3146,6 +3154,25 @@ html[data-motion="reduce"] .camera-launch__morph {
   top: calc(env(safe-area-inset-top, 0px) + 2.75rem);
   border-radius: 1.25rem;
   background: #000;
+}
+/*
+ * 撮った写真の縦横比が箱と違うときの余り。黒い地を見せず、同じ写真を
+ * ぼかして敷く（`ScanSnapshotPhoto`）。少し拡大してぼかしの縁の透けを隠す。
+ */
+.scan-frame__fill {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transform: scale(1.4);
+  filter: blur(22px) saturate(1.25) brightness(0.82);
+  pointer-events: none;
+}
+@media (prefers-reduced-transparency: reduce) {
+  .scan-frame__fill {
+    filter: blur(22px) brightness(0.6);
+  }
 }
 .capture-focus {
   position: absolute;
@@ -4026,6 +4053,30 @@ html[data-motion="reduce"] {
   );
 }
 
+/*
+ * **指の端末ではページ全体を巻き取らない。殻だけを巻き取る**（オーナー報告
+ * 2026-09-28「アプリをしたにスクロールすると下のバーが隠れる」）。
+ *
+ * iOS 26 の Safari は、ページ全体の巻き取りで道具バーが縮む間、下端に固定した物を
+ * 正しい位置に描かない（Apple Developer Forums 801028 / mastodon#36144。上の
+ * `safe-area-max-inset-bottom` の手当ては Android 向けで、これには効かない）。
+ * 殻（`[data-app-shell]`）を画面の高さに固定して中だけを巻き取らせれば、道具バーは
+ * 縮まず、下のバーもずれない。殻の無い画面（ログイン等）と机の上のブラウザは今まで通り。
+ * 印は `__root.tsx` の頭の script（`pointer: coarse`）。`lib/scroll-root.ts` も参照。
+ */
+html[data-scroll-root="shell"]:has([data-app-shell]),
+html[data-scroll-root="shell"]:has([data-app-shell]) body {
+  height: 100%;
+  overflow: hidden;
+}
+/* 画面の高さに収める作りの殻（`fixedViewport` の `overflow-hidden`）はそのまま。 */
+html[data-scroll-root="shell"] [data-app-shell]:not(.overflow-hidden) {
+  height: 100dvh;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+  -webkit-overflow-scrolling: touch;
+}
 .tabbar-dock {
   position: fixed;
   inset-inline: 0;
@@ -4696,24 +4747,17 @@ html[data-motion="reduce"] {
   transform: translateY(2px) scale(0.9);
   transition-duration: 0.08s;
 }
-/* 公式の形（オーナー決定 2026-09-27）: 決まった語はガラスの丸、入れ替える所は
-   点線の枠（中はいちばんよく入る具体語）、間に「＋」。 */
-.chunk-set--formula {
-  gap: 0.3rem;
-}
-.chunk-plus {
-  font-weight: 700;
-  color: var(--muted-foreground);
-}
+/* 入れ替える所の地の形（点線の下線と ▾）。札の型の中では点線の四角
+   （`.chunk-set--boxes > .chunk-slot`）で上書きする。 */
 .chunk-slot {
   display: inline-flex;
   align-items: center;
-  border-radius: 0.6rem;
-  padding-inline: 0.7rem;
-  border: 1.5px dashed color-mix(in oklab, var(--pos, var(--foreground)) 55%, transparent);
-  background: color-mix(in oklab, var(--pos, var(--foreground)) 6%, var(--card));
+  padding-inline: 0.65rem;
+  background: transparent;
   color: color-mix(in oklab, var(--pos, var(--foreground)) 68%, var(--foreground));
-  box-shadow: none;
+  text-decoration: underline dashed 1.5px;
+  text-decoration-color: color-mix(in oklab, var(--pos, var(--foreground)) 60%, transparent);
+  text-underline-offset: 0.3em;
   transition: transform 0.35s var(--spring-bounce);
 }
 html[data-motion="reduce"] .chunk-set .chunk-pill:active {
@@ -6799,19 +6843,60 @@ html[data-motion="reduce"] .tabbar__lens--gone {
    紙の縁は 6px、中の絵は 3px。 */
 .collage__photo {
   position: relative;
-  display: block;
-  height: 100%;
+  display: flex;
+  flex-direction: column;
+  /* **写真と語を1枚の印画紙に。**（オーナー指示 2026-09-27「画像と単語を一枚の
+     写真として統合して。写真の下の余白に単語の文字を表示する」）
+     札の箱は写真の比のままにして（切れない）、紙だけを下へ `--pol-strip`
+     ぶん伸ばす。伸びたぶんは置き方の計算で `extra`（`CAP_ROW_PX`）として
+     場所を取ってある。 */
+  height: calc(100% + var(--pol-strip));
   width: 100%;
   overflow: hidden;
   border-radius: 6px;
-  padding: 5px;
+  padding: 5px 5px 0;
   background: oklch(0.995 0.004 85);
+  container-type: inline-size;
   box-shadow:
     0 1px 2px rgba(60, 42, 18, 0.14),
     0 12px 22px -12px rgba(60, 42, 18, 0.38);
 }
-.collage__photo img {
+[data-album-sticker] {
+  --pol-strip: 34px;
+}
+.collage__print {
+  display: block;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
   border-radius: 3px;
+}
+/* 下の白い余白。語を真ん中に、時刻を小さく添える。 */
+.collage__margin {
+  flex: none;
+  display: flex;
+  height: var(--pol-strip);
+  align-items: center;
+  justify-content: center;
+  gap: 0.3rem;
+  min-width: 0;
+  padding: 0 0.25rem;
+}
+.collage__margin-word {
+  min-width: 0;
+  /* 写真を小さくしても語が「…」で切れにくいよう、紙の幅に合わせて縮める
+     （上限は前の白い札と同じ 19px）。 */
+  font-size: clamp(0.8125rem, 13cqi, 1.1875rem);
+  font-weight: 700;
+  line-height: 1.2;
+  letter-spacing: 0.01em;
+  color: oklch(0.28 0.02 60);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.collage__margin > .collage__margin-time {
+  color: oklch(0.55 0.02 60);
 }
 
 /* ── 留め具 ───────────────────────────────────────────────────────
@@ -6903,12 +6988,12 @@ html[data-motion="reduce"] .tabbar__lens--gone {
   clip-path: polygon(0 0, 100% 0, 100% 100%);
 }
 .collage-corner--bl {
-  bottom: -2px;
+  bottom: calc(-2px - var(--pol-strip, 0px));
   left: -2px;
   clip-path: polygon(0 0, 100% 100%, 0 100%);
 }
 .collage-corner--br {
-  bottom: -2px;
+  bottom: calc(-2px - var(--pol-strip, 0px));
   right: -2px;
   clip-path: polygon(100% 0, 100% 100%, 0 100%);
 }
@@ -6973,7 +7058,7 @@ html[data-motion="reduce"] .tabbar__lens--gone {
   position: absolute;
   left: 0;
   right: 0;
-  top: calc(100% + 0.22rem);
+  top: calc(100% + var(--pol-strip, 0px) + 0.22rem);
   display: block;
   /* **字は自分の側の外半分から出さない。**（`COLLAGE_CAP_W`）
      写真は真ん中を越えて重なるので、字まで一緒に広げると隣の列の写真に
@@ -7599,18 +7684,84 @@ html[data-motion="reduce"] .reward-catch__field::after {
   box-shadow: 0 1px 3px #00000059;
 }
 
-/* スキャン後の候補の箱（`ScanCandidateStrip`）。**高さは決めて、中だけが
-   縦に動く**（オーナー指示 2026-09-23「画面は固定し、スクロールすると
-   ボックスのなかの単語の候補が見える」「1番下の1行で縦にスクロール」）。
-   1行ずつ止まる。スクロールバーは出さない。 */
-.scan-box {
-  /* 一番下の1行ぶん（オーナー指示 2026-09-23）。行は 3rem、上下の余白 0.25rem ずつ。 */
-  max-height: calc(3rem + 0.5rem);
+/* スキャン後の候補の面（`ScanCandidateStrip`、オーナー指示 2026-09-28 R13「黒い隙間が
+   あって汚い…上のスキャンの画面と下の単語の候補をきれいにつなげて」）。
+   画面の下端まで届く1枚の面。上の角だけ丸く、写真の上に少し重なって始まる。 */
+.scan-sheet {
+  background: var(--background);
+  border-radius: 1.5rem 1.5rem 0 0;
+  box-shadow: 0 -8px 24px -12px rgb(0 0 0 / 0.35);
+}
+.scan-sheet::before {
+  /* 掴み手の印（面が写真の上に乗っている、と読める小さな手がかり）。 */
+  content: "";
+  display: block;
+  width: 2.25rem;
+  height: 0.3125rem;
+  margin: -0.25rem auto 0.375rem;
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--foreground) 18%, transparent);
+}
+.scan-list__scroll {
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
   scrollbar-width: none;
   touch-action: pan-y;
 }
-.scan-box::-webkit-scrollbar {
+.scan-list__scroll::-webkit-scrollbar {
   display: none;
+}
+.scan-list__row {
+  display: flex;
+  align-items: center;
+  transition: background-color 180ms ease;
+}
+.scan-list__row + .scan-list__row {
+  box-shadow: inset 0 1px 0 color-mix(in oklab, var(--foreground) 7%, transparent);
+}
+.scan-list__row[data-on] {
+  background: color-mix(in oklab, var(--primary) 9%, transparent);
+}
+/* 3つ目から先は箱の中で送る。下端を薄く消して「まだある」と見せる。 */
+.scan-list__scroll[data-more] {
+  mask-image: linear-gradient(to bottom, #000 calc(100% - 14px), transparent);
+}
+/* 候補ごとの「＋ 追加」の札（R14）。押せる範囲は 44px、見た目は 34px。 */
+.scan-add {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  height: 2.125rem;
+  padding: 0 0.875rem 0 0.625rem;
+  border-radius: 999px;
+  font-size: 0.875rem;
+  font-weight: 700;
+  color: var(--primary-foreground);
+  background: linear-gradient(
+    180deg,
+    color-mix(in oklab, var(--primary) 88%, white),
+    var(--primary)
+  );
+  box-shadow:
+    0 6px 14px -6px color-mix(in oklab, var(--primary) 70%, transparent),
+    inset 0 1px 0 rgb(255 255 255 / 0.35);
+  transition: transform 160ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.scan-add::before {
+  content: "";
+  position: absolute;
+  inset: -0.375rem -0.25rem;
+}
+.scan-add:active {
+  transform: scale(0.94);
+}
+.scan-add[data-owned] {
+  color: var(--muted-foreground);
+  background: var(--muted);
+  box-shadow: none;
+  font-weight: 600;
 }
 
 /* 下の列で注目している候補の光。**大きくなって、揺れる**
@@ -7651,9 +7802,65 @@ html[data-motion="reduce"] .scan-dot[data-active] .scan-dot__core {
   aspect-ratio: 4 / 5;
 }
 .dex-cal__cell--photo {
+  /* 写真の日は、その日の1枚目の**分類の色**の縁（食べ物は橙、町は青…）。 */
   box-shadow:
-    0 1px 2px rgb(0 0 0 / 0.12),
-    0 4px 10px -4px rgb(0 0 0 / 0.25);
+    0 0 0 2.5px var(--day-accent, var(--primary)),
+    0 4px 12px -4px color-mix(in oklab, var(--day-accent, #000) 55%, transparent);
+}
+/* 月の色（その月にいちばん多く撮った**分類の色**。`monthAccent`）: 見出しの字、枚数の札、空の升の地。 */
+.dex-cal__month {
+  color: var(--month-hue);
+}
+.dex-cal__summary {
+  display: inline-block;
+  padding: 2px 10px;
+  border-radius: 999px;
+  color: color-mix(in oklab, var(--month-hue) 70%, #000);
+  background: color-mix(in oklab, var(--month-hue) 14%, transparent);
+}
+.dex-cal__cell--empty {
+  background: color-mix(in oklab, var(--month-hue) 6%, transparent);
+}
+.dex-cal__num {
+  color: color-mix(in oklab, var(--month-hue) 45%, var(--muted-foreground));
+}
+.dex-cal [data-wd="sun"],
+.dex-cal [data-wd="sun"] .dex-cal__num {
+  color: #e5484d;
+}
+.dex-cal [data-wd="sat"],
+.dex-cal [data-wd="sat"] .dex-cal__num {
+  color: #2f7ff5;
+}
+/* 今日: アプリの青（虹色は意味を持たないのでやめた。R11「色の哲学に沿って」）。 */
+.dex-cal__today {
+  background: var(--primary);
+  box-shadow: 0 3px 8px -3px color-mix(in oklab, var(--primary) 60%, transparent);
+}
+.dex-cal__cell--photo.is-today {
+  outline: 3px solid transparent;
+  box-shadow:
+    0 0 0 2.5px #fff,
+    0 0 0 5px var(--primary),
+    0 6px 14px -4px rgb(0 0 0 / 0.35);
+}
+/* その日に撮った分類の色の粒（2つ以上の分類がある日だけ）。 */
+.dex-cal__cats {
+  position: absolute;
+  left: 5px;
+  top: 5px;
+  display: flex;
+  gap: 2px;
+}
+.dex-cal__cats i {
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  box-shadow: 0 0 0 1.5px #fff;
+}
+.dex-cal__count {
+  background: var(--day-accent, rgb(0 0 0 / 0.55));
+  box-shadow: 0 1px 3px rgb(0 0 0 / 0.3);
 }
 .dex-cal__shade {
   position: absolute;
@@ -7728,7 +7935,14 @@ html[data-motion="reduce"] .dex-day__card {
 .dex-cf__stage {
   /* 図鑑を全画面にした分、カードも大きく（オーナー指示 2026-09-23）。
      高さは画面に収まるよう、縦の余白からも上限を取る。 */
-  --cf-w: min(78vw, 340px, calc((100dvh - 15rem) / 1.48));
+  /* 下のアイコンのバーに被らない高さに収める（R14「図鑑のスライドは下のアイコンの
+     バーに被らせないで」）: 上の操作 9rem＋札の下の舞台 4.25rem＋題と点と写真の列
+     約 10rem＋下のバー 5.75rem＋端末の下の余白 を引いた残りに札を収める。 */
+  --cf-w: min(
+    78vw,
+    340px,
+    max(8rem, calc((100dvh - 29rem - env(safe-area-inset-bottom, 0px)) / 1.48))
+  );
   position: relative;
   /* 下に円の舞台（`.dex-cf__floor`）が覗くぶん、少し高く取る。 */
   height: calc(var(--cf-w) * 1.48 + 4.25rem);
@@ -7801,6 +8015,9 @@ html[data-motion="reduce"] .dex-day__card {
    ステージや円」）。部屋は画面いっぱいに敷き、カードの列だけが光る。 ── */
 .dex-cf {
   --cf-accent: #4ea8ff;
+  /* 一番下（写真の列）が下のアイコンのバーの上で終わるように、バーの高さぶん空ける。
+     小さい画面で縦に送った時も、列がバーの裏に潜らない。 */
+  padding-bottom: calc(5.75rem + env(safe-area-inset-bottom, 0px));
   /* **積み重ねの文脈を作らない。** 作ると、画面いっぱいの部屋（`z-index: -1`）が
      この中で一番下になり、**前に描かれた物（上の操作の板）を覆う**。
      文脈の外に出せば、部屋は画面の一番奥に沈む。 */
@@ -8418,99 +8635,6 @@ html[data-motion="reduce"]
   transform: none;
 }
 
-/* ── 試作: 本文・写真・カードの地にもガラス（確認用ページだけ）──
-   オーナー指示 2026-09-27「本文や写真、カードの背景にも適用するを見てみたい」。
-   `.glass-trial` は確認用ページの場面（`glass-surfaces`）にしか無いので、
-   本番の画面には何も起きない。
-
-   ガラスは**後ろに何かがある時だけ**ガラスに見える。白い地の上では「薄い白」
-   にしかならないので、B 以降は写真をぼかして画面の後ろに敷く。 */
-.glass-trial {
-  position: relative;
-  isolation: isolate;
-  min-height: 100vh;
-}
-.glass-trial:not([data-v="a"])::before {
-  content: "";
-  position: fixed;
-  inset: -40px;
-  z-index: -1;
-  background:
-    linear-gradient(
-      180deg,
-      color-mix(in oklab, var(--background) 30%, transparent),
-      color-mix(in oklab, var(--background) 55%, transparent)
-    ),
-    var(--glass-photo) center / cover;
-  filter: blur(28px) saturate(150%);
-}
-.glass-trial:not([data-v="a"]) :is(div, section, details).border.bg-card {
-  background: color-mix(in oklab, var(--card) 52%, transparent);
-  border-color: rgb(255 255 255 / 0.55);
-  -webkit-backdrop-filter: blur(22px) saturate(170%);
-  backdrop-filter: blur(22px) saturate(170%);
-  box-shadow:
-    inset 0 1px 0 rgb(255 255 255 / 0.8),
-    0 14px 30px -18px rgb(0 0 0 / 0.35);
-}
-.dark .glass-trial:not([data-v="a"]) :is(div, section, details).border.bg-card {
-  border-color: rgb(255 255 255 / 0.14);
-  box-shadow:
-    inset 0 1px 0 rgb(255 255 255 / 0.14),
-    0 14px 30px -18px rgb(0 0 0 / 0.7);
-}
-/* C: 写真の縁。縁の光（内側の白い線）と、左上から右下へ走る反射の筋。 */
-.glass-trial:is([data-v="c"], [data-v="d"]) .card-flip {
-  box-shadow:
-    inset 0 0 0 1.5px rgb(255 255 255 / 0.55),
-    0 24px 40px -22px rgb(0 0 0 / 0.55);
-}
-.glass-trial:is([data-v="c"], [data-v="d"]) .card-flip::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  z-index: 3;
-  pointer-events: none;
-  border-radius: inherit;
-  border: 6px solid rgb(255 255 255 / 0.22);
-  background: linear-gradient(
-    125deg,
-    rgb(255 255 255 / 0.38) 0%,
-    rgb(255 255 255 / 0.08) 28%,
-    transparent 42%,
-    transparent 70%,
-    rgb(255 255 255 / 0.12) 100%
-  );
-  -webkit-backdrop-filter: saturate(115%);
-  backdrop-filter: saturate(115%);
-}
-/* D: カードの地は消して（縁だけ残す）、**字の1行ずつ**が曇りガラスの帯に
-   乗る。字は濃く、少し太く（ガラスの上の字の決まり）。 */
-.glass-trial[data-v="d"] :is(div, section, details).border.bg-card {
-  background: transparent;
-  -webkit-backdrop-filter: none;
-  backdrop-filter: none;
-  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.5);
-}
-.glass-trial[data-v="d"] :is(div, section, details).border.bg-card :is(p, h1, h2, h3, li) {
-  width: fit-content;
-  max-width: 100%;
-  margin-inline: auto;
-  padding: 0.12em 0.5em;
-  border-radius: 0.6em;
-  background: rgb(255 255 255 / 0.55);
-  -webkit-backdrop-filter: blur(14px) saturate(160%);
-  backdrop-filter: blur(14px) saturate(160%);
-  box-shadow:
-    inset 0 1px 0 rgb(255 255 255 / 0.85),
-    0 4px 10px -6px rgb(0 0 0 / 0.3);
-  font-weight: 600;
-}
-.dark .glass-trial[data-v="d"] :is(div, section, details).border.bg-card :is(p, h1, h2, h3, li) {
-  background: rgb(0 0 0 / 0.35);
-  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.12);
-}
-
 /* 写真のカテゴリーの札（詳細）と、カテゴリーの一覧の行（2026-09-27）。
    押せる物なので、押す物のガラスと同じ作り。 */
 .category-chip {
@@ -8554,29 +8678,36 @@ html[data-motion="reduce"]
   line-height: 1.15;
 }
 .zy-col {
-  position: relative;
-  display: inline-flex;
-  flex-direction: column;
+  /* 左の列 = 記号を縦に、右の列 = 声調。声調も幅に数える（重ならない）。 */
+  display: inline-grid;
+  grid-template-columns: auto auto;
+  align-content: center;
   align-items: center;
-  justify-content: center;
-  margin-left: 0.06em;
-  /* 右に声調の印が入る分をあけておく */
-  margin-right: 0.26em;
+  justify-items: center;
+  column-gap: 0.1em;
+  margin-left: 0.1em;
+  /* 次の字との間。声調が列に入ったので、ここは純粋な字間。 */
+  margin-right: 0.3em;
   font-size: max(0.36em, 11px);
   font-weight: 400;
   letter-spacing: 0;
   line-height: 1.02;
-  color: color-mix(in oklab, currentColor 78%, transparent);
+  /* 漢字より薄く（オーナー指示「注音は漢字より薄い色に」）。 */
+  color: color-mix(in oklab, currentColor 52%, transparent);
 }
 .zy-sym {
-  position: relative;
   display: block;
 }
+/* 見出しと同じ比（字の 0.36 倍）。下限を置かない — 字が大きい所でだけ使う。 */
+.zy-word--balanced .zy-col {
+  font-size: 0.36em;
+}
 .zy-tone {
-  position: absolute;
-  left: 100%;
-  top: -0.3em;
-  margin-left: 0.05em;
+  /* 声調は最後の記号の横、やや上（台湾の教科書の置き方）。 */
+  align-self: start;
+  font-size: 0.9em;
+  line-height: 1;
+  margin-top: -0.1em;
 }
 .zy-neutral {
   display: block;
@@ -8771,216 +8902,1069 @@ html[data-motion="reduce"] .burst {
 }
 
 /* ---------------------------------------------------------------------------
- * アルバムに書き込む（試作、`AlbumInk.tsx`、2026-09-27）。
+ * 解説の作り直し — 待っている間の光の筋（`magic-swap.ts`、2026-09-27）。
+ * 古い解説は**そのまま読める**。上を細い光が左から右へ流れるだけ。
  * ------------------------------------------------------------------------- */
-.album-ink {
+.magic-wait {
+  position: relative;
+}
+.magic-wait::after {
+  content: "";
+  position: absolute;
+  inset: -4px;
+  pointer-events: none;
+  border-radius: 12px;
+  background: linear-gradient(
+    100deg,
+    transparent 30%,
+    color-mix(in oklab, var(--primary) 22%, transparent) 45%,
+    rgb(255 255 255 / 0.55) 50%,
+    color-mix(in oklab, var(--primary) 22%, transparent) 55%,
+    transparent 70%
+  );
+  background-size: 250% 100%;
+  mix-blend-mode: soft-light;
+  animation: magic-sheen 1.6s linear infinite;
+}
+@keyframes magic-sheen {
+  from {
+    background-position: 120% 0;
+  }
+  to {
+    background-position: -120% 0;
+  }
+}
+html[data-motion="reduce"] .magic-wait::after {
+  animation: none;
+  background: color-mix(in oklab, var(--primary) 6%, transparent);
+}
+
+/* ---------------------------------------------------------------------------
+ * 本のようにめくるアルバム（`PageCurlBook`、2026-09-27）。
+ * ------------------------------------------------------------------------- */
+.page-curl {
+  position: relative;
+  touch-action: pan-y;
+  user-select: none;
+  -webkit-user-select: none;
+  overflow: hidden;
+  border-radius: 4px 10px 10px 4px;
+  /* 紙の束の厚み（右の小口に重なる紙の線）。 */
+  box-shadow:
+    1px 0 0 #e9e6df,
+    2px 1px 0 #f6f4ef,
+    3px 1px 0 #e3e0d8,
+    4px 2px 0 #f4f2ec,
+    5px 2px 0 #dcd8cf,
+    0 18px 30px -18px rgb(0 0 0 / 0.45);
+}
+.page-curl--spread {
+  overflow: visible;
+  border-radius: 10px;
+}
+.page-curl__slot,
+.page-curl__leaf {
+  position: absolute;
+  top: 0;
+}
+.page-curl__leaf {
+  transform-origin: center;
+}
+.page-curl__layer {
   position: absolute;
   inset: 0;
-  /* 写真（重ね順を持つ）より上に描く */
-  z-index: 40;
 }
-.album-ink__board {
+.page-curl__shade {
   position: absolute;
   inset: 0;
-  touch-action: none;
-  cursor: crosshair;
-}
-.album-ink__label {
-  position: absolute;
-  transform: translate(-50%, -50%) rotate(-3deg);
-  padding: 4px 10px;
-  border-radius: 6px;
-  color: #fff;
-  font-weight: 700;
-  font-size: 15px;
-  box-shadow: 0 2px 8px rgb(0 0 0 / 0.2);
-  white-space: nowrap;
   pointer-events: none;
 }
-.album-ink__label[style*="#ffffff"] {
-  color: #1c1c1e;
+.page-curl__flap-wrap,
+.page-curl__ghost-wrap {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  /* めくれた紙が下の紙に落とす影（切り抜きの外形に沿う）。 */
+  filter: drop-shadow(-3px 2px 6px rgb(0 0 0 / 0.22));
 }
-.album-ink__bar {
-  position: fixed;
-  z-index: 60;
-  left: 50%;
-  bottom: calc(96px + env(safe-area-inset-bottom));
-  transform: translateX(-50%);
+.page-curl__ghost-wrap {
+  filter: none;
+}
+.page-curl__flap,
+.page-curl__ghost {
+  position: absolute;
+  left: 0;
+  top: 0;
+  transform-origin: 0 0;
+  overflow: hidden;
+}
+.page-curl__ghost {
+  box-shadow: inset 0 0 0 1px rgb(0 0 0 / 0.05);
+}
+.page-curl__paper {
+  position: relative;
+  overflow: hidden;
+  box-shadow: inset 0 0 0 1px rgb(0 0 0 / 0.04);
+}
+/* 裏から見た紙: 表の絵が左右逆に、ごく薄く透ける。 */
+.page-curl__backside .page-curl__bleed {
+  position: absolute;
+  inset: 0;
+  opacity: 0.08;
+  filter: grayscale(1) blur(0.4px);
+}
+.page-curl__spine {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 28px;
+  margin-left: -14px;
+  pointer-events: none;
+  z-index: 3;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgb(0 0 0 / 0.08) 40%,
+    rgb(0 0 0 / 0.2) 50%,
+    rgb(0 0 0 / 0.08) 60%,
+    transparent
+  );
+}
+
+/* ---------------------------------------------------------------------------
+ * アルバムに書き込む — ストーリー風（`StoryInk.tsx`、2026-09-27）。
+ * ------------------------------------------------------------------------- */
+.story-ink {
+  position: relative;
+}
+.story-ink__bar {
+  position: sticky;
+  top: 8px;
+  z-index: 30;
   display: flex;
-  align-items: center;
-  gap: 2px;
-  flex-wrap: wrap;
+  gap: 6px;
   justify-content: center;
-  width: max-content;
-  max-width: calc(100% - 16px);
-  padding: 4px 6px;
-  border-radius: 26px;
-  background: color-mix(in oklab, var(--card) 80%, transparent);
-  -webkit-backdrop-filter: blur(20px) saturate(1.6);
-  backdrop-filter: blur(20px) saturate(1.6);
-  box-shadow: 0 8px 30px rgb(0 0 0 / 0.18);
+  margin-bottom: 10px;
 }
-.album-ink__btn {
+.story-ink__tool {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 44px;
+  min-width: 44px;
+  justify-content: center;
+  padding: 0 12px;
+  white-space: nowrap;
+  border-radius: 999px;
+  background: rgb(28 28 30 / 0.78);
+  color: #fff;
+  font-weight: 700;
+  font-size: 14px;
+  backdrop-filter: blur(14px);
+}
+.story-ink__tool:disabled {
+  opacity: 0.4;
+}
+.story-ink__board {
+  position: relative;
+  width: 100%;
+  overflow: hidden;
+  /* 字の大きさを紙の幅に対する割合で決める（`cqw`）。表紙を本棚の背や
+     ページの大きさに縮めても、書いたときと同じ釣り合いで見える。 */
+  container-type: inline-size;
+  border-radius: 18px;
+  touch-action: none;
+  transition: aspect-ratio 0.35s var(--spring-smooth, ease);
+  box-shadow: 0 16px 30px -20px rgb(0 0 0 / 0.5);
+}
+/* 書いた物の下に敷く絵（表紙の題字など）。 */
+.story-ink__under {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+/* 見るだけの面（表紙・背）。字の大きさも紙の幅に合わせて縮む。 */
+.story-ink__view {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  container-type: inline-size;
+}
+.story-ink__view-item {
+  position: absolute;
+}
+.story-ink__item {
+  position: absolute;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  cursor: grab;
+  transition:
+    filter 0.2s,
+    opacity 0.2s;
+}
+.story-ink__item.is-dragging {
+  filter: drop-shadow(0 12px 16px rgb(0 0 0 / 0.28));
+  cursor: grabbing;
+}
+.story-ink__item.is-trash {
+  opacity: 0.35;
+}
+.story-ink__photo {
+  background: #fff;
+  padding: 6px 6px 8px;
+  box-shadow: 0 8px 16px -10px rgb(0 0 0 / 0.5);
+}
+.story-ink__photo img {
+  display: block;
+  width: 100%;
+  aspect-ratio: 1;
+  object-fit: cover;
+  pointer-events: none;
+}
+.story-ink__photo figcaption {
+  text-align: center;
+  font-weight: 700;
+  font-size: 5cqw;
+  margin-top: 2px;
+}
+.story-ink__text {
+  display: inline-block;
+  max-width: 100%;
+  padding: 0.18em 0.45em;
+  border-radius: 0.35em;
+  /* 紙の幅 358px で 24px（前の固定値）と同じ大きさ。 */
+  font-size: 6.7cqw;
+  line-height: 1.25;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.story-ink__trash {
+  position: absolute;
+  left: 50%;
+  bottom: 16px;
+  translate: -50% 0;
+  display: grid;
+  place-items: center;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: rgb(0 0 0 / 0.55);
+  color: #fff;
+  z-index: 9999;
+  transition:
+    transform 0.2s var(--spring-bounce, ease),
+    background 0.2s;
+  pointer-events: none;
+}
+.story-ink__trash.is-over {
+  transform: scale(1.25);
+  background: #ff375f;
+}
+.story-ink__overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: calc(12px + env(safe-area-inset-top)) 12px calc(16px + env(safe-area-inset-bottom));
+  background: rgb(10 10 12 / 0.82);
+  backdrop-filter: blur(10px);
+  color: #fff;
+}
+.story-ink__overlay-bar {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+}
+.story-ink__pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 44px;
+  padding: 0 16px;
+  border-radius: 999px;
+  background: rgb(255 255 255 / 0.14);
+  color: #fff;
+  font-weight: 700;
+}
+.story-ink__pill.is-primary {
+  background: #fff;
+  color: #111;
+}
+.story-ink__hint {
+  text-align: center;
+  font-size: 13px;
+  opacity: 0.75;
+}
+.story-ink__tools {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  margin: 8px 0 10px;
+}
+.story-ink__toolbtn {
   display: grid;
   place-items: center;
   width: 44px;
   height: 44px;
-  flex: none;
   border-radius: 999px;
-  color: var(--foreground);
+  color: #fff;
+  background: rgb(255 255 255 / 0.14);
+  transition:
+    background-color 160ms ease,
+    transform 160ms ease;
 }
-.album-ink__btn[aria-pressed="true"] {
-  background: var(--primary);
-  color: var(--primary-foreground);
+.story-ink__toolbtn[aria-checked="true"] {
+  background: #fff;
+  color: #111;
+  transform: scale(1.06);
 }
-.album-ink__btn:disabled {
-  opacity: 0.35;
+.story-ink__padrow {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
 }
-.album-ink__swatch {
+.story-ink__padrow .story-ink__pad {
+  flex: 1;
+  min-width: 0;
+}
+/* 太さ: 縦のスライダー（Instagram のストーリーと同じ置き方）。 */
+.story-ink__size {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  flex: none;
+  align-self: stretch;
+}
+.story-ink__size input {
+  /* 中身の高さで行を押し広げないよう、枠に合わせて置く（行の高さは書く欄が決める）。 */
+  position: absolute;
+  inset: 0;
+  writing-mode: vertical-lr;
+  direction: rtl;
+  width: 32px;
+  height: 100%;
+  margin: 0;
+  accent-color: #fff;
+}
+.story-ink__size-dot {
+  position: absolute;
+  left: 38px;
+  top: 50%;
+  transform: translateY(-50%);
+  border-radius: 999px;
+  pointer-events: none;
+  box-shadow: 0 0 0 1px rgb(255 255 255 / 0.6);
+}
+.story-ink__pad {
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  border-radius: 20px;
+  background: #fffdf8;
+  touch-action: none;
+  box-shadow: inset 0 0 0 1px rgb(0 0 0 / 0.06);
+}
+.story-ink__swatches {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  gap: 8px;
+}
+.story-ink__swatch {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  box-shadow: 0 0 0 2px rgb(255 255 255 / 0.9);
+}
+.story-ink__swatch[aria-pressed="true"] {
+  box-shadow:
+    0 0 0 2px #111,
+    0 0 0 5px #fff;
+}
+.story-ink__width {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: rgb(255 255 255 / 0.12);
+}
+.story-ink__width[aria-pressed="true"] {
+  background: rgb(255 255 255 / 0.35);
+}
+.story-ink__width span {
+  border-radius: 50%;
+  box-shadow: 0 0 0 1px rgb(255 255 255 / 0.6);
+}
+.story-ink__sep {
+  width: 1px;
+  height: 28px;
+  background: rgb(255 255 255 / 0.3);
+}
+.story-ink__text-stage {
+  flex: 1;
+  display: grid;
+  place-items: center;
+}
+.story-ink__textarea {
+  width: 90%;
+  text-align: center;
+  border: 0;
+  outline: none;
+  resize: none;
+  border-radius: 12px;
+  padding: 8px 12px;
+}
+.story-ink__textarea::placeholder {
+  color: rgb(255 255 255 / 0.5);
+}
+.story-ink__fonts {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  overflow-x: auto;
+}
+.story-ink__font {
+  flex: none;
+  min-height: 40px;
+  padding: 0 14px;
+  border-radius: 12px;
+  border: 1.5px solid rgb(255 255 255 / 0.35);
+  color: #fff;
+}
+.story-ink__font[aria-pressed="true"] {
+  background: #fff;
+  color: #111;
+}
+.story-ink__bg-icon {
+  display: inline-grid;
+  place-items: center;
   width: 26px;
   height: 26px;
-  flex: none;
-  margin: 0 3px;
-  border-radius: 999px;
-  border: 2px solid rgb(0 0 0 / 0.12);
+  border-radius: 6px;
+  font-weight: 800;
+  border: 1.5px solid #fff;
 }
-.album-ink__swatch[aria-pressed="true"] {
-  outline: 3px solid var(--primary);
-  outline-offset: 2px;
+.story-ink__bg-icon[data-bg="solid"] {
+  background: #fff;
+  color: #111;
 }
-.album-ink__sep {
-  width: 1px;
-  height: 24px;
-  margin: 0 4px;
-  flex: none;
-  background: var(--border);
+.story-ink__bg-icon[data-bg="soft"] {
+  background: rgb(255 255 255 / 0.45);
 }
 
 /* ---------------------------------------------------------------------------
- * ページめくりの試作（確認用ページ `page-flip` だけで使う、2026-09-27）。
+ * 図鑑のスライド — 白い展示室（`DexCoverFlow` の `gallery`、2026-09-27）。
+ * オーナー指示「画像が手前すぎ→奥に舞台を設定し、奥でカードがスライド。
+ * 空間の真ん中に作品、オークションで1つの作品を鑑賞するように。背景は白
+ * （他ページとの色差が大きすぎる）」。
+ * 壁と床の境目（奥行きの手がかり）、真ん中の作品に上から落ちる光、白い台座。
  * ------------------------------------------------------------------------- */
-.flip-book {
-  position: relative;
-  height: 540px;
-  perspective: 1800px;
-  touch-action: pan-y;
-  user-select: none;
+html[data-dex-stage="gallery"] {
+  background: #ffffff;
 }
-.flip-book__under {
-  position: absolute;
-  inset: 0;
-  display: grid;
-  grid-template-columns: 1fr;
+.dex-cf[data-theme="gallery"] .dex-cf__backdrop {
+  /* **白い部屋**（R14「図鑑のスライドは背景白にして」）。四隅だけごくわずかに落とす
+     （完全な平面だと奥行きが消える）。 */
+  background: radial-gradient(130% 80% at 50% 32%, #ffffff 0%, #ffffff 60%, #f4f4f6 100%);
 }
-.flip-book--spread .flip-book__under {
-  grid-template-columns: 1fr 1fr;
-}
-.flip-page__paper {
-  position: relative;
-  height: 100%;
-  padding: 18px 8px;
+/* ── カードの色（`cardTone`）。白い部屋の上で白いカードが溶けないように、地の色と縁を持たせる。 ── */
+.dex-cf[data-theme="gallery"][data-card] .dex-cf__card {
+  background: var(--cf-card-bg);
+  color: var(--cf-card-fg);
   border-radius: 10px;
-  box-shadow: inset 0 0 0 1px rgb(0 0 0 / 0.06), 0 10px 30px rgb(0 0 0 / 0.12);
-  color: #1c1c1e;
-  overflow: hidden;
+  box-shadow:
+    0 0 0 1px var(--cf-card-edge),
+    0 2px 6px rgb(0 0 0 / 0.06),
+    0 26px 40px -22px rgb(0 0 0 / 0.38);
 }
-.flip-page__photo {
-  background: #fff;
-  padding: 6px 6px 4px;
-  border-radius: 6px;
-  box-shadow: 0 4px 12px rgb(0 0 0 / 0.14);
+.dex-cf[data-card] .dex-cf__card .text-muted-foreground {
+  color: var(--cf-card-sub);
 }
-.flip-page__num {
+.dex-cf[data-card="blue"] {
+  --cf-card-bg: #eef4ff;
+  --cf-card-fg: #10213d;
+  --cf-card-sub: #4a5d7c;
+  --cf-card-edge: rgb(10 108 255 / 0.28);
+}
+.dex-cf[data-card="ivory"] {
+  --cf-card-bg: #fbf5e9;
+  --cf-card-fg: #2b2419;
+  --cf-card-sub: #6d614e;
+  --cf-card-edge: rgb(120 92 50 / 0.26);
+}
+.dex-cf[data-card="category"] {
+  --cf-card-bg: color-mix(in oklab, var(--cf-accent) 14%, #ffffff);
+  --cf-card-fg: #1d1d1f;
+  --cf-card-sub: color-mix(in oklab, var(--cf-accent) 45%, #3a3a3c);
+  --cf-card-edge: color-mix(in oklab, var(--cf-accent) 40%, transparent);
+}
+.dex-cf[data-card="ink"] {
+  --cf-card-bg: #16213a;
+  --cf-card-fg: #ffffff;
+  --cf-card-sub: #b9c4da;
+  --cf-card-edge: rgb(0 0 0 / 0.4);
+}
+.dex-cf__gallery-floor {
   position: absolute;
-  bottom: 8px;
-  left: 0;
-  right: 0;
-  text-align: center;
-  font-size: 12px;
-  opacity: 0.5;
-}
-.flip-book__spine {
-  position: absolute;
-  top: 0;
+  left: -50%;
+  right: -50%;
+  top: calc(1.5rem + var(--cf-w) * 1.48 * 0.86 + 3.2rem);
   bottom: 0;
+  /* 床は手前へ向かって部屋の地に溶ける（舞台の下端で線が出ない）。 */
+  background:
+    linear-gradient(180deg, rgb(0 0 0 / 0.07), transparent 8px),
+    linear-gradient(180deg, #e4e0d8, rgb(236 233 227 / 0.6) 55%, transparent 100%);
+  pointer-events: none;
+}
+.dex-cf[data-theme="gallery"] .dex-cf__stage {
+  --cf-w: min(
+    50vw,
+    220px,
+    max(7.5rem, calc((100dvh - 32.25rem - env(safe-area-inset-bottom, 0px)) / 1.48))
+  );
+  perspective: 900px;
+  perspective-origin: 50% 42%;
+  height: calc(var(--cf-w) * 1.48 + 5.5rem);
+}
+.dex-cf[data-theme="gallery"] .dex-cf__stage::before {
+  display: none;
+}
+.dex-cf__wall-light {
+  /* 真ん中の作品の後ろの壁に落ちる、上からの光の輪。 */
+  position: absolute;
   left: 50%;
-  width: 28px;
-  margin-left: -14px;
-  background: linear-gradient(90deg, transparent, rgb(0 0 0 / 0.14) 45%, rgb(0 0 0 / 0.14) 55%, transparent);
+  top: -1rem;
+  width: calc(var(--cf-w) * 1.9);
+  height: calc(var(--cf-w) * 1.8);
+  translate: -50% 0;
+  background: radial-gradient(
+    50% 55% at 50% 40%,
+    rgb(255 248 232 / 0.95),
+    rgb(255 244 222 / 0.35) 55%,
+    transparent 75%
+  );
   pointer-events: none;
 }
-.flip-leaf {
+.dex-cf__plinth {
+  /* 作品の下の白い台座（奥にあるので小さく、上面が明るい）。 */
   position: absolute;
-  top: 0;
-  bottom: 0;
-  left: 0;
-  width: 100%;
-  transform-origin: left center;
-  transform-style: preserve-3d;
-  z-index: 2;
-}
-.flip-leaf--next {
-  animation: flip-next 0.65s cubic-bezier(0.45, 0.05, 0.25, 1) forwards;
-}
-.flip-leaf--prev {
-  animation: flip-prev 0.65s cubic-bezier(0.45, 0.05, 0.25, 1) forwards;
-}
-.flip-leaf__front,
-.flip-leaf__back {
-  position: absolute;
-  inset: 0;
-  backface-visibility: hidden;
-  -webkit-backface-visibility: hidden;
-}
-.flip-leaf__back {
-  transform: rotateY(180deg);
-}
-.flip-leaf__front::after,
-.flip-leaf__back::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  border-radius: 10px;
-  background: linear-gradient(90deg, rgb(0 0 0 / 0.18), transparent 35%);
+  left: 50%;
+  top: calc(1.5rem + var(--cf-w) * 1.48 * 0.86);
+  width: calc(var(--cf-w) * 0.78);
+  height: 3.2rem;
+  translate: -50% 0;
+  background: linear-gradient(180deg, #ffffff 0 18%, #eeebe6 18%, #e2ded7 100%);
+  box-shadow:
+    0 14px 22px -10px rgb(0 0 0 / 0.22),
+    inset 0 -1px 0 rgb(0 0 0 / 0.05);
+  border-radius: 2px;
   pointer-events: none;
+  z-index: 0;
 }
-@keyframes flip-next {
-  from {
-    transform: rotateY(0deg);
-  }
-  to {
-    transform: rotateY(-180deg);
-  }
+.dex-cf[data-theme="gallery"] .dex-cf__card {
+  /* 額装: 白いマットと細い縁。角は小さく（作品らしく）。 */
+  border-radius: 6px;
+  box-shadow:
+    0 0 0 6px #fff,
+    0 0 0 7px rgb(0 0 0 / 0.08),
+    0 26px 40px -22px rgb(0 0 0 / 0.45);
 }
-@keyframes flip-prev {
-  from {
-    transform: rotateY(-180deg);
-  }
-  to {
-    transform: rotateY(0deg);
-  }
+.dex-cf__lot {
+  display: grid;
+  justify-items: center;
+  gap: 1px;
+  margin: 0.1rem auto 0.2rem;
+  text-align: center;
+  color: #2b2724;
 }
-.flip-book__nav {
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: -56px;
+.dex-cf__lot-no {
+  font-size: 11px;
+  letter-spacing: 0.22em;
+  color: #8c857b;
+  font-variant-numeric: tabular-nums;
+}
+.dex-cf__lot-title {
+  font-size: var(--text-title);
+  font-weight: 700;
+  line-height: 1.2;
+}
+.dex-cf__lot-sub {
+  font-size: var(--text-footnote);
+  color: #57514a;
+}
+.dex-cf__lot-meta {
+  font-size: 11px;
+  color: #8c857b;
+}
+.dex-cf[data-theme="gallery"] .dex-cf__dot {
+  background: rgb(0 0 0 / 0.18);
+}
+.dex-cf[data-theme="gallery"] .dex-cf__dot[data-on] {
+  background: var(--primary);
+}
+.dex-cf[data-theme="gallery"] .dex-cf__thumb {
+  background: rgb(0 0 0 / 0.05);
+}
+.dex-cf[data-theme="gallery"] .dex-cf__thumb-word {
+  color: #2b2724;
+}
+
+/* チャンクの入れ替える所 — ほかの語を横に並べる（`ChunkLine`、2026-09-27）。 */
+.chunk-slot__chev {
+  margin-left: 2px;
+  opacity: 0.7;
+  transition: rotate 0.2s var(--ease-ios, ease);
+}
+.chunk-alts {
   display: flex;
-  justify-content: center;
-  gap: 16px;
+  gap: 8px;
+  overflow-x: auto;
+  margin-top: 8px;
+  padding: 2px 2px 6px;
+  scroll-snap-type: x proximity;
+  scrollbar-width: none;
+  overscroll-behavior-x: contain;
+  animation: chunk-alts-in 0.25s var(--ease-ios, ease) both;
 }
-.flip-book__nav button {
-  width: 44px;
-  height: 44px;
-  border-radius: 999px;
+.chunk-alts::-webkit-scrollbar {
+  display: none;
+}
+.chunk-alts__item {
+  flex: none;
+  scroll-snap-align: start;
+  display: grid;
+  justify-items: center;
+  min-height: 44px;
+  min-width: 56px;
+  padding: 6px 12px;
+  border-radius: 14px;
   background: var(--card);
-  border: 1px solid var(--border);
-  font-size: 24px;
+  border: 1.5px dashed color-mix(in oklab, var(--primary) 45%, var(--border));
+}
+.chunk-alts__item[aria-selected="true"] {
+  border-style: solid;
+  border-color: var(--primary);
+  background: color-mix(in oklab, var(--primary) 10%, var(--card));
+}
+.chunk-alts__word {
+  font-size: var(--text-body);
+  font-weight: 700;
+}
+.chunk-alts__ja {
+  font-size: 11px;
+  color: var(--muted-foreground);
+}
+@keyframes chunk-alts-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+}
+html[data-motion="reduce"] .chunk-alts {
+  animation: none;
+}
+
+/* ── 記念アルバムを開く瞬間（`MemorialReveal`、オーナー指示 2026-09-28
+   「特別感のあるアルバムで、アニメーションやセレブレーション」）── */
+.memorial-reveal {
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  color: #fff;
+  background: radial-gradient(120% 90% at 50% 30%, #1f3a6e 0%, #0d1830 55%, #070b16 100%);
+  animation: memorial-curtain-in 0.45s var(--ease-ios, ease) both;
+  cursor: pointer;
+}
+.memorial-reveal[data-phase="leaving"] {
+  animation: memorial-curtain-out 0.5s var(--ease-ios, ease) both;
+}
+@keyframes memorial-curtain-in {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes memorial-curtain-out {
+  to {
+    opacity: 0;
+    transform: scale(1.06);
+    filter: blur(6px);
+  }
+}
+/* 奥の光の筋: 金色の扇がゆっくり回る。 */
+.memorial-reveal__rays {
+  position: absolute;
+  left: 50%;
+  top: 36%;
+  width: 160vmax;
+  height: 160vmax;
+  translate: -50% -50%;
+  background: repeating-conic-gradient(
+    from 0deg,
+    rgb(255 214 120 / 0.13) 0deg 6deg,
+    transparent 6deg 18deg
+  );
+  mask-image: radial-gradient(closest-side, #000 0%, transparent 70%);
+  animation: memorial-rays 24s linear infinite;
+  opacity: 0;
+  transition: opacity 0.8s ease;
+}
+.memorial-reveal:not([data-phase="count"]) .memorial-reveal__rays {
+  opacity: 1;
+}
+@keyframes memorial-rays {
+  to {
+    rotate: 360deg;
+  }
+}
+.memorial-reveal__confetti {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+.memorial-reveal__stage {
+  position: relative;
+  display: grid;
+  justify-items: center;
+  gap: 6px;
+  padding: 0 16px calc(env(safe-area-inset-bottom) + 24px);
+  text-align: center;
+}
+.memorial-reveal__kicker {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.3em;
+  color: #ffd97a;
+  animation: memorial-rise 0.6s 0.15s var(--ease-ios, ease) both;
+}
+/* 金の箔: 縦のグラデーションに、斜めの光が1回走る。 */
+.memorial-reveal__number {
+  margin: 0;
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
   line-height: 1;
 }
-.flip-book__nav button:disabled {
-  opacity: 0.35;
+.memorial-reveal__digits {
+  font-size: clamp(96px, 34vw, 150px);
+  font-weight: 900;
+  letter-spacing: -0.04em;
+  font-variant-numeric: tabular-nums;
+  background:
+    linear-gradient(105deg, transparent 38%, rgb(255 255 255 / 0.95) 50%, transparent 62%) no-repeat,
+    linear-gradient(180deg, #fff4c4 0%, #f5c542 42%, #c8891c 70%, #ffe39a 100%);
+  background-size:
+    250% 100%,
+    100% 100%;
+  background-position:
+    150% 0,
+    0 0;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  filter: drop-shadow(0 6px 24px rgb(245 197 66 / 0.35));
 }
-html[data-motion="reduce"] .flip-leaf {
-  animation-duration: 0.01s;
+.memorial-reveal:not([data-phase="count"]) .memorial-reveal__digits {
+  animation:
+    memorial-sheen 1.1s 0.05s var(--ease-ios, ease) both,
+    memorial-pop 0.5s var(--spring-bounce, ease) both;
+}
+@keyframes memorial-sheen {
+  from {
+    background-position:
+      150% 0,
+      0 0;
+  }
+  to {
+    background-position:
+      -60% 0,
+      0 0;
+  }
+}
+@keyframes memorial-pop {
+  0% {
+    scale: 1;
+  }
+  35% {
+    scale: 1.14;
+  }
+  100% {
+    scale: 1;
+  }
+}
+.memorial-reveal__unit {
+  font-size: 28px;
+  font-weight: 800;
+  color: #ffd97a;
+}
+.memorial-reveal__words {
+  margin: 2px 0 0;
+  font-size: 17px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  opacity: 0;
+  translate: 0 8px;
+  transition:
+    opacity 0.4s ease,
+    translate 0.5s var(--ease-ios, ease);
+}
+.memorial-reveal__words[data-on="true"] {
+  opacity: 1;
+  translate: 0 0;
+}
+/* 写真の扇: 真ん中の小さな束から、1枚ずつ自分の場所へ飛ぶ（ばねで少し行き過ぎる）。 */
+.memorial-reveal__fan {
+  position: relative;
+  width: 100%;
+  height: 170px;
+  margin-top: 18px;
+}
+.memorial-reveal__photo {
+  position: absolute;
+  left: 50%;
+  top: 20px;
+  width: 92px;
+  aspect-ratio: 1;
+  margin-left: -46px;
+  padding: 4px 4px 14px;
+  background: #fffdf8;
+  border-radius: 3px;
+  box-shadow: 0 14px 28px -12px rgb(0 0 0 / 0.7);
+  opacity: 0;
+  transform: translate(0, 40px) rotate(0deg) scale(0.3);
+  transition:
+    transform 0.62s linear(0, 0.35 12%, 0.82 28%, 1.05 42%, 1.02 55%, 1),
+    opacity 0.25s ease;
+  transition-delay: var(--d);
+}
+.memorial-reveal__photo[data-on="true"] {
+  opacity: 1;
+  transform: translate(var(--x), var(--y)) rotate(var(--r)) scale(1);
+}
+.memorial-reveal__photo img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.memorial-reveal__open {
+  min-height: 50px;
+  margin-top: 8px;
+  padding: 0 28px;
+  border-radius: 999px;
+  font-size: 17px;
+  font-weight: 800;
+  color: #1a1204;
+  background: linear-gradient(180deg, #ffe7a3, #f5c542);
+  box-shadow:
+    0 10px 28px -10px rgb(245 197 66 / 0.8),
+    inset 0 1px 0 rgb(255 255 255 / 0.7);
+  opacity: 0;
+  translate: 0 12px;
+  pointer-events: none;
+  transition:
+    opacity 0.35s ease,
+    translate 0.45s var(--ease-ios, ease);
+}
+.memorial-reveal__open[data-on="true"] {
+  opacity: 1;
+  translate: 0 0;
+  pointer-events: auto;
+}
+@keyframes memorial-rise {
+  from {
+    opacity: 0;
+    translate: 0 10px;
+  }
+}
+html[data-motion="reduce"] .memorial-reveal,
+html[data-motion="reduce"] .memorial-reveal * {
+  animation: none !important;
+  transition: none !important;
+}
+
+/* ── アルバムから外す（赤いバツ）と、外した写真を戻す所（2026-09-28） ───────
+   バツは写真の右上の角に、中心を角に合わせて置く（`translate(-50%,-50%)`）。
+   見た目 24px・当たり 44px（HIG §11）。赤は「消す」の合図だが、札そのものは
+   消さない — 押した後に「図鑑には残っています」と言う。 */
+/* 札と同じ位置・大きさ・傾き・揺れを持つ透明な枠。バツはその右上の角に付く。 */
+.album-remove-frame {
+  position: absolute;
+  pointer-events: none;
+}
+.album-remove {
+  position: absolute;
+  right: 0;
+  top: 0;
+  pointer-events: auto;
+  width: 44px;
+  height: 44px;
+  translate: 50% -50%;
+  display: grid;
+  place-items: center;
+  background: transparent;
+  touch-action: manipulation;
+  animation: album-remove-in 180ms var(--ease-out, ease-out) both;
+}
+.album-remove::before {
+  content: "";
+  position: absolute;
+  inset: 10px;
+  border-radius: 9999px;
+  background: #e5484d;
+  box-shadow:
+    0 0 0 2px #fff,
+    0 2px 6px rgb(0 0 0 / 0.3);
+}
+.album-remove > svg {
+  position: relative;
+  color: #fff;
+}
+.album-remove:active::before {
+  transform: scale(0.9);
+}
+@keyframes album-remove-in {
+  from {
+    opacity: 0;
+    scale: 0.4;
+  }
+}
+html[data-motion="reduce"] .album-remove {
+  animation: none;
+}
+.album-hidden-tray {
+  margin-top: 0.75rem;
+  padding: 0 0.25rem 0.5rem;
+}
+.album-hidden-tray__toggle {
+  display: inline-flex;
+  min-height: 44px;
+  align-items: center;
+  gap: 0.375rem;
+  border-radius: 9999px;
+  padding: 0 0.875rem;
+  font-size: var(--text-footnote, 0.8125rem);
+  font-weight: 600;
+  color: var(--album-ink, #3a3128);
+  background: color-mix(in oklab, #fff 70%, transparent);
+  box-shadow: 0 1px 3px rgb(0 0 0 / 0.12);
+}
+.album-hidden-tray__list {
+  display: flex;
+  gap: 0.5rem;
+  overflow-x: auto;
+  padding: 0.5rem 0.125rem;
+}
+.album-hidden-tray__item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.25rem;
+  min-width: 72px;
+}
+.album-hidden-tray__img {
+  width: 64px;
+  height: 64px;
+  border-radius: 0.5rem;
+  object-fit: cover;
+  opacity: 0.6;
+  filter: grayscale(0.4);
+  background: #fff;
+}
+.album-hidden-tray__img--text {
+  display: grid;
+  place-items: center;
+  font-size: 0.8125rem;
+  font-weight: 700;
+  color: #3a3128;
+}
+.album-hidden-tray__label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--primary);
+}
+
+/* 図鑑の札を長押しで運んでいる間（`DexCategoryDrag`）。落とせるカテゴリーの節を青く縁取る。 */
+.dex-cat {
+  border-radius: 1.25rem;
+  transition:
+    box-shadow 160ms ease,
+    background-color 160ms ease;
+}
+.dex-cat[data-drop] {
+  background: color-mix(in oklab, var(--primary) 7%, transparent);
+  box-shadow:
+    0 0 0 2px var(--primary),
+    0 0 0 8px color-mix(in oklab, var(--primary) 12%, transparent);
+}
+html[data-dex-dragging] {
+  user-select: none;
+  -webkit-user-select: none;
+}
+[data-dex-item],
+[data-dex-cat-head] {
+  -webkit-touch-callout: none;
+}
+
+/* ── チャンクの形: **語ごとの四角を「＋」でつなぐ**（オーナー決定 2026-09-29「規定のものから
+   台を取り除いて、それで決定して」）。＋は小さく詰める。学ぶ語（`.chunk-target`）は縁を
+   太く・色を濃く。入れ替えられる所は点線の縁と ▾。 ── */
+.chunk-set--boxes {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.1rem;
+  max-width: 100%;
+}
+.chunk-set--boxes > .chunk-bubble,
+.chunk-set--boxes > .chunk-slot {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 2.6rem;
+  padding: 0.3rem 0.65rem;
+  border-radius: 0.65rem;
+  border: 1.5px solid color-mix(in oklab, var(--pos, var(--foreground)) 38%, transparent);
+  background: color-mix(in oklab, var(--pos, var(--foreground)) 10%, var(--card));
+  box-shadow: 0 3px 8px -7px color-mix(in oklab, var(--pos, var(--foreground)) 70%, transparent);
+  text-decoration: none;
+}
+.chunk-set--boxes > .chunk-slot {
+  gap: 0.15rem;
+  border-style: dashed;
+  background: var(--card);
+}
+.chunk-set--boxes > .chunk-target {
+  border-width: 2px;
+  border-color: color-mix(in oklab, var(--pos, var(--foreground)) 70%, transparent);
+  background: color-mix(in oklab, var(--pos, var(--foreground)) 18%, var(--card));
+  color: color-mix(in oklab, var(--pos, var(--foreground)) 55%, var(--foreground));
+}
+/* ＋は小さく、左右を詰める。 */
+.chunk-plus {
+  flex: none;
+  margin-inline: -0.05rem;
+  font-weight: 700;
+  font-size: 0.8rem;
+  line-height: 1;
+  color: color-mix(in oklab, var(--foreground) 38%, transparent);
+}
+.chunk-set--boxes > .chunk-pill:active {
+  transform: translateY(1px) scale(0.95);
+  transition-duration: 0.08s;
 }

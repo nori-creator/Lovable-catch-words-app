@@ -9,9 +9,18 @@ import { batchKey, readMark, writeMark, EMPTY_MARK } from "@/lib/review-session"
 import { packBatch, readBatch, REVIEW_CACHE_KEY, REVIEW_CACHE_USER_KEY } from "@/lib/review-cache";
 import { countsAsRemembered, speakingResult } from "@/lib/speaking-grade";
 import { useServerFn } from "@tanstack/react-start";
-import { useEffect, useId, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useId, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { AppShell } from "@/components/AppShell";
+import { warmCachedImages } from "@/lib/image-cache";
+/**
+ * 外したときに開く単語の詳細（オーナー指示 2026-09-27「復習で不正解の場合、
+ * 単語の詳細に飛べるボタン」）。**画面を移らずに上に重ねる** — 移ると
+ * 今日の復習の途中から外れる。重い部品なので、押すまで読み込まない。
+ */
+const StickerSheet = lazy(() =>
+  import("@/components/StickerSheet").then((m) => ({ default: m.StickerSheet })),
+);
 import { usePrefetchSpeech, usePronounce } from "@/lib/use-pronounce";
 import { PronounceButton } from "@/components/PronounceButton";
 import { BadgeIcon } from "@/components/SectionIcon";
@@ -32,14 +41,20 @@ import {
 } from "@/lib/reviews.functions";
 import { stabilityOf } from "@/lib/srs";
 import { levelOfR } from "@/lib/memory-curve";
-import {
-  levelGradient,
-  memoryCurveFrom,
-  MemoryCurveChart,
-} from "@/components/ForgettingCurveChart";
+import { memoryCurveFrom } from "@/lib/memory-curve-from";
+/**
+ * **グラフは押したときに読み込む**（recharts・lodash・d3 で起動時の JS の約4割。
+ * オーナー指示 2026-09-27「アプリを開いてからホームやカメラが出るまでを限界まで速く」）。
+ */
+const MemoryCurveChart = lazy(() =>
+  import("@/components/ForgettingCurveChart").then((m) => ({ default: m.MemoryCurveChart })),
+);
+const MiniRetentionGraph = lazy(() =>
+  import("@/components/MiniRetentionGraph").then((m) => ({ default: m.MiniRetentionGraph })),
+);
 import { getMyProfile, updateMyProfile } from "@/lib/profile.functions";
 import { compareByMemory, memoryOf, MEMORY_LEVELS } from "@/lib/memory";
-import { usePhoneticPref, pickReadingOf, Reading } from "@/lib/phonetic";
+import { usePhoneticPref, pickReadingOf, Reading, neutralReadings } from "@/lib/phonetic";
 import { Term } from "@/components/Term";
 import { ZhuyinWord } from "@/components/ZhuyinWord";
 import { pairZhuyin } from "@/lib/zhuyin-layout";
@@ -84,6 +99,7 @@ import {
   MapPin,
   CalendarCheck,
   ChevronDown,
+  BookOpen,
 } from "lucide-react";
 import { tStatic } from "@/lib/i18n";
 
@@ -394,6 +410,57 @@ function ReviewPage() {
   const done = cards && idx >= cards.length;
 
   /**
+   * **束の写真を、届いた時点で全部端末へ**（`warmCachedImages`）。
+   * 音は下の `usePrefetchSpeech` が同じことをしている。
+   */
+  useEffect(() => {
+    if (!cards?.length) return;
+    void warmCachedImages(
+      cards.flatMap((c) => [
+        stickerPhotoUrl(c, { prefer: "cutout" }),
+        stickerPhotoUrl(c, { prefer: "photo" }),
+      ]),
+    );
+  }, [cards]);
+
+  /**
+   * **束を終えたら、次の束をすぐ裏で用意して端末に書き留める**（オーナー指示
+   * 2026-09-27「復習のラグを無くす。復習が終わるたびに次の問題を自動保存し、
+   * アプリを閉じてもすぐ表示」）。
+   *
+   * 最後の採点が書き込まれるのを少し待ってから読む（待たないと、いま答えた
+   * 札がまた出る）。届いた束は `localStorage` に書き、写真も端末へ落とす。
+   * 「もう一度」を押したときは読み直さずにこれを出す — 待ち時間 0。
+   * アプリを閉じて次に開いたときも、この束から始まる。
+   */
+  const nextBatch = useRef<DueReviewCard[] | null>(null);
+  useEffect(() => {
+    if (!done || wantedSticker) return;
+    let off = false;
+    const timer = window.setTimeout(() => {
+      void fetchDue()
+        .then((next) => {
+          if (off || !next?.length) return;
+          nextBatch.current = next;
+          try {
+            const uid = localStorage.getItem(REVIEW_CACHE_USER_KEY);
+            const packed = uid ? packBatch(next, uid, null, Date.now()) : null;
+            if (packed) localStorage.setItem(REVIEW_CACHE_KEY, JSON.stringify(packed));
+          } catch {
+            /* 書けなくても「もう一度」で読み直すだけ */
+          }
+          void warmCachedImages(next.flatMap((c) => [stickerPhotoUrl(c, { prefer: "cutout" })]));
+        })
+        .catch(() => undefined);
+    }, 1500);
+    return () => {
+      off = true;
+      window.clearTimeout(timer);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [done, wantedSticker]);
+
+  /**
    * 4択で見える可能性がある音を、束が届いた時点で端末へ入れる。
    * 各ボタンも自分の音を確認するが、ここでまとめて始めれば問題を読む間に
    * IndexedDB まで届く。同じ語は `ensureAudio` の inflight と cache が束ねる。
@@ -502,6 +569,13 @@ function ReviewPage() {
             restoredFor.current = null;
             setIdx(0);
             setTally({ answered: 0, correct: 0 });
+            // 用意しておいた次の束があれば、**読み直さずに**そのまま出す。
+            const next = nextBatch.current;
+            nextBatch.current = null;
+            if (next?.length) {
+              qc.setQueryData(["reviews-due", null], next);
+              return;
+            }
             replacing.current = true;
             void refetch();
           }}
@@ -584,7 +658,11 @@ export function ReviewSessionHeader({
                 <p className="mb-1 text-caption font-semibold label-caps text-muted-foreground">
                   {t("rv.overallTitle")}
                 </p>
-                {series && <MiniRetentionGraph series={series} />}
+                {series && (
+                  <Suspense fallback={<div className="h-36 w-full" />}>
+                    <MiniRetentionGraph series={series} />
+                  </Suspense>
+                )}
               </div>
             </div>
           )}
@@ -977,12 +1055,16 @@ export function ForgettingCurveModal({
             aria-label={t("common.loading")}
           />
         ) : curve ? (
-          <MemoryCurveChart
-            curve={curve}
-            nowMs={nowMs}
-            stickerId={word.sticker_id}
-            onReview={onClose}
-          />
+          <Suspense
+            fallback={<div className="h-72 w-full animate-pulse rounded-xl bg-secondary/60" />}
+          >
+            <MemoryCurveChart
+              curve={curve}
+              nowMs={nowMs}
+              stickerId={word.sticker_id}
+              onReview={onClose}
+            />
+          </Suspense>
         ) : (
           <p className="py-8 text-center text-footnote text-muted-foreground">
             {t("review.memoryLoading")}
@@ -1941,6 +2023,7 @@ export function AnswerExplain({ card }: { card: DueReviewCard }) {
                 parts={c.parts}
                 translation={chunkTranslation(c.ja)}
                 lang={card.language}
+                headword={card.headword}
                 speakText={chunkSpeechText(c, card.language)}
               />
             ))}
@@ -2049,6 +2132,7 @@ export function LightModeCard({
   /** 4択の表に出す1枚。設定で主役を選んでいれば、そちらを先に見る。 */
   const heroUrl = stickerPhotoUrl(card, { prefer: resolvePrefer(photoPref, "cutout") });
   const [picked, setPicked] = useState<string | null>(null);
+  const [detailOpen, setDetailOpen] = useState(false);
   const startedAt = useRef<number>(Date.now());
   /**
    * 答え合わせの面が覆う高さ。**測った値を使う。**
@@ -2198,9 +2282,13 @@ export function LightModeCard({
             // **学習言語に在る表記だけ**(オーナー報告 2026-08-26)。
             // `pickReading` は台湾華語の決め打ちだったので、英語の4択にも
             // 注音・拼音が出ていた。
+            // 選択肢の読みは「読み1・読み2」の2列で来る（英語なら米・英の IPA）。
+            // 学習言語の表記へ割り当ててから選ぶ — 注音の鍵のまま渡すと、
+            // 英語の語の IPA が「注音」として扱われていた。
             const reading = pickReadingOf(targetProfile(card.language), phonetic, {
               zhuyin: info.zhuyin,
               pinyin: info.pinyin,
+              ...neutralReadings(card.language, info.zhuyin, info.pinyin),
             });
             // 注音は**字の右に縦に**（オーナー指示 2026-09-27）。組めない語は下の行。
             const units = zhuyinBeside ? pairZhuyin(c, info.zhuyin) : null;
@@ -2224,7 +2312,7 @@ export function LightModeCard({
                   // 育つので、鍵盤で送った直後は「どこに居るか見えない」
                   // 状態が続く(検査が実測 1.00:1 で落とした)。
                   // 変えたいものだけ名指しする。
-                  className={`quiz-choice flex min-h-11 min-w-0 flex-1 items-center justify-between gap-2 rounded-xl border py-1 pl-3 pr-[3.75rem] text-left transition-colors
+                  className={`quiz-choice relative flex min-h-14 min-w-0 flex-1 items-center justify-center gap-2 rounded-2xl border-[1.5px] px-[3.75rem] py-2 text-center transition-colors
                   ${!picked ? "border-border bg-background hover:border-primary/60 hover:bg-accent/40" : ""}
                   ${showGreen ? "border-ok/60 bg-ok/10" : ""}
                   ${showRed ? "border-bad/60 bg-bad/10" : ""}
@@ -2237,17 +2325,29 @@ export function LightModeCard({
                   }
                   ${picked && !isPicked && !isAnswer ? "border-border/60" : ""}`}
                 >
-                  <span className="min-w-0">
+                  {/* **語は箱の真ん中に**（オーナー指示 2026-09-27「4択の単語は
+                      中央揃え」）。右の発音ボタンと同じ幅を左にも空けて
+                      （`px-[3.75rem]`）、見た目の中心と箱の中心を合わせる。
+                      正誤の印は左の空きに置く。 */}
+                  <span className="flex min-w-0 flex-col items-center">
                     {/* **その語の字で組む**（`Term`）。候補の画面と同じ書体になる
                         — 以前は画面の言語（日本語）の書体で繁体字を出していた。 */}
                     {units ? (
+                      // **字と注音の大きさの比は、単語の詳細の見出しと同じ**（オーナー指示
+                      // 2026-09-27、絵つき）。見出しは 32px の字に 0.36 倍の注音。4択も
+                      // 同じ 32px（長い語は 26px）にして、注音の下限（11px）を外し、比を揃える。
                       <ZhuyinWord
                         units={units}
                         lang={card.language}
-                        className="block text-body font-medium"
+                        className={`zy-word--balanced block font-semibold ${
+                          units.length > 4 ? "text-[26px]" : "text-hero"
+                        }`}
                       />
                     ) : (
-                      <Term lang={card.language} className="block truncate text-body font-medium">
+                      <Term
+                        lang={card.language}
+                        className="block max-w-full truncate text-title font-semibold"
+                      >
                         {c}
                       </Term>
                     )}
@@ -2264,8 +2364,12 @@ export function LightModeCard({
                       </span>
                     )}
                   </span>
-                  {showGreen && <Check className="h-4 w-4 shrink-0 text-ok" />}
-                  {showRed && <X className="h-4 w-4 shrink-0 text-bad" />}
+                  {showGreen && (
+                    <Check className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-ok" />
+                  )}
+                  {showRed && (
+                    <X className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-bad" />
+                  )}
                 </button>
                 {/* **鳴らせるようになってから出る**(オーナー指摘 2026-08-26)。
                     4つ並ぶので、押しても鳴らないボタンが並ぶと
@@ -2377,17 +2481,40 @@ export function LightModeCard({
 
                 <AnswerExplain card={card} />
 
-                <button
-                  // **`onClick={onNext}` と書かない。** クリックの event が
-                  // 第1引数に渡り、`correct` として truthy に見えるので、
-                  // 不正解も正解として数えられてしまう。
-                  onClick={() => onNext(correct)}
-                  className="mt-2 min-h-11 w-full rounded-xl bg-primary py-3 text-body font-semibold text-primary-foreground active:scale-[0.98] motion-reduce:active:scale-100"
-                >
-                  {t("review.next")}
-                </button>
+                <div className="mt-2 flex gap-2">
+                  {/* **図鑑のその語へ**（オーナー指示 2026-09-28「復習の4択の正解、不正解の欄に
+                      図鑑の該当の単語に飛べるボタンをつける」）。前は外したときだけ出していた。
+                      当てたときも見返したい語はある。図鑑の詳細を上に重ねて開くので、閉じれば
+                      ここ（次へ）に戻る — 復習の流れは切らない。 */}
+                  <button
+                    type="button"
+                    onClick={() => setDetailOpen(true)}
+                    className="inline-flex min-h-11 flex-1 items-center justify-center gap-1.5 rounded-xl border border-border bg-card py-3 text-body font-semibold text-foreground active:scale-[0.98] motion-reduce:active:scale-100"
+                  >
+                    <BookOpen className="h-4 w-4 text-primary" aria-hidden />
+                    {t("review.openInDex")}
+                  </button>
+                  <button
+                    // **`onClick={onNext}` と書かない。** クリックの event が
+                    // 第1引数に渡り、`correct` として truthy に見えるので、
+                    // 不正解も正解として数えられてしまう。
+                    onClick={() => onNext(correct)}
+                    className="min-h-11 flex-1 rounded-xl bg-primary py-3 text-body font-semibold text-primary-foreground active:scale-[0.98] motion-reduce:active:scale-100"
+                  >
+                    {t("review.next")}
+                  </button>
+                </div>
               </div>
             </div>,
+            document.body,
+          )}
+        {/* 答え合わせの面と同じ理由で `document.body` へ出す（`SwipeCard` の
+            `will-change: transform` の中では全画面に広がらない）。 */}
+        {detailOpen &&
+          createPortal(
+            <Suspense fallback={null}>
+              <StickerSheet stickerId={card.sticker_id} onClose={() => setDetailOpen(false)} />
+            </Suspense>,
             document.body,
           )}
       </article>
@@ -2396,126 +2523,6 @@ export function LightModeCard({
 }
 
 // ============================================================================
-import {
-  LineChart,
-  Line,
-  XAxis,
-  YAxis,
-  ResponsiveContainer,
-  ReferenceDot,
-  CartesianGrid,
-} from "recharts";
-
-/**
- * 全体の記憶率(前後2週間)。
- *
- * **過去は記録から作った実際の値**で、未来だけが予測。
- * 以前はここが「いまの状態を過去へ投げ返した線」だったので、
- * 復習した瞬間に過去14日が全部 100% に跳ね上がっていた。
- *
- * その日に**まだ無かった**語しか無い日は `null` が来る — 0% ではないので、
- * 線をそこで切る(`connectNulls` を付けない)。
- *
- * 見た目は1語の曲線（`MemoryCurveChart`）とそろえる（オーナー指摘
- * 2026-09-22「記憶のグラフが見づらい」）: 今日に点、線は値で塗り分け、
- * これまでは実線・これからは点線、日付は両端と今日だけ。
- */
-export function MiniRetentionGraph({
-  series,
-}: {
-  series: Array<{ day_offset: number; avg_retention: number | null; counted?: number }>;
-}) {
-  const t = useT();
-  const locale = localeOf(useUiLang());
-  const uid = useId().replace(/:/g, "");
-  const nowMs = useMemo(() => Date.now(), []);
-  const pts = series.map((p) => ({ d: p.day_offset, r: p.avg_retention }));
-  const past = pts.filter((p) => p.d <= 0);
-  const future = pts.filter((p) => p.d >= 0);
-  const values = (xs: typeof pts) => xs.flatMap((p) => (p.r == null ? [] : [p.r]));
-  const pastG = levelGradient(`mr-past-${uid}`, values(past));
-  const futureG = levelGradient(`mr-future-${uid}`, values(future));
-  const today = pts.find((p) => p.d === 0)?.r ?? null;
-  const lo = Math.min(0, ...pts.map((p) => p.d));
-  const hi = Math.max(0, ...pts.map((p) => p.d));
-  const dateOf = (d: number) =>
-    new Date(nowMs + d * 86_400_000).toLocaleDateString(locale, {
-      month: "numeric",
-      day: "numeric",
-    });
-  return (
-    <div className="h-36 w-full">
-      <ResponsiveContainer width="100%" height="100%">
-        <LineChart margin={{ top: 20, right: 14, bottom: 0, left: -18 }}>
-          <defs>
-            {pastG.def}
-            {futureG.def}
-          </defs>
-          <CartesianGrid vertical={false} stroke="var(--border)" />
-          <XAxis
-            type="number"
-            dataKey="d"
-            domain={[lo, hi]}
-            ticks={[lo, 0, hi].filter((v, i, a) => a.indexOf(v) === i)}
-            interval={0}
-            tickLine={false}
-            axisLine={{ stroke: "var(--border)" }}
-            tickFormatter={(v: number) => (v === 0 ? t("rv.today") : dateOf(v))}
-            stroke="var(--muted-foreground)"
-            fontSize={11}
-          />
-          <YAxis
-            domain={[0, 100]}
-            ticks={[0, 50, 100]}
-            tickFormatter={(v) => `${v}%`}
-            tickLine={false}
-            axisLine={false}
-            stroke="var(--muted-foreground)"
-            fontSize={11}
-          />
-          <Line
-            data={future}
-            dataKey="r"
-            type="linear"
-            stroke={futureG.stroke}
-            strokeWidth={2.5}
-            strokeDasharray="6 5"
-            strokeLinecap="round"
-            dot={false}
-            isAnimationActive={false}
-          />
-          <Line
-            data={past}
-            dataKey="r"
-            type="linear"
-            stroke={pastG.stroke}
-            strokeWidth={3}
-            strokeLinejoin="round"
-            dot={false}
-            isAnimationActive={false}
-          />
-          {today != null && (
-            <ReferenceDot
-              x={0}
-              y={today}
-              r={6}
-              fill={`var(--mem-${levelOfR(today)})`}
-              stroke="var(--card)"
-              strokeWidth={3}
-              label={{
-                value: t("curve.todayPct", { pct: today }),
-                position: "top",
-                fill: "var(--foreground)",
-                fontSize: 12,
-                fontWeight: 700,
-              }}
-            />
-          )}
-        </LineChart>
-      </ResponsiveContainer>
-    </div>
-  );
-}
 
 /**
  * 出す語が無いときの画面。

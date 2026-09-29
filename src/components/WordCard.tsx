@@ -8,11 +8,9 @@ import {
   useState,
 } from "react";
 import { useReadableError } from "@/lib/errors";
+import { playMagicSwap, snapshotForSwap } from "@/lib/magic-swap";
 import { SceneBubbles } from "@/components/SceneBubbles";
-import {
-  PersonalWordLesson,
-  type PersonalLessonContext,
-} from "@/components/onboarding/PersonalWordLesson";
+import type { PersonalLessonContext } from "@/components/onboarding/PersonalWordLesson";
 import { sceneBubbles } from "@/lib/scene-bubbles";
 import { TocflLadder } from "@/components/TocflLadder";
 import { examTagLabels } from "@/lib/exam-tags";
@@ -82,7 +80,7 @@ import {
   moveItem,
   type RowBox,
 } from "@/lib/reorder";
-import { nextAutoFillQueue, MAX_AUTO_FILL, MAX_FAILURES } from "@/lib/auto-fill";
+import { nextAutoFillQueue, MAX_AUTO_FILL } from "@/lib/auto-fill";
 import { ChunkPills, ChunkLegend, ChunkLine } from "@/components/ChunkPills";
 import type { WordExtrasDTO } from "@/lib/extras";
 
@@ -531,6 +529,10 @@ export const WordCard = forwardRef<
     minimal?: boolean;
     /** Show the details during the first guided catch without exit links or report actions. */
     guided?: boolean;
+    /**
+     * 「あなたの場面で使ってみよう」の材料。**その欄は消した**（オーナー指示
+     * 2026-09-27）ので読まない。呼ぶ側の形を崩さないために型だけ残す。
+     */
     personalContext?: PersonalLessonContext;
   }
 >(function WordCard(
@@ -543,7 +545,6 @@ export const WordCard = forwardRef<
     onEditHeadword,
     minimal = false,
     guided = false,
-    personalContext,
   },
   ref,
 ) {
@@ -683,7 +684,7 @@ export const WordCard = forwardRef<
       );
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-3" data-word-card>
       <HeaderRow
         word={word}
         autoplay={autoplay}
@@ -694,14 +695,6 @@ export const WordCard = forwardRef<
         reportItems={reportItemsFor(shown)}
       />
       {wordId && missing.length > 0 && <AutoFillSections wordId={wordId} missing={missing} />}
-      {!minimal && (
-        <PersonalWordLesson
-          headword={word.headword}
-          meaning={word.meaning_ja}
-          language={word.language}
-          context={personalContext}
-        />
-      )}
       <div className="grid gap-3">
         {shown.map((id) => (
           <SectionCard
@@ -737,14 +730,15 @@ export const WordCard = forwardRef<
  * 押さない人のカードは意味だけのまま残る。**待たせない代わりに、押させない。**
  * 失敗したときだけボタンに戻す — 押しても直らない物を黙って再試行し続けない。
  *
- * ## 1節ずつ、順番どおりに
- * 1節できるたびに札を読み直すので、**上の項目から順に現れる**。
- * まとめて作って一度に出すと、順番は見えないし、途中で失敗したら
- * 全部が無くなる。
+ * ## 全部同時に作り、そろってから一度に出す（2026-09-27 に変更）
+ * 前は1節ずつ順に作って1つずつ現れていた。オーナー指示で、並べて同時に
+ * 作り、全部そろったら1度に出す形にした（下の効果の中の説明）。
+ * 途中で一部が失敗しても、できた分はまとめて出る。
  *
  * ## 暴走させない蓋
- * 節ごとに1回 AI を呼ぶので、上限(`MAX_AUTO_FILL`)と連続失敗の打ち切り
- * (`MAX_FAILURES`)を `src/lib/auto-fill.ts` に置いてテストしてある。
+ * 節ごとに1回 AI を呼ぶので、1回開いたときの上限(`MAX_AUTO_FILL`)を
+ * `src/lib/auto-fill.ts` に置いてテストしてある。全部失敗したら
+ * ボタンに戻し、黙って叩き続けない。
  */
 function AutoFillSections({
   wordId,
@@ -792,33 +786,38 @@ function AutoFillSections({
     const planned = nextAutoFillQueue(missingRef.current, attempted, budget).length;
     if (planned === 0) return;
 
+    /**
+     * **全部を同時に作り、全部そろってから1度に出す**（オーナー指示
+     * 2026-09-27「意味と発音を先に出し、その後の詳細解説が項目1つずつ
+     * 生成される → 6つ全てを一気にパッと表示するに直して」）。
+     *
+     * 前は1節ずつ順に作り、1節できるたびに札を読み直していたので、
+     * 項目が1つずつ現れた。いまは:
+     *   ・AI への問い合わせを**並べて同時に**投げる（待ち時間は一番遅い
+     *     1本ぶん。順に待つと6本ぶん）
+     *   ・札の読み直しは**全部が終わってから1回だけ** → 全項目が同時に出る
+     * 同時に書き込んでも項目が消えないよう、server は書く直前に読み直して
+     * 重ねる（`runSectionRegen`）。
+     */
     void (async () => {
-      let failures = 0;
-      let done = 0;
-      setState({ done: 0, total: planned, failed: false });
-      while (!cancelled) {
-        const left = MAX_AUTO_FILL - attempted.size;
-        const [section] = nextAutoFillQueue(missingRef.current, attempted, Math.max(0, left));
-        if (!section) break;
-        attempted.add(section);
-        try {
-          await fillFn({ data: { word_id: wordId, section, only_if_empty: true } });
-          failures = 0;
-          // できた節をすぐ出す。ここで読み直すから「上から順に現れる」。
-          await qc.invalidateQueries({ queryKey: ["sticker"] });
-          await qc.invalidateQueries({ queryKey: ["stickers"] });
-        } catch {
-          failures += 1;
-          // **同じ失敗を繰り返さない。** 上限に当たった / 鍵が無い、のような
-          // 直らない失敗で AI を叩き続けない。
-          if (failures >= MAX_FAILURES) {
-            if (!cancelled) setState({ done, total: planned, failed: true });
-            return;
-          }
-        }
-        done += 1;
-        if (!cancelled) setState({ done, total: planned, failed: false });
+      const queue = nextAutoFillQueue(missingRef.current, attempted, budget);
+      for (const section of queue) attempted.add(section);
+      setState({ done: 0, total: queue.length, failed: false });
+      const results = await Promise.allSettled(
+        queue.map((section) => fillFn({ data: { word_id: wordId, section, only_if_empty: true } })),
+      );
+      if (cancelled) return;
+      const ok = results.filter((r) => r.status === "fulfilled").length;
+      // 1つでもできていれば、できた分を**まとめて**出す。
+      if (ok > 0) {
+        await qc.invalidateQueries({ queryKey: ["sticker"] });
+        await qc.invalidateQueries({ queryKey: ["stickers"] });
       }
+      if (cancelled) return;
+      // **全部だめだった時だけ**ボタンに戻す（上限・鍵なしのような、
+      // 待っても直らない失敗で AI を叩き続けない）。
+      const failed = queue.length > 0 && ok === 0;
+      setState({ done: queue.length, total: queue.length, failed });
     })();
 
     return () => {
@@ -1115,6 +1114,10 @@ function ReportButton({
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
+  /** 「AIに見つけてもらう」の一言の欄を開いているか。 */
+  const [asking, setAsking] = useState(false);
+  const [note, setNote] = useState("");
+  const selfRef = useRef<HTMLSpanElement>(null);
   if (!wordId) return null;
   const labelOf = (item: ReportItem) =>
     item === "pronunciation"
@@ -1122,15 +1125,35 @@ function ReportButton({
       : item === "pos"
         ? t("card.posLabel")
         : t(sectionTitleKey(item, language));
-  async function send(item: ReportItem) {
+  const cardEl = () => selfRef.current?.closest("[data-word-card]") ?? null;
+  const sectionEl = (item: ReportItem) =>
+    cardEl()?.querySelector<HTMLElement>(`[data-magic="${item}"]`) ?? null;
+  async function send(item: ReportItem | "auto", text = "") {
     setOpen(false);
+    setAsking(false);
     setBusy(true);
+    // 直す項目の中身（同じカードの中だけを探す）。直している間は光の筋を流す。
+    // **AIに見つけてもらう**ときは、どこか分からないのでカード全体に流す。
+    const waiting = item === "auto" ? (cardEl() as HTMLElement | null) : sectionEl(item);
     try {
-      const res = await fixFn({ data: { word_id: wordId!, item } });
-      if (res.fixed) {
-        await qc.invalidateQueries({ queryKey: ["sticker"] });
-        await qc.invalidateQueries({ queryKey: ["stickers"] });
-        toast.success(t("card.reportFixed", { item: labelOf(item) }));
+      waiting?.classList.add("magic-wait");
+      const res = await fixFn({
+        data: {
+          word_id: wordId!,
+          item,
+          note: text,
+          ...(item === "auto" ? { candidates: items } : {}),
+        },
+      }).finally(() => waiting?.classList.remove("magic-wait"));
+      const done = (res.item ?? (item === "auto" ? null : item)) as ReportItem | null;
+      if (res.fixed && done) {
+        await swapWithMagic(sectionEl(done), async () => {
+          await qc.invalidateQueries({ queryKey: ["sticker"] });
+          await qc.invalidateQueries({ queryKey: ["stickers"] });
+        });
+        toast.success(t("card.reportFixed", { item: labelOf(done) }));
+      } else if (item === "auto" && !done) {
+        toast(t("card.reportNotFound"));
       } else {
         toast(t("card.reportQueued"));
       }
@@ -1141,7 +1164,7 @@ function ReportButton({
     }
   }
   return (
-    <span className="relative ml-auto">
+    <span ref={selfRef} className="relative ml-auto">
       <button
         onClick={() => setOpen((v) => !v)}
         disabled={busy}
@@ -1156,7 +1179,34 @@ function ReportButton({
         {busy ? t("card.reportFixing") : t("card.report")}
       </button>
       {open && (
-        <div className="absolute right-0 top-7 z-20 max-h-72 w-48 overflow-y-auto rounded-xl border border-border bg-card p-1.5 shadow-xl">
+        <div className="absolute right-0 top-7 z-20 max-h-80 w-56 overflow-y-auto rounded-xl border border-border bg-card p-1.5 shadow-xl">
+          {/* いちばん上は「AIに見つけてもらう」（どこが違うか分からない人のため）。
+              押すと一言の欄が開く（空でも送れる）。 */}
+          {asking ? (
+            <div className="space-y-1.5 p-1">
+              <textarea
+                value={note}
+                onChange={(e) => setNote(e.target.value.slice(0, 500))}
+                rows={2}
+                autoFocus
+                placeholder={t("card.reportAutoHint")}
+                className="w-full resize-none rounded-lg border border-input bg-background p-2 text-footnote"
+              />
+              <button
+                onClick={() => send("auto", note.trim())}
+                className="block min-h-11 w-full rounded-lg bg-primary px-2 text-footnote font-semibold text-primary-foreground"
+              >
+                {t("card.reportAutoSend")}
+              </button>
+            </div>
+          ) : (
+            <button
+              onClick={() => setAsking(true)}
+              className="block min-h-11 w-full rounded-lg px-2 py-1.5 text-left text-footnote font-semibold text-primary hover:bg-secondary"
+            >
+              {t("card.reportAuto")}
+            </button>
+          )}
           <p className="px-2 py-1 text-caption text-muted-foreground">{t("card.reportWhat")}</p>
           {items.map((item) => (
             <button
@@ -1205,15 +1255,20 @@ function SectionCard({
   const qc = useQueryClient();
   const [regenerating, setRegenerating] = useState(false);
   const canRegen = !!wordId && !!isPro && isRegenSection(id);
+  const bodyRef = useRef<HTMLDivElement>(null);
 
   // Pro: この項目だけをワンタッチで作り直す。
+  // **古い解説は残したまま待ち、届いたら魔法のように入れ替える**
+  // （`magic-swap.ts`、オーナー指示 2026-09-27）。
   async function regen() {
     if (!wordId || regenerating) return;
     setRegenerating(true);
     try {
       await regenFn({ data: { word_id: wordId!, section: id as RegenSection } });
-      await qc.invalidateQueries({ queryKey: ["sticker"] });
-      await qc.invalidateQueries({ queryKey: ["stickers"] });
+      await swapWithMagic(bodyRef.current, async () => {
+        await qc.invalidateQueries({ queryKey: ["sticker"] });
+        await qc.invalidateQueries({ queryKey: ["stickers"] });
+      });
     } catch (e) {
       console.warn("Section regen failed", e);
     } finally {
@@ -1269,9 +1324,29 @@ function SectionCard({
           </button>
         )}
       </div>
-      <Body id={id} word={word} ex={ex} t={t} onPickImage={onPickImage} />
+      <div
+        ref={bodyRef}
+        data-magic={id}
+        className={regenerating ? "magic-wait" : undefined}
+        aria-busy={regenerating || undefined}
+      >
+        <Body id={id} word={word} ex={ex} t={t} onPickImage={onPickImage} />
+      </div>
     </section>
   );
+}
+
+/**
+ * 古い姿を写してから `work`（読み直し）を待ち、描き直された新しい姿へ
+ * 魔法のように入れ替える。`el` は読み直しの後も**同じ要素**である前提
+ * （節の中身の包み）。
+ */
+async function swapWithMagic(el: HTMLElement | null, work: () => Promise<void>) {
+  const ghost = snapshotForSwap(el);
+  await work();
+  // 読み直しが描かれるのを2コマ待つ。
+  await new Promise<void>((r) => requestAnimationFrame(() => requestAnimationFrame(() => r())));
+  if (el?.isConnected) void playMagicSwap(el, ghost);
 }
 
 /**
@@ -1550,7 +1625,7 @@ function Body({
         return (
           <div className="usage-chunks">
             {chunks.map((c, i) => (
-              <ChunkRow key={i} chunk={c} language={word.language} />
+              <ChunkRow key={i} chunk={c} language={word.language} headword={word.headword} />
             ))}
             {/* 凡例は**全部の札をまとめて**見る。かたまりごとに出すと
                 同じ丸が何度も並ぶ。 */}
@@ -1923,7 +1998,15 @@ function RelatedWordRow({
  * 英語は札を空白で継ぐ。継がずに読ませると `put onsocks` になる
  * (`chunkText` と同じ理由)。
  */
-function ChunkRow({ chunk, language }: { chunk: UsageChunk; language?: string | null }) {
+function ChunkRow({
+  chunk,
+  language,
+  headword,
+}: {
+  chunk: UsageChunk;
+  language?: string | null;
+  headword?: string;
+}) {
   return (
     <div className="usage-chunk-row">
       {/* 札（品詞ごとの丸）、その下に訳を小さく薄く、右端に型ぜんぶの音声
@@ -1933,6 +2016,7 @@ function ChunkRow({ chunk, language }: { chunk: UsageChunk; language?: string | 
         parts={chunk.parts}
         translation={chunkTranslation(chunk.ja)}
         lang={language}
+        headword={headword}
         speakText={chunkSpeechText(chunk, language)}
       />
     </div>

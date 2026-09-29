@@ -6,10 +6,12 @@ import {
   ScanAnalyzing_v11lens,
   ScanAnalyzing_v12steps,
 } from "@/components/effects/scan-analyzing/v9_proposals";
+import { ScanAnalyzing_v13depth } from "@/components/effects/scan-analyzing/v13_depth";
 import { photo } from "./peel-sticker";
 
 /**
- * **AI 分析中の動きの案 A〜E**（オーナー指示 2026-09-27）。
+ * **AI 分析中の動きの案 A〜F**（オーナー指示 2026-09-27。F は 2026-09-28 の 3D 版で、
+ * 本番の既定。開くと F が出る）。
  * 撮った写真の上に重ねたところを、本番と同じ全画面で見せる。
  * E の段は見本のため 1.6 秒ごとに進める（本番は AI の進みに合わせる）。
  */
@@ -24,11 +26,12 @@ const VARIANTS: Array<{
   { key: "c", label: "C 文字が浮かぶ", C: ScanAnalyzing_v10glyphs },
   { key: "d", label: "D レンズ", C: ScanAnalyzing_v11lens },
   { key: "e", label: "E 3つの段", C: ScanAnalyzing_v12steps },
+  { key: "f", label: "F 立体で測る(3D・本番の既定)", C: ScanAnalyzing_v13depth },
 ];
 const STAGES: Stage[] = ["sensing", "reading", "matching"];
 
 export function AnalyzingDesignsScene({ q }: { q: URLSearchParams }) {
-  const [v, setV] = useState(VARIANTS.find((o) => o.key === q.get("v"))?.key ?? "a");
+  const [v, setV] = useState(VARIANTS.find((o) => o.key === q.get("v"))?.key ?? "f");
   const [i, setI] = useState(0);
   useEffect(() => {
     const id = window.setInterval(() => setI((n) => (n + 1) % STAGES.length), 1600);

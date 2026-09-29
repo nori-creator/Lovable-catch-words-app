@@ -19,13 +19,13 @@ import {
   LightModeCard,
   MemoryLevelSummary,
   MemoryOverviewPanel,
-  MiniRetentionGraph,
   ReviewHeader,
   ReviewPreparing,
   SayResult,
   SpeakingCard,
 } from "@/routes/_authenticated/review";
 import type { DueReviewCard } from "@/lib/reviews.functions";
+import { MiniRetentionGraph } from "@/components/MiniRetentionGraph";
 import { RetakeSuggestion } from "@/components/RetakeSuggestion";
 
 /** 4択の上に出る写真。縦長（実物のキャッチ写真はだいたい縦）。 */

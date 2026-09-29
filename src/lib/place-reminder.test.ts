@@ -133,3 +133,40 @@ describe("同じ場所では1日1回まで（2026-09-27「家にいると延々�
     expect(mayNotifyAt(c, at(18), log)).toBe(false);
   });
 });
+
+/**
+ * オーナー決定 2026-09-27: 通知は B「写真を大きく」、言語の名前は
+ * 「中国語」ではなく「台湾華語」（英語の画面では Mandarin）。
+ */
+describe("buildMessage — B 写真を大きく・学習言語の名前", () => {
+  afterEach(() => vi.unstubAllGlobals());
+  const withPhoto = { ...base, image_url: "https://example.test/p.jpg" };
+
+  it("写真が在れば、写真を問いにして答えも意味も書かない", () => {
+    const { title, body } = buildMessage(withPhoto);
+    expect(title).toContain("台湾華語で言える");
+    expect(title).not.toContain("珍珠奶茶");
+    expect(title).not.toContain("タピオカミルクティー");
+    expect(body).toContain("士林夜市");
+  });
+
+  it("写真が無ければ母語で問い、言語は台湾華語と書く", () => {
+    const { title } = buildMessage(base);
+    expect(title).toContain("台湾華語");
+    expect(title).not.toContain("中文");
+    expect(title).not.toContain("中国語");
+  });
+
+  it("英語の語なら英語と書く", () => {
+    expect(buildMessage({ ...base, headword: "umbrella", meaning_ja: "傘" }).title).toContain(
+      "英語",
+    );
+  });
+
+  it("英語の画面では Mandarin", () => {
+    const store = new Map([["ui-lang-v1", "en"]]);
+    vi.stubGlobal("window", {});
+    vi.stubGlobal("localStorage", { getItem: (k: string) => store.get(k) ?? null });
+    expect(buildMessage(withPhoto).title).toContain("Mandarin");
+  });
+});

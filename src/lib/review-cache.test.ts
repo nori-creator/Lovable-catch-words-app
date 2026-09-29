@@ -57,12 +57,11 @@ describe("読み出すのは、出してよい物だけ", () => {
   });
 
   /**
-   * 写真と音声の署名URLは6時間で切れる（`reviews.functions.ts`）。
-   * 切れた束を出すと**絵の出ない札**が並ぶ。
-   * 「古いかもしれない」より「壊れている」ほうがずっと悪い。
+   * 写真は束が届いた時点で端末へ落とす（`warmCachedImages`）ので、署名URLが
+   * 切れても出る。それでも丸1日前の束は出さない（20時間）。
    */
-  it("**署名URLが切れる前に捨てる**（4時間。寿命6時間に2時間の余裕）", () => {
-    expect(REVIEW_CACHE_MAX_AGE_MS).toBe(4 * 60 * 60_000);
+  it("**古すぎる束は捨てる**（20時間）", () => {
+    expect(REVIEW_CACHE_MAX_AGE_MS).toBe(20 * 60 * 60_000);
     expect(readBatch(good, "u1", null, NOW + REVIEW_CACHE_MAX_AGE_MS - 1)).not.toBeNull();
     expect(readBatch(good, "u1", null, NOW + REVIEW_CACHE_MAX_AGE_MS + 1)).toBeNull();
   });

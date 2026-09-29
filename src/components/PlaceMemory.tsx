@@ -35,6 +35,7 @@ import {
   recordNotificationAt,
   writePlaceLog,
   takenDateLabel,
+  learningLanguageName,
 } from "@/lib/place-reminder";
 import { useT } from "@/lib/i18n";
 
@@ -113,6 +114,12 @@ export function PlaceMemoryWatcher() {
 
 /**
  * 知らせそのもの。通信も位置も持たないので、検査の雛形からそのまま撮れる。
+ *
+ * ## B「写真を大きく」（オーナー決定 2026-09-27）
+ * 思い出す手がかりは写真なので、写真を上いっぱいに出し、その下に
+ * 「地名 · 日付」と問い「ここで撮った、これ。台湾華語で言える？」、
+ * ボタンは「復習する」「あとで」。写真が無い語（文字から作った語）は
+ * 手がかりが無いので、母語で問う1行の形のまま。
  */
 export function PlaceMemoryCard({
   memory,
@@ -128,11 +135,13 @@ export function PlaceMemoryCard({
 }) {
   const t = useT();
   const date = takenDateLabel(memory.taken_at);
+  const lang = learningLanguageName(memory.headword);
   const line = date
     ? t("place.caughtOn", { date })
     : memory.location_name
       ? t("place.caughtAt", { name: memory.location_name })
       : t("place.caughtHereShort");
+  const meta = [memory.location_name?.trim(), date].filter(Boolean).join(" · ");
   return (
     // **上から。** 端末の通知と同じ向きから降りてくる。
     // 安全域(ノッチ)を避けてから、その下に置く。
@@ -140,39 +149,63 @@ export function PlaceMemoryCard({
       {/* **地はテーマに従わせる。** 明るい面を前提にした固定の白と濃紺を
           直に書いていたので、暗いテーマでは白い板が1枚だけ浮き、しかも
           中の字はトークンなので**白地に明るい灰色**になっていた（実測 2.21）。 */}
-      <div className="flex items-center gap-3 rounded-[28px] border border-border bg-card/95 p-4 text-foreground shadow-[0_14px_50px_#147bc522] backdrop-blur-xl">
-        {/* **撮ったときの写真。** これが思い出す手がかりそのもの。
-            まだ画像が無いカード(文字から作った語)だけ、場所の印に落ちる。 */}
-        {memory.image_url ? (
+      {memory.image_url ? (
+        <div className="relative overflow-hidden rounded-[28px] border border-border bg-card/95 text-foreground shadow-[0_14px_50px_#147bc522] backdrop-blur-xl">
           <img
             src={memory.image_url}
             alt=""
-            className="h-12 w-12 shrink-0 rounded-xl object-cover ring-1 ring-black/5"
+            className="aspect-[16/10] max-h-[32vh] w-full object-cover"
           />
-        ) : (
+          <button
+            onClick={onDismiss}
+            aria-label={t("common.close")}
+            className="absolute right-2 top-2 grid h-11 w-11 place-items-center rounded-full bg-black/35 text-white backdrop-blur active:scale-95"
+          >
+            <X className="h-4 w-4" />
+          </button>
+          <div className="p-4">
+            {meta && <p className="truncate text-footnote text-muted-foreground">{meta}</p>}
+            <p className="mt-0.5 text-headline font-bold">{t("place.sayItIn", { lang })}</p>
+            <div className="mt-3 flex gap-2">
+              <button
+                onClick={onStart}
+                className="min-h-11 flex-1 rounded-full bg-primary px-5 text-body font-semibold text-primary-foreground active:scale-[0.98]"
+              >
+                {t("place.review")}
+              </button>
+              <button
+                onClick={onDismiss}
+                className="min-h-11 rounded-full bg-secondary px-5 text-body font-semibold text-foreground active:scale-[0.98]"
+              >
+                {t("place.later")}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : (
+        <div className="flex items-center gap-3 rounded-[28px] border border-border bg-card/95 p-4 text-foreground shadow-[0_14px_50px_#147bc522] backdrop-blur-xl">
           <span className="grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-primary/10 text-primary-ink">
             <MapPin className="h-5 w-5" />
           </span>
-        )}
-        <button onClick={onStart} className="min-w-0 flex-1 py-1 text-left">
-          <span className="block truncate text-body font-semibold">
-            {/* 単語の前後で文が分かれる。日本語は「〇〇」覚えてる?、英語は
-                Remember "〇〇"? と語順が違うので前後を別キーにしている。
-                単語だけ <Zh> で囲む必要があり、1文にまとめられない。 */}
-            {t("place.rememberBefore")}
-            <span>{memory.meaning_ja?.trim() || t("place.thisWord")}</span>
-            {t("place.rememberAfter")}
-          </span>
-          <span className="block truncate text-caption text-muted-foreground">{line}</span>
-        </button>
-        <button
-          onClick={onDismiss}
-          aria-label={t("common.close")}
-          className="grid h-11 w-11 shrink-0 place-items-center rounded-full text-muted-foreground active:scale-95"
-        >
-          <X className="h-4 w-4" />
-        </button>
-      </div>
+          <button onClick={onStart} className="min-w-0 flex-1 py-1 text-left">
+            <span className="block truncate text-body font-semibold">
+              {/* 単語の前後で文が分かれる。日本語は「〇〇」は台湾華語で？、英語は
+                  Remember "〇〇" in Mandarin? と語順が違うので前後を別キーにしている。 */}
+              {t("place.rememberBefore")}
+              <span>{memory.meaning_ja?.trim() || t("place.thisWord")}</span>
+              {t("place.rememberAfter", { lang })}
+            </span>
+            <span className="block truncate text-caption text-muted-foreground">{line}</span>
+          </button>
+          <button
+            onClick={onDismiss}
+            aria-label={t("common.close")}
+            className="grid h-11 w-11 shrink-0 place-items-center rounded-full text-muted-foreground active:scale-95"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+      )}
     </div>
   );
 }

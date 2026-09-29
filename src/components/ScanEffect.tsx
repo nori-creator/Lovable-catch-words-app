@@ -1,5 +1,6 @@
 import { useEffect, useState, type ReactElement } from "react";
 import { EFFECT_LAB_EVENT, getVariant, type EffectSlot } from "@/lib/effect-lab";
+import { loopSfx } from "@/lib/sfx-files";
 import { ScanAnalyzing_v0cutout } from "./effects/scan-analyzing/v0_cutout";
 import { ScanAnalyzing_v1probe } from "./effects/scan-analyzing/v1_probe";
 import { ScanAnalyzing_v2liquid } from "./effects/scan-analyzing/v2_liquid";
@@ -15,13 +16,15 @@ import {
   ScanAnalyzing_v11lens,
   ScanAnalyzing_v12steps,
 } from "./effects/scan-analyzing/v9_proposals";
+import { ScanAnalyzing_v13depth } from "./effects/scan-analyzing/v13_depth";
 
 /**
  * スキャン中(AI分析中)の演出。
  *
  * 中身は歴代の演出をそのまま variant として残してあり、開発者は設定の
  * 「エフェクト・ラボ」で見比べて選べる(src/lib/effect-lab.ts)。
- * 既定はカメラ期(v0cutout)。新しい版も残してあるのでラボで戻せる。
+ * 既定は 3D で測る版(v13depth、2026-09-28)。WebGL が無い端末・動きを減らす設定では
+ * カメラ期(v0cutout)に落ちる。古い版も残してあるのでラボで戻せる。
  */
 type Stage = "sensing" | "reading" | "matching";
 
@@ -41,6 +44,7 @@ const VARIANTS: Record<string, (p: { stage: Stage; cutout?: boolean }) => ReactE
   v10glyphs: ScanAnalyzing_v10glyphs,
   v11lens: ScanAnalyzing_v11lens,
   v12steps: ScanAnalyzing_v12steps,
+  v13depth: ScanAnalyzing_v13depth,
 };
 
 /** ラボでの選択に追従する(選んだ瞬間に反映される)。 */
@@ -73,6 +77,10 @@ export function ScanEffect({
 }) {
   const id = useEffectVariant(SLOT);
   const Chosen = VARIANTS[id] ?? ScanAnalyzing_v0cutout;
+  // 待っている間ずっと、静かなきらめきの音を敷く（`public/sfx/el-analyze-loop.mp3`、
+  // オーナー指示 2026-09-28「AIの分析中のアニメーション…本物の映画の効果音の
+  // クオリティ」）。画面が消えたら 0.25 秒で消える。音の設定がオフなら鳴らない。
+  useEffect(() => loopSfx("analyze-loop"), []);
   return <Chosen stage={stage} cutout={cutout} />;
 }
 

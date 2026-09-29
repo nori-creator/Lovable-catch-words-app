@@ -33,7 +33,10 @@ export async function firstCatchPhoto(file: File): Promise<string> {
     // iOS Safari can reject decode() for a camera file that still fires load.
     // onload works on older Safari too; bound the wait so a bad HEIC never traps the tour.
     await new Promise<void>((resolve, reject) => {
-      const timeout = window.setTimeout(() => finish(new Error("FIRST_CATCH_PHOTO_UNSUPPORTED")), 20_000);
+      const timeout = window.setTimeout(
+        () => finish(new Error("FIRST_CATCH_PHOTO_UNSUPPORTED")),
+        20_000,
+      );
       const finish = (error?: Error) => {
         window.clearTimeout(timeout);
         image.onload = null;

@@ -1,6 +1,8 @@
-import { Fragment, type CSSProperties } from "react";
+import { Fragment, useMemo, useState, type CSSProperties } from "react";
+import { ChevronDown } from "lucide-react";
 import { chunkStyle, chunkLegendFor } from "@/lib/pos";
-import { usePronounce } from "@/lib/use-pronounce";
+import { usePrefetchSpeech, usePronounce } from "@/lib/use-pronounce";
+import { normalizeTargetLanguage } from "@/lib/target-lang";
 import { Term } from "@/components/Term";
 import { PronounceButton } from "@/components/PronounceButton";
 import type { ChunkPart } from "@/lib/extras";
@@ -13,10 +15,13 @@ import type { ChunkPart } from "@/lib/extras";
  * 札は**浮いている(NORI指定)** — 薄い地・同色の縁・下に落ちる影。
  * 押すと沈んで跳ね返る(`.chunk-pill`)。触れる物だと分かる手応えを返す。
  *
- * **形は公式（オーナー決定 2026-09-27「F にして」）。** 決まった語は色付きの
- * ガラスの丸、入れ替えて使う所（`slot`）は点線の枠、間に「＋」を置く
- * （例: 跟 ＋ [男朋友] ＋ 吵架）。入れ替える所にも「人」ではなく、ネイティブが
- * いちばんよく入れる具体語が入る（同日の指示）。
+ * **形は公式（オーナー決定 2026-09-27「F にして」）。** 入れ替えて使う所（`slot`）
+ * にも「人」ではなく、ネイティブがいちばんよく入れる具体語が入る（同日の指示）。
+ *
+ * **形は「語ごとの四角を＋でつなぐ」に決定**（オーナー決定 2026-09-29「チャンクは規定の
+ * ものから台を取り除いて、それで決定して」）。＋は小さく詰める。学ぶ語（`fixedText`）は
+ * 縁を太く・色を濃くし、入れ替えさせない。入れ替えられる所は点線の四角と ▾。
+ * 途中で出した案（1本のカプセル・台・学ぶ語だけ四角・蛍光ペン・括り線）は片付けた。
  */
 export function ChunkPills({
   parts,
@@ -24,9 +29,18 @@ export function ChunkPills({
   appearance = "pill",
   lang,
   onSpeak,
+  onSlot,
+  openSlot = null,
+  fixedText,
 }: {
   parts: ChunkPart[];
   size?: "sm" | "md" | "lg";
+  /**
+   * **学んでいる語は入れ替えさせない**（R14「決して該当の単語はスクロールできるように
+   * はしないで。なぜならこの単語を学習したいから」）。この字を含む札は、AI が入れ替え
+   * 候補を付けていても固定の札として描き、学ぶ語として少し強く見せる。
+   */
+  fixedText?: string;
   /** 単語詳細では札を外し、品詞色を文字そのものに使う。 */
   appearance?: "pill" | "text";
   /** その型の学習言語。**渡さないと台湾華語として組む**(既定)。 */
@@ -39,6 +53,13 @@ export function ChunkPills({
    * 意味の無い場所で押せる見た目にしない。
    */
   onSpeak?: (text: string) => void;
+  /**
+   * 入れ替える所（`slot`）で、ほかの具体語（`alts`）が在る札を押したとき。
+   * 渡すと、その札は「鳴らす」ではなく「ほかの語を並べる」札になる（▾ 付き）。
+   */
+  onSlot?: (index: number) => void;
+  /** いま並べている札（▾ を上向きに）。 */
+  openSlot?: number | null;
 }) {
   if (!parts.length) return null;
   // lg: 復習のヒント用。中国語そのものを一番大きく見せる(周りの説明文より上)。
@@ -51,14 +72,10 @@ export function ChunkPills({
           ? "px-3 py-2 text-headline leading-snug tracking-wide"
           : "px-2.5 py-1.5 text-body";
   const pill = appearance === "pill";
+  const isFixed = (t: string) => !!fixedText && !!t && t.includes(fixedText.trim());
   return (
-    // 影が落ちるぶん、札どうしの間合いを少し広げる。詰めると影が隣に重なって
-    // 濁り、浮いているのではなく汚れているように見える。
-    <div
-      className={`flex flex-wrap ${
-        pill ? "chunk-set chunk-set--formula items-center" : "gap-x-1.5 gap-y-1"
-      }`}
-    >
+    // 札の型: 既定は**語ごとの四角を＋でつなぐ**。本文の型は字だけで並べる。
+    <div className={pill ? "chunk-set chunk-set--boxes" : "flex flex-wrap gap-x-1.5 gap-y-1"}>
       {parts.map((c, i) => {
         const st = chunkStyle(c.pos);
         // チャンク本体は**学習言語の語**。品詞ラベル(名詞など)は解説語なので、
@@ -67,20 +84,33 @@ export function ChunkPills({
         // フォントが当たる(`Term` の注)。
         // 記号(S/V/O…)は**帯から外した**。語のすぐ右に同じベースラインで
         // 置いていたので「我 s」が誤字に見えた。色と凡例で足りる。
-        const body = <Term lang={lang}>{c.text}</Term>;
+        const target = isFixed(c.text);
+        const swappable = !!onSlot && !!c.slot && !target && (c.alts?.length ?? 0) > 0;
+        const body = swappable ? (
+          <>
+            <Term lang={lang}>{c.text}</Term>
+            <ChevronDown
+              aria-hidden
+              className={`chunk-slot__chev h-3.5 w-3.5 ${openSlot === i ? "rotate-180" : ""}`}
+            />
+          </>
+        ) : (
+          <Term lang={lang}>{c.text}</Term>
+        );
         const posClass = st.dot.replace("pos-dot ", "");
         const skin = !pill
           ? `chunk-word font-semibold ${pad} ${posClass}`
-          : c.slot
+          : c.slot && !target
             ? `chunk-slot font-semibold ${pad} ${posClass}`
-            : `chunk-bubble rounded-full font-semibold ${pad} ${st.pill}`;
+            : `chunk-bubble font-semibold ${pad} ${st.pill}${target ? " chunk-target" : ""}`;
         const style = { "--i": i } as CSSProperties;
         const joint =
           pill && i > 0 ? (
             <span aria-hidden className="chunk-plus">
-              ＋
+              +
             </span>
           ) : null;
+
         if (!onSpeak) {
           return (
             <Fragment key={i}>
@@ -100,8 +130,10 @@ export function ChunkPills({
                 // 札は押せる物の中に入っていることがある(図鑑の一覧)。
                 // ここで止めないと、鳴らすつもりが画面ごと切り替わる。
                 e.stopPropagation();
-                onSpeak(c.text);
+                if (swappable) onSlot!(i);
+                else onSpeak(c.text);
               }}
+              aria-expanded={swappable ? openSlot === i : undefined}
               /**
                * **押せる札は指の大きさにする**(44px)。
                *
@@ -161,8 +193,11 @@ export function ChunkLine({
   lang,
   speakText,
   onSpeak,
+  headword,
 }: {
   parts: ChunkPart[];
+  /** 学んでいる語。この語の札は入れ替えない（R14）。 */
+  headword?: string;
   translation?: string | null;
   lang?: string | null;
   /** 型ぜんぶをひと息で鳴らす文。無ければボタンを出さない。 */
@@ -171,21 +206,91 @@ export function ChunkLine({
   onSpeak?: (text: string) => void;
 }) {
   const pronounce = usePronounce(lang ?? undefined);
+  /**
+   * **入れ替える所の語を選ぶ**（オーナー指示 2026-09-27「汎用部分（人・もの）は
+   * タップすると、ネイティブ頻出の具体的単語が出る（跟+男朋友+吵架 → 女朋友・
+   * 朋友などをスクロールで表示）。音声も全部」）。
+   *
+   * 札（▾ 付き）を押すと、下に**横に送れる語の列**が開く。語を押すと型の中の
+   * その札が入れ替わり、**入れ替えた型ぜんぶ**が鳴る。右端のボタンも、いま
+   * 入れ替えている形を読む。
+   */
+  const [open, setOpen] = useState<number | null>(null);
+  const [pick, setPick] = useState<Record<number, number>>({});
+  const sep = normalizeTargetLanguage(lang) === "en" ? " " : "";
+  const shown = useMemo(
+    () =>
+      parts.map((p, i) => {
+        const k = pick[i];
+        const alt = k != null && k >= 0 ? p.alts?.[k] : undefined;
+        return alt ? { ...p, text: alt.text } : p;
+      }),
+    [parts, pick],
+  );
+  const phraseWith = (i: number, text: string) =>
+    shown
+      .map((p, j) => (j === i ? text : p.text).trim())
+      .filter(Boolean)
+      .join(sep);
+  const slot = open != null ? parts[open] : null;
+  const choices = slot ? [{ text: slot.text, ja: "" }, ...(slot.alts ?? [])] : [];
+  // 開いた列の型ぜんぶを先に作っておく（押した瞬間に鳴る）。
+  usePrefetchSpeech(open != null ? choices.map((c) => phraseWith(open, c.text)) : [], {
+    language: lang ?? undefined,
+    enabled: open != null,
+  });
+  const hasPick = Object.keys(pick).length > 0;
   if (!parts.length) return null;
   return (
     <div className="chunk-line">
       <div className="chunk-line__body">
         <ChunkPills
-          parts={parts}
+          parts={shown}
           size="md"
           lang={lang}
           onSpeak={onSpeak ?? ((text) => void pronounce(text))}
+          onSlot={(i) => setOpen((o) => (o === i ? null : i))}
+          openSlot={open}
+          fixedText={headword}
         />
-        {translation ? <p className="chunk-line__translation">{translation}</p> : null}
+        {translation && !hasPick ? <p className="chunk-line__translation">{translation}</p> : null}
+        {slot && open != null && (
+          <div className="chunk-alts" role="listbox" aria-label={slot.text}>
+            {choices.map((c, k) => {
+              const on = (pick[open] ?? -1) === k - 1;
+              return (
+                <button
+                  key={`${c.text}-${k}`}
+                  type="button"
+                  role="option"
+                  aria-selected={on}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setPick((p) => ({ ...p, [open]: k - 1 }));
+                    void pronounce(phraseWith(open, c.text));
+                  }}
+                  className="chunk-alts__item press-in"
+                >
+                  <Term lang={lang} className="chunk-alts__word">
+                    {c.text}
+                  </Term>
+                  {c.ja ? <span className="chunk-alts__ja">{c.ja}</span> : null}
+                </button>
+              );
+            })}
+          </div>
+        )}
       </div>
       {speakText ? (
         <PronounceButton
-          text={speakText}
+          text={
+            hasPick
+              ? shown
+                  .map((p) => p.text.trim())
+                  .filter(Boolean)
+                  .join(sep)
+              : speakText
+          }
           language={lang ?? undefined}
           size="sm"
           tone="quiet"

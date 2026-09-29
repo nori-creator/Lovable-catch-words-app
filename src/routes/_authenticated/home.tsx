@@ -1,3 +1,4 @@
+import { MemorialReveal } from "@/components/MemorialReveal";
 import { JIGGLE, jiggleStyle, LIFTED } from "@/lib/album-drag";
 import { decorFor } from "@/lib/collage-decor";
 import {
@@ -7,6 +8,8 @@ import {
   COLLAGE_CAP_W,
   captionAlign,
   COLLAGE_COL_W,
+  avoidFixed,
+  boxOf,
   collageRatio,
   gestureDelta,
   packCollage,
@@ -34,17 +37,26 @@ import { LoadFailed } from "@/components/LoadFailed";
 import { StickerSheet } from "@/components/StickerSheet";
 import type { HeroOrigin as FlightOrigin } from "@/components/use-hero-reveal";
 import { listMyStickers, saveAlbumLayout, type StickerWithWord } from "@/lib/stickers.functions";
-import { CachedImg } from "@/lib/image-cache";
+import { getMyProfile } from "@/lib/profile.functions";
+import { CachedImg, warmCachedImages } from "@/lib/image-cache";
 import { Term } from "@/components/Term";
 import {
   listPendingCaptures,
   removePendingCapture,
   type PendingCapture,
 } from "@/lib/offline-queue";
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { BookText, Camera, Check, Trash2, WifiOff } from "lucide-react";
+import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import {
+  dismissMemorial,
+  milestoneToday,
+  pickHighlights,
+  wasMemorialDismissed,
+} from "@/lib/milestone-album";
+import { scheduleMilestoneNotification } from "@/lib/milestone-schedule";
+import { BookText, Camera, Check, EyeOff, Trash2, Undo2, WifiOff, X } from "lucide-react";
 import { homeBlankMessage, streakEndingYesterday } from "@/lib/home-blank";
 import { baseStickerId, isEncounterAlbumId, mergeAlbumEncounters } from "@/lib/album-encounters";
+import { useAlbumHidden } from "@/lib/album-hidden";
 import {
   readWallpaper,
   wallClass,
@@ -64,6 +76,14 @@ export const Route = createFileRoute("/_authenticated/home")({
       { name: "description", content: "今日キャッチした言葉を一冊のスクラップアルバムに。" },
     ],
   }),
+  /**
+   * `?memorial=30`: 節目の通知から来た時、その記念アルバムを開く
+   * （`lib/milestone-album.ts`、`lib/deep-link.ts`）。
+   */
+  validateSearch: (search: Record<string, unknown>): { memorial?: number } => {
+    const m = Number(search.memorial);
+    return Number.isInteger(m) && m > 0 && m < 100000 ? { memorial: m } : {};
+  },
   component: HomePage,
 });
 
@@ -223,6 +243,8 @@ function HomePage() {
   const t = useT();
   const navigate = useNavigate();
   const fetchStickers = useServerFn(listMyStickers);
+  const fetchProfile = useServerFn(getMyProfile);
+  const { data: profile } = useQuery({ queryKey: ["profile"], queryFn: () => fetchProfile() });
   const {
     data: stickers,
     isLoading,
@@ -238,6 +260,38 @@ function HomePage() {
     gcTime: 30 * 60 * 1000,
   });
   const [openId, setOpenId] = useState<string | null>(null);
+  /**
+   * **節目の日の記念アルバム**（オーナー指示 2026-09-27、`lib/milestone-album.ts`）。
+   * 使い始めた日（アカウントを作った日）から数えて節目なら、今日の誌面の上に
+   * 入口を出す。節目の通知から来た時（`?memorial=30`）はそのまま開く。
+   */
+  const { memorial: memorialParam } = Route.useSearch();
+  const startedAt = profile?.created_at ? new Date(profile.created_at) : null;
+  const memorialToday = startedAt ? milestoneToday(startedAt, new Date()) : null;
+  const [memorialOpen, setMemorialOpen] = useState<number | null>(memorialParam ?? null);
+  const [memorialHidden, setMemorialHidden] = useState(false);
+  useEffect(() => {
+    if (memorialParam) setMemorialOpen(memorialParam);
+  }, [memorialParam]);
+  useEffect(() => {
+    if (profile?.created_at) void scheduleMilestoneNotification(new Date(profile.created_at));
+  }, [profile?.created_at]);
+  const memorialPicks = useMemo(
+    () =>
+      pickHighlights(
+        (stickers?.items ?? []).map((s) => ({
+          ...s,
+          hasPhoto: !!stickerPhotoUrl(s),
+          // 記念の1枚は自動で並べ直す（元の日に指で置いた位置は使わない）。
+          album_x: null,
+          album_y: null,
+          album_scale: null,
+          album_rot: null,
+          album_order: null,
+        })),
+      ),
+    [stickers],
+  );
   /**
    * 押した札の場所と絵。ここから詳細の見出しへ**絵が飛ぶ**
    * （オーナー指示 2026-09-15「軌跡アニメーション」／`components/use-hero-reveal.ts`）。
@@ -322,6 +376,21 @@ function HomePage() {
           背景の壁紙に直接書いて。日記のように」）。上の見出しの帯はやめ、
           今日の誌面の板の中（`DayCollage` の `heading`）に書く。 */}
       <PendingCapturesBanner />
+      {memorialToday &&
+        !memorialHidden &&
+        memorialPicks.length > 0 &&
+        !wasMemorialDismissed(memorialToday) && (
+          <MemorialEntry
+            n={memorialToday}
+            words={total}
+            picks={memorialPicks}
+            onOpen={() => setMemorialOpen(memorialToday)}
+            onDismiss={() => {
+              dismissMemorial(memorialToday);
+              setMemorialHidden(true);
+            }}
+          />
+        )}
 
       {isLoading ? (
         <HomeLoading />
@@ -389,6 +458,24 @@ function HomePage() {
           truncated={truncated}
           shown={shown}
           total={total}
+        />
+      )}
+      {memorialOpen !== null && memorialPicks.length > 0 && (
+        <MemorialAlbum
+          n={memorialOpen}
+          words={total}
+          picks={memorialPicks}
+          surface={surfaceClass}
+          onOpen={(id, from) => {
+            setOpenId(baseStickerId(id));
+            setOpenFrom(from ?? null);
+          }}
+          onClose={() => {
+            dismissMemorial(memorialOpen);
+            setMemorialHidden(true);
+            setMemorialOpen(null);
+            if (memorialParam) void navigate({ to: "/home", search: {}, replace: true });
+          }}
         />
       )}
       <StickerSheet
@@ -870,13 +957,14 @@ const PLACEHOLDER_RATIO = 1.2;
  * 下 16px に次の写真が乗った。360px 以上では偶然足りていた。
  *
  * 数え方（`styles.css` の `.collage__cap` 系と対で決まる）:
- *   `CAP_ROW_PX`  … 語の白い札 19px × 1.2 ＋ 上下の詰め 5px ＋ 写真との間 4px
- *                   （語を大きくした: オーナー指示 2026-09-23）
+ *   `CAP_ROW_PX`  … 写真の下の白い余白（`--pol-strip` 34px）＋ 一言との間 4px。
+ *                   語と時刻はこの余白の中に書く（写真と語を1枚に:
+ *                   オーナー指示 2026-09-27）。一言が無くても余白は要る。
  *   `CAP_NOTE_PX` … 手書きの一言 13px × 1.35 × **3行**（`-webkit-line-clamp`）
  *                   ＋ 上の間 3px。行数の上限が CSS 側に在るので、
  *                   どれだけ長い一言でもここを越えない。
  */
-const CAP_ROW_PX = 32;
+const CAP_ROW_PX = 38;
 const CAP_NOTE_PX = 56;
 
 /**
@@ -933,13 +1021,22 @@ function CollageFasteners({ id, wall }: { id: string; wall: WallId }) {
 }
 
 export function DayCollage({
-  stickers,
+  stickers: allStickers,
   onOpen,
   onLongPress,
   opening,
   surface = "album-bg-paper",
   heading,
+  editable = true,
+  stamp = "time",
 }: {
+  /** 札に添える印。1日の誌面は時刻、日をまたぐ記念アルバムは日付。 */
+  stamp?: "time" | "date";
+  /**
+   * 長押しで置き方を変えられるか。**記念アルバムでは変えない**（札の置き方は
+   * 元の日の誌面のもので、ここで動かすと元の日の置き方が書き換わる）。
+   */
+  editable?: boolean;
   /** 板の上に直に書く日付（`DiaryDate`）。オーナー指示 2026-09-23。 */
   heading?: React.ReactNode;
   /**
@@ -968,6 +1065,42 @@ export function DayCollage({
   const locale = localeOf(uiLang);
   const persistLayout = useServerFn(saveAlbumLayout);
   const qc = useQueryClient();
+  /**
+   * **アルバムから外した写真は貼らない**（オーナー指示 2026-09-28「画像を削除する
+   * ボタンを画像の右端に出して。赤バツ。ただし図鑑からは削除しないで、ホームアルバム
+   * だけから消して。またあとから戻すこともできるようにして」）。札は消えない
+   * （図鑑にはそのまま居る）。記念アルバムは別の誌面なので外さない。
+   */
+  const albumHidden = useAlbumHidden();
+  const stickers = useMemo(
+    () => (editable ? allStickers.filter((s) => !albumHidden.hidden.has(s.id)) : allStickers),
+    [allStickers, albumHidden.hidden, editable],
+  );
+  const hiddenHere = useMemo(
+    () => (editable ? allStickers.filter((s) => albumHidden.hidden.has(s.id)) : []),
+    [allStickers, albumHidden.hidden, editable],
+  );
+  const [showHidden, setShowHidden] = useState(false);
+  // 印は**その1枚の id** に付ける。再会の写しは元の札とは別の写真なので、写しを
+  // 外しても元の札は残る（写しの id はサーバの札ではないので、端末に覚える）。
+  //
+  // 並べ替え中は `ordered` を表から写し直さない（下の effect の注）ので、外す・戻すは
+  // `ordered` にも**その場で**反映する。反映しないと、外した札が写真だけ抜けた
+  // 字の札として残っていた（確認用ページで見つけた）。
+  const hideFromAlbum = (id: string, word: string) => {
+    haptic("light");
+    setOrdered((o) => o.filter((x) => x.id !== id));
+    void albumHidden.hide(id);
+    toast(t("album.hidden", { word }), {
+      action: { label: t("album.undo"), onClick: () => restoreToAlbum(id) },
+    });
+  };
+  const restoreToAlbum = (id: string) => {
+    haptic("light");
+    const back = allStickers.find((x) => x.id === id);
+    if (back) setOrdered((o) => (o.some((x) => x.id === id) ? o : [...o, back]));
+    void albumHidden.restore(id);
+  };
   const [editing, setEditing] = useState(false);
   const [ordered, setOrdered] = useState(stickers);
   const dragId = useRef<string | null>(null);
@@ -1084,6 +1217,11 @@ export function DayCollage({
     }
     return m;
   }, [stickers, surfaceRoles, photoPref]);
+  // 貼る写真を端末から手元へ先に持ってきて読み解く（`warmCachedImages`、2026-09-28
+  // 「画像タイムラグ…瞬間的に表示」）。描き直しや下の日へ転がった時に白い枠を出さない。
+  useEffect(() => {
+    void warmCachedImages([...heroById.values()]);
+  }, [heroById]);
   /**
    * その札の枠の縦横比。**置き方の計算と、描く形で同じ1つの数を使う。**
    *
@@ -1158,6 +1296,42 @@ export function DayCollage({
     base.forEach((s, i) => map.set(s.id, places[i]));
     return map;
   }, [stickers, frameRatio, heroById, board.w]);
+  /**
+   * **自分で置いて保存した写真を避ける**（`avoidFixed`、オーナー指示 2026-09-28
+   * 「デフォルトで画像を配置するとき、ほかの画像と被らないように」）。自動の
+   * 置き方（上の `autoById`）は保存した写真を知らないので、並べ替えた日に新しく
+   * 撮ると、その1枚が保存した写真の真上に積まれていた。
+   */
+  const settledById = useMemo(() => {
+    const extraOf = (s: StickerWithWord) =>
+      heroById.get(s.id) && board.w ? (CAP_ROW_PX + (s.caption ? CAP_NOTE_PX : 0)) / board.w : 0;
+    const saved = (s: StickerWithWord) => s.album_x != null && s.album_y != null;
+    const fixed = stickers.filter(saved).map((s) => {
+      const r = frameRatio(s.id);
+      const p = placementFrom(
+        { x: s.album_x, y: s.album_y, scale: s.album_scale, rot: s.album_rot },
+        autoById.get(s.id) ?? placeFromCell({ col: 0, row: 0 }, "small", s.id),
+      );
+      return boxOf(p, r, extraOf(s));
+    });
+    if (fixed.length === 0) return autoById;
+    const autos = [...stickers]
+      .filter((s) => !saved(s) && autoById.has(s.id))
+      .sort(
+        (a, b) =>
+          (a.album_order ?? Number.MAX_SAFE_INTEGER) - (b.album_order ?? Number.MAX_SAFE_INTEGER),
+      );
+    const settled = avoidFixed(
+      autos.map((s) => {
+        const r = frameRatio(s.id);
+        return { place: autoById.get(s.id)!, ratio: r, extra: extraOf(s) };
+      }),
+      fixed,
+    );
+    const map = new Map(autoById);
+    autos.forEach((s, i) => map.set(s.id, settled[i]));
+    return map;
+  }, [autoById, stickers, frameRatio, heroById, board.w]);
   const items = useMemo(
     () =>
       ordered.map((s, i) => ({
@@ -1170,7 +1344,7 @@ export function DayCollage({
          */
         place: placementFrom(
           { x: s.album_x, y: s.album_y, scale: s.album_scale, rot: s.album_rot },
-          autoById.get(s.id) ?? placeFromCell({ col: 0, row: 0 }, sizes[i], s.id),
+          settledById.get(s.id) ?? placeFromCell({ col: 0, row: 0 }, sizes[i], s.id),
         ),
         /**
          * 縦横の比。**写真が読めていれば写真の比**、まだなら升目の比。
@@ -1186,7 +1360,7 @@ export function DayCollage({
          */
         z: 10 + i,
       })),
-    [ordered, autoById, sizes, frameRatio],
+    [ordered, settledById, sizes, frameRatio],
   );
   /**
    * 台紙の高さ（幅に対する割合）。**中身から決める。**
@@ -1201,7 +1375,8 @@ export function DayCollage({
           const size = s.album_size ?? AUTO_ALBUM_SIZE[order % AUTO_ALBUM_SIZE.length];
           const p = placementFrom(
             { x: s.album_x, y: s.album_y, scale: s.album_scale, rot: s.album_rot },
-            autoById.get(s.id) ?? placeFromCell({ col: 0, row: 0 }, size, s.id),
+            // 画面に出していた置き場所（保存した写真を避けた後）をそのまま保存する。
+            settledById.get(s.id) ?? placeFromCell({ col: 0, row: 0 }, size, s.id),
           );
           return {
             sticker_id: s.id,
@@ -1345,6 +1520,7 @@ export function DayCollage({
     place: Placement,
   ) {
     longPressFired.current = false;
+    if (!editable) return;
     pressOrigin.current = at;
     pressTimer.current = setTimeout(() => {
       longPressFired.current = true;
@@ -1535,274 +1711,499 @@ export function DayCollage({
             // ある物 → 札の共通の選択(`hero_role`) → 設定 → 画面の意図。
             const heroUrl = heroById.get(s.id) ?? null;
             /** 撮った時刻。**24時制**（桁が揃うので、誌面の中で列に見える）。 */
-            const time = takenAt(s).toLocaleTimeString(locale, {
-              hour: "2-digit",
-              minute: "2-digit",
-              hour12: false,
-            });
+            // 記念アルバムは日をまたぐので、時刻ではなく日付を書く（`stamp="date"`）。
+            const time =
+              stamp === "date"
+                ? takenAt(s).toLocaleDateString(locale, { month: "numeric", day: "numeric" })
+                : takenAt(s).toLocaleTimeString(locale, {
+                    hour: "2-digit",
+                    minute: "2-digit",
+                    hour12: false,
+                  });
 
             return (
-              <button
-                key={s.id}
-                /* 写真の無い札。**枠が字の高さしか無い**ので、指の当たり判定の
+              <Fragment key={s.id}>
+                <button
+                  /* 写真の無い札。**枠が字の高さしか無い**ので、指の当たり判定の
                  下限（§11 の 44px）を CSS 側でも保証する。 */
-                data-plain={heroUrl ? undefined : ""}
-                onClick={(e) => {
-                  // 長押しが成立した回の「離す」でカードを開かない。
-                  if (longPressFired.current) {
-                    longPressFired.current = false;
-                    return;
-                  }
-                  if (editing) {
-                    if (dragged.current) {
-                      dragged.current = false;
+                  data-plain={heroUrl ? undefined : ""}
+                  onClick={(e) => {
+                    // 長押しが成立した回の「離す」でカードを開かない。
+                    if (longPressFired.current) {
+                      longPressFired.current = false;
                       return;
                     }
-                    onLongPress?.(s.id);
-                    return;
-                  }
-                  onOpen(s.id, flightFrom(e.currentTarget));
-                }}
-                // **アルバムの写真も長押しで主役を選べる**(オーナー指摘 2026-08-20)。
-                // 「ホームアルバムや単語の詳細の画像を長押ししたら、あとから
-                // 切り抜きできるようにして」。詳細の画面には既に在るので、
-                // 同じ入口をここにも開ける — 押さえた写真そのものを直せる。
-                onPointerDown={(e) => {
-                  if (!editing) {
-                    // **長押しの時点で掴む**ので、押さえた指と置き方を渡す。
-                    startPress(s.id, { x: e.clientX, y: e.clientY }, e.pointerId, place);
-                    return;
-                  }
-                  // 既に編集中。**別の札を掴んでいる間は受け取らない** —
-                  // 2枚同時に動かすのは紙のアルバムでもできない。
-                  if (grip.current && grip.current.id !== s.id) return;
-                  if (!grip.current) {
-                    grip.current = {
-                      id: s.id,
-                      pointers: new Map(),
-                      startGrip: { a: { x: e.clientX, y: e.clientY } },
-                      startPlace: place,
-                      moved: false,
-                    };
-                  }
-                  grip.current.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
-                  // **指の数が変わったら握りを取り直す。** 取り直さないと、
-                  // 2本目を置いた瞬間に「真ん中」が飛んで札がワープする。
-                  reseat(place);
-                  setLive({ id: s.id, place });
-                }}
-                onPointerMove={(e) => {
-                  // 動かす・広げる・回すは**窓が受け持つ**（上の effect）。
-                  // ここに残すのは、長押しを取り消すかどうかの判断だけ。
-                  if (editing) return;
-                  // 押さえたまま待つのが長押し。**遊びを越えて動いたら**
-                  // めくろうとしたと見て取り消す（1px で取り消すと、指の
-                  // 微動だけで長押しがほとんど成立しなくなる）。
-                  const o = pressOrigin.current;
-                  if (o && Math.hypot(e.clientX - o.x, e.clientY - o.y) > PRESS_SLOP) endPress();
-                }}
-                onPointerUp={endPress}
-                onPointerCancel={endPress}
-                onContextMenu={(e) => e.preventDefault()}
-                // **ブラウザ自前のドラッグ＆ドロップを止める。**
-                //
-                // 押したまま動かすと、Chromium は中の `<img>` を掴んで
-                // ネイティブの drag を始め、その瞬間に `pointercancel` を投げて
-                // **ポインタを取り上げる**。こちらの長押しも並べ替えも、
-                // そこで丸ごと死ぬ。`touch-action: none` では止まらない
-                // （あれはスクロールやピンチの話で、drag は別の仕組み）。
-                //
-                // 実測: 押して 4px 動かしただけで `pointercancel` が1回飛び、
-                // 揺れも掴みも 0 になっていた（マウスでも指でも同じ）。
-                draggable={false}
-                onDragStart={(e) => e.preventDefault()}
-                // §1 Response: 傾きは外側、内側の印画紙がコーナーからそっと浮く。
-                data-album-sticker={s.id}
-                /**
-                 * どちらの列に居るか。**字を外側の端に寄せる**ために要る。
-                 * 内側（真ん中）に寄せると、左右の列は少し重なっているので、
-                 * 隣の列の写真に潜って時刻も語も読めなくなる（実測で2枚）。
-                 */
-                data-col={place.x < 0.5 ? "l" : "r"}
-                /**
-                 * **語は写真の真ん中の下が基本**（オーナー指示 2026-09-23「基本的に
-                 * 写真の真ん中下に来るようにして。場合によっては右下や左下に来ても
-                 * いい」）。真ん中に置くと隣の列の写真に潜る時だけ、外側の端へ寄せる
-                 * （`captionAlign`）。
-                 */
-                data-cap={captionAlign(place.x, px.w, board.w)}
-                className={`photo-lift group absolute block touch-none text-left ${
-                  editing ? "album-editing cursor-grab active:cursor-grabbing" : ""
-                } ${live?.id === s.id ? "album-lifted" : ""}`}
-                style={
-                  {
-                    /**
-                     * **紙の上のどこに、どの大きさ、どの傾きで貼るか。**
-                     *
-                     * 中心を `left/top` で置き、`translate(-50%,-50%)` で
-                     * 真ん中を合わせる。こうすると**つまんで広げたときに
-                     * 中心が動かない** — 左上を基準にすると、大きくするたびに
-                     * 右下へ逃げていくので「掴んだ所が動く」感じになる。
-                     *
-                     * 傾きは `rotate` だけ。`scale` は使わず**実寸**を変える
-                     * ので、大きくしても写真がぼやけない。
-                     */
-                    left: `${place.x * 100}%`,
-                    /**
-                     * **縦は px で置く。`%` にしない。**
-                     *
-                     * `place.y` は「台紙の**幅**に対する割合」（`Placement` の
-                     * 注。そう決めたのは、札が増えて台紙が縦に伸びても置いた
-                     * 物が動かないようにするため）。ところが CSS の `top: N%`
-                     * は**親の高さ**に対する割合なので、ここで `%` を使うと
-                     * 台紙の高さぶんだけ倍率が掛かる。
-                     *
-                     * 升目の頃は y が小さく、台紙の高さも下限（1.25）に
-                     * 貼り付いていたので誤差で済んでいた。誌面にして縦に
-                     * 積むようになった途端、**下の札ほど大きく流れ落ちる**
-                     * （実測: 台紙の高さ 928px に対して札の上端が 1922px）。
-                     */
-                    top: `${place.y * board.w}px`,
-                    width: `${px.w}px`,
-                    height: `${px.h}px`,
-                    /**
-                     * **札は台紙より大きくならない。**（オーナー報告 2026-09-16
-                     * 「ホームのアルバムに移った時に画像の変な残像がある」）
-                     *
-                     * 大きさは測った台紙の幅から出している（`sizePx`）。測り
-                     * 損ねた一瞬があると、その値のまま**巨大な札が描かれる** —
-                     * 録画では2コマだけ、写真が幅いっぱいに広がって「これまでの
-                     * ページ」の見出しを覆っていた。
-                     *
-                     * 測る側は前回 `useLayoutEffect` にしたが、それは「幅が 0」
-                     * の side しか塞げない。**値が大きすぎる側も塞ぐ。** 札が
-                     * 台紙をはみ出すことは、正しい測定値では起こり得ないので、
-                     * ここで上限を置いても正しい絵は1pxも変わらない。
-                     */
-                    maxWidth: "100%",
-                    maxHeight: "100%",
-                    /**
-                     * **`transform` ではなく、個別の指定で置く。**
-                     *
-                     * ここは `transform: translate(-50%,-50%) rotate(...)` と
-                     * 書いていた。ところが編集中の札には揺れ(`album-jiggle`)が
-                     * 掛かっていて、**CSS アニメーションの `transform` は
-                     * インラインの `transform` を丸ごと置き換える**。つまり
-                     * 中央合わせの `-50%,-50%` が消え、編集に入った瞬間に
-                     * 全部の札が**自分の半分ぶん右下へずれていた**
-                     * （実測 41px, 51px ＝ちょうど幅と高さの半分）。
-                     *
-                     * しかも掴んだ札だけは `.album-lifted` で揺れが止まるので、
-                     * **触れた瞬間に元の位置へ戻る**。2本目の指はもう札の無い
-                     * 所に落ちることになり、つまむ操作が成立しなかった。
-                     * 実測で `down#4@DIV`（札ではない要素に当たった）。
-                     *
-                     * `translate` / `rotate` / `scale` を個別に書けば、
-                     * 揺れの `transform` は**その後ろに重なる**ので喧嘩しない。
-                     */
-                    translate: "-50% -50%",
-                    rotate: `${place.rot}deg`,
-                    scale: live?.id === s.id ? `${LIFTED.scale}` : undefined,
-                    zIndex: live?.id === s.id ? 60 : z,
-                    boxShadow:
-                      live?.id === s.id
-                        ? `0 ${LIFTED.shadowBlurPx / 2}px ${LIFTED.shadowBlurPx}px rgba(0,0,0,${LIFTED.shadowAlpha})`
-                        : undefined,
-                    // 揺れの位相と周期は札ごと（`lib/album-drag.ts`）。
-                    "--jiggle-delay": `${jiggleStyle(s.id).delayMs}ms`,
-                    "--jiggle-dur": `${jiggleStyle(s.id).durationMs}ms`,
-                    "--jiggle-rot": `${JIGGLE.rotateDeg}deg`,
-                    "--jiggle-lift": `${JIGGLE.liftPx}px`,
-                  } as React.CSSProperties
-                }
-              >
-                {/**
-                 * **写真そのもの。** 角を丸め、地から浮かせる。白フチも
-                 * 三角コーナーも付けない（オーナー指示 2026-09-18）。
-                 *
-                 * **文字から調べた語には写真が来ない。** そういう札は
-                 * 枠も地も持たせず、**字だけを紙に書く**
-                 * （オーナー指示 2026-09-22「文字で検索したものは文字だけを
-                 * アルバムに書いて」）。
-                 */}
-                {heroUrl ? (
-                  <span className="collage__photo">
-                    <CachedImg
-                      onLoad={(e) => {
-                        // 写真そのものの比を控える。**枠の形をこれに合わせる**
-                        // ので、上下も左右も切られなくなる。
-                        const img = e.currentTarget;
-                        if (!img.naturalWidth || !img.naturalHeight) return;
-                        const r = img.naturalHeight / img.naturalWidth;
-                        setPhotoRatio((m) => (m[s.id] === r ? m : { ...m, [s.id]: r }));
-                      }}
-                      src={heroUrl}
-                      alt={t("common.memoryOf", { word: s.word.headword })}
-                      loading="lazy"
-                      decoding="async"
-                      className="block h-full w-full object-cover"
-                    />
-                  </span>
-                ) : (
+                    if (editing) {
+                      if (dragged.current) {
+                        dragged.current = false;
+                        return;
+                      }
+                      onLongPress?.(s.id);
+                      return;
+                    }
+                    onOpen(s.id, flightFrom(e.currentTarget));
+                  }}
+                  // **アルバムの写真も長押しで主役を選べる**(オーナー指摘 2026-08-20)。
+                  // 「ホームアルバムや単語の詳細の画像を長押ししたら、あとから
+                  // 切り抜きできるようにして」。詳細の画面には既に在るので、
+                  // 同じ入口をここにも開ける — 押さえた写真そのものを直せる。
+                  onPointerDown={(e) => {
+                    if (!editing) {
+                      // **長押しの時点で掴む**ので、押さえた指と置き方を渡す。
+                      startPress(s.id, { x: e.clientX, y: e.clientY }, e.pointerId, place);
+                      return;
+                    }
+                    // 既に編集中。**別の札を掴んでいる間は受け取らない** —
+                    // 2枚同時に動かすのは紙のアルバムでもできない。
+                    if (grip.current && grip.current.id !== s.id) return;
+                    if (!grip.current) {
+                      grip.current = {
+                        id: s.id,
+                        pointers: new Map(),
+                        startGrip: { a: { x: e.clientX, y: e.clientY } },
+                        startPlace: place,
+                        moved: false,
+                      };
+                    }
+                    grip.current.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+                    // **指の数が変わったら握りを取り直す。** 取り直さないと、
+                    // 2本目を置いた瞬間に「真ん中」が飛んで札がワープする。
+                    reseat(place);
+                    setLive({ id: s.id, place });
+                  }}
+                  onPointerMove={(e) => {
+                    // 動かす・広げる・回すは**窓が受け持つ**（上の effect）。
+                    // ここに残すのは、長押しを取り消すかどうかの判断だけ。
+                    if (editing) return;
+                    // 押さえたまま待つのが長押し。**遊びを越えて動いたら**
+                    // めくろうとしたと見て取り消す（1px で取り消すと、指の
+                    // 微動だけで長押しがほとんど成立しなくなる）。
+                    const o = pressOrigin.current;
+                    if (o && Math.hypot(e.clientX - o.x, e.clientY - o.y) > PRESS_SLOP) endPress();
+                  }}
+                  onPointerUp={endPress}
+                  onPointerCancel={endPress}
+                  onContextMenu={(e) => e.preventDefault()}
+                  // **ブラウザ自前のドラッグ＆ドロップを止める。**
+                  //
+                  // 押したまま動かすと、Chromium は中の `<img>` を掴んで
+                  // ネイティブの drag を始め、その瞬間に `pointercancel` を投げて
+                  // **ポインタを取り上げる**。こちらの長押しも並べ替えも、
+                  // そこで丸ごと死ぬ。`touch-action: none` では止まらない
+                  // （あれはスクロールやピンチの話で、drag は別の仕組み）。
+                  //
+                  // 実測: 押して 4px 動かしただけで `pointercancel` が1回飛び、
+                  // 揺れも掴みも 0 になっていた（マウスでも指でも同じ）。
+                  draggable={false}
+                  onDragStart={(e) => e.preventDefault()}
+                  // §1 Response: 傾きは外側、内側の印画紙がコーナーからそっと浮く。
+                  data-album-sticker={s.id}
                   /**
-                   * **字だけの札。** 枠も地も影も持たせず、紙に字を書いただけに
-                   * する（オーナー指示 2026-09-22「文字で検索したものは文字だけを
-                   * アルバムに書いて」）。
-                   *
-                   * 時刻も一言も**この中に**書く。写真の札と同じに枠の外へ
-                   * 出すと、枠のぶんの空白が字の上に残り、時刻が語から1行
-                   * 離れて別々の物に見えた。
+                   * どちらの列に居るか。**字を外側の端に寄せる**ために要る。
+                   * 内側（真ん中）に寄せると、左右の列は少し重なっているので、
+                   * 隣の列の写真に潜って時刻も語も読めなくなる（実測で2枚）。
                    */
-                  <span className="collage__plain">
-                    <span className="collage__cap-row">
-                      <span className="collage__time">{time}</span>
-                      <Term lang={s.word.language} className="collage__plain-word">
-                        {s.word.headword}
-                      </Term>
+                  data-col={place.x < 0.5 ? "l" : "r"}
+                  /**
+                   * **語は写真の真ん中の下が基本**（オーナー指示 2026-09-23「基本的に
+                   * 写真の真ん中下に来るようにして。場合によっては右下や左下に来ても
+                   * いい」）。真ん中に置くと隣の列の写真に潜る時だけ、外側の端へ寄せる
+                   * （`captionAlign`）。
+                   */
+                  data-cap={captionAlign(place.x, px.w, board.w)}
+                  className={`photo-lift group absolute block touch-none text-left ${
+                    editing ? "album-editing cursor-grab active:cursor-grabbing" : ""
+                  } ${live?.id === s.id ? "album-lifted" : ""}`}
+                  style={
+                    {
+                      /**
+                       * **紙の上のどこに、どの大きさ、どの傾きで貼るか。**
+                       *
+                       * 中心を `left/top` で置き、`translate(-50%,-50%)` で
+                       * 真ん中を合わせる。こうすると**つまんで広げたときに
+                       * 中心が動かない** — 左上を基準にすると、大きくするたびに
+                       * 右下へ逃げていくので「掴んだ所が動く」感じになる。
+                       *
+                       * 傾きは `rotate` だけ。`scale` は使わず**実寸**を変える
+                       * ので、大きくしても写真がぼやけない。
+                       */
+                      left: `${place.x * 100}%`,
+                      /**
+                       * **縦は px で置く。`%` にしない。**
+                       *
+                       * `place.y` は「台紙の**幅**に対する割合」（`Placement` の
+                       * 注。そう決めたのは、札が増えて台紙が縦に伸びても置いた
+                       * 物が動かないようにするため）。ところが CSS の `top: N%`
+                       * は**親の高さ**に対する割合なので、ここで `%` を使うと
+                       * 台紙の高さぶんだけ倍率が掛かる。
+                       *
+                       * 升目の頃は y が小さく、台紙の高さも下限（1.25）に
+                       * 貼り付いていたので誤差で済んでいた。誌面にして縦に
+                       * 積むようになった途端、**下の札ほど大きく流れ落ちる**
+                       * （実測: 台紙の高さ 928px に対して札の上端が 1922px）。
+                       */
+                      top: `${place.y * board.w}px`,
+                      width: `${px.w}px`,
+                      height: `${px.h}px`,
+                      /**
+                       * **札は台紙より大きくならない。**（オーナー報告 2026-09-16
+                       * 「ホームのアルバムに移った時に画像の変な残像がある」）
+                       *
+                       * 大きさは測った台紙の幅から出している（`sizePx`）。測り
+                       * 損ねた一瞬があると、その値のまま**巨大な札が描かれる** —
+                       * 録画では2コマだけ、写真が幅いっぱいに広がって「これまでの
+                       * ページ」の見出しを覆っていた。
+                       *
+                       * 測る側は前回 `useLayoutEffect` にしたが、それは「幅が 0」
+                       * の side しか塞げない。**値が大きすぎる側も塞ぐ。** 札が
+                       * 台紙をはみ出すことは、正しい測定値では起こり得ないので、
+                       * ここで上限を置いても正しい絵は1pxも変わらない。
+                       */
+                      maxWidth: "100%",
+                      maxHeight: "100%",
+                      /**
+                       * **`transform` ではなく、個別の指定で置く。**
+                       *
+                       * ここは `transform: translate(-50%,-50%) rotate(...)` と
+                       * 書いていた。ところが編集中の札には揺れ(`album-jiggle`)が
+                       * 掛かっていて、**CSS アニメーションの `transform` は
+                       * インラインの `transform` を丸ごと置き換える**。つまり
+                       * 中央合わせの `-50%,-50%` が消え、編集に入った瞬間に
+                       * 全部の札が**自分の半分ぶん右下へずれていた**
+                       * （実測 41px, 51px ＝ちょうど幅と高さの半分）。
+                       *
+                       * しかも掴んだ札だけは `.album-lifted` で揺れが止まるので、
+                       * **触れた瞬間に元の位置へ戻る**。2本目の指はもう札の無い
+                       * 所に落ちることになり、つまむ操作が成立しなかった。
+                       * 実測で `down#4@DIV`（札ではない要素に当たった）。
+                       *
+                       * `translate` / `rotate` / `scale` を個別に書けば、
+                       * 揺れの `transform` は**その後ろに重なる**ので喧嘩しない。
+                       */
+                      translate: "-50% -50%",
+                      rotate: `${place.rot}deg`,
+                      scale: live?.id === s.id ? `${LIFTED.scale}` : undefined,
+                      zIndex: live?.id === s.id ? 60 : z,
+                      boxShadow:
+                        live?.id === s.id
+                          ? `0 ${LIFTED.shadowBlurPx / 2}px ${LIFTED.shadowBlurPx}px rgba(0,0,0,${LIFTED.shadowAlpha})`
+                          : undefined,
+                      // 揺れの位相と周期は札ごと（`lib/album-drag.ts`）。
+                      "--jiggle-delay": `${jiggleStyle(s.id).delayMs}ms`,
+                      "--jiggle-dur": `${jiggleStyle(s.id).durationMs}ms`,
+                      "--jiggle-rot": `${JIGGLE.rotateDeg}deg`,
+                      "--jiggle-lift": `${JIGGLE.liftPx}px`,
+                    } as React.CSSProperties
+                  }
+                >
+                  {/**
+                   * **写真そのもの。** 角を丸め、地から浮かせる。白フチも
+                   * 三角コーナーも付けない（オーナー指示 2026-09-18）。
+                   *
+                   * **文字から調べた語には写真が来ない。** そういう札は
+                   * 枠も地も持たせず、**字だけを紙に書く**
+                   * （オーナー指示 2026-09-22「文字で検索したものは文字だけを
+                   * アルバムに書いて」）。
+                   */}
+                  {heroUrl ? (
+                    <span className="collage__photo">
+                      <span className="collage__print">
+                        <CachedImg
+                          onLoad={(e) => {
+                            // 写真そのものの比を控える。**枠の形をこれに合わせる**
+                            // ので、上下も左右も切られなくなる。
+                            const img = e.currentTarget;
+                            if (!img.naturalWidth || !img.naturalHeight) return;
+                            const r = img.naturalHeight / img.naturalWidth;
+                            setPhotoRatio((m) => (m[s.id] === r ? m : { ...m, [s.id]: r }));
+                          }}
+                          src={heroUrl}
+                          alt={t("common.memoryOf", { word: s.word.headword })}
+                          loading="lazy"
+                          decoding="async"
+                          className="block h-full w-full object-cover"
+                        />
+                      </span>
+                      {/**
+                       * **語は写真の下の白い余白に書く。**（オーナー指示 2026-09-27
+                       * 「画像と単語を一枚の写真として統合して。写真の下の余白に
+                       * 単語の文字を表示する」）インスタントカメラの写真と同じく、
+                       * 下の縁だけ広く取り、そこに時刻と語を書く。
+                       */}
+                      <span className="collage__margin">
+                        <Term lang={s.word.language} className="collage__margin-word">
+                          {s.word.headword}
+                        </Term>
+                        <span className="collage__time collage__margin-time">{time}</span>
+                      </span>
                     </span>
-                    {s.caption && (
-                      <span className="collage__note handwritten-ja ja-phrase">{s.caption}</span>
-                    )}
-                  </span>
-                )}
+                  ) : (
+                    /**
+                     * **字だけの札。** 枠も地も影も持たせず、紙に字を書いただけに
+                     * する（オーナー指示 2026-09-22「文字で検索したものは文字だけを
+                     * アルバムに書いて」）。
+                     *
+                     * 時刻も一言も**この中に**書く。写真の札と同じに枠の外へ
+                     * 出すと、枠のぶんの空白が字の上に残り、時刻が語から1行
+                     * 離れて別々の物に見えた。
+                     */
+                    <span className="collage__plain">
+                      <span className="collage__cap-row">
+                        <span className="collage__time">{time}</span>
+                        <Term lang={s.word.language} className="collage__plain-word">
+                          {s.word.headword}
+                        </Term>
+                      </span>
+                      {s.caption && (
+                        <span className="collage__note handwritten-ja ja-phrase">{s.caption}</span>
+                      )}
+                    </span>
+                  )}
 
-                {/* 留め具（テープか四隅）。**写真の札だけ** — 字だけの札は
+                  {/* 留め具（テープか四隅）。**写真の札だけ** — 字だけの札は
                   紙に直に書いた物なので留めない。 */}
-                {heroUrl && <CollageFasteners id={s.id} wall={wallFromClass(surface)} />}
-                {/**
-                 * 写真の下に付く字。**枠の外に出す**ので、置き方の計算には
-                 * `extra` として高さを渡してある（渡さないと次の札が乗る）。
-                 *
-                 * 参考の誌面と同じ並び:
-                 *   時刻 ＋ 語の白い札 → 手書きの一言
-                 */}
-                {heroUrl && (
-                  <span className="collage__cap">
-                    <span className="collage__cap-row">
-                      {/* 撮った時刻（オーナー指示 2026-09-22「また撮った時刻付きで」）。
-                       **順番は時刻が語る**ので、置き方は自由に崩してよくなる。 */}
-                      <span className="collage__time">{time}</span>
-                      {/* 語は**白い紙の札**。写真の上に直に置くと明るい写真で
-                        読めなくなるし、参考の誌面でも札は紙の上に貼ってある。 */}
-                      <Term lang={s.word.language} className="collage__slip">
-                        {s.word.headword}
-                      </Term>
-                    </span>
-                    {/* 撮ったときに書いた一言。**人が書いた字は手書き**
-                      （ゴシックはアプリが書く字、という約束）。 */}
-                    {s.caption && (
+                  {heroUrl && <CollageFasteners id={s.id} wall={wallFromClass(surface)} />}
+                  {/* 撮ったときに書いた一言。**人が書いた字は手書き**
+                  （ゴシックはアプリが書く字、という約束）。語と時刻は写真の
+                  白い余白の中（上）に在るので、ここは一言だけ。置き方の計算には
+                  `extra` として高さを渡してある（渡さないと次の札が乗る）。 */}
+                  {heroUrl && s.caption && (
+                    <span className="collage__cap">
                       <span className="collage__note handwritten-ja ja-phrase">{s.caption}</span>
-                    )}
+                    </span>
+                  )}
+                </button>
+                {/* **赤いバツ＝アルバムから外す**（オーナー指示 2026-09-28）。写真の右上の角。
+                  札の中に入れると「押せる物の中の押せる物」になるので、札の隣に置く。
+                  **札と一体に揺れる**（R14「画像がゆらゆら揺れてるのに、赤は独立してる
+                  のが違和感。画像にくっつけて」）: 札と同じ位置・大きさ・傾き・揺れ
+                  （同じ `album-editing` と同じ位相の変数）を持つ透明な枠を重ね、
+                  バツはその枠の右上の角に付ける。枠自体は押せない（下の札を塞がない）。
+                  図鑑からは消えない（下の「外した写真」から戻せる）。 */}
+                {editing && live?.id !== s.id && (
+                  <span
+                    aria-hidden={false}
+                    className="album-remove-frame album-editing"
+                    style={
+                      {
+                        left: `${place.x * 100}%`,
+                        top: `${place.y * board.w}px`,
+                        width: `${px.w}px`,
+                        height: `${px.h}px`,
+                        maxWidth: "100%",
+                        maxHeight: "100%",
+                        translate: "-50% -50%",
+                        rotate: `${place.rot}deg`,
+                        zIndex: 70,
+                        "--jiggle-delay": `${jiggleStyle(s.id).delayMs}ms`,
+                        "--jiggle-dur": `${jiggleStyle(s.id).durationMs}ms`,
+                        "--jiggle-rot": `${JIGGLE.rotateDeg}deg`,
+                        "--jiggle-lift": `${JIGGLE.liftPx}px`,
+                      } as React.CSSProperties
+                    }
+                  >
+                    <button
+                      type="button"
+                      className="album-remove"
+                      aria-label={t("album.hide", { word: s.word.headword })}
+                      onPointerDown={(e) => e.stopPropagation()}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        hideFromAlbum(s.id, s.word.headword);
+                      }}
+                    >
+                      <X className="h-3.5 w-3.5" strokeWidth={3} aria-hidden />
+                    </button>
                   </span>
                 )}
-              </button>
+              </Fragment>
             );
           })}
         </div>
+
+        {/* **外した写真を戻す所**（2026-09-28「あとから戻すこともできるようにして」）。
+            並べ替え中だけ、その日の台紙の下に出す。押すと元の場所へ戻る。 */}
+        {editing && hiddenHere.length > 0 && (
+          <div className="album-hidden-tray">
+            <button
+              type="button"
+              className="album-hidden-tray__toggle"
+              aria-expanded={showHidden}
+              onClick={() => setShowHidden((v) => !v)}
+            >
+              <EyeOff className="h-4 w-4" aria-hidden />
+              {t("album.hiddenCount", { n: String(hiddenHere.length) })}
+            </button>
+            {showHidden && (
+              <ul className="album-hidden-tray__list">
+                {hiddenHere.map((s) => {
+                  const url = stickerPhotoUrl(s, { prefer: s.hero_role, thumb: true });
+                  return (
+                    <li key={s.id}>
+                      <button
+                        type="button"
+                        className="album-hidden-tray__item"
+                        aria-label={t("album.restore", { word: s.word.headword })}
+                        onClick={() => restoreToAlbum(s.id)}
+                      >
+                        {url ? (
+                          <CachedImg src={url} alt="" className="album-hidden-tray__img" />
+                        ) : (
+                          <span className="album-hidden-tray__img album-hidden-tray__img--text">
+                            {s.word.headword}
+                          </span>
+                        )}
+                        <span className="album-hidden-tray__label">
+                          <Undo2 className="h-3.5 w-3.5" aria-hidden />
+                          {t("album.restoreShort")}
+                        </span>
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </div>
+        )}
 
         {/* 「— N枚の思い出」は出さない（オーナー指示 2026-09-23「〇〇枚目の思い出と
           いうやつ消して」）。数は図鑑に在り、ここは写真が主役。 */}
       </div>
     </>
+  );
+}
+
+/**
+ * 節目の日の入口（今日の誌面の上）。写真を3枚重ねた小さな束と題。
+ * 閉じたらその節目の間は出さない（`dismissMemorial`）。
+ */
+export function MemorialEntry({
+  n,
+  words,
+  picks,
+  onOpen,
+  onDismiss,
+}: {
+  n: number;
+  words: number;
+  picks: StickerWithWord[];
+  onOpen: () => void;
+  onDismiss: () => void;
+}) {
+  const t = useT();
+  const thumbs = picks.slice(-3);
+  return (
+    <div className="relative mb-4 flex items-center gap-3 rounded-3xl border border-border bg-card p-3 shadow-sm">
+      <button
+        type="button"
+        onClick={onOpen}
+        className="press-in flex min-w-0 flex-1 items-center gap-3 text-left"
+      >
+        <span className="relative h-16 w-16 shrink-0" aria-hidden>
+          {thumbs.map((s, i) => {
+            const url = stickerPhotoUrl(s, { prefer: s.hero_role ?? undefined, thumb: true });
+            return (
+              <span
+                key={s.id}
+                className="absolute inset-0 overflow-hidden rounded-md bg-white p-0.5 shadow"
+                style={{ rotate: `${(i - 1) * 8}deg`, zIndex: i }}
+              >
+                {url && (
+                  <CachedImg src={url} alt="" className="h-full w-full rounded-sm object-cover" />
+                )}
+              </span>
+            );
+          })}
+        </span>
+        <span className="min-w-0">
+          <span className="block text-headline font-bold leading-tight">
+            {t("memorial.title", { n })}
+          </span>
+          <span className="mt-0.5 block text-caption text-muted-foreground">
+            {t("memorial.sub", { n, count: words, photos: picks.length })}
+          </span>
+        </span>
+      </button>
+      <button
+        type="button"
+        onClick={onDismiss}
+        aria-label={t("memorial.close")}
+        className="grid h-11 w-11 shrink-0 place-items-center rounded-full text-muted-foreground"
+      >
+        <X className="h-4 w-4" />
+      </button>
+    </div>
+  );
+}
+
+/** 記念アルバム本体。画面いっぱいの1枚の誌面（ホームと同じ貼り方）。 */
+export function MemorialAlbum({
+  n,
+  words,
+  picks,
+  surface,
+  onOpen,
+  onClose,
+}: {
+  n: number;
+  words: number;
+  picks: StickerWithWord[];
+  surface: string;
+  onOpen: (id: string, from?: FlightOrigin | null) => void;
+  onClose: () => void;
+}) {
+  const t = useT();
+  // 開いた瞬間は、まず祝う（`MemorialReveal`）。幕が上がってから誌面。
+  const [revealed, setRevealed] = useState(false);
+  const photos = useMemo(
+    () =>
+      picks
+        .map((s) => stickerPhotoUrl(s, { prefer: s.hero_role ?? undefined, thumb: true }))
+        .filter((u): u is string => !!u),
+    [picks],
+  );
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label={t("memorial.title", { n })}
+      className="fixed inset-0 z-[60] overflow-y-auto bg-background px-4 pb-28 pt-[calc(env(safe-area-inset-top)+0.75rem)]"
+    >
+      {!revealed && (
+        <MemorialReveal n={n} words={words} photos={photos} onDone={() => setRevealed(true)} />
+      )}
+      <div className="mx-auto max-w-3xl">
+        <div className="mb-2 flex justify-end">
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label={t("memorial.close")}
+            className="grid h-11 w-11 place-items-center rounded-full bg-card shadow-sm"
+          >
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+        {revealed && (
+          <DayCollage
+            stickers={picks}
+            surface={surface}
+            editable={false}
+            stamp="date"
+            opening
+            onOpen={onOpen}
+            heading={
+              <div className="px-2 pb-2 pt-1 text-center">
+                <h2 className="text-title font-extrabold tracking-tight">
+                  {t("memorial.title", { n })}
+                </h2>
+                <p className="mt-1 text-footnote text-muted-foreground">
+                  {t("memorial.sub", { n, count: words, photos: picks.length })}
+                </p>
+              </div>
+            }
+          />
+        )}
+      </div>
+    </div>
   );
 }

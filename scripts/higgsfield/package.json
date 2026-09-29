@@ -1,0 +1,12 @@
+{
+  "name": "catchwords-higgsfield-example",
+  "private": true,
+  "type": "module",
+  "description": "Higgsfield SDK example: Seedance 2.5 text-to-video (billable)",
+  "scripts": {
+    "start": "node index.ts"
+  },
+  "dependencies": {
+    "@higgsfield/client": "^0.2.6"
+  }
+}

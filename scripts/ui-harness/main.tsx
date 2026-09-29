@@ -26,6 +26,7 @@ import { OnboardingScene } from "./scenes/onboarding";
 import { StickerSheetScene } from "./scenes/sticker-sheet";
 import { JournalResultScene, JournalScaffoldScene } from "./scenes/journal";
 import { WordCandidateScene } from "./scenes/word-candidate";
+import { CandidatePickerScene } from "./scenes/candidate-picker";
 import { InputCatchScene } from "./scenes/input-catch";
 import { ImageSettingsScene } from "./scenes/image-settings";
 import { HeroPickerScene } from "./scenes/hero-picker";
@@ -40,16 +41,37 @@ import {
   CaptureReunionScene,
 } from "./scenes/capture";
 import { ScanBottomScene } from "./scenes/scan-bottom";
-import { GlassSurfacesScene } from "./scenes/glass-surfaces";
 import { CategorySheetScene } from "./scenes/category-sheet";
+import { CategoryMembersScene } from "./scenes/category-members";
 import { PlaceNotifyDesignsScene } from "./scenes/place-notify-designs";
+import { RegenMagicScene } from "./scenes/regen-magic";
 import { CandidateDesignsScene } from "./scenes/candidate-designs";
 import { AnalyzingDesignsScene } from "./scenes/analyzing-designs";
 import { PageFlipScene } from "./scenes/page-flip";
+import { AlbumShelfScene } from "./scenes/album-shelf";
+import { Shelf3DScene } from "./scenes/shelf-3d";
+import { ThreeFxScene } from "./scenes/three-fx";
+import { Object3DScene } from "./scenes/object-3d";
+import { DiaryPencilScene } from "./scenes/diary-pencil";
+import { MotionCompareScene } from "./scenes/motion-compare";
+import { LaunchIntroScene } from "./scenes/launch-intro";
+import { VoiceFaceScene } from "./scenes/voice-face";
+import { StickerHoloScene } from "./scenes/sticker-holo";
+import { CinemaFxScene } from "./scenes/cinema-fx";
+import { PromoFilmScene } from "./scenes/promo-film";
+import { ScanPickDesignsScene } from "./scenes/scan-pick-designs";
+import { NotifyBarDesignsScene } from "./scenes/notify-bar-designs";
+import { WidgetDesignsScene } from "./scenes/widget-designs";
+import { AdminUsersScene } from "./scenes/admin-users";
+import { MonetizationDesignsScene } from "./scenes/monetization-designs";
+import { FxLabScene } from "./scenes/fx-lab";
+import { WordDetailDesignsScene } from "./scenes/word-detail-designs";
+import { WordDetailRefineScene } from "./scenes/word-detail-refine";
 import { MapCalendarDesignsScene } from "./scenes/map-calendar-designs";
 import { ScanResultScene } from "./scenes/scan-result";
 import { DexCalendarScene } from "./scenes/dex-calendar";
 import { DexCardsScene } from "./scenes/dex-cards";
+import { DexDragScene } from "./scenes/dex-drag";
 import { TtsVoicesScene } from "./scenes/tts-voices";
 import { CatchSoundScene } from "./scenes/catch-sound";
 import { AiModelsScene } from "./scenes/ai-models";
@@ -64,6 +86,7 @@ import { AuthScene } from "./scenes/auth";
 import {
   HomeAlbumScene,
   HomeInkScene,
+  HomeMemorialScene,
   HomeEmptyScene,
   HomeLoadingScene,
   HomePastScene,
@@ -77,6 +100,7 @@ import {
   SettingsPolishScene,
   SettingsChoicesScene,
   SettingsDangerScene,
+  SettingsNotifyScene,
   SettingsSelectsScene,
   SettingsSourcesScene,
   SettingsTogglesScene,
@@ -134,6 +158,7 @@ import "@/pack-styles.css";
 // 実際 tsc が「この条件は常に true」と言った(実行時には undefined になる)。
 // 型に嘘をつかせない。
 const SCENES: Record<string, ((p: { q: URLSearchParams }) => ReactNode) | undefined> = {
+  "regen-magic": RegenMagicScene,
   // `auth` は下の `AuthScene`（作り直した迎える面まるごと）。main に在った
   // 「ボタン2つだけ」の場面は、同じ鍵で実物より狭い面を撮ることになるので外した。
   "sticker-peel": PeelStickerScene,
@@ -147,6 +172,7 @@ const SCENES: Record<string, ((p: { q: URLSearchParams }) => ReactNode) | undefi
   home: HomeScene,
   "home-album": HomeAlbumScene,
   "home-ink": HomeInkScene,
+  "home-memorial": HomeMemorialScene,
   "home-tap": HomeTapScene,
   "home-empty": HomeEmptyScene,
   "home-loading": HomeLoadingScene,
@@ -162,15 +188,35 @@ const SCENES: Record<string, ((p: { q: URLSearchParams }) => ReactNode) | undefi
   "settings-sources": SettingsSourcesScene,
   "settings-toggles": SettingsTogglesScene,
   "settings-danger": SettingsDangerScene,
+  "settings-notify": SettingsNotifyScene,
   "word-card": WordCardScene,
   "word-card-en": WordCardEnScene,
   "sticker-detail": StickerDetailScene,
-  "glass-surfaces": GlassSurfacesScene,
   "category-sheet": CategorySheetScene,
+  "category-members": CategoryMembersScene,
   "place-notify-designs": PlaceNotifyDesignsScene,
   "candidate-designs": CandidateDesignsScene,
   "analyzing-designs": AnalyzingDesignsScene,
   "page-flip": PageFlipScene,
+  "album-shelf": AlbumShelfScene,
+  "shelf-3d": Shelf3DScene,
+  "three-fx": ThreeFxScene,
+  "object-3d": Object3DScene,
+  "diary-pencil": DiaryPencilScene,
+  "motion-compare": MotionCompareScene,
+  "launch-intro": LaunchIntroScene,
+  "voice-face": VoiceFaceScene,
+  "sticker-holo": StickerHoloScene,
+  "cinema-fx": CinemaFxScene,
+  "promo-film": PromoFilmScene,
+  "scan-pick-designs": ScanPickDesignsScene,
+  "notify-bar-designs": NotifyBarDesignsScene,
+  "widget-designs": WidgetDesignsScene,
+  "admin-users": AdminUsersScene,
+  "monetization-designs": MonetizationDesignsScene,
+  "fx-lab": FxLabScene,
+  "word-detail-designs": WordDetailDesignsScene,
+  "word-detail-refine": WordDetailRefineScene,
   "map-calendar-designs": MapCalendarDesignsScene,
   "sticker-hero": StickerHeroScene,
   "sticker-sheet": StickerSheetScene,
@@ -180,6 +226,7 @@ const SCENES: Record<string, ((p: { q: URLSearchParams }) => ReactNode) | undefi
   "scan-found": ScanResultScene,
   "dex-calendar": DexCalendarScene,
   "dex-cards": DexCardsScene,
+  "dex-drag": DexDragScene,
   "ai-models": AiModelsScene,
   "tts-voices": TtsVoicesScene,
   "catch-sound": CatchSoundScene,
@@ -197,6 +244,7 @@ const SCENES: Record<string, ((p: { q: URLSearchParams }) => ReactNode) | undefi
   "journal-result": JournalResultScene,
   "journal-scaffold": JournalScaffoldScene,
   "word-candidate": WordCandidateScene,
+  "candidate-picker": CandidatePickerScene,
   "input-catch": InputCatchScene,
   "image-settings": ImageSettingsScene,
   "hero-picker": HeroPickerScene,
@@ -332,15 +380,26 @@ const q = new URLSearchParams(location.search);
  * 「これを見てください」と差し出すことになる。
  */
 const REVIEW_SCENES: Array<{ scene: string; label: string }> = [
-  { scene: "image-settings", label: "画像生成の設定" },
-  { scene: "input-catch&variant=typed", label: "文字検索" },
-  { scene: "home-album", label: "ホームのアルバム" },
-  { scene: "first-catch", label: "初回体験をはじめる" },
-  { scene: "first-catch&step=questions", label: "質問" },
-  { scene: "first-catch&step=home", label: "ホーム" },
-  { scene: "first-catch&step=dex", label: "図鑑をスライド" },
-  { scene: "first-catch&step=review", label: "復習を体験" },
-  { scene: "first-catch&step=account", label: "登録・ログイン" },
+  // 2026-09-28〜29 の依頼（R14）で触った面だけ。**毎回ここを入れ替える**
+  // — 前の依頼の面は残さない（オーナー指示「過去のものは全て削除して」）。
+  // 先頭は最後に頼まれた物（図鑑のスライドを白に・カードの色の案）。
+  {
+    scene: "dex-cards&n=24&at=3",
+    label: "図鑑スライド: 白い部屋・カードの色 A〜D・下のバーに被らない",
+  },
+  { scene: "chunk-designs", label: "チャンク（決定）: 四角＋でつなぐ・台なし・学ぶ語は入れ替えない" },
+  { scene: "dex-drag", label: "図鑑: 長押しで別の分類へ運ぶ・見出しの長押しで編集" },
+  { scene: "dex-calendar", label: "カレンダー: 青を基調に・日付を押すと地図" },
+  { scene: "home-album", label: "ホームのアルバム: 長押し → 赤バツが写真と一緒に揺れる" },
+  { scene: "three-fx&fx=gallery", label: "図鑑 3D: 下の影なし・写真の列から飛べる" },
+  { scene: "shelf-3d&open=12", label: "本棚の本: ページを押すと片ページ全画面・最後のページ" },
+  { scene: "scan-found", label: "スキャン結果: 2行まで・写真を大きく・「＋ 追加」・写真から" },
+  { scene: "launch-intro", label: "案: アプリを開く動き（作り直し・ばね・ゆっくり再生）" },
+  { scene: "diary-pencil", label: "日記の鉛筆（芯が見える）" },
+  { scene: "three-fx&fx=analyze", label: "分析中（浮いていた輪を消した）" },
+  { scene: "reward-catch", label: "図鑑に着く音（柔らかく）" },
+  { scene: "object-3d", label: "開発中: Pro 3D（Blender の仕上げ・本番には未実装）" },
+  { scene: "voice-face", label: "開発中: 自分の声と顔（本番には未実装）" },
 ];
 
 const explicitScene = q.get("scene");
@@ -355,7 +414,18 @@ const explicitScene = q.get("scene");
 // 帯が無いと先頭の1画面しか見られない（オーナー報告 2026-09-24「netlify が
 // 見れない」）。名指しの `?scene=` は検査用なので出さない（帯を測らない）。
 const showReviewBar = q.get("review") === "1" || !explicitScene;
-const wanted = explicitScene ?? REVIEW_SCENES[0].scene;
+/**
+ * **何も付けずに開いた時は、先頭の見比べの場面を開く。** 先頭には `dex-cards&n=24&at=3` の
+ * ように条件が付くことがある。前はこれを丸ごと場面の名前として探していたので、
+ * 「unknown scene」だけの白い画面になっていた（オーナー報告 2026-09-29「netlify の画面が
+ * 見れない」）。名前と条件に分け、条件は `q` に足す（自分で付けた条件が優先）。
+ */
+if (!explicitScene) {
+  new URLSearchParams(`scene=${REVIEW_SCENES[0].scene}`).forEach((v, k) => {
+    if (!q.has(k)) q.set(k, v);
+  });
+}
+const wanted = q.get("scene") ?? "";
 document.documentElement.style.setProperty(
   "--first-viewport-height",
   showReviewBar ? "calc(100dvh - 42px)" : "100dvh",

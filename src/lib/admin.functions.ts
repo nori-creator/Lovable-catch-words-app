@@ -387,3 +387,74 @@ export const listOpenRouterModels = createServerFn({ method: "GET" })
       };
     }
   });
+
+// --- 会社ごとのモデル一覧（開発者の AI 切り替え。2026-09-28）-------------------
+
+let providerModelsCache: {
+  at: number;
+  value: Array<{
+    id: string;
+    label: string;
+    keyFound: boolean;
+    models: import("./ai-provider-models").ProviderModel[];
+    error: string | null;
+  }>;
+} | null = null;
+
+/**
+ * **鍵が入っている会社ごとに、いま使えるモデルの一覧**（admin 限定。1時間ためる）。
+ *
+ * オーナー指示 2026-09-28「直感的に簡単に AI を変更できるようにして。…今はそれぞれの AI を
+ * 直接 api を取得し、lovable に貼り付けてる」。各社の公式の「モデル一覧」の入口に、
+ * Secrets に入っている鍵で聞く。**鍵の値は返さない**（入っているかどうかだけ）。
+ * 鍵の無い会社は聞かない（`keyFound: false` で「鍵が未設定」と出す）。
+ */
+export const listProviderModels = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { data: isAdmin } = await context.supabase.rpc("has_role", {
+      _user_id: context.userId,
+      _role: "admin",
+    });
+    if (!isAdmin) throw new Error("管理者のみ");
+    if (providerModelsCache && Date.now() - providerModelsCache.at < 60 * 60_000)
+      return providerModelsCache.value;
+    const { PROVIDER_PRESETS, findKey } = await import("./ai-provider.server");
+    const { parseModelList } = await import("./ai-provider-models");
+    const ids = Object.keys(PROVIDER_PRESETS).filter((id) => id !== "lovable");
+    const value = await Promise.all(
+      ids.map(async (id) => {
+        const preset = PROVIDER_PRESETS[id];
+        const key = findKey(id);
+        if (!key) return { id, label: preset.label, keyFound: false, models: [], error: null };
+        try {
+          const headers: Record<string, string> =
+            id === "anthropic"
+              ? { "x-api-key": key.value, "anthropic-version": "2023-06-01" }
+              : { Authorization: `Bearer ${key.value}` };
+          const res = await fetch(`${preset.base_url.replace(/\/$/, "")}/models`, {
+            headers,
+            signal: AbortSignal.timeout(8000),
+          });
+          if (!res.ok) throw new Error(`HTTP ${res.status}`);
+          return {
+            id,
+            label: preset.label,
+            keyFound: true,
+            models: parseModelList(await res.json()),
+            error: null,
+          };
+        } catch (e) {
+          return {
+            id,
+            label: preset.label,
+            keyFound: true,
+            models: [],
+            error: e instanceof Error ? e.message : String(e),
+          };
+        }
+      }),
+    );
+    providerModelsCache = { at: Date.now(), value };
+    return value;
+  });

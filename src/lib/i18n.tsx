@@ -155,17 +155,6 @@ export const DICT: Record<string, Record<UiLang, string>> = {
     en: "Choose what feels useful. You can change this later.",
     "zh-TW": "只選需要的，之後隨時可以更改。",
   },
-  "first.reminder.morning": {
-    ja: "学習のリマインダー",
-    en: "Learning reminder",
-    "zh-TW": "學習提醒",
-  },
-  "first.reminder.evening": { ja: "夜の振り返り", en: "Evening review", "zh-TW": "晚間複習" },
-  "first.notificationsNote": {
-    ja: "通知の配信は準備中です。選んだ時間は登録時に保存し、配信が始まったら使います。",
-    en: "Reminders aren’t sent yet. Your choice is saved at sign-up and used once they launch.",
-    "zh-TW": "提醒功能仍在準備中。你選的時間會在註冊時保存，上線後就會使用。",
-  },
   "first.readyTitle": { ja: "準備ができました！", en: "You’re all set!", "zh-TW": "準備好了！" },
   "first.readyHint": {
     ja: "まずはアプリを見て回って、\n気になるものをひとつ撮ってみましょう。",
@@ -1385,6 +1374,15 @@ export const DICT: Record<string, Record<UiLang, string>> = {
   "cap.saveFailed": { ja: "保存に失敗しました", en: "Couldn't save", "zh-TW": "儲存失敗" },
   "cap.recordFailed": { ja: "記録に失敗しました", en: "Couldn't record that", "zh-TW": "紀錄失敗" },
   "cap.photoTaken": { ja: "撮った写真", en: "The photo you took", "zh-TW": "拍下的照片" },
+  // 撮った後の候補（2段、オーナー指示 2026-09-27）。
+  "cap.otherObjects": { ja: "ほかに写っている物", en: "Also in the photo", "zh-TW": "照片裡還有" },
+  "cap.pickThis": { ja: "この語で図鑑に入れる", en: "Add this word", "zh-TW": "用這個詞加入圖鑑" },
+  "cap.otherNames": { ja: "ほかの言い方", en: "Other ways to say it", "zh-TW": "其他說法" },
+  "cap.otherNamesN": { ja: "ほかの言い方 {n}", en: "{n} other names", "zh-TW": "其他說法 {n}" },
+  "cap.regSpecific": { ja: "くわしい名前", en: "Specific name", "zh-TW": "具體名稱" },
+  "cap.regProper": { ja: "固有名詞", en: "Proper noun", "zh-TW": "專有名詞" },
+  "cap.regCasual": { ja: "砕けた言い方", en: "Casual", "zh-TW": "口語說法" },
+  "cap.inPhoto": { ja: "写っている物", en: "In the photo", "zh-TW": "照片裡的東西" },
   "cap.photoCutout": { ja: "切り抜いた写真", en: "Cut-out photo", "zh-TW": "去背後的照片" },
   "cap.selfie": { ja: "自撮り", en: "Selfie", "zh-TW": "自拍" },
   "cap.wordPlaceholder": { ja: "例: 椅子", en: "e.g. 椅子", "zh-TW": "例：椅子" },
@@ -1914,11 +1912,124 @@ export const DICT: Record<string, Record<UiLang, string>> = {
   // 押した先の問題は「写真+日本語 → 台湾華語を4択」なので、通知に
   // 台湾華語を出すと**開いた瞬間に答えが分かる**。
   "place.rememberBefore": { ja: "「", en: "Remember “", "zh-TW": "「" },
+  // 言語の名前は**学習言語から**入れる（`{lang}` = `place.lang*`）。前は
+  // 「中文」と決め打ちで、英語を学ぶ人にも中文と出ていた。
+  // 名前はオーナー指示 2026-09-27「『中国語』ではなく『台湾華語』、英語では Mandarin」。
   "place.rememberAfter": {
-    ja: "」は中文で？",
-    en: "” in Mandarin?",
-    "zh-TW": "」中文怎麼說？",
+    ja: "」は{lang}で？",
+    en: "” in {lang}?",
+    "zh-TW": "」用{lang}怎麼說？",
   },
+  "place.langZh": { ja: "台湾華語", en: "Mandarin", "zh-TW": "華語" },
+  "place.langEn": { ja: "英語", en: "English", "zh-TW": "英文" },
+  // B「写真を大きく」（オーナー決定 2026-09-27）。写真が手がかりなので、題は短く問うだけ。
+  // 報告: AIに間違っている所を見つけてもらう（オーナー指示 2026-09-27）。
+  "card.reportAuto": {
+    ja: "AIに見つけてもらう",
+    en: "Let AI find it",
+    "zh-TW": "讓 AI 找出來",
+  },
+  "card.reportAutoHint": {
+    ja: "どこが変か一言（空でも送れます）",
+    en: "What looks wrong? (optional)",
+    "zh-TW": "哪裡怪怪的？（可以不填）",
+  },
+  "card.reportAutoSend": { ja: "直してもらう", en: "Fix it", "zh-TW": "請 AI 修正" },
+  "card.reportNotFound": {
+    ja: "AIは間違いを見つけられませんでした。報告として残しました",
+    en: "AI couldn't find the mistake. Your report was saved",
+    "zh-TW": "AI 沒有找到錯誤。已保留你的回報",
+  },
+  // 節目の日の記念アルバム（オーナー指示 2026-09-27）。`milestone-album.ts`。
+  "memorial.title": {
+    ja: "使い始めて{n}日の記念アルバム",
+    en: "Your {n}-day album",
+    "zh-TW": "使用第 {n} 天的紀念相簿",
+  },
+  "memorial.sub": {
+    ja: "{n}日間で{count}語。思い出の{photos}枚をまとめました",
+    en: "{count} words in {n} days. {photos} moments in one page",
+    "zh-TW": "{n} 天收集了 {count} 個單字，精選 {photos} 張回憶",
+  },
+  "memorial.open": { ja: "開く", en: "Open", "zh-TW": "打開" },
+  // 記念アルバムを開く瞬間の演出（`MemorialReveal`、2026-09-28）。
+  "memorial.kicker": { ja: "おめでとう", en: "Congratulations", "zh-TW": "恭喜" },
+  "memorial.daysUnit": { ja: "日", en: "days", "zh-TW": "天" },
+  "memorial.wordsCaught": {
+    ja: "{count}語を集めました",
+    en: "{count} words caught",
+    "zh-TW": "收集了 {count} 個單字",
+  },
+  "memorial.openAlbum": { ja: "アルバムを開く", en: "Open the album", "zh-TW": "打開相簿" },
+  "memorial.close": { ja: "閉じる", en: "Close", "zh-TW": "關閉" },
+  "memorial.notifyTitle": {
+    ja: "{n}日目の記念アルバムができました",
+    en: "Your {n}-day album is ready",
+    "zh-TW": "第 {n} 天的紀念相簿完成了",
+  },
+  "memorial.notifyBody": {
+    ja: "使い始めて{n}日。これまでの思い出を1冊にまとめました",
+    en: "{n} days in. Your favourite moments, in one album",
+    "zh-TW": "使用第 {n} 天，把回憶整理成一本相簿",
+  },
+  // 復習の通知の時刻（オーナー指示 2026-09-27）。`review-reminder.ts`。
+  "settings.notifications": { ja: "通知", en: "Notifications", "zh-TW": "通知" },
+  "remind.label": { ja: "復習の通知", en: "Review reminders", "zh-TW": "複習提醒" },
+  "remind.off": { ja: "オフ", en: "Off", "zh-TW": "關閉" },
+  "remind.custom": { ja: "時刻を指定", en: "Set times", "zh-TW": "自訂時間" },
+  "remind.ai": { ja: "自動", en: "Auto", "zh-TW": "自動" },
+  "remind.addTime": { ja: "時刻を追加", en: "Add a time", "zh-TW": "新增時間" },
+  "remind.removeTime": { ja: "この時刻を消す", en: "Remove this time", "zh-TW": "刪除這個時間" },
+  "remind.webOnly": {
+    ja: "ブラウザでは、アプリを開いている間だけ鳴ります。",
+    en: "In the browser, reminders only work while the app is open.",
+    "zh-TW": "在瀏覽器中，只有開著 App 時才會提醒。",
+  },
+  "remind.denied": {
+    ja: "通知が許可されていません。端末の設定で CatchWords の通知をオンにしてください。",
+    en: "Notifications are blocked. Turn them on for CatchWords in your device settings.",
+    "zh-TW": "通知未被允許。請在裝置設定中開啟 CatchWords 的通知。",
+  },
+  "remind.title": { ja: "復習の時間です", en: "Time to review", "zh-TW": "該複習了" },
+  // 通知は**写真つきの1問**（オーナー指示 2026-09-28）。写真があれば写真そのものを問う。
+  "remind.quizPhoto": {
+    ja: "これ、{lang}で言える？",
+    en: "Can you say this in {lang}?",
+    "zh-TW": "這個用{lang}怎麼說？",
+  },
+  "remind.quizWord": {
+    ja: "「{meaning}」、{lang}で言える？",
+    en: "How do you say \u201c{meaning}\u201d in {lang}?",
+    "zh-TW": "「{meaning}」用{lang}怎麼說？",
+  },
+  "remind.quizBody": {
+    ja: "押すと1問だけ出ます",
+    en: "Tap for one quick question",
+    "zh-TW": "點一下，只考一題",
+  },
+  "remind.body": {
+    ja: "復習する単語が{n}語あります",
+    en: "You have {n} words to review",
+    "zh-TW": "有 {n} 個單字要複習",
+  },
+  "remind.bodySrs": {
+    ja: "忘れかけの単語が{n}語。いまがいちばん覚え直しやすい時です",
+    en: "{n} words are fading. Now is the best time to refresh them",
+    "zh-TW": "有 {n} 個單字快忘了，現在複習最有效",
+  },
+  "remind.bodyEmpty": {
+    ja: "撮った単語を見直しましょう",
+    en: "Take another look at the words you caught",
+    "zh-TW": "來看看你收集的單字吧",
+  },
+  "place.sayItIn": {
+    ja: "ここで撮った、これ。{lang}で言える？",
+    en: "You caught this here. Can you say it in {lang}?",
+    "zh-TW": "在這裡拍到的這個，用{lang}怎麼說？",
+  },
+  // 「思い出す」ではなく「復習する」（オーナー指示 2026-09-27）。
+  "place.review": { ja: "復習する", en: "Review", "zh-TW": "複習" },
+  "place.later": { ja: "あとで", en: "Later", "zh-TW": "稍後" },
   // --- 場所の思い出し・共通 ---
   // 通知とカードの本文。**意味(訳)は入れない** — 通知そのものが
   // 「覚えてる?」という問いなので、答えを並べたら問いにならない。
@@ -2272,6 +2383,29 @@ export const DICT: Record<string, Record<UiLang, string>> = {
     en: "Some settings couldn't be saved ({fields}). The table may not be ready yet.",
     "zh-TW": "有一部分沒有存到（{fields}）。資料表可能還沒準備好。",
   },
+  // アルバムから外す・戻す（2026-09-28。図鑑からは消えない）
+  "album.hide": {
+    ja: "「{word}」をアルバムから外す",
+    en: 'Remove "{word}" from the album',
+    "zh-TW": "把「{word}」從相簿移除",
+  },
+  "album.hidden": {
+    ja: "「{word}」をアルバムから外しました（図鑑には残っています）",
+    en: '"{word}" removed from the album (still in your Dex)',
+    "zh-TW": "已把「{word}」從相簿移除（圖鑑裡還在）",
+  },
+  "album.undo": { ja: "元に戻す", en: "Undo", "zh-TW": "復原" },
+  "album.hiddenCount": {
+    ja: "外した写真（{n}）",
+    en: "Removed photos ({n})",
+    "zh-TW": "已移除的照片（{n}）",
+  },
+  "album.restore": {
+    ja: "「{word}」をアルバムに戻す",
+    en: 'Put "{word}" back in the album',
+    "zh-TW": "把「{word}」放回相簿",
+  },
+  "album.restoreShort": { ja: "戻す", en: "Restore", "zh-TW": "放回" },
   "album.done": { ja: "完了", en: "Done", "zh-TW": "完成" },
   "review.cappedTitle": {
     ja: "今日の分は終わりです",
@@ -2340,6 +2474,7 @@ export const DICT: Record<string, Record<UiLang, string>> = {
   },
   "review.tryAgain": { ja: "もう一度覚えよう", en: "Let's learn it again", "zh-TW": "再記一次吧" },
   "review.next": { ja: "次へ", en: "Next", "zh-TW": "下一題" },
+  "review.openInDex": { ja: "図鑑で見る", en: "Open in Dex", "zh-TW": "在圖鑑查看" },
   "review.speakTag": { ja: "はなす", en: "Speak", "zh-TW": "開口說" },
   "review.roleplayTag": { ja: "ロールプレイ", en: "Role-play", "zh-TW": "角色扮演" },
   "review.hint": { ja: "ヒント", en: "Hint", "zh-TW": "提示" },
@@ -2622,14 +2757,34 @@ export const DICT: Record<string, Record<UiLang, string>> = {
   "common.loading": { ja: "読み込み中", en: "Loading", "zh-TW": "載入中" },
   // 規約・プライバシーの繁體中文版はまだ無い（法的な文なので機械訳しない）。
   // アルバムに書き込む（試作、`AlbumInk`）。
-  "ink.pen": { ja: "ペン", en: "Pen", "zh-TW": "畫筆" },
-  "ink.label": { ja: "ラベル", en: "Label", "zh-TW": "標籤" },
-  "ink.circle": { ja: "丸", en: "Circle", "zh-TW": "圓形" },
-  "ink.rect": { ja: "四角", en: "Box", "zh-TW": "方框" },
-  "ink.arrow": { ja: "矢印", en: "Arrow", "zh-TW": "箭頭" },
+  "ink.write": { ja: "手書き", en: "Draw", "zh-TW": "手寫" },
+  "ink.expand": { ja: "広げる", en: "Extend", "zh-TW": "加長" },
   "ink.undo": { ja: "1つ戻す", en: "Undo", "zh-TW": "復原" },
-  "ink.clear": { ja: "全部消す", en: "Clear all", "zh-TW": "全部清除" },
-  "ink.labelPrompt": { ja: "ラベルに書く言葉", en: "Label text", "zh-TW": "標籤文字" },
+  "ink.tool": { ja: "書く道具", en: "Brush", "zh-TW": "畫筆" },
+  "ink.pen": { ja: "ペン", en: "Pen", "zh-TW": "筆" },
+  "ink.marker": { ja: "マーカー", en: "Marker", "zh-TW": "螢光筆" },
+  "ink.neon": { ja: "ネオン", en: "Neon", "zh-TW": "霓虹" },
+  "ink.eraser": { ja: "消しゴム", en: "Eraser", "zh-TW": "橡皮擦" },
+  "ink.size": { ja: "太さ", en: "Size", "zh-TW": "粗細" },
+  "ink.done": { ja: "完了", en: "Done", "zh-TW": "完成" },
+  "ink.trash": { ja: "ここに運ぶと消えます", en: "Drop here to delete", "zh-TW": "拖到這裡刪除" },
+  "ink.padHint": {
+    ja: "大きく書いてください。「完了」で紙に貼れます",
+    en: "Write big. Tap Done to stick it on the page",
+    "zh-TW": "寫大一點，按「完成」就能貼到頁面上",
+  },
+  "ink.textPlaceholder": { ja: "文字を入力", en: "Type something", "zh-TW": "輸入文字" },
+  "ink.fontModern": { ja: "モダン", en: "Modern", "zh-TW": "現代" },
+  "ink.fontClassic": { ja: "クラシック", en: "Classic", "zh-TW": "經典" },
+  "ink.fontSignature": { ja: "サイン", en: "Signature", "zh-TW": "簽名" },
+  "ink.fontType": { ja: "タイプ", en: "Typewriter", "zh-TW": "打字機" },
+  // 日記の字体（`diary-fonts.ts`。2026-09-28「本物の手書きのような字体…選べて」）
+  "diary.fontHand": { ja: "手書き", en: "Handwritten", "zh-TW": "手寫" },
+  "diary.fontPencil": { ja: "えんぴつ", en: "Pencil", "zh-TW": "鉛筆" },
+  "diary.fontCasual": { ja: "ゆるい", en: "Casual", "zh-TW": "隨手寫" },
+  "diary.fontBrush": { ja: "楷書", en: "Brush", "zh-TW": "楷書" },
+  "diary.fontPlain": { ja: "ふつう", en: "Plain", "zh-TW": "一般" },
+  "ink.bg": { ja: "文字の地", en: "Text background", "zh-TW": "文字底色" },
   "legal.onlyJaEn": {
     ja: "この文書は日本語版と英語版のみです。",
     en: "This document is available in Japanese and English only.",
@@ -2852,6 +3007,31 @@ export const DICT: Record<string, Record<UiLang, string>> = {
     ja: "画像なしでもOK。あとから詳細画面で選び直せます",
     en: "No image is fine — you can pick one later from the card",
     "zh-TW": "沒有圖片也可以，之後在詳細畫面還能重選。",
+  },
+  "input.aiImageLoading": {
+    ja: "この単語の画像を生成しています…",
+    en: "Creating an image for this word…",
+    "zh-TW": "正在為這個詞生成圖片…",
+  },
+  "input.aiImageSaved": {
+    ja: "AI画像は単語の詳細と復習に保存されます",
+    en: "AI image for the word · saved to the card and review",
+    "zh-TW": "AI 圖片會保存到單詞詳情與複習",
+  },
+  "input.aiImageFailed": {
+    ja: "画像を生成できませんでした。単語は保存できます。",
+    en: "Image unavailable. The word can still be saved.",
+    "zh-TW": "無法生成圖片，但仍可保存單詞。",
+  },
+  "dex.movedTo": {
+    ja: "「{word}」を{cat}へ移しました",
+    en: "Moved “{word}” to {cat}",
+    "zh-TW": "已將「{word}」移到{cat}",
+  },
+  "dex.moveFailed": {
+    ja: "移せませんでした。もう一度試してください",
+    en: "Couldn't move it. Please try again.",
+    "zh-TW": "無法移動，請再試一次。",
   },
   "input.save": { ja: "図鑑に入れる", en: "Add to the dex", "zh-TW": "收進圖鑑" },
   "input.saveHint": {
@@ -3145,6 +3325,234 @@ export const DICT: Record<string, Record<UiLang, string>> = {
     ja: "自己改善の点検",
     en: "Self-improvement audit",
     "zh-TW": "自我改善的檢查",
+  },
+  // 広告（開発者だけ、オーナー指示 2026-09-27）。`ad-policy.ts`。
+  "settings.ads": {
+    ja: "広告（開発者だけ）",
+    en: "Ads (developer only)",
+    "zh-TW": "廣告（僅開發者）",
+  },
+  "ads.enabled": { ja: "広告を出す", en: "Show ads", "zh-TW": "顯示廣告" },
+  "ads.enabledDesc": {
+    ja: "無料の人だけ。撮る・スキャン・保存の最中や、開いた瞬間には出しません",
+    en: "Free users only. Never during capture, scan or saving, or at launch",
+    "zh-TW": "只對免費使用者。拍照、掃描、儲存時與剛打開時不會顯示",
+  },
+  "ads.grace": {
+    ja: "使い始めてから出さない日数",
+    en: "Days without ads after sign-up",
+    "zh-TW": "開始使用後不顯示廣告的天數",
+  },
+  "ads.batches": {
+    ja: "全画面広告: 復習を何回終えるごとに1回",
+    en: "Full-screen ad: once every N review sets",
+    "zh-TW": "全螢幕廣告：每完成幾次複習顯示一次",
+  },
+  "ads.gap": {
+    ja: "全画面広告の間隔（分以上）",
+    en: "Minimum minutes between full-screen ads",
+    "zh-TW": "全螢幕廣告的最短間隔（分鐘）",
+  },
+  "ads.maxDay": {
+    ja: "全画面広告の1日の上限",
+    en: "Full-screen ads per day (max)",
+    "zh-TW": "每天全螢幕廣告的上限",
+  },
+  "ads.native": {
+    ja: "図鑑の一覧: 何枚ごとに広告1枠",
+    en: "Dex list: one ad slot every N cards",
+    "zh-TW": "圖鑑列表：每幾張卡片放一個廣告",
+  },
+  "ads.rewarded": {
+    ja: "ごほうび広告（見たら今日の切り抜きが1枚増える）",
+    en: "Rewarded ad (watch to get one more cutout today)",
+    "zh-TW": "獎勵廣告（看完今天可多去背一張）",
+  },
+  // 広告の場所ごとのオン・オフ（2026-09-28「あとからどこに広告つけるか変更できるように」）。
+  "ads.places": { ja: "広告を出す場所", en: "Where ads appear", "zh-TW": "廣告位置" },
+  // AI の切り替え: 会社 → モデル の2つだけ（2026-09-28「複雑すぎる。直感的に」）。
+  "set.aiHowTo": {
+    ja: "使いたい会社の鍵を Lovable の Cloud → Secrets に入れると、ここでその会社が選べるようになります。機能ごとに「会社」と「モデル」を選んで「適用」を押すだけです。⚡は速い・安い、🧠は賢い。空のままなら、いつもの AI を使います。",
+    en: "Add a company's API key in Lovable (Cloud → Secrets) and it becomes selectable here. For each feature, pick a company and a model, then Apply. ⚡ = fast and cheap, 🧠 = smarter. Leave blank to use the default AI.",
+    "zh-TW":
+      "在 Lovable 的 Cloud → Secrets 放入該公司的金鑰後，這裡就能選擇那家公司。每個功能只要選「公司」和「模型」再按「套用」。⚡快又便宜，🧠比較聰明。留空則使用預設的 AI。",
+  },
+  "set.aiCompany": { ja: "AI の会社", en: "AI company", "zh-TW": "AI 公司" },
+  "set.aiModel": { ja: "モデル", en: "Model", "zh-TW": "模型" },
+  "set.aiDefault": { ja: "いつもの（既定）", en: "Default", "zh-TW": "預設" },
+  "set.aiNoKey": { ja: "鍵が未設定", en: "no key", "zh-TW": "未設定金鑰" },
+  "set.aiRecommended": { ja: "おすすめ", en: "recommended", "zh-TW": "推薦" },
+  "set.aiListFailed": {
+    ja: "{p} のモデル一覧を読めませんでした（{e}）。鍵が正しいか確かめてください",
+    en: "Couldn't load {p} models ({e}). Check the key",
+    "zh-TW": "無法讀取 {p} 的模型清單（{e}）。請確認金鑰是否正確",
+  },
+  "ads.reviewEnd": {
+    ja: "復習の区切り（全画面）",
+    en: "After review sets (full-screen)",
+    "zh-TW": "複習告一段落時（全螢幕）",
+  },
+  "ads.afterCatch": {
+    ja: "捕まえた後（全画面）— 既定オフ",
+    en: "After catching (full-screen) — off by default",
+    "zh-TW": "收集之後（全螢幕）— 預設關閉",
+  },
+  "ads.catches": {
+    ja: "捕まえた後: 何回ごとに1回",
+    en: "After catching: once every N catches",
+    "zh-TW": "收集之後：每幾次顯示一次",
+  },
+  "ads.dexNative": {
+    ja: "図鑑の一覧（札の形）",
+    en: "Dex list (card-style)",
+    "zh-TW": "圖鑑列表（卡片形式）",
+  },
+  "ads.diaryNative": {
+    ja: "日記の間（札の形）",
+    en: "Between diary days (card-style)",
+    "zh-TW": "日記之間（卡片形式）",
+  },
+  "ads.diaryEvery": {
+    ja: "日記: 何日ごとに広告1枠",
+    en: "Diary: one ad slot every N days",
+    "zh-TW": "日記：每幾天放一個廣告",
+  },
+  "ads.subscription": {
+    ja: "サブスク（Pro の購入口）を出す",
+    en: "Show the Pro subscription",
+    "zh-TW": "顯示 Pro 訂閱",
+  },
+  "ads.subscriptionDesc": {
+    ja: "オフの間は開発者にだけ見えます。アプリ版（iPhone・Android）ではストアの課金が入るまで出しません",
+    en: "Only developers see it while off. Not shown in the iOS/Android apps until store billing is added",
+    "zh-TW": "關閉時只有開發者看得到。在 iPhone／Android App 加入商店付款前不會顯示",
+  },
+  // Pro の購入口（Web 版）。
+  "pro.title": { ja: "CatchWords Pro", en: "CatchWords Pro", "zh-TW": "CatchWords Pro" },
+  "pro.active": { ja: "Pro をご利用中です", en: "You're on Pro", "zh-TW": "你正在使用 Pro" },
+  "pro.monthly": { ja: "月ごとで始める", en: "Start monthly", "zh-TW": "按月開始" },
+  "pro.yearly": { ja: "年ごとで始める", en: "Start yearly", "zh-TW": "按年開始" },
+  "pro.notConfigured": {
+    ja: "支払いの準備がまだです（開発者: Stripe の鍵と値段を Secrets に入れてください）",
+    en: "Payments aren't set up yet (developer: add the Stripe key and prices to Secrets)",
+    "zh-TW": "付款尚未設定（開發者：請在 Secrets 加入 Stripe 金鑰與價格）",
+  },
+  "pro.failed": {
+    ja: "支払いの画面を開けませんでした。少し待ってからもう一度お試しください",
+    en: "Couldn't open checkout. Please try again shortly",
+    "zh-TW": "無法開啟付款頁面，請稍後再試",
+  },
+  "pro.devOnly": {
+    ja: "開発者にだけ見えています（サブスクはまだオフ）",
+    en: "Visible to developers only (subscription is still off)",
+    "zh-TW": "只有開發者看得到（訂閱尚未開啟）",
+  },
+  "ads.note": {
+    ja: "オンにしても、AdMob（広告の部品）をアプリに入れるまでは実際の広告は出ません。手順は docs/monetization.md。",
+    en: "Real ads appear only after AdMob is added to the app. Steps: docs/monetization.md.",
+    "zh-TW": "即使打開，在 App 加入 AdMob 之前也不會出現真正的廣告。步驟見 docs/monetization.md。",
+  },
+  "ads.saved": {
+    ja: "広告の設定を保存しました",
+    en: "Ad settings saved",
+    "zh-TW": "已儲存廣告設定",
+  },
+  "imageTest.title": {
+    ja: "画像生成のテスト",
+    en: "Image generation test",
+    "zh-TW": "圖片生成測試",
+  },
+  "imageTest.desc": {
+    ja: "文字検索で使う AI の絵を、今の設定で実際に1枚作ります（生成の料金がかかります）。",
+    en: "Generates one real image with the current settings used by text search (billed).",
+    "zh-TW": "用文字搜尋目前的設定實際生成一張圖（會產生費用）。",
+  },
+  "imageTest.run": {
+    ja: "1枚作って試す",
+    en: "Generate one",
+    "zh-TW": "生成一張試試",
+  },
+  "imageTest.running": {
+    ja: "作っています…",
+    en: "Generating…",
+    "zh-TW": "生成中…",
+  },
+  "imageTest.provider": {
+    ja: "作る所",
+    en: "Provider",
+    "zh-TW": "生成來源",
+  },
+  "imageTest.key": {
+    ja: "見つかった鍵の名前",
+    en: "Key found as",
+    "zh-TW": "找到的金鑰名稱",
+  },
+  "imageTest.noKey": {
+    ja: "なし",
+    en: "none",
+    "zh-TW": "無",
+  },
+  "imageTest.ok": {
+    ja: "成功",
+    en: "Success",
+    "zh-TW": "成功",
+  },
+  "imageTest.fail": {
+    ja: "失敗",
+    en: "Failed",
+    "zh-TW": "失敗",
+  },
+  "settings.usersLink": {
+    ja: "利用者ごとの情報（開発者だけ）",
+    en: "Per-user details (developer only)",
+    "zh-TW": "各使用者的資訊（僅開發者）",
+  },
+  // 開発者の AI 設定を機能ごとに（オーナー指示 2026-09-27）。
+  "settings.aiOk": {
+    ja: "AI は動いています（提供元: {p}）",
+    en: "AI is running (provider: {p})",
+    "zh-TW": "AI 正在運作（供應商：{p}）",
+  },
+  "settings.aiNg": {
+    ja: "AI が動いていません。下の「詳しい設定」で API キーを確認してください",
+    en: "AI is not running. Check the API keys under “Advanced”",
+    "zh-TW": "AI 沒有在運作。請在下方「進階設定」確認 API 金鑰",
+  },
+  "settings.aiDefaultModels": {
+    ja: "指定しない機能は既定の AI（速い方: {f} / 丁寧な方: {r}）を使います",
+    en: "Features without a choice use the defaults (fast: {f} / careful: {r})",
+    "zh-TW": "沒有指定的功能使用預設 AI（快速：{f}／仔細：{r}）",
+  },
+  "settings.aiReset": { ja: "既定に戻す", en: "Use the default", "zh-TW": "改回預設" },
+  "settings.aiAdvanced": {
+    ja: "詳しい設定（既定の AI・キー。ふだんは触らない）",
+    en: "Advanced (default AI and keys; usually leave as is)",
+    "zh-TW": "進階設定（預設 AI、金鑰，平常不用動）",
+  },
+  "settings.aiFeatureDesc.scan": {
+    ja: "カメラで撮った写真から物・文字を見つけ、単語の候補を出す。速さが一番大事（写真を読めるAIだけ選べます）。",
+    en: "Finds objects and text in the photo and suggests words. Speed matters most (only image-capable AIs).",
+    "zh-TW": "從拍的照片找出物品與文字並提出單字候選。速度最重要（只能選能讀圖片的 AI）。",
+  },
+  "settings.aiFeatureDesc.card": {
+    ja: "単語の詳細（意味・例文・チャンク・使い方など）を作る・作り直す。質が一番大事。",
+    en: "Writes and rewrites word details (meaning, examples, chunks, usage). Quality matters most.",
+    "zh-TW": "產生、重做單字詳情（意思、例句、語塊、用法等）。品質最重要。",
+  },
+  "settings.aiFeatureDesc.review": {
+    ja: "復習の発音・答えの添削とヒント。",
+    en: "Feedback and hints for review answers and pronunciation.",
+    "zh-TW": "複習時的發音、答案修改與提示。",
+  },
+  "settings.aiFeatureDesc.journal": {
+    ja: "日記の添削。",
+    en: "Corrects journal entries.",
+    "zh-TW": "修改日記。",
+  },
+  "settings.aiFeatureDesc.audit": {
+    ja: "裏方: 報告されたエラーや解説の誤りを点検して直す。",
+    en: "Behind the scenes: checks and fixes reported errors in explanations.",
+    "zh-TW": "幕後：檢查並修正被回報的錯誤。",
   },
   "settings.aiPerFeatureHint": {
     ja: "空欄なら上の既定を使います。「提供元:モデル名」で別のAIに丸ごと振り分けられます(例 openai:gpt-5)。キーが無い提供元を指定しても既定に自動で戻るので、設定ミスで機能は止まりません。",
@@ -3598,6 +4006,30 @@ export const DICT: Record<string, Record<UiLang, string>> = {
   "catEdit.roomMine": { ja: "マイカテゴリー", en: "My categories", "zh-TW": "我的分類" },
   "catEdit.manage": { ja: "カテゴリーを編集", en: "Edit categories", "zh-TW": "編輯分類" },
   "catEdit.change": { ja: "カテゴリーを変える", en: "Change category", "zh-TW": "變更分類" },
+  // カテゴリーの側から単語を入れる・外す（2026-09-28）
+  "catEdit.members": {
+    ja: "「{name}」の単語を選ぶ",
+    en: 'Choose words for "{name}"',
+    "zh-TW": "選擇「{name}」的單字",
+  },
+  "catEdit.membersShort": { ja: "単語を選ぶ", en: "Choose words", "zh-TW": "選擇單字" },
+  "catEdit.membersCount": {
+    ja: "{n}語が入っています",
+    en: "{n} words in this category",
+    "zh-TW": "目前有 {n} 個單字",
+  },
+  "catEdit.membersSearch": { ja: "単語をさがす", en: "Find a word", "zh-TW": "搜尋單字" },
+  "catEdit.membersFrom": { ja: "いま: {name}", en: "Now: {name}", "zh-TW": "目前：{name}" },
+  "catEdit.membersApply": {
+    ja: "{n}件を変更",
+    en: "Apply {n} changes",
+    "zh-TW": "變更 {n} 項",
+  },
+  "catEdit.membersNoRemove": {
+    ja: "「その他」からは外せません。ほかのカテゴリーへ入れてください。",
+    en: 'Words can\'t be removed from "Other" — add them to another category instead.',
+    "zh-TW": "無法從「其他」移出，請把單字加入別的分類。",
+  },
   "capture.pickTitle": {
     ja: "ステップ 3: 単語を選ぶ",
     en: "Step 3: Pick a word",

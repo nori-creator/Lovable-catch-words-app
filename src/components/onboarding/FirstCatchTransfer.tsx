@@ -1,4 +1,5 @@
 import { transferFirstCatch } from "@/lib/first-catch-transfer";
+import { normalizeReminderPrefs } from "@/lib/review-reminder";
 import { useEffect, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { useQueryClient } from "@tanstack/react-query";
@@ -72,10 +73,10 @@ export function FirstCatchTransfer({
                       : {}),
                     ...(!auth.user.user_metadata?.notification_preferences
                       ? {
-                          notification_preferences: current.reminders ?? {
-                            morning: false,
-                            evening: false,
-                          },
+                          // 設定と同じ形で残す（オフ / 自動 / 時刻）。選ばずに進んだら「自動」。
+                          notification_preferences: normalizeReminderPrefs(
+                            current.reminders ?? { mode: "ai", times: ["09:00"] },
+                          ),
                         }
                       : {}),
                   },

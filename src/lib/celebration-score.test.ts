@@ -45,15 +45,15 @@ describe("祝福の BGM の楽譜（オーナー指示 2026-09-23・研究にも
       ...SCORE.resolve.tonic,
       ...SCORE.resolve.shimmer,
       ...SCORE.land.chord,
-      SCORE.land.timpani,
       SCORE.land.ping,
     ];
     for (const n of all) expect(C_MAJOR.has(n % 12)).toBe(true);
   });
 
-  it("着地は主音で終わる", () => {
-    expect(SCORE.land.timpani % 12).toBe(0);
+  it("着地は主音で終わり、低い打撃（ティンパニ）は使わない（柔らかく着く）", () => {
     expect(SCORE.land.ping % 12).toBe(0);
+    expect(SCORE.land.chord[0] % 12).toBe(0);
+    expect("timpani" in SCORE.land).toBe(false);
   });
 
   it("発音を邪魔しない: 読む間は 20dB 以上下げ、打撃の 150ms 以上後から読む", () => {

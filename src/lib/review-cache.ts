@@ -50,10 +50,15 @@ export const REVIEW_CACHE_KEY = "review-batch-v1";
 export const REVIEW_CACHE_USER_KEY = "uid-v1";
 
 /**
- * 書き留めた束をどれだけ使うか。**署名URLの6時間より短く。**
- * 4時間 = 6時間の寿命に2時間の余裕。
+ * 書き留めた束をどれだけ使うか。
+ *
+ * 前は**署名URLの6時間より短く**4時間にしていた（切れたURLでは絵が出ない）。
+ * 2026-09-27 から、束が届いた時点で写真を全部端末へ落とす
+ * （`warmCachedImages`、保存場所の道で引く）ので、URLが切れても端末から出る。
+ * 「アプリを閉じてもすぐ出る」（オーナー指示）を1日の中で効かせるため 20 時間に。
+ * 開いて5分より古ければ、まだ1枚も答えていないうちに裏で読み直す（`review.tsx`）。
  */
-export const REVIEW_CACHE_MAX_AGE_MS = 4 * 60 * 60_000;
+export const REVIEW_CACHE_MAX_AGE_MS = 20 * 60 * 60_000;
 
 export type CachedBatch<T> = {
   /** 誰の束か。**別の人が入ったら出さない。** */
