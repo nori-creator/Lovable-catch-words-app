@@ -1681,7 +1681,7 @@ for (const [name, htmlAttrs, wantsContrast, scene] of MODES) {
 /**
  * ## 動きを減らす設定での検査
  *
- * `prefers-reduced-motion: reduce` を立てて開き、**まだ動いている
+ * アプリで「動きを減らす」を選んだ状態で開き、**まだ動いている
  * アニメーションの名前を数える**。止まっていなければならない物が
  * 1つでも走っていれば落とす。
  *
@@ -1716,6 +1716,9 @@ for (const scene of MOTION_SCENES) {
     reducedMotion: "reduce",
   });
   await page.goto(sceneUrl(BASE, { scene }), { waitUntil: "load" });
+  // 現行の既定は「動きを見せる」。端末の設定だけでは減速モードにならない。
+  // 設定から選んだ結果の <html data-motion> を再現する。
+  await page.evaluate(() => { document.documentElement.dataset.motion = "reduce"; });
   await page.waitForTimeout(400);
   const { running, marked } = await page.evaluate(() => ({
     // `animationName` を持つ物だけが CSS アニメーション(transition は持たない)。

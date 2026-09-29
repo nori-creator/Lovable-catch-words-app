@@ -304,6 +304,9 @@
   padding-top: 24px;
 }
 .first-secondary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   min-height: 44px;
   color: #007bcc;
   font-size: 14px;

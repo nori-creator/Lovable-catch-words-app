@@ -81,25 +81,13 @@ export function PronounceButton({
     shown.current = false;
   }
   if (state === "ready" || state === "failed") shown.current = true;
-  const box = size === "sm" ? "h-9 w-9" : "h-11 w-11";
-  /**
-   * 当たり判定の広げ。**見た目の種類ではなく大きさに紐付ける。**
-   *
-   * 36px は指の下限(44px)を割るので、見た目はそのままで当たり判定だけ
-   * 外へ広げる(`-inset-1.5` = 上下左右に 6px → 48px 四方)。
-   *
-   * 前はこれが `tone === "quiet"` の中に書かれていた。理由は大きさなのに
-   * 見た目の種類に付いていたので、`tone="hero" size="sm"`(復習の発音)が
-   * **36px のまま**素通りしていた。絵の検査で
-   * `タップ領域 36x36 < 44 — "雨傘的發音"` として出た。
-   */
-  const reach =
-    size === "sm" ? "relative before:absolute before:-inset-1.5 before:content-['']" : "";
+  const box = "h-11 w-11";
+  // 小さいアイコンでもボタン自体は44px。隣の部品が擬似要素を覆っても押せる。
   /**
    * **色は1つ（オーナー指示 2026-09-25「単語の詳細を含む発音ボタンはすべて
    * 単語の見出しの横の鮮やかな青色に統一して」）。** 前は脇役（関連語・
    * チャンク）を薄い地にして見出しと描き分けていたが、どれも「押すと鳴る」
-   * 同じ物なので、同じ青に揃える。違いは大きさ（`size`）だけ。
+   * 同じ物なので、同じ青に揃える。アイコンの大きさは `size` で変える。
    * 見出しだけは持ち上げ（`lift`）を残す — その画面でいちばん押される物。
    */
   const skin = `speak-button${tone === "hero" ? " lift" : ""}`;
@@ -118,7 +106,7 @@ export function PronounceButton({
         void pronounce(text);
       }}
       aria-label={label ?? t("common.playWord", { word: text })}
-      className={`press-in grid ${box} ${skin} ${reach} shrink-0 place-items-center rounded-full active:scale-95 motion-reduce:active:scale-100 ${className}`}
+      className={`press-in grid ${box} ${skin} shrink-0 place-items-center rounded-full active:scale-95 motion-reduce:active:scale-100 ${className}`}
     >
       <Volume2 className={icon} />
     </button>

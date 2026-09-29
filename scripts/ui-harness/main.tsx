@@ -381,9 +381,7 @@ const q = new URLSearchParams(location.search);
  */
 const REVIEW_SCENES: Array<{ scene: string; label: string }> = [
   { scene: "image-settings", label: "β確認: AI画像設定（日・英・繁体字の表示）" },
-  // 2026-09-28〜29 の依頼（R14）で触った面だけ。**毎回ここを入れ替える**
-  // — 前の依頼の面は残さない（オーナー指示「過去のものは全て削除して」）。
-  // 先頭は最後に頼まれた物（図鑑のスライドを白に・カードの色の案）。
+  // 先頭は今回の画像設定。続く R14 の場面は回帰確認用。
   {
     scene: "dex-cards&n=24&at=3",
     label: "図鑑スライド: 白い部屋・カードの色 A〜D・下のバーに被らない",

@@ -2691,18 +2691,11 @@ describe("ホームのアルバムの長押し", () => {
 });
 
 describe("小さいボタンの当たり判定", () => {
-  it("**広げる理由は大きさ。見た目の種類に紐付けない**", () => {
+  it("**小さい発音ボタンも44pxの操作領域を持つ**", () => {
     const src = codeOnly(read("components/PronounceButton.tsx"));
-    // 前は `tone === "quiet"` の中に書かれていて、理由は大きさなのに
-    // 見た目の種類に付いていた。だから `tone="hero" size="sm"`(復習の発音)が
-    // 36px のまま素通りし、絵の検査で
-    // `タップ領域 36x36 < 44 — "雨傘的發音"` として出た。
-    // 整形で改行が入るので、行をまたいで見る。
-    expect(src).toMatch(/const reach =[\s\S]{0,40}size === "sm"/);
-    expect(src).toMatch(/\$\{reach\}/);
-    // 広げの指定が tone の分岐に戻っていないこと。
-    const skin = src.slice(src.indexOf("const skin ="), src.indexOf("const icon ="));
-    expect(skin).not.toMatch(/before:/);
+    // 見えない擬似要素だけでは、重なった部品に当たり判定を奪われうる。
+    expect(src).toMatch(/const box = "h-11 w-11"/);
+    expect(src).not.toMatch(/h-9 w-9/);
   });
 
   it("図鑑の表示切替は、隙間が当たり判定と噛み合っている", () => {
@@ -4988,8 +4981,9 @@ describe("ホームは今日の誌面", () => {
     );
     // 2026-09-24「過去のものが多すぎで画面で確認できないから、過去のものは全て
     // 削除して」: 帯には**今回の依頼の面だけ**。
-    // 2026-09-29 の回（R14）の最後の依頼: 図鑑のスライドを白に・カードの色の案。
-    expect(list.slice(0, list.indexOf("},"))).toMatch(/scene: "dex-cards/);
+    // 今回の確認対象は画像設定。R14 の場面も帯に残して回帰確認できる。
+    expect(list.slice(0, list.indexOf("},"))).toMatch(/scene: "image-settings/);
+    expect(list).toMatch(/scene: "dex-cards/);
     expect(list).toMatch(/\{ scene: "chunk-designs"/);
     expect(list).toMatch(/\{ scene: "dex-drag"/);
     expect(list).toMatch(/\{ scene: "scan-found"/);

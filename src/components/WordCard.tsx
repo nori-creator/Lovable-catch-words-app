@@ -2216,7 +2216,7 @@ function RealUsageBody({ headword, language }: { headword: string; language?: st
             href={l.href}
             target="_blank"
             rel="noreferrer"
-            className="flex items-center gap-2.5 rounded-xl bg-secondary px-3 py-2 text-body shadow-sm ring-1 ring-border transition-colors active:bg-secondary"
+            className="flex min-h-11 items-center gap-2.5 rounded-xl bg-secondary px-3 py-2 text-body shadow-sm ring-1 ring-border transition-colors active:bg-secondary"
           >
             <span className="text-body">{l.emoji}</span>
             {/* **行き先の名前だけ**（オーナー指示 2026-09-27「実際の使われ方の
