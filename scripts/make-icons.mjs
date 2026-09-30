@@ -83,7 +83,7 @@ function html(size, mode, round) {
 }
 
 const browser = await chromium.launch({
-  executablePath: process.env.PW_CHROME || "/opt/pw-browsers/chromium-1194/chrome-linux/chrome",
+  ...(process.env.PW_CHROME ? { executablePath: process.env.PW_CHROME } : {}),
 });
 
 async function shoot(size, mode, round, file) {
