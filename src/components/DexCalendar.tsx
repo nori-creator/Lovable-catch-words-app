@@ -215,14 +215,14 @@ export function DexCalendar({
           )}
         </div>
         <div className="flex gap-2">
-          <button
+          <button type="button"
             onClick={() => shiftMonth(-1)}
             aria-label={t("dex.prevMonth")}
             className="press-in grid h-11 w-11 place-items-center rounded-full bg-secondary"
           >
             <ChevronLeft className="h-5 w-5" />
           </button>
-          <button
+          <button type="button"
             onClick={() => shiftMonth(1)}
             aria-label={t("dex.nextMonth")}
             className="press-in grid h-11 w-11 place-items-center rounded-full bg-secondary"
@@ -267,7 +267,7 @@ export function DexCalendar({
           }
           const thumb = stickerPhotoUrl(items[0], { thumb: true });
           return (
-            <button
+            <button type="button"
               key={key}
               onClick={() => (onPickDay ? onPickDay(key) : setOpenDay(key))}
               aria-label={`${day}${t("dex.dayUnit")} — ${t("dex.calPhotos", { n: items.length })}`}
@@ -380,7 +380,7 @@ function DayTimeline({
           const n = byDay.get(k)?.length ?? 0;
           const on = k === day;
           return (
-            <button
+            <button type="button"
               key={k}
               role="tab"
               aria-selected={on}
