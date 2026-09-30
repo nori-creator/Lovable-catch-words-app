@@ -246,6 +246,33 @@ export function sectionHasContent(id: SectionId, input: SectionContentInput): bo
 }
 
 /**
+ * 類義語・関連語は並んでいるのに、**解説（note）が1つも無い**か。
+ *
+ * オーナー報告 2026-09-30「類義語や対義語関連語のそれぞれの解説がなくなってる」
+ * （保溫瓶）。AI が note を学ぶ言語（中文）で返すと、読む人の言語でない注記として
+ * 保存前に空にされる（`note-language.ts`）。語だけは残るので `sectionHasContent` は
+ * 「在る」と答え、**二度と作り直されなかった**。語だけ並んでいても何が違うのか
+ * 分からないので、この状態は「まだ作られていない」と数える。
+ *
+ * 節そのものは出したままにする（語は正しい）— 裏で解説付きの物に差し替わる。
+ */
+export function relatedWordsLackNotes(extras: WordExtrasDTO | null | undefined): boolean {
+  const rel = extras?.related_words ?? [];
+  return rel.length > 0 && rel.every((r) => !(r?.note ?? "").trim());
+}
+
+/**
+ * その節を**裏で作る（作り直す）べきか**。画面の「まだ無い節」と server の
+ * 「もう在るので作らない」の両方がここを見る（片方だけ直すと止まらない生成か、
+ * 永久に直らない節になる — `sectionHasContent` の注と同じ理由）。
+ */
+export function sectionNeedsFill(id: SectionId, input: SectionContentInput): boolean {
+  if (!sectionHasContent(id, input)) return true;
+  if (id === "related_words") return relatedWordsLackNotes(input.extras);
+  return false;
+}
+
+/**
  * まだ作られていない節を、**画面に並ぶ順のまま**返す。
  * 順番はオーナーの指定(「項目の上から順に」)そのものなので、
  * ここで並べ替えない。
@@ -255,7 +282,7 @@ export function missingSections(
   input: SectionContentInput,
 ): RegenSection[] {
   return order.filter(
-    (id): id is RegenSection => isRegenSection(id) && !sectionHasContent(id, input),
+    (id): id is RegenSection => isRegenSection(id) && sectionNeedsFill(id, input),
   );
 }
 
