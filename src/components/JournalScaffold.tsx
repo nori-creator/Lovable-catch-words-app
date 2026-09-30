@@ -61,7 +61,7 @@ export function JournalScaffold({
                 </p>
                 {/* 読み上げはアプリ全体で1つの声（`usePronounce`）。端末の声を直に使うと、
                     ここだけ別の声（大陸の声のこともある）で読んでいた（R18）。 */}
-                <button
+                <button type="button"
                   onClick={() => void pronounce(p.question_zh)}
                   aria-label={t("card.playPron")}
                   className="speak-button grid h-11 w-11 shrink-0 place-items-center rounded-full active:scale-95 motion-reduce:active:scale-100"
@@ -89,7 +89,7 @@ export function JournalScaffold({
           </p>
           <div className="mt-1.5 flex flex-wrap gap-1.5">
             {data.patterns.map((p, i) => (
-              <button
+              <button type="button"
                 key={i}
                 onClick={() => onUsePattern(p.zh)}
                 title={p.ja}
