@@ -19,6 +19,15 @@ export function ensureFirstCatchSession(): Promise<void> {
     });
   return opening;
 }
+/** 未登録用の窓口が「入口で」断ったときのコード(AIの中身の失敗はここに含めない)。 */
+const GUEST_REFUSALS = new Set([
+  "FIRST_CATCH_LIMIT",
+  "FIRST_CATCH_ORIGIN",
+  "FIRST_CATCH_AI_UNAVAILABLE",
+]);
+export function isGuestRefusal(error: unknown): boolean {
+  return error instanceof Error && GUEST_REFUSALS.has(error.message);
+}
 export function applyFirstCatchLanguage(draft: FirstCatch) {
   setUiLang(draft.uiLanguage);
   setTargetLang(draft.targetLanguage);

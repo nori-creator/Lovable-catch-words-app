@@ -18,7 +18,12 @@ import { firstCatchAI, firstCatchMemberAI } from "@/lib/first-catch-ai.functions
 import { createFirstCatchServices } from "@/lib/first-catch-ai-client";
 import { LearningPreferencesSchema } from "@/lib/learning-preferences";
 import type { FirstCatchAIRequest } from "@/lib/first-catch-ai-schema";
-import { firstCatchPhoto, applyFirstCatchLanguage } from "@/lib/first-catch-services";
+import {
+  firstCatchPhoto,
+  applyFirstCatchLanguage,
+  ensureFirstCatchSession,
+  isGuestRefusal,
+} from "@/lib/first-catch-services";
 import {
   readFirstCatch,
   writeFirstCatch,
@@ -56,7 +61,19 @@ export function FirstCatchEntry() {
       services={createFirstCatchServices(
         async (data) => {
           const { data: auth } = await supabase.auth.getUser();
-          return auth.user && !auth.user.is_anonymous ? memberAI({ data }) : guestAI({ data });
+          // 登録済みの人も、すでに匿名アカウントを持つ端末も、本人の枠で動かす。
+          if (auth.user) return memberAI({ data });
+          try {
+            return await guestAI({ data });
+          } catch (refused) {
+            // 未登録用の窓口が断った(上限・環境・一時的な不具合)。以前の経路 —
+            // この端末だけの匿名アカウントで、本人の枠(24回/日)を使う — に切り替える。
+            // 匿名ログインが使えない環境では FIRST_CATCH_GUEST_UNAVAILABLE になり、
+            // 写真は残ったまま画面に理由が出る。
+            if (!isGuestRefusal(refused)) throw refused;
+            await ensureFirstCatchSession();
+            return memberAI({ data });
+          }
         },
         async () => {},
       )}
@@ -156,20 +173,7 @@ export function FirstCatchFlow({
     try {
       await fn();
     } catch (e) {
-      if (mounted.current && mine === run.current)
-        setError(
-          t(
-            e instanceof Error && e.message === "FIRST_CATCH_PREVIEW_UNAVAILABLE"
-              ? "first.previewUnavailable"
-              : e instanceof Error && e.message === "FIRST_CATCH_PHOTO_UNSUPPORTED"
-                ? "first.photoUnsupported"
-                : e instanceof Error && e.message === "FIRST_CATCH_ANALYSIS_TIMEOUT"
-                  ? "first.analysisTimeout"
-                  : e instanceof Error && e.message === "FIRST_CATCH_GUEST_UNAVAILABLE"
-                    ? "first.guestUnavailable"
-                    : "first.failed",
-          ),
-        );
+      if (mounted.current && mine === run.current) setError(failureText(e));
     } finally {
       if (mine === run.current) {
         lock.current = false;
@@ -275,6 +279,26 @@ export function FirstCatchFlow({
   useEffect(() => {
     if (draft?.stage === "account") onAccount();
   }, [draft?.stage]);
+
+  /**
+   * 失敗の文言。原因が分かる失敗は専用の文、それ以外は汎用の文に**コードを添える**
+   * (「処理できませんでした」だけでは、どこで落ちたか報告も調査もできない)。
+   */
+  function failureText(e: unknown): string {
+    const code = e instanceof Error ? e.message : "";
+    const known: Record<string, Parameters<typeof t>[0]> = {
+      FIRST_CATCH_PREVIEW_UNAVAILABLE: "first.previewUnavailable",
+      FIRST_CATCH_PHOTO_UNSUPPORTED: "first.photoUnsupported",
+      FIRST_CATCH_ANALYSIS_TIMEOUT: "first.analysisTimeout",
+      FIRST_CATCH_GUEST_UNAVAILABLE: "first.guestUnavailable",
+      FIRST_CATCH_LIMIT: "first.busy",
+    };
+    const key = known[code];
+    if (key) return t(key);
+    return /^FIRST_CATCH_[A-Z_]+$/.test(code)
+      ? `${t("first.failed")} (${code})`
+      : t("first.failed");
+  }
 
   const errors = error && (
     <div role="alert" className="first-error">

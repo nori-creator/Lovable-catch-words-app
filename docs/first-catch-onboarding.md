@@ -37,3 +37,11 @@ Anonymous sessions hold AI usage/profile preferences only. Photos/catches remain
 The guided path is Home → actual camera/photo AI → durable local Catch + landing animation → real Collection cover flow swipe and gallery view → own word detail → two local photo-review questions → congratulations → signup/signin. Account transfer is allowed only after review completion. Registration is not required to operate the camera or view the tutorial. Generated sample photos are preloaded and shown on welcome, Home, Collection and review; they never stand in for AI candidates from the learner's actual camera photo.
 
 The pre-signup AI endpoint uses server-side `SUPABASE_SERVICE_ROLE_KEY` only to reserve atomic budget slots in the existing `app_config` table (12 requests per originating address/day and 200 globally/day). No personal photo or word enters that table. Calls fail closed if reservation or provider fails. Confirm runtime environment and a real device capture in the PR Deploy Preview and the eventual Lovable deployment.
+
+## 2026-09-30 pre-signup AI: caps, fallback and error codes
+
+- A tutorial needs at least three AI calls (candidates, card, personal lesson), plus retakes and retries, so the caps are 30 calls per address per day and 1000 globally per day (`GUEST_IP_LIMIT_PER_DAY`, `GUEST_GLOBAL_LIMIT_PER_DAY`). The earlier 12 / 200 were exhausted by a handful of trials and every later visitor failed with a generic message.
+- The caller address is read from `cf-connecting-ip`, `x-nf-client-connection-ip`, `x-real-ip` or `x-forwarded-for`. When none exists the per-address cap is skipped (only the global cap applies); it is never shared under a single `unknown` key.
+- The same-origin check also accepts the forwarded host, for hosts that proxy the request to a different internal URL.
+- If the guest endpoint refuses at the gate (`FIRST_CATCH_LIMIT`, `FIRST_CATCH_ORIGIN`, `FIRST_CATCH_AI_UNAVAILABLE`), the client falls back to a per-device anonymous account and the authenticated endpoint (24 calls per account per day). If anonymous sign-in is disabled, `FIRST_CATCH_GUEST_UNAVAILABLE` is shown. Genuine AI failures are not retried on the other path.
+- Generic failures now show the error code after the message, and the server logs why the gate refused (no photo, word or address), so the cause can be reported and traced.
