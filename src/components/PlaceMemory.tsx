@@ -156,7 +156,7 @@ export function PlaceMemoryCard({
             alt=""
             className="aspect-[16/10] max-h-[32vh] w-full object-cover"
           />
-          <button
+          <button type="button"
             onClick={onDismiss}
             aria-label={t("common.close")}
             className="absolute right-2 top-2 grid h-11 w-11 place-items-center rounded-full bg-black/35 text-white backdrop-blur active:scale-95"
@@ -167,13 +167,13 @@ export function PlaceMemoryCard({
             {meta && <p className="truncate text-footnote text-muted-foreground">{meta}</p>}
             <p className="mt-0.5 text-headline font-bold">{t("place.sayItIn", { lang })}</p>
             <div className="mt-3 flex gap-2">
-              <button
+              <button type="button"
                 onClick={onStart}
                 className="min-h-11 flex-1 rounded-full bg-primary px-5 text-body font-semibold text-primary-foreground active:scale-[0.98]"
               >
                 {t("place.review")}
               </button>
-              <button
+              <button type="button"
                 onClick={onDismiss}
                 className="min-h-11 rounded-full bg-secondary px-5 text-body font-semibold text-foreground active:scale-[0.98]"
               >
@@ -187,7 +187,7 @@ export function PlaceMemoryCard({
           <span className="grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-primary/10 text-primary-ink">
             <MapPin className="h-5 w-5" />
           </span>
-          <button onClick={onStart} className="min-w-0 flex-1 py-1 text-left">
+          <button type="button" onClick={onStart} className="min-w-0 flex-1 py-1 text-left">
             <span className="block truncate text-body font-semibold">
               {/* 単語の前後で文が分かれる。日本語は「〇〇」は台湾華語で？、英語は
                   Remember "〇〇" in Mandarin? と語順が違うので前後を別キーにしている。 */}
@@ -197,7 +197,7 @@ export function PlaceMemoryCard({
             </span>
             <span className="block truncate text-caption text-muted-foreground">{line}</span>
           </button>
-          <button
+          <button type="button"
             onClick={onDismiss}
             aria-label={t("common.close")}
             className="grid h-11 w-11 shrink-0 place-items-center rounded-full text-muted-foreground active:scale-95"
