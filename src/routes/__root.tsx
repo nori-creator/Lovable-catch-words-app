@@ -76,7 +76,7 @@ function ErrorComponent({ error: caught, reset }: { error: unknown; reset: () =>
           <p className="mt-1 break-all">{error.message}</p>
         </details>
         <div className="mt-6 flex flex-wrap justify-center gap-2">
-          <button
+          <button type="button"
             onClick={() => {
               if (chunk) {
                 window.location.reload();
