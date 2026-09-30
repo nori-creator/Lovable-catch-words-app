@@ -6,7 +6,7 @@
  * ので、文字列連結では直せない。翻訳キーに数を差し込む形に一本化する。
  */
 
-import { tStatic, useT, type Vars } from "@/lib/i18n";
+import { useT, type Vars } from "@/lib/i18n";
 
 /** 経過秒数から、いちばん粗くて意味が通る単位を選ぶ。 */
 function pick(seconds: number): { key: string; vars: Vars } {
@@ -38,12 +38,4 @@ export function useTimeAgo(): (iso: string) => string {
     const { key, vars } = pick(secs);
     return t(key, vars);
   };
-}
-
-/** React の外(通知の文面など)で使う版。 */
-export function timeAgoStatic(iso: string): string {
-  const secs = elapsedSeconds(iso);
-  if (secs === null) return "";
-  const { key, vars } = pick(secs);
-  return tStatic(key, vars);
 }

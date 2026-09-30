@@ -114,16 +114,6 @@ export async function synthesizeAudio(
   }
 }
 
-/** 音の中身だけ欲しい所（前の呼び名）。 */
-export async function synthesizeWithChoice(
-  choice: TtsChoice,
-  text: string,
-  speed: number,
-  language: string,
-): Promise<Uint8Array> {
-  return (await synthesizeAudio(choice, text, speed, language)).bytes;
-}
-
 async function synthesizeOnce(
   choice: TtsChoice,
   text: string,

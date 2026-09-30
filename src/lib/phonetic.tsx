@@ -225,14 +225,6 @@ export function useReadingPref(profile: TargetProfile = ZH_TW_PROFILE): ReadingK
 // **動きは1つも変えていない。**
 // ---------------------------------------------------------------------------
 
-export function getPhoneticPref(): Phonetic {
-  return getReadingPref(ZH_TW_PROFILE) as Phonetic;
-}
-
-export function setPhoneticPref(p: Phonetic) {
-  setReadingPref(ZH_TW_PROFILE, p);
-}
-
 export function usePhoneticPref(): Phonetic {
   return useReadingPref(ZH_TW_PROFILE) as Phonetic;
 }
