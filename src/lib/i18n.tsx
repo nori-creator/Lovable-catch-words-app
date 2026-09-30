@@ -3420,6 +3420,58 @@ export const DICT: Record<string, Record<UiLang, string>> = {
     "zh-TW": "目前運作中的設定",
   },
   "settings.aiProvider": { ja: "提供元", en: "Provider", "zh-TW": "供應商" },
+  "settings.imageTitle": {
+    ja: "文字検索のAI画像",
+    en: "AI images for typed words",
+    "zh-TW": "文字搜尋的 AI 圖片",
+  },
+  "settings.imageDescription": {
+    ja: "文字で見つけた単語の詳細と復習に、AI画像を1枚作ります。ホームのアルバムには表示しません。",
+    en: "Create one AI image for a typed word's details and review. It won't appear in the Home album.",
+    "zh-TW": "為文字搜尋的單字產生一張 AI 圖片，用於詳情和複習，不會出現在首頁相簿。",
+  },
+  "settings.imageCurrent": { ja: "現在", en: "Current", "zh-TW": "目前" },
+  "settings.imageOff": {
+    ja: "画像生成を停止",
+    en: "Image generation off",
+    "zh-TW": "關閉圖片生成",
+  },
+  "settings.imageLoadFailed": {
+    ja: "設定を読み込めませんでした",
+    en: "Couldn't load settings",
+    "zh-TW": "無法載入設定",
+  },
+  "settings.imageProvider": {
+    ja: "画像を作るサービス",
+    en: "Image provider",
+    "zh-TW": "圖片生成服務",
+  },
+  "settings.imageKeyFound": {
+    ja: "✓ サーバにキーがあります",
+    en: "✓ Server key is configured",
+    "zh-TW": "✓ 伺服器已設定金鑰",
+  },
+  "settings.imageKeyMissing": {
+    ja: "キーがありません。Lovable → Cloud → Secrets に {key} を追加してください。",
+    en: "Missing key. Add {key} in Lovable → Cloud → Secrets.",
+    "zh-TW": "缺少金鑰。請在 Lovable → Cloud → Secrets 加入 {key}。",
+  },
+  "settings.imageModel": { ja: "画像モデル", en: "Image model", "zh-TW": "圖片模型" },
+  "settings.imageKeyHint": {
+    ja: "キーはこの画面に入力しません。各サービスのAPIキーをSecretsへ保存し、ここで提供元を選んでください。",
+    en: "Store API keys in Secrets, then select a provider here. Don't enter keys on this screen.",
+    "zh-TW": "請將 API 金鑰存入 Secrets，再於此選擇供應商。不要在這個畫面輸入金鑰。",
+  },
+  "settings.imageSave": {
+    ja: "画像生成の設定を保存",
+    en: "Save image settings",
+    "zh-TW": "儲存圖片設定",
+  },
+  "settings.imageSaved": {
+    ja: "画像生成の設定を保存しました",
+    en: "Image settings saved",
+    "zh-TW": "已儲存圖片設定",
+  },
   "settings.aiEnvDefault": {
     ja: "環境変数のまま（既定）",
     en: "Keep environment default",
