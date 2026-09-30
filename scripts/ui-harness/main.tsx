@@ -89,7 +89,7 @@ import {
   WordbookQuizScene,
   WordbookQuizNoMeaningScene,
 } from "./scenes/wordbook";
-import { AuthScene } from "./scenes/auth";
+import { AuthScene, ResetPasswordScene } from "./scenes/auth";
 import {
   HomeAlbumScene,
   HomeInkScene,
@@ -176,6 +176,7 @@ const SCENES: Record<string, ((p: { q: URLSearchParams }) => ReactNode) | undefi
   "first-catch": FirstCatchScene,
   "chunk-designs": ChunkDesignsScene,
   auth: AuthScene,
+  "reset-password": ResetPasswordScene,
   home: HomeScene,
   "home-shelf": HomeShelfScene,
   "install-app": InstallAppScene,
@@ -365,6 +366,7 @@ const IMMERSIVE = new Set(["dex-cards", "dex-drag"]);
 const BARE = new Set([
   "first-catch",
   "auth",
+  "reset-password",
   "sticker-peel",
   "onboarding",
   "sticker-sheet",
@@ -398,14 +400,17 @@ const q = new URLSearchParams(location.search);
  * 「これを見てください」と差し出すことになる。
  */
 const REVIEW_SCENES: Array<{ scene: string; label: string }> = [
-  // 2026-09-30「単語の詳細の注音が右に書かれる。それぞれの漢字の横に書いて」
-  // 「学習言語英語の発音記号は消して／米英の切替は消して」の直し。
+  // 2026-09-30「パスワード忘れた時にパスワードリセットできるようにして」。
+  { scene: "auth&email=1", label: "ログイン: パスワード欄の下に「パスワードを忘れた方」" },
   {
-    scene: "word-card",
-    label: "単語の詳細: 量詞・関連語の注音が字ごとに右へ（見出しと同じ比）",
+    scene: "reset-password",
+    label: "再設定: メールアドレスを入れて送る（ログインで打った物を引き継ぐ）",
   },
-  { scene: "word-card-en", label: "英語の単語の詳細: 発音記号なし" },
-  { scene: "settings-selects&target=en", label: "英語を学ぶ人の設定: 発音表記（米英）の行なし" },
+  { scene: "reset-password&state=sent", label: "再設定: 送った後（画面に残る案内・もう一度送る）" },
+  {
+    scene: "reset-password&state=update",
+    label: "再設定: メールのリンクから戻って新しいパスワード",
+  },
 ];
 
 /**

@@ -5049,10 +5049,10 @@ describe("ホームは今日の誌面", () => {
     );
     // 2026-09-24「過去のものが多すぎで画面で確認できないから、過去のものは全て
     // 削除して」: 帯には**今回の依頼の面だけ**。
-    // 2026-09-30「単語の詳細の注音を漢字の横に」「英語の発音記号は消して」の回。
-    // 先頭は単語の詳細。
-    expect(list.slice(0, list.indexOf("},"))).toMatch(/scene: "word-card"/);
-    // 前の回（チュートリアルの4択）の面は残さない。
+    // 2026-09-30「パスワード忘れた時にリセットできるようにして」の回。先頭はログイン。
+    expect(list.slice(0, list.indexOf("},"))).toMatch(/scene: "auth&email=1"/);
+    // 前の回（単語の詳細の注音・チュートリアルの4択）の面は残さない。
+    expect(list).not.toMatch(/scene: "word-card"/);
     expect(list).not.toMatch(/scene: "first-catch&step=review"/);
     // 前の回（R26/R27）の面は残さない。
     expect(list).not.toMatch(/scene: "home-shelf"/);
@@ -6783,5 +6783,24 @@ describe("全体点検 2026-09-30: 撮る画面", () => {
     const src = codeOnly(read("routes/_authenticated/capture.tsx"));
     expect(src).toMatch(/const reason = readable\(e, t\("cap\.aiFailed"\)\)/);
     expect(src).not.toMatch(/e instanceof Error && e\.message\s*\?\s*e\.message/);
+  });
+});
+
+describe("パスワードを忘れた人の出口（2026-09-30）", () => {
+  it("ログインの面から再設定へ辿れる（打ったメールアドレスを引き継ぐ）", () => {
+    const src = codeOnly(read("routes/auth.tsx"));
+    expect(src).toMatch(
+      /href=\{`\/reset-password\$\{email \? `\?email=\$\{encodeURIComponent\(email\)\}` : ""\}`\}/,
+    );
+    expect(src).toMatch(/t\("auth\.forgot"\)/);
+  });
+
+  it("再設定の面は引き継いだメールアドレスを入れ、送った後も画面に案内を残す", () => {
+    const src = codeOnly(read("routes/reset-password.tsx"));
+    expect(src).toMatch(/new URLSearchParams\(window\.location\.search\)\.get\("email"\)/);
+    expect(src).toMatch(/setSentTo\(email\)/);
+    expect(src).toMatch(/t\("rp\.sentBody", \{ email: sentTo \}\)/);
+    // 登録（6文字）と同じ最低文字数。ここだけ厳しいと、登録できた人が再設定で弾かれる。
+    expect(src).toMatch(/minLength=\{6\}/);
   });
 });

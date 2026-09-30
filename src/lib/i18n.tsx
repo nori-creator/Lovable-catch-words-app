@@ -1859,6 +1859,23 @@ export const DICT: Record<string, Record<UiLang, string>> = {
   "ob.learner": { ja: "学習者", en: "Learner", "zh-TW": "學習者" },
   "ob.startFailed": { ja: "開始に失敗しました", en: "Could not get started", "zh-TW": "無法開始" },
   "rp.title": { ja: "パスワード再設定", en: "Reset password", "zh-TW": "重設密碼" },
+  "auth.forgot": {
+    ja: "パスワードを忘れた方",
+    en: "Forgot password?",
+    "zh-TW": "忘記密碼？",
+  },
+  "rp.sentTitle": {
+    ja: "メールを送りました",
+    en: "Check your email",
+    "zh-TW": "已寄出電子郵件",
+  },
+  "rp.sentBody": {
+    ja: "{email} に再設定用のリンクを送りました。メールを開いてリンクを押すと、新しいパスワードを決められます。届かないときは迷惑メールのフォルダも確認してください。",
+    en: "We sent a reset link to {email}. Open the email and tap the link to choose a new password. If it doesn't arrive, check your spam folder.",
+    "zh-TW":
+      "已將重設連結寄到 {email}。打開郵件並點選連結，就能設定新的密碼。如果沒有收到，也請看看垃圾郵件匣。",
+  },
+  "rp.resend": { ja: "もう一度送る", en: "Send again", "zh-TW": "再寄一次" },
   "rp.hintRequest": {
     ja: "登録メールアドレスにリンクを送ります。",
     en: "We'll email a link to your registered address.",

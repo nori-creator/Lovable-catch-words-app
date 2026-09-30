@@ -222,6 +222,7 @@ export function AuthView({
   onApple,
   draft = null,
   confirmed = false,
+  initialShowEmail = false,
 }: {
   mode: "signin" | "signup";
   setMode: (m: "signin" | "signup") => void;
@@ -235,13 +236,15 @@ export function AuthView({
   onApple: () => void;
   draft?: FirstCatch | null;
   confirmed?: boolean;
+  /** 見本の画面集で、メールの欄を開いた形を描くときだけ使う（アプリでは使わない）。 */
+  initialShowEmail?: boolean;
 }) {
   const t = useT();
   const target = useTargetLang();
   const lang = draft?.targetLanguage ?? target;
   const labels = sampleStickers(draft, t, target).map((sample) => sample.word.headword);
   /** メールの欄は**押すまで出さない**（見本の絵と同じ。既定は2つのボタン）。 */
-  const [showEmail, setShowEmail] = useState(false);
+  const [showEmail, setShowEmail] = useState(initialShowEmail);
   /**
    * **LINE などアプリの中のブラウザでは、Google のログインが断られる**
    * （Google の方針で、埋め込みの画面からの Google ログインは 2021-09-30 から拒否。
@@ -362,6 +365,17 @@ export function AuthView({
                     minLength={6}
                     autoComplete={mode === "signup" ? "new-password" : "current-password"}
                   />
+                  {/* **パスワードを忘れた人の出口**（オーナー指示 2026-09-30「パスワード忘れた時に
+                      リセットできるようにして」）。再設定の画面は在ったのに、どこからも辿れな
+                      かった。打ったメールアドレスは引き継ぐ（もう一度打たせない）。 */}
+                  {mode === "signin" && (
+                    <a
+                      href={`/reset-password${email ? `?email=${encodeURIComponent(email)}` : ""}`}
+                      className="auth-forgot"
+                    >
+                      {t("auth.forgot")}
+                    </a>
+                  )}
                 </div>
                 <Button type="submit" className="w-full" disabled={loading}>
                   {loading ? "…" : mode === "signup" ? t("auth.signup") : t("auth.signin")}
