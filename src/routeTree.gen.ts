@@ -33,6 +33,7 @@ import { Route as AuthenticatedReviewRouteImport } from './routes/_authenticated
 import { Route as AuthenticatedScanRouteImport } from './routes/_authenticated/scan'
 import { Route as AuthenticatedSettingsRouteImport } from './routes/_authenticated/settings'
 import { Route as AuthenticatedWordbooksRouteImport } from './routes/_authenticated/wordbooks'
+import { Route as ApiNativeAiRouteImport } from './routes/api.native-ai'
 import { Route as ApiObject3dModelRouteImport } from './routes/api.object3d-model'
 import { Route as ApiStripeWebhookRouteImport } from './routes/api.stripe-webhook'
 import { Route as DotlovableOauthConsentRouteImport } from './routes/[.]lovable.oauth.consent'
@@ -166,6 +167,11 @@ const AuthenticatedWordbooksRoute = AuthenticatedWordbooksRouteImport.update({
   path: '/wordbooks',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const ApiNativeAiRoute = ApiNativeAiRouteImport.update({
+  id: '/api/native-ai',
+  path: '/api/native-ai',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiObject3dModelRoute = ApiObject3dModelRouteImport.update({
   id: '/api/object3d-model',
   path: '/api/object3d-model',
@@ -245,6 +251,7 @@ export interface FileRoutesByFullPath {
   '/scan': typeof AuthenticatedScanRoute
   '/settings': typeof AuthenticatedSettingsRoute
   '/wordbooks': typeof AuthenticatedWordbooksRoute
+  '/api/native-ai': typeof ApiNativeAiRoute
   '/api/object3d-model': typeof ApiObject3dModelRoute
   '/api/stripe-webhook': typeof ApiStripeWebhookRoute
   '/.lovable/oauth/consent': typeof DotlovableOauthConsentRoute
@@ -280,6 +287,7 @@ export interface FileRoutesByTo {
   '/scan': typeof AuthenticatedScanRoute
   '/settings': typeof AuthenticatedSettingsRoute
   '/wordbooks': typeof AuthenticatedWordbooksRoute
+  '/api/native-ai': typeof ApiNativeAiRoute
   '/api/object3d-model': typeof ApiObject3dModelRoute
   '/api/stripe-webhook': typeof ApiStripeWebhookRoute
   '/.lovable/oauth/consent': typeof DotlovableOauthConsentRoute
@@ -317,6 +325,7 @@ export interface FileRoutesById {
   '/_authenticated/scan': typeof AuthenticatedScanRoute
   '/_authenticated/settings': typeof AuthenticatedSettingsRoute
   '/_authenticated/wordbooks': typeof AuthenticatedWordbooksRoute
+  '/api/native-ai': typeof ApiNativeAiRoute
   '/api/object3d-model': typeof ApiObject3dModelRoute
   '/api/stripe-webhook': typeof ApiStripeWebhookRoute
   '/.lovable/oauth/consent': typeof DotlovableOauthConsentRoute
@@ -354,6 +363,7 @@ export interface FileRouteTypes {
     | '/scan'
     | '/settings'
     | '/wordbooks'
+    | '/api/native-ai'
     | '/api/object3d-model'
     | '/api/stripe-webhook'
     | '/.lovable/oauth/consent'
@@ -389,6 +399,7 @@ export interface FileRouteTypes {
     | '/scan'
     | '/settings'
     | '/wordbooks'
+    | '/api/native-ai'
     | '/api/object3d-model'
     | '/api/stripe-webhook'
     | '/.lovable/oauth/consent'
@@ -425,6 +436,7 @@ export interface FileRouteTypes {
     | '/_authenticated/scan'
     | '/_authenticated/settings'
     | '/_authenticated/wordbooks'
+    | '/api/native-ai'
     | '/api/object3d-model'
     | '/api/stripe-webhook'
     | '/.lovable/oauth/consent'
@@ -449,6 +461,7 @@ export interface RootRouteChildren {
   WelcomeRoute: typeof WelcomeRoute
   Char91DotmcpChar93ListToolsRoute: typeof Char91DotmcpChar93ListToolsRoute
   Char91DotwellKnownChar93OauthProtectedResourceRoute: typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
+  ApiNativeAiRoute: typeof ApiNativeAiRoute
   ApiObject3dModelRoute: typeof ApiObject3dModelRoute
   ApiStripeWebhookRoute: typeof ApiStripeWebhookRoute
   DotlovableOauthConsentRoute: typeof DotlovableOauthConsentRoute
@@ -625,6 +638,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedWordbooksRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/api/native-ai': {
+      id: '/api/native-ai'
+      path: '/api/native-ai'
+      fullPath: '/api/native-ai'
+      preLoaderRoute: typeof ApiNativeAiRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/object3d-model': {
       id: '/api/object3d-model'
       path: '/api/object3d-model'
@@ -767,6 +787,7 @@ const rootRouteChildren: RootRouteChildren = {
   Char91DotmcpChar93ListToolsRoute: Char91DotmcpChar93ListToolsRoute,
   Char91DotwellKnownChar93OauthProtectedResourceRoute:
     Char91DotwellKnownChar93OauthProtectedResourceRoute,
+  ApiNativeAiRoute: ApiNativeAiRoute,
   ApiObject3dModelRoute: ApiObject3dModelRoute,
   ApiStripeWebhookRoute: ApiStripeWebhookRoute,
   DotlovableOauthConsentRoute: DotlovableOauthConsentRoute,
