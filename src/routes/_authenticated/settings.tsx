@@ -1015,6 +1015,9 @@ export function PhoneticRow({ lang }: { lang?: string } = {}) {
   );
 }
 
+/** 退会の確認語（表示言語ごとの入力例 `set.deleteWord`: 削除 / DELETE / 刪除）。大文字にして比べる。 */
+const DELETE_WORDS = ["削除", "DELETE", "刪除"];
+
 /**
  * Permanent account deletion (privacy policy §6 / store review requirement).
  * Two-step: open the panel, then type 「削除」 to arm the button — the server
@@ -1038,9 +1041,10 @@ export function DangerZone({
   const navigate = useNavigate();
   const [confirmText, setConfirmText] = useState(defaultConfirmText);
   const [deleting, setDeleting] = useState(false);
-  // 退会の確認語。英語表示の人に日本語入力を強いると操作できないので、
-  // どちらの言語でも通す(表示は今の言語のものだけ)。
-  const armed = ["削除", "DELETE"].includes(confirmText.trim().toUpperCase());
+  // 退会の確認語。入力例（`set.deleteWord`）と案内文（`settings.deleteTypeLabel`）は
+  // 表示言語ごとに違う（削除 / DELETE / 刪除）ので、**3つとも通す**。前は台湾華語の
+  // 入力例「刪除」をそのまま打っても有効にならず、退会できなかった（2026-09-30 の点検）。
+  const armed = DELETE_WORDS.includes(confirmText.trim().toUpperCase());
 
   async function handleDelete() {
     if (!armed || deleting) return;

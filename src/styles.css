@@ -3067,6 +3067,16 @@ html[data-motion="reduce"] .camera-launch__morph {
   }
 }
 
+/*
+ * カメラの画面にいる間だけ、ページ全体のタッチ操作（つまむ・2回たたく拡大）を止める
+ * （`hooks/use-lock-page-zoom.ts` が `<html>` に付ける）。`.capture-viewfinder` の中だけでは、
+ * 下のバーや上の余白から始めた2本指で画面ごと拡大されていた（2026-09-30）。
+ */
+html.page-zoom-locked,
+html.page-zoom-locked body {
+  touch-action: none;
+  overscroll-behavior: none;
+}
 .capture-viewfinder {
   position: fixed;
   inset: 0;
@@ -9923,6 +9933,15 @@ html[data-motion="reduce"] .memorial-reveal * {
 .album-remove:active::before {
   transform: scale(0.9);
 }
+/* ひと言を直す鉛筆: 写真の左上の角。色はアプリの青（赤は「外す」だけの色）。 */
+.album-caption-edit {
+  right: auto;
+  left: 0;
+  translate: -50% -50%;
+}
+.album-caption-edit::before {
+  background: var(--primary, #2f6bff);
+}
 @keyframes album-remove-in {
   from {
     opacity: 0;
@@ -10137,6 +10156,10 @@ html[data-dex-dragging] {
   z-index: 70;
   border-radius: 0;
   touch-action: none;
+}
+/* 単語の詳細（z-50）が開いている間は、全画面の棚もその下へ回す（詳細の上に 3D が居座らない）。 */
+.home-shelf__stage[data-full][data-under-detail] {
+  z-index: 47;
 }
 /* 部屋（壁・窓・空）。3D は透明の上に棚だけを描くので、ここが後ろに見える。 */
 .home-shelf__room {
@@ -10410,6 +10433,32 @@ html[data-dex-dragging] {
 }
 .home-shelf__single > * {
   pointer-events: auto;
+}
+/* 単語の詳細（z-50）が上に開いている間は、その下へ回す。 */
+.home-shelf__single[data-under-detail] {
+  z-index: 49;
+}
+/* 左の片ページに重ねる、操作できるアルバム（ホームと同じ `DayCollage`）。
+   縦は台紙が送られ、横の素早い払いは隣のページへ（`LivePage`）。 */
+.home-shelf__live {
+  flex: 1 1 0;
+  min-height: 0;
+  margin: 0 10px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  touch-action: pan-y;
+  /* 本のページの紙。台紙（壁）の下の余白も紙に見える（3D の本が透けない）。 */
+  padding: 10px;
+  border-radius: 14px;
+  background: #f7f2e6;
+  box-shadow: 0 10px 30px rgb(0 0 0 / 0.35);
+}
+.home-shelf__live .collage {
+  margin-block: 0;
+}
+/* 並べ替えの「完了」は、本の片ページでは下の「日記を書く」「前へ・次へ」の上に置く（重ならない）。 */
+.home-shelf__live .album-done {
+  bottom: calc(8.5rem + env(safe-area-inset-bottom));
 }
 .home-shelf__single-top {
   display: flex;

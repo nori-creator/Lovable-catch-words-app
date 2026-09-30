@@ -11,7 +11,6 @@ import {
   CameraZoomMeter,
 } from "@/components/CameraChrome";
 import { listMyStickers } from "@/lib/stickers.functions";
-import { stickerPhotoUrl } from "@/lib/sticker-photo";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useTargetLang } from "@/lib/target-lang-pref";
 import { useQuery } from "@tanstack/react-query";
@@ -51,6 +50,7 @@ import { InputCatchSheet } from "@/components/InputCatchSheet";
 import { ScanEffect } from "@/components/ScanEffect";
 import { Sound, unlockAudio } from "@/lib/sound-engine";
 import { haptic } from "@/lib/haptics";
+import { useLockPageZoom } from "@/hooks/use-lock-page-zoom";
 import { useReadableError } from "@/lib/errors";
 import { useT, useUiLang } from "@/lib/i18n";
 import { Zh } from "@/components/Zh";
@@ -117,6 +117,8 @@ function posDotColor(pos: string | null | undefined): string {
 }
 
 function ScanPage() {
+  // スキャンもカメラの画面。ページ全体の拡大は止める（`use-lock-page-zoom.ts`）。
+  useLockPageZoom();
   // 翻訳関数は他のフックより先に用意する。依存配列に入れるため、
   // 使う場所より後で宣言すると初期化前参照になる。
   const t = useT();
@@ -135,20 +137,12 @@ function ScanPage() {
    * 鍵はホームと同じ `["stickers"]` — 同じ物を別の鍵で取り直さない。
    */
   const stickersFn = useServerFn(listMyStickers);
-  const { data: allStickers } = useQuery({
+  useQuery({
     queryKey: ["stickers"],
     queryFn: () => stickersFn(),
     staleTime: 5 * 60 * 1000,
     gcTime: 30 * 60 * 1000,
   });
-  const lastPhotoUrl = useMemo(() => {
-    const items = Array.isArray(allStickers) ? allStickers : (allStickers?.items ?? []);
-    for (const s of items) {
-      const url = stickerPhotoUrl(s, { thumb: true });
-      if (url) return url;
-    }
-    return null;
-  }, [allStickers]);
 
   const detectFn = useServerFn(detectScan);
   const lookupFn = useServerFn(lookupHeadwords);
@@ -1044,10 +1038,7 @@ function ScanPage() {
                 />
                 <div className="capture-actions">
                   {/* **写真から**: 前に撮った写真を選んでスキャンする（R14）。 */}
-                  <CameraLibraryButton
-                    photoUrl={lastPhotoUrl}
-                    onOpen={() => photoPickRef.current?.click()}
-                  />
+                  <CameraLibraryButton onOpen={() => photoPickRef.current?.click()} />
                   <input
                     ref={photoPickRef}
                     type="file"

@@ -74,7 +74,7 @@ export function ScanBottomScene() {
       >
         <CameraModeStrip mode={mode} onChange={setMode} />
         <div className="capture-actions">
-          <CameraLibraryButton photoUrl={null} onOpen={() => {}} />
+          <CameraLibraryButton onOpen={() => {}} />
           <CameraShutter mode={mode} label="スキャン" onPress={() => {}} />
           <CameraFlipButton facing="environment" withLabel onFlip={() => {}} />
         </div>

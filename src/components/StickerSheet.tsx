@@ -21,6 +21,7 @@ import {
   Camera,
 } from "lucide-react";
 import { toast } from "sonner";
+import { CaptionLine } from "@/components/CaptionEditDialog";
 import { WordCard } from "@/components/WordCard";
 import { SectionsPanel } from "@/components/SectionsPanel";
 import {
@@ -1285,7 +1286,7 @@ export function StickerSheetBody({
             </a>
           )}
         </div>
-        {s.caption && <p className="mt-2 text-body">「{s.caption}」</p>}
+        <CaptionLine stickerId={s.id} caption={s.caption} editable={!local} />
       </section>
 
       {/* 同じものに何度も出会った記録。

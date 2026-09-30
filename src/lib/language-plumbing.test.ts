@@ -815,7 +815,10 @@ describe("第4段: アルバムと単語詳細で、絵を別々に選ぶ", () =
 
   it("アルバムの絵が**アルバムの選択**を見ている", () => {
     const home = codeOnly(read("routes/_authenticated/home.tsx"));
-    expect(home).toMatch(/surfaceRoles\[surfaceKey\("album", s\.id\)\]/);
+    // 絵の選び方は `lib/album-day-layout.ts` の1本（ホームと本の左ページが同じ答えを使う）。
+    const layout = codeOnly(read("lib/album-day-layout.ts"));
+    expect(layout).toMatch(/surfaceRoles\[surfaceKey\("album", s\.id\)\]/);
+    expect(home).toMatch(/albumHeroUrl\(s, \{ surfaceRoles, photoPref \}\)/);
     expect(home).toMatch(/useSurfaceRoleMap\(\)/);
     // 札の枚数だけ hook を呼ばない(枚数が変わると React が落ちる)。
     expect(home).not.toMatch(/useSurfaceRole\("album", s\.id\)/);
@@ -1849,7 +1852,7 @@ describe("アルバムに借り物を貼らない", () => {
   const home = () => codeOnly(read("routes/_authenticated/home.tsx"));
 
   it("ネットの絵はアルバムの選択肢から外れている", () => {
-    expect(home()).toMatch(/exclude: \["placeholder"\]/);
+    expect(codeOnly(read("lib/album-day-layout.ts"))).toMatch(/exclude: \["placeholder"\]/);
   });
 
   it("**写真が無い札には枠も地も影も付かない**（字だけを紙に書く）", () => {
@@ -2586,11 +2589,13 @@ describe("ホームのアルバムの長押し", () => {
     expect(home).toMatch(/naturalHeight \/ img\.naturalWidth/);
     // 写真がまだ読めていない札は写真らしい比で場所を取っておく
     // （0 にすると、読み込むたびに下の札が突き上げられる）。
-    expect(home).toMatch(/photoRatio\[id\] \?\? PLACEHOLDER_RATIO/);
+    const layout = codeOnly(read("lib/album-day-layout.ts"));
+    expect(layout).toMatch(/photoRatio\[id\] \?\? PLACEHOLDER_RATIO/);
     // **置き方の計算と描く形は同じ1つの数**（`frameRatio`）から出す。
     // 別々に出すと、積んだ高さと実際の高さがずれて字の上に札が乗る。
-    expect(home).toMatch(/const frameRatio = useMemo/);
-    expect(home.match(/ratio: frameRatio\(s\.id\)/g) ?? []).toHaveLength(2);
+    // 計算は `lib/album-day-layout.ts` の1本（ホームと本の左ページが共有）。
+    expect(home).toMatch(/const \{ frameRatio, settledById \} = useMemo/);
+    expect(layout.match(/ratio: frameRatio\(s\.id\)/g) ?? []).toHaveLength(3);
   });
 
   /**
@@ -2617,13 +2622,14 @@ describe("ホームのアルバムの長押し", () => {
     // 重なりのために並びを入れ替えるので、置き場所をそちらで決めると
     // 触っていない札まで升目が繰り上がって動く。
     const home = codeOnly(read("routes/_authenticated/home.tsx"));
-    const memo = home.slice(
-      home.indexOf("const autoById = useMemo"),
-      home.indexOf("const autoById = useMemo") + 900,
-    );
-    expect(memo).toMatch(/\[\.\.\.stickers\]/);
+    const layout = codeOnly(read("lib/album-day-layout.ts"));
+    const at = layout.indexOf("export function settleDayAlbum");
+    expect(layout.slice(at, at + 900)).toMatch(/const base = \[\.\.\.stickers\]\.sort\(byOrder\)/);
+    const memoAt = home.indexOf("const { frameRatio, settledById } = useMemo");
+    const memo = home.slice(memoAt, home.indexOf("const items = useMemo", memoAt));
     // `ordered`（触った順で入れ替わる）が依存に入っていないこと。
-    expect(memo).toMatch(/\}, \[stickers, frameRatio, heroById, board\.w\]\);/);
+    expect(memo).toMatch(/\[stickers, heroById, photoRatio, board\.w\]/);
+    expect(memo).not.toMatch(/ordered/);
   });
 
   /**
@@ -4187,9 +4193,10 @@ describe("N. 下のタブ帯と、札を開く動き", () => {
    */
   it("左下の「写真」は端末の写真を選んで分析する（R17、どのモードでも同じ）", () => {
     const cap = codeOnly(read("routes/_authenticated/capture.tsx"));
-    // 絵柄はいちばん新しく捕まえた1枚のまま。
+    // 絵柄は「写真を足す」の印（R27: 前は最後に捕まえた1枚のサムネだったが、
+    // 「アプリで撮った写真」に見えて紛らわしいので、端末の写真を足す印に変えた）。
     expect(cap).toMatch(/queryKey: \["stickers"\]/);
-    expect(cap).toMatch(/const url = stickerPhotoUrl\(s, \{ thumb: true \}\);/);
+    expect(cap).not.toMatch(/const url = stickerPhotoUrl\(s, \{ thumb: true \}\);/);
     // 押すと端末の写真を選ぶ口が開き、撮った写真と同じ道で分析する。
     const at = cap.indexOf("<CameraLibraryButton");
     expect(at).toBeGreaterThanOrEqual(0);
@@ -4709,7 +4716,9 @@ describe("ホームは今日の誌面", () => {
     expect(place).toMatch(/export const COLLAGE_RATIO_MAX = 1\.15;/);
     expect(place).toMatch(/export const COLLAGE_RATIO_MIN = 0\.66;/);
     // 写真にだけ掛ける（字だけの札はもっと低いのが正しい）。
-    expect(collageOnly()).toMatch(/collageRatio\(photoRatio\[id\] \?\? PLACEHOLDER_RATIO\)/);
+    expect(codeOnly(read("lib/album-day-layout.ts"))).toMatch(
+      /collageRatio\(photoRatio\[id\] \?\? PLACEHOLDER_RATIO\)/,
+    );
   });
 
   it("**写真は白い縁の印画紙。角は少しだけ丸める**", () => {
@@ -4818,9 +4827,10 @@ describe("ホームは今日の誌面", () => {
     // 枠が字の高さしか無いので、写真の札のように勝手に 44px を越えない。
     // 実測 170x35 だった（`ui-audit`）。
     const home = codeOnly(read("routes/_authenticated/home.tsx"));
-    expect(home).toMatch(/const MIN_TAP_PX = 44;/);
+    const layout = codeOnly(read("lib/album-day-layout.ts"));
+    expect(layout).toMatch(/export const MIN_TAP_PX = 44;/);
     // 2026-09-27: 細い画面で時刻が次の行へ回るぶん（`timeLine`）も足す。
-    expect(home).toMatch(
+    expect(layout).toMatch(
       /Math\.max\(\s*PLAIN_WORD_PX \+ timeLine \+ \(hasNote\.get\(id\) \? CAP_NOTE_PX : 0\),\s*MIN_TAP_PX,?\s*\)/,
     );
     expect(home).toMatch(/data-plain=\{heroUrl \? undefined : ""\}/);
@@ -4833,13 +4843,14 @@ describe("ホームは今日の誌面", () => {
     // 実測 320px の画面で、1枚目の一言の下 16px に次の写真が乗った
     // （360px 以上では偶然足りていた）。
     const home = codeOnly(read("routes/_authenticated/home.tsx"));
+    const layout = codeOnly(read("lib/album-day-layout.ts"));
     expect(home).not.toMatch(/const CAP_ROW_H|const CAP_NOTE_H|const PLAIN_RATIO/);
     // 語と時刻は写真の下の白い余白（34px）に書く（オーナー指示 2026-09-27）ので、
     // 余白 ＋ 一言との間 4px で 38px。
-    expect(home).toMatch(/const CAP_ROW_PX = 38;/);
-    expect(home).toMatch(/const CAP_NOTE_PX = 56;/);
+    expect(layout).toMatch(/export const CAP_ROW_PX = 38;/);
+    expect(layout).toMatch(/export const CAP_NOTE_PX = 56;/);
     // 台紙の幅で割って、`packCollage` が積む割合に直す。
-    expect(home).toMatch(/\(CAP_ROW_PX \+ \(s\.caption \? CAP_NOTE_PX : 0\)\) \/ board\.w/);
+    expect(layout).toMatch(/\(CAP_ROW_PX \+ \(s\.caption \? CAP_NOTE_PX : 0\)\) \/ boardW/);
     // 一言の行数には CSS 側で上限が在る（どれだけ長くても越えない）。
     expect(cssBlock(".collage__note {", "\n}")).toMatch(/-webkit-line-clamp: 3/);
   });
@@ -5012,11 +5023,12 @@ describe("ホームは今日の誌面", () => {
     );
     // 2026-09-24「過去のものが多すぎで画面で確認できないから、過去のものは全て
     // 削除して」: 帯には**今回の依頼の面だけ**。
-    // 2026-09-30 の回（R25）: 最初の画面の4枚（A/B/C）・留め具・カメラ・日記・說。
-    // 最初の画面は C に決まった（2026-09-30）。案の見比べは外し、決まった形を先頭に。
-    expect(list.slice(0, list.indexOf("},"))).toMatch(/scene: "first-catch&step=intro"/);
-    expect(list).toMatch(/scene: "word-card&measure=ge"/);
+    // 2026-09-30 の回（R26/R27）: 日記の左ページ（ホームと同じ置き方・操作）・カメラ・マップ・
+    // アカウント削除。先頭は**いちばん大きく変えた面**（日記の左ページ）。
+    expect(list.slice(0, list.indexOf("},"))).toMatch(/scene: "home-shelf"/);
     expect(list).toMatch(/scene: "capture-object"/);
+    expect(list).toMatch(/scene: "dex-map"/);
+    expect(list).not.toMatch(/scene: "first-catch/);
     expect(list).not.toMatch(/scene: "dex-cards&swap=1&n=12"/);
     expect(list).not.toMatch(/scene: "review-choice"/);
     expect(list).not.toMatch(/scene: "candidate-picker"/);
@@ -6097,7 +6109,7 @@ describe("ホームの一番上の本棚（2026-09-29「ホームのアルバム
   it("R17: アプリの一番上に、部屋に置いた大きな 3D の棚（撮った月だけ・本の上に少し隙間）", () => {
     // 上の帯の中ではなく、ホームの中身の一番上（画面の幅いっぱいの帯）。
     expect(home).not.toMatch(/headerEnd=/);
-    expect(home).toMatch(/<HomeShelf items=\{albumItems\} loaders=\{shelfLoaders\} \/>/);
+    expect(home).toMatch(/<HomeShelf\s+items=\{albumItems\}\s+loaders=\{shelfLoaders\}/);
     expect(home).toMatch(/<PastDays/);
     expect(shelf).toMatch(/\{ rows: 1, openAt: "first", room \}/);
     expect(shelf).toMatch(/const months = useMemo\(\(\) => shelfMonths\(items\), \[items\]\);/);
@@ -6155,7 +6167,7 @@ describe("ホームの一番上の本棚（2026-09-29「ホームのアルバム
     // 壁（div）は過去の日の後で閉じる。
     expect(home.slice(past)).toMatch(/<\/div>/);
     // 棚の下端のぼかしは壁の中の帯だけ（全画面で本を開いた時にはかけない）。
-    expect(read("styles.css")).not.toMatch(/\n\.home-shelf__canvas \{\n  mask-image/);
+    expect(read("styles.css")).not.toMatch(/\n\.home-shelf__canvas \{\n {2}mask-image/);
   });
 
   it("R20: 開いた瞬間は端末に置いた棚の絵（無ければ同梱の空の棚）を出し、3D が描けたら差し替える", () => {
@@ -6536,8 +6548,19 @@ describe("R25（2026-09-30: ベータテストの指摘・最初の画面の4枚
     const vf = css.slice(css.indexOf(".capture-viewfinder {"));
     expect(vf.slice(0, vf.indexOf("}"))).toMatch(/touch-action: none;/);
     const capture = codeOnly(read("routes/_authenticated/capture.tsx"));
-    expect(capture).toMatch(
+    // ページ全体の拡大は、カメラの画面（撮る・スキャン）にいる間だけ止める（2026-09-30 の2回目）。
+    expect(capture).toMatch(/useLockPageZoom\(\);/);
+    expect(codeOnly(read("routes/_authenticated/scan.tsx"))).toMatch(/useLockPageZoom\(\);/);
+    const lock = codeOnly(read("hooks/use-lock-page-zoom.ts"));
+    expect(lock).toMatch(
       /document\.addEventListener\("gesturestart", stop, \{ passive: false \}\)/,
+    );
+    expect(lock).toMatch(/root\.classList\.add\(ZOOM_LOCK_CLASS\)/);
+    // 離れたら必ず元に戻す（拡大は読みにくい人の助け）。
+    expect(lock).toMatch(/root\.classList\.remove\(ZOOM_LOCK_CLASS\)/);
+    expect(lock).toMatch(/meta\.setAttribute\("content", original\)/);
+    expect(css).toMatch(
+      /html\.page-zoom-locked,\s*html\.page-zoom-locked body \{\s*touch-action: none;/,
     );
     expect(capture).toMatch(/setFocusCap\(focusSupport\(track\)\)/);
     expect(capture).toMatch(/\{\.\.\.frameGestures\}/);
@@ -6570,5 +6593,139 @@ describe("R25（2026-09-30: ベータテストの指摘・最初の画面の4枚
     expect(codeOnly(read("components/DexCoverFlow.tsx"))).toMatch(
       /neutralReadings\(s\.word\.language, s\.word\.reading_zhuyin, s\.word\.pinyin, s\.word\.headword\)/,
     );
+  });
+});
+
+const DELETE_WORDS_FOR_TEST = ["削除", "DELETE", "刪除"];
+
+describe("R26（2026-09-30 の全体点検で見つけた不具合）", () => {
+  it("退会の確認語は、案内文・入力例と同じ3つ（削除 / DELETE / 刪除）を通す", () => {
+    const settings = codeOnly(read("routes/_authenticated/settings.tsx"));
+    expect(settings).toMatch(/const DELETE_WORDS = \["削除", "DELETE", "刪除"\];/);
+    expect(settings).toMatch(/DELETE_WORDS\.includes\(confirmText\.trim\(\)\.toUpperCase\(\)\)/);
+    // 案内文が、その言語で打てない字を指示しない（英語に「削除」を打たせない）。
+    expect(DICT["settings.deleteTypeLabel"].en).toBe("Type DELETE to confirm");
+    expect(DICT["settings.deleteTypeLabel"]["zh-TW"]).toContain("刪除");
+    for (const l of UI_LANGS)
+      expect(DELETE_WORDS_FOR_TEST).toContain(DICT["set.deleteWord"][l].toUpperCase());
+  });
+
+  it("マップの時間軸は、日付を変えたら必ずその日の最初から出す", () => {
+    const map = codeOnly(read("components/DexDayMap.tsx"));
+    // 欄は日付を変えても同じ要素のまま中身だけが替わる。前の位置が残らないよう先頭へ戻す。
+    expect(map).toMatch(
+      /useLayoutEffect\(\(\) => \{\s*const list = listRef\.current;\s*if \(!list\) return;\s*programmatic\.current = performance\.now\(\) \+ 300;\s*list\.scrollTop = 0;\s*\}, \[current\]\);/,
+    );
+  });
+
+  it("カメラの左下は、撮った写真のサムネではなく「端末の写真を選ぶ」記号（常に）", () => {
+    const chrome = codeOnly(read("components/CameraChrome.tsx"));
+    expect(chrome).toMatch(
+      /export function CameraLibraryButton\(\{ onOpen \}: \{ onOpen: \(\) => void \}\)/,
+    );
+    expect(chrome).toMatch(/<ImagePlus /);
+    expect(codeOnly(read("routes/_authenticated/capture.tsx"))).not.toMatch(/lastPhotoUrl/);
+    expect(codeOnly(read("routes/_authenticated/scan.tsx"))).not.toMatch(/lastPhotoUrl/);
+  });
+});
+
+/**
+ * R27（オーナー指示 2026-09-30）: 日記の左ページ = ホームのアルバムをそのまま再現し、ホームと
+ * 同じ操作。ひと言は単語の詳細・ホームのアルバム・日記のそれぞれから直せる。
+ */
+describe("R27: 日記の左ページはホームのアルバムと同じ置き方・同じ操作", () => {
+  const layout = codeOnly(read("lib/album-day-layout.ts"));
+  const home = codeOnly(read("routes/_authenticated/home.tsx"));
+  const shelf = codeOnly(read("components/HomeShelf.tsx"));
+  const tex = codeOnly(read("components/shelf3d/textures.ts"));
+  const engine = codeOnly(read("components/shelf3d/engine.ts"));
+
+  it("置き方の計算は1本（ホームと本の左ページが同じ関数）", () => {
+    expect(home).toMatch(/settleDayAlbum\(\{/);
+    expect(shelf).toMatch(/layoutDayAlbum\(\{/);
+    expect(shelf).toMatch(
+      /albumHeroUrl\(s, \{ surfaceRoles: roles, photoPref: pref, thumb: true \}\)/,
+    );
+    // ホームは触った順で決めない（保存した並び `album_order` で決める）。
+    expect(layout).toMatch(/const byOrder/);
+  });
+
+  it("本の絵は置き方（大きさ・向き・重なり）と、写真の下の語・時刻・一言（3行）で描く", () => {
+    expect(tex).toMatch(/function paintPlacedPhotos\(/);
+    expect(tex).toMatch(/s\.photos\.every\(\(p\) => p\.place\)/);
+    expect(tex).toMatch(/clampLines\(ctx, p\.note, capW, 3\)/);
+    expect(tex).toMatch(/decorFor\(id, "paper"\)/);
+    // 1日に貼る写真の数を4枚に絞らない。
+    expect(shelf).toMatch(/monthDays\(shown, b\.y, b\.m, 60\)/);
+  });
+
+  it("ホームで外した写真は本にも貼らない（棚の本の数は変えない）", () => {
+    expect(shelf).toMatch(/hidden \? itemsRef\.current\.filter\(\(s\) => !hidden\.has\(s\.id\)\)/);
+    expect(home).toMatch(/hiddenIds=\{albumHidden\.hidden\}/);
+  });
+
+  it("左の片ページに、ホームと同じ部品（DayCollage）を重ねる。タップで単語の詳細、長押しで並べ替え", () => {
+    expect(home).toMatch(/renderDayPage=\{\(stickers\) => \(\s*<DayCollage/);
+    expect(home).toMatch(/onOpen=\{onOpen\}/);
+    expect(shelf).toMatch(/view === "left" && day && renderDayPage/);
+    expect(shelf).toMatch(/<LivePage onStep=\{stepSingle\}>/);
+    // 横に素早く払えば隣のページへ（並べ替え中は払いを見ない）。
+    expect(shelf).toMatch(/querySelector\("\.album-editing"\)/);
+  });
+
+  it("直した内容は見開きの絵にも出る（開いている本を描き直す）", () => {
+    expect(shelf).toMatch(/world\.current\?\.refreshDays\(\)/);
+    expect(engine).toMatch(/repaintAlbum\(dayIndex\?: number\)/);
+    expect(engine).toMatch(/refreshDays\(\): boolean/);
+  });
+
+  it("単語の詳細が開いている間は、本の層をその下へ回す（詳細の上に居座らない）", () => {
+    expect(home).toMatch(/detailOpen=\{openId !== null\}/);
+    expect(shelf).toMatch(/data-under-detail/);
+    const css = read("styles.css");
+    expect(css).toMatch(/\.home-shelf__stage\[data-full\]\[data-under-detail\] \{\s*z-index: 47;/);
+    expect(css).toMatch(/\.home-shelf__single\[data-under-detail\] \{\s*z-index: 49;/);
+  });
+
+  it("ひと言: 自分の札だけ直せる（サーバ）。3か所が同じ部品を使う", () => {
+    const fns = codeOnly(read("lib/stickers.functions.ts"));
+    const at = fns.indexOf("export const updateStickerCaption");
+    expect(at).toBeGreaterThan(0);
+    const body = fns.slice(at, at + 900);
+    expect(body).toMatch(/\.eq\("user_id", userId\)/);
+    expect(body).toMatch(/data\.caption\.trim\(\) \|\| null/);
+    const dialog = codeOnly(read("components/CaptionEditDialog.tsx"));
+    // 保存したら一覧と詳細を読み直す（どの画面も同じ内容になる）。
+    expect(dialog).toMatch(/invalidateQueries\(\{ queryKey: \["stickers"\] \}\)/);
+    expect(dialog).toMatch(/invalidateQueries\(\{ queryKey: \["sticker", target\.id\] \}\)/);
+    // 単語の詳細（シート・ページの2つ）
+    expect(codeOnly(read("components/StickerSheet.tsx"))).toMatch(
+      /<CaptionLine stickerId=\{s\.id\}/,
+    );
+    expect(codeOnly(read("routes/_authenticated/dex.$stickerId.tsx"))).toMatch(
+      /<CaptionLine stickerId=\{s\.id\}/,
+    );
+    // ホームのアルバム（並べ替え中の鉛筆）と、それを使う日記の左ページ
+    expect(home).toMatch(/className="album-remove album-caption-edit"/);
+    expect(home).toMatch(/<CaptionEditDialog target=\{captionTarget\}/);
+    // 本の片ページ（z-80）の上でも隠れない。
+    expect(dialog).toMatch(/overlayClassName="z-\[120\]"/);
+    expect(codeOnly(read("components/ui/dialog.tsx"))).toMatch(/overlayClassName\?: string/);
+  });
+
+  it("ひと言の文言は3言語ぶんそろっている", () => {
+    for (const k of [
+      "caption.edit",
+      "caption.add",
+      "caption.editTitle",
+      "caption.editHint",
+      "caption.save",
+      "caption.saved",
+      "caption.failed",
+    ]) {
+      const e = (DICT as Record<string, Record<string, string>>)[k];
+      expect(e, k).toBeTruthy();
+      for (const l of ["ja", "en", "zh-TW"]) expect(e[l]?.length, `${k}/${l}`).toBeGreaterThan(0);
+    }
   });
 });

@@ -12,7 +12,6 @@ import { useTargetLang } from "@/lib/target-lang-pref";
 import { CandidatePicker } from "@/components/CandidatePicker";
 import {
   useEffect,
-  useMemo,
   useRef,
   useState,
   type CSSProperties,
@@ -51,7 +50,6 @@ import {
   type StickerWithWord,
 } from "@/lib/stickers.functions";
 import { prependSticker, type StickerListCache } from "@/lib/optimistic-sticker";
-import { stickerPhotoUrl } from "@/lib/sticker-photo";
 import { checkOwnedWord, recordEncounter, type OwnedWord } from "@/lib/encounters.functions";
 import {
   enqueueCapture,
@@ -88,6 +86,7 @@ import { useUiLang } from "@/lib/i18n";
 import { tStatic } from "@/lib/i18n";
 import { Sound } from "@/lib/sound-engine";
 import { haptic } from "@/lib/haptics";
+import { useLockPageZoom } from "@/hooks/use-lock-page-zoom";
 import { Capacitor } from "@capacitor/core";
 import {
   focusAt,
@@ -256,28 +255,17 @@ function CapturePage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   /**
-   * シャッターの左に出す**いちばん新しい1枚**（オーナー指示 2026-09-16
-   * 「写真の部分は過去に撮った写真を表示する」）。
-   *
-   * 鍵はホームと同じ `["stickers"]`。同じ物を別の鍵で取り直すと、
-   * カメラを開くたびに一覧をもう一度引くことになる。
+   * 撮ったあとに図鑑へ飛ぶ演出を速くするための**先読み**（鍵はホームと同じ `["stickers"]`。
+   * 同じ物を別の鍵で取り直さない）。以前はシャッターの左に最後の1枚を出すのにも使っていたが、
+   * 左下は「端末の写真を選ぶ」ボタンになった（2026-09-30）。
    */
   const fetchStickers = useServerFn(listMyStickers);
-  const { data: allStickers } = useQuery({
+  useQuery({
     queryKey: ["stickers"],
     queryFn: () => fetchStickers(),
     staleTime: 5 * 60 * 1000,
     gcTime: 30 * 60 * 1000,
   });
-  const lastPhotoUrl = useMemo(() => {
-    const items = Array.isArray(allStickers) ? allStickers : (allStickers?.items ?? []);
-    for (const s of items) {
-      // 小さい控えを先に使う。隅の 44px の枠に原寸を落とす意味が無い。
-      const url = stickerPhotoUrl(s, { thumb: true });
-      if (url) return url;
-    }
-    return null;
-  }, [allStickers]);
   const {
     word: wordParam,
     pending: pendingParam,
@@ -1484,7 +1472,6 @@ function CapturePage() {
           searching={searching}
           initialMode={modeParam ?? "photo"}
           onOpenScan={() => navigate({ to: "/scan" })}
-          lastPhotoUrl={lastPhotoUrl}
           error={error}
         />
       )}
@@ -2173,9 +2160,6 @@ export function CaptureObjectPanel({
   searching = false,
   initialMode = "photo",
   onOpenScan,
-  /** シャッターの左に出す、いちばん新しく捕まえた1枚。 */
-  lastPhotoUrl = null,
-  /** その釦を押したとき（過去の写真を見に行く）。 */
   error,
 }: {
   /** 復習の「もう一度撮ってみる?」から来たときの語。 */
@@ -2193,11 +2177,6 @@ export function CaptureObjectPanel({
   /** どの撮り方で開くか（`/capture?mode=search` から来たとき）。 */
   initialMode?: CameraMode;
   onOpenScan: () => void;
-  /**
-   * シャッターの左に出す1枚（オーナー指示 2026-09-16「写真の部分は過去に
-   * 撮った写真を表示する」）。まだ1枚も無ければ `null` で記号が出る。
-   */
-  lastPhotoUrl?: string | null;
   error: string | null;
 }) {
   const t = useT();
@@ -2255,30 +2234,18 @@ export function CaptureObjectPanel({
 
   /**
    * **撮る画面そのものは拡大させない。**（オーナー指示 2026-09-30「この画面で画像と
-   * 関係ないところズームできるのおかしいから修正して。写真撮影の画面は固定して」）
-   *
-   * 2本指でつまむと、ブラウザが画面ごと拡大していた（映像も釦も一緒に大きくなり、
-   * 戻し方も分からない）。CSS の `touch-action: none`（`.capture-viewfinder`）に加えて、
-   * Safari だけが出す `gesturestart` と、2本指の `touchmove` を止める。
-   * つまむ動きは、枠の中では**カメラの倍率**に使う（iPhone のカメラと同じ）。
-   * この画面を離れたら外すので、ほかの画面の拡大（読みにくい人の拡大）は奪わない。
+   * 関係ないところズームできるのおかしいから修正して。写真撮影の画面は固定して」→
+   * 「まだ謎にズームできる」）ページ全体の拡大は `useLockPageZoom` が、この画面にいる間だけ
+   * 止める。つまむ動きは、枠の中では**カメラの倍率**に使う（iPhone のカメラと同じ）。
    */
-  useEffect(() => {
-    const stop = (e: Event) => e.preventDefault();
-    const stopPinch = (e: TouchEvent) => {
-      if (e.touches.length > 1 && e.cancelable) e.preventDefault();
-    };
-    document.addEventListener("gesturestart", stop, { passive: false });
-    document.addEventListener("gesturechange", stop, { passive: false });
-    document.addEventListener("touchmove", stopPinch, { passive: false });
-    return () => {
-      document.removeEventListener("gesturestart", stop);
-      document.removeEventListener("gesturechange", stop);
-      document.removeEventListener("touchmove", stopPinch);
+  useLockPageZoom();
+  useEffect(
+    () => () => {
       clearTimeout(reticleTimer.current);
       cancelAnimationFrame(pinchFrame.current);
-    };
-  }, []);
+    },
+    [],
+  );
 
   useEffect(() => {
     if (onNativeCapture || !navigator.mediaDevices?.getUserMedia) return;
@@ -2696,10 +2663,7 @@ export function CaptureObjectPanel({
               左下からスマホにある画像を分析できるようにして。今ある過去に撮った画像のアイコンを
               その機能に変更して」）。選んだ写真は撮った写真と同じ道（写っている物の語を出す）を通る。
               スキャンの画面も同じ位置で同じ動き（`scan.tsx`）。 */}
-          <CameraLibraryButton
-            photoUrl={lastPhotoUrl}
-            onOpen={() => libraryInputRef.current?.click()}
-          />
+          <CameraLibraryButton onOpen={() => libraryInputRef.current?.click()} />
           <CameraShutter
             mode={mode}
             label={t("capture.tapToShoot")}

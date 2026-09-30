@@ -7,15 +7,9 @@ import {
   COLLAGE_CAP_MIN,
   COLLAGE_CAP_W,
   captionAlign,
-  COLLAGE_COL_W,
-  avoidFixed,
-  boxOf,
-  collageRatio,
   gestureDelta,
-  packCollage,
   placeFromCell,
   placementFrom,
-  ratioOf,
   settle,
   sizePx,
   type AlbumSize,
@@ -23,13 +17,21 @@ import {
   type Placement,
   type Pt,
 } from "@/lib/album-place";
+import {
+  albumHeroUrl,
+  AUTO_ALBUM_SIZE,
+  CAP_NOTE_PX,
+  CAP_ROW_PX,
+  PLACEHOLDER_RATIO,
+  settleDayAlbum,
+} from "@/lib/album-day-layout";
 import { toast } from "sonner";
 import { haptic } from "@/lib/haptics";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { groupBySpan, keyToDate } from "@/lib/album-span";
-import { resolvePrefer, usePhotoPref } from "@/lib/photo-pref";
+import { usePhotoPref } from "@/lib/photo-pref";
 import { pickStickerPhoto, stickerPhotoUrl } from "@/lib/sticker-photo";
-import { resolveSurfaceRole, surfaceKey, useSurfaceRoleMap } from "@/lib/photo-surface";
+import { surfaceKey, useSurfaceRoleMap } from "@/lib/photo-surface";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { readHomeSnapshot, writeHomeSnapshot } from "@/lib/home-cache";
 import { useServerFn } from "@tanstack/react-start";
@@ -42,6 +44,7 @@ import type { HeroOrigin as FlightOrigin } from "@/components/use-hero-reveal";
 import { listMyStickers, saveAlbumLayout, type StickerWithWord } from "@/lib/stickers.functions";
 import { getMyProfile } from "@/lib/profile.functions";
 import { CachedImg, warmCachedImages } from "@/lib/image-cache";
+import { CaptionEditDialog, type CaptionTarget } from "@/components/CaptionEditDialog";
 import { Term } from "@/components/Term";
 import {
   listPendingCaptures,
@@ -56,7 +59,7 @@ import {
   wasMemorialDismissed,
 } from "@/lib/milestone-album";
 import { scheduleMilestoneNotification } from "@/lib/milestone-schedule";
-import { BookText, Camera, Check, EyeOff, Trash2, Undo2, WifiOff, X } from "lucide-react";
+import { BookText, Camera, Check, EyeOff, Pencil, Trash2, Undo2, WifiOff, X } from "lucide-react";
 import { homeBlankMessage, streakEndingYesterday } from "@/lib/home-blank";
 import { baseStickerId, isEncounterAlbumId, mergeAlbumEncounters } from "@/lib/album-encounters";
 import { useAlbumHidden } from "@/lib/album-hidden";
@@ -369,6 +372,7 @@ function HomePage() {
         albumItems={albumItems}
         today={today}
         surfaceClass={surfaceClass}
+        detailOpen={openId !== null}
         loading={isLoading}
         failed={
           isError ? (
@@ -461,6 +465,7 @@ export function HomeSurface({
   albumItems,
   today,
   surfaceClass,
+  detailOpen = false,
   loading = false,
   failed = null,
   blankMessage,
@@ -476,6 +481,8 @@ export function HomeSurface({
   albumItems: StickerWithWord[];
   today: Date;
   surfaceClass: string;
+  /** 単語の詳細が開いている（本の片ページの層をその下へ回す）。 */
+  detailOpen?: boolean;
   loading?: boolean;
   /** 読み込みに失敗したときに出す物（出すなら、誌面の代わりにこれを出す）。 */
   failed?: React.ReactNode;
@@ -512,6 +519,7 @@ export function HomeSurface({
     return groupBySpan(past, (s) => new Date(s.created_at), "day");
   }, [albumItems, todayKey]);
   const ready = !loading && !failed && albumItems.length > 0;
+  const albumHidden = useAlbumHidden();
   return (
     /*
       **アプリの一番上に、部屋に置いた 3D の本棚**（オーナー指示 R17「本棚が小さすぎる。
@@ -522,7 +530,25 @@ export function HomeSurface({
       周りのデザインをそれより下のすべての日にちにも適用して」）。巾木は一番下の日の後。
     */
     <div className={ready ? "home-scene" : undefined}>
-      {ready ? <HomeShelf items={albumItems} loaders={shelfLoaders} /> : null}
+      {ready ? (
+        <HomeShelf
+          items={albumItems}
+          loaders={shelfLoaders}
+          hiddenIds={albumHidden.hidden}
+          detailOpen={detailOpen}
+          // 本の左ページは、**ホームのアルバムと同じ部品**（置き方・並べ替え・タップで単語の詳細・
+          // ひと言の編集）。オーナー指示 2026-09-30「日記の左側にホームと全く同じ操作で」。
+          renderDayPage={(stickers) => (
+            <DayCollage
+              key={stickers[0]?.id}
+              stickers={stickers}
+              onOpen={onOpen}
+              onLongPress={onLongPress}
+              surface={surfaceClass}
+            />
+          )}
+        />
+      ) : null}
       {/* **日付は壁紙に直に書く**（オーナー指示 2026-09-23「ホーム画面の日付は
         背景の壁紙に直接書いて。日記のように」）。上の見出しの帯はやめ、
         今日の誌面の板の中（`DayCollage` の `heading`）に書く。 */}
@@ -826,21 +852,6 @@ export function DayHeader({
   );
 }
 
-// **大きさの一覧は1本だけにする。**
-// 以前はここに class の文字列の一覧（`ALBUM_SIZES`）が在り、下の
-// `AUTO_ALBUM_SIZE` と**同じ並びを2つ**持っていた。描画は前者、
-// 保存と掴みは後者を見ていたので、片方を直した日に静かに食い違う。
-// 実際、角を掴んだとき「画面に出ている大きさ」ではなく `"small"` を
-// 渡していて、**引き返しても元に戻らなかった**。
-const AUTO_ALBUM_SIZE: readonly AlbumSize[] = [
-  "large",
-  "portrait",
-  "small",
-  "landscape",
-  "portrait",
-  "small",
-];
-
 /**
  * 押した札から、**飛ばす絵の出発点**を作る。
  *
@@ -1006,53 +1017,6 @@ export function dayTagline(
  * 写真の肩に撮った時刻を置く。参考の誌面と同じで、**順番は時刻が語る**
  * ので、並びそのものは自由に崩せる。
  */
-/**
- * 写真がまだ読めていない札・写真の無い札の縦横比。
- *
- * 升目の比（`ratioOf`）をそのまま使うと `portrait` が 2.6 になり、
- * **読み込むまで塔のような枠が並ぶ**。写真の無い語の札も同じ形で出るので、
- * 少しだけ縦長の、写真らしい比に寄せる。
- */
-const PLACEHOLDER_RATIO = 1.2;
-
-/**
- * 写真の下に付く字の高さ。**px で持つ。**
- *
- * `packCollage` に渡して、次の札がここへ乗らないようにする。
- *
- * ## なぜ割合ではなく px か
- * ここは前まで「台紙の幅に対する割合」だった。ところが**字の大きさは
- * px で決まっている**ので、紙が細い画面ほど1行に入る字数が減り、
- * 同じ一言が**行数だけ増える**。割合で取ると、細い画面でそのぶんが
- * 足りなくなる — 実測 320px の画面で、1枚目の一言（3行に増えた）の
- * 下 16px に次の写真が乗った。360px 以上では偶然足りていた。
- *
- * 数え方（`styles.css` の `.collage__cap` 系と対で決まる）:
- *   `CAP_ROW_PX`  … 写真の下の白い余白（`--pol-strip` 34px）＋ 一言との間 4px。
- *                   語と時刻はこの余白の中に書く（写真と語を1枚に:
- *                   オーナー指示 2026-09-27）。一言が無くても余白は要る。
- *   `CAP_NOTE_PX` … 手書きの一言 13px × 1.35 × **3行**（`-webkit-line-clamp`）
- *                   ＋ 上の間 3px。行数の上限が CSS 側に在るので、
- *                   どれだけ長い一言でもここを越えない。
- */
-const CAP_ROW_PX = 38;
-const CAP_NOTE_PX = 56;
-
-/**
- * **文字から調べた語の枠の高さ（px）。**（オーナー指示 2026-09-22
- * 「文字で検索したものは文字だけをアルバムに書いて」）
- *
- * 写真の無い札は、枠の中に**時刻と語と一言をそのまま書く**。写真と同じ
- * 作りにして字だけを枠の外へ出すと、**枠のぶんの空白が字の上に残り**、
- * 時刻が語から1行離れて別々の物に見えた（実測: 「獎學金」と「21:30」が
- * 上下に離れて並んだ）。
- *
- * こちらも px。語は 22px（`--text-title`）の1行で、一言が付けば
- * 写真の札と同じ3行ぶん。**44px を下回らせない**（§11 の指の当たり判定。
- * 実測 170×35 で落ちていた）。
- */
-const PLAIN_WORD_PX = 32;
-const MIN_TAP_PX = 44;
 
 export function DayCollage({
   stickers: allStickers,
@@ -1115,6 +1079,8 @@ export function DayCollage({
     [allStickers, albumHidden.hidden, editable],
   );
   const [showHidden, setShowHidden] = useState(false);
+  /** ひと言を直している札（編集モードの鉛筆）。 */
+  const [captionTarget, setCaptionTarget] = useState<CaptionTarget | null>(null);
   // 印は**その1枚の id** に付ける。再会の写しは元の札とは別の写真なので、写しを
   // 外しても元の札は残る（写しの id はサーバの札ではないので、端末に覚える）。
   //
@@ -1236,19 +1202,7 @@ export function DayCollage({
    */
   const heroById = useMemo(() => {
     const m = new Map<string, string | null>();
-    for (const s of stickers) {
-      m.set(
-        s.id,
-        stickerPhotoUrl(s, {
-          prefer: resolveSurfaceRole({
-            surfaceRole: surfaceRoles[surfaceKey("album", s.id)] ?? null,
-            heroRole: s.hero_role,
-            screenIntent: resolvePrefer(photoPref, "selfie"),
-          }),
-          exclude: ["placeholder"],
-        }) ?? null,
-      );
-    }
+    for (const s of stickers) m.set(s.id, albumHeroUrl(s, { surfaceRoles, photoPref }));
     return m;
   }, [stickers, surfaceRoles, photoPref]);
   // 貼る写真を端末から手元へ先に持ってきて読み解く（`warmCachedImages`、2026-09-28
@@ -1257,115 +1211,23 @@ export function DayCollage({
     void warmCachedImages([...heroById.values()]);
   }, [heroById]);
   /**
-   * その札の枠の縦横比。**置き方の計算と、描く形で同じ1つの数を使う。**
+   * その札の枠の縦横比と、まだ自分で置いていない札の置き場所（誌面の石積み。自分で置いて
+   * 保存した写真は避ける）。**計算は `lib/album-day-layout.ts` の1本だけ** — 本棚の本の
+   * 左ページも同じものを使うので、ホームと日記で置き方が食い違わない。
    *
-   * 別々に出すと、積んだ高さと実際の高さがずれて**次の札が字の上に乗る**。
-   * 写真の比は誌面に収まる範囲へ丸める（`collageRatio`）— 縦長の1枚が
-   * 画面の半分を占めると、その日の他の写真が1枚も見えない。
-   * 写真の無い語の札は丸めない（字は1〜2行しか無い）。
+   * 見るのは表から届いた並び（`stickers`）で、重なり順のために入れ替える `ordered` では
+   * ない（`ordered` で決めると、触っていない札まで置き場所が動く）。
    */
-  const frameRatio = useMemo(() => {
-    const hasNote = new Map(stickers.map((s) => [s.id, Boolean(s.caption)]));
-    /**
-     * 字だけの札の高さ（px）→ 比。
-     *
-     * 割るのは**いちばん細い札の幅**。札ごとの幅は `packCollage` の中で
-     * `id` から決まるので、ここからは見えない。細いほうに合わせておけば、
-     * 太い札では枠が字より少し高くなるだけ — 枠は見えないので、余るのは
-     * 字の**下**の空白であって、隠れる物は無い。
-     */
-    const narrowest = Math.max(board.w * COLLAGE_COL_W * 0.78, 1);
-    return (id: string) => {
-      if (heroById.get(id)) return collageRatio(photoRatio[id] ?? PLACEHOLDER_RATIO);
-      // 細い画面では時刻が語の下の行へ回る（`.collage__plain` の注）ぶんを足す。
-      const timeLine = narrowest < 130 ? 14 : 0;
-      const px = Math.max(
-        PLAIN_WORD_PX + timeLine + (hasNote.get(id) ? CAP_NOTE_PX : 0),
-        MIN_TAP_PX,
-      );
-      // 台紙をまだ測れていない最初の1枚は、ほどほどの比で場所を取っておく。
-      return board.w ? px / narrowest : 0.3;
-    };
-  }, [heroById, photoRatio, stickers, board.w]);
-  /**
-   * まだ自分で置いていない札の置き場所。**誌面の石積み**（`packCollage`）。
-   *
-   * **`ordered` ではなく、表から届いた並び（`stickers`）で決める。**
-   * 重なり順のために `ordered` を入れ替えるので（下の `bringToFront`）、
-   * そちらで決めると**触った札とは関係のない札まで置き場所が動く**。
-   * 置き場所は「その札が何番目に撮られたか」で決まるべきで、
-   * 「さっき誰を触ったか」で変わってはいけない。
-   *
-   * 昔の升目（`packAuto`）は1段の高さが決め打ちだったので、縦長の写真が
-   * 1枚入るだけでその下に大きな空きができていた（実測 7枚で台紙 2550px）。
-   * 写真の**実際の縦横比**から積む。
-   */
-  const autoById = useMemo(() => {
-    const base = [...stickers].sort(
-      (a, b) =>
-        (a.album_order ?? Number.MAX_SAFE_INTEGER) - (b.album_order ?? Number.MAX_SAFE_INTEGER),
-    );
-    const places = packCollage(
-      base.map((s, i) => ({
-        id: s.id,
-        // 写真が読めていればその比。まだなら昔の升目の比で場所を取っておく
-        // （0 にすると、読み込むたびに下の札が突き上げられる）。
-        // 写真が読めていればその比。まだなら**ほどほどの比で場所を取る** —
-        // 升目の比をそのまま使うと `portrait` が 2.6 になり、読み込むまで
-        // 塔のような枠が並ぶ（写真の無い語の札も同じ）。
-        ratio: frameRatio(s.id),
-        /**
-         * 写真の下に付く字のぶん。**一言が在る札だけ余分に要る。**
-         * 字だけの札は枠の中に書くので、外に足すぶんは無い。
-         *
-         * px を台紙の幅で割って割合に直す（`packCollage` は割合で積む）。
-         */
-        extra:
-          heroById.get(s.id) && board.w
-            ? (CAP_ROW_PX + (s.caption ? CAP_NOTE_PX : 0)) / board.w
-            : 0,
-      })),
-    );
-    const map = new Map<string, Placement>();
-    base.forEach((s, i) => map.set(s.id, places[i]));
-    return map;
-  }, [stickers, frameRatio, heroById, board.w]);
-  /**
-   * **自分で置いて保存した写真を避ける**（`avoidFixed`、オーナー指示 2026-09-28
-   * 「デフォルトで画像を配置するとき、ほかの画像と被らないように」）。自動の
-   * 置き方（上の `autoById`）は保存した写真を知らないので、並べ替えた日に新しく
-   * 撮ると、その1枚が保存した写真の真上に積まれていた。
-   */
-  const settledById = useMemo(() => {
-    const extraOf = (s: StickerWithWord) =>
-      heroById.get(s.id) && board.w ? (CAP_ROW_PX + (s.caption ? CAP_NOTE_PX : 0)) / board.w : 0;
-    const saved = (s: StickerWithWord) => s.album_x != null && s.album_y != null;
-    const fixed = stickers.filter(saved).map((s) => {
-      const r = frameRatio(s.id);
-      const p = placementFrom(
-        { x: s.album_x, y: s.album_y, scale: s.album_scale, rot: s.album_rot },
-        autoById.get(s.id) ?? placeFromCell({ col: 0, row: 0 }, "small", s.id),
-      );
-      return boxOf(p, r, extraOf(s));
-    });
-    if (fixed.length === 0) return autoById;
-    const autos = [...stickers]
-      .filter((s) => !saved(s) && autoById.has(s.id))
-      .sort(
-        (a, b) =>
-          (a.album_order ?? Number.MAX_SAFE_INTEGER) - (b.album_order ?? Number.MAX_SAFE_INTEGER),
-      );
-    const settled = avoidFixed(
-      autos.map((s) => {
-        const r = frameRatio(s.id);
-        return { place: autoById.get(s.id)!, ratio: r, extra: extraOf(s) };
+  const { frameRatio, settledById } = useMemo(
+    () =>
+      settleDayAlbum({
+        stickers,
+        hasHero: (id) => Boolean(heroById.get(id)),
+        photoRatio,
+        boardW: board.w,
       }),
-      fixed,
-    );
-    const map = new Map(autoById);
-    autos.forEach((s, i) => map.set(s.id, settled[i]));
-    return map;
-  }, [autoById, stickers, frameRatio, heroById, board.w]);
+    [stickers, heroById, photoRatio, board.w],
+  );
   const items = useMemo(
     () =>
       ordered.map((s, i) => ({
@@ -1694,7 +1556,7 @@ export function DayCollage({
           <button
             type="button"
             onClick={finishEditing}
-            className="lift fixed bottom-[calc(5rem+env(safe-area-inset-bottom))] left-1/2 z-50 inline-flex min-h-11 -translate-x-1/2 items-center gap-1.5 rounded-full bg-primary px-5 text-footnote font-semibold text-primary-foreground shadow-xl"
+            className="album-done lift fixed bottom-[calc(5rem+env(safe-area-inset-bottom))] left-1/2 z-50 inline-flex min-h-11 -translate-x-1/2 items-center gap-1.5 rounded-full bg-primary px-5 text-footnote font-semibold text-primary-foreground shadow-xl"
           >
             <Check className="h-4 w-4" />
             {t("album.done")}
@@ -2077,6 +1939,19 @@ export function DayCollage({
                     >
                       <X className="h-3.5 w-3.5" strokeWidth={3} aria-hidden />
                     </button>
+                    {/* **ひと言を直す鉛筆**（オーナー指示 2026-09-30）。左上の角。 */}
+                    <button
+                      type="button"
+                      className="album-remove album-caption-edit"
+                      aria-label={t("caption.edit")}
+                      onPointerDown={(e) => e.stopPropagation()}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setCaptionTarget({ id: s.id, caption: s.caption ?? null });
+                      }}
+                    >
+                      <Pencil className="h-3.5 w-3.5" strokeWidth={2.5} aria-hidden />
+                    </button>
                   </span>
                 )}
               </Fragment>
@@ -2132,6 +2007,7 @@ export function DayCollage({
         {/* 「— N枚の思い出」は出さない（オーナー指示 2026-09-23「〇〇枚目の思い出と
           いうやつ消して」）。数は図鑑に在り、ここは写真が主役。 */}
       </div>
+      <CaptionEditDialog target={captionTarget} onClose={() => setCaptionTarget(null)} />
     </>
   );
 }

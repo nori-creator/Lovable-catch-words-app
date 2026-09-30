@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from "react";
-import { Camera, Image as ImageIcon, Loader2, ScanLine, Search, SwitchCamera } from "lucide-react";
+import { Camera, ImagePlus, Loader2, ScanLine, Search, SwitchCamera } from "lucide-react";
 import { useT } from "@/lib/i18n";
-import { CachedImg } from "@/lib/image-cache";
 import { SlidingIndicator } from "@/components/SlidingIndicator";
 
 /**
@@ -183,29 +182,20 @@ export function CameraShutter({
 }
 
 /**
- * シャッターの左。**過去に撮った写真を出す**（オーナー指示 2026-09-16
- * 「写真の部分は過去に撮った写真を表示する」）。
+ * **左下は「端末の写真を選んで分析する」ボタン。**（オーナー指示 2026-09-30「カメラモードの
+ * 左下の画像は前にアプリ内で撮った画像ではなく、スマホのカメラロールから画像を追加して
+ * 分析できるアイコンに変更して」）
  *
- * 絵柄は決め打ちの記号ではなく、**いちばん新しく捕まえた1枚**。
- * iPhone のカメラと同じで、「さっき撮った物がここに溜まっている」という
- * 筋がそのまま見える。まだ1枚も無い人には記号を出す。
+ * 前は最後に撮った写真のサムネイルを出していたので、「過去の写真を見る所」に見えた。
+ * 今は常に**画像を足す記号**。押すと端末の写真が開き、選んだ写真は撮った写真と同じ道
+ * （写っている物の語を出す）を通る。
  */
-export function CameraLibraryButton({
-  photoUrl,
-  onOpen,
-}: {
-  photoUrl: string | null;
-  onOpen: () => void;
-}) {
+export function CameraLibraryButton({ onOpen }: { onOpen: () => void }) {
   const t = useT();
   return (
     <button type="button" className="camera-side" onClick={onOpen}>
       <span className="camera-side__box">
-        {photoUrl ? (
-          <CachedImg src={photoUrl} alt="" className="h-full w-full object-cover" />
-        ) : (
-          <ImageIcon className="h-5 w-5" />
-        )}
+        <ImagePlus className="h-5 w-5" aria-hidden="true" />
       </span>
       <span className="camera-side__label">{t("camera.library")}</span>
     </button>

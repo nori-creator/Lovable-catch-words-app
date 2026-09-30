@@ -16,6 +16,7 @@ import { toast } from "sonner";
 import { Mail } from "lucide-react";
 import { useT } from "@/lib/i18n";
 import { tStatic } from "@/lib/i18n";
+import { authErrorText } from "@/lib/errors";
 
 export const Route = createFileRoute("/auth")({
   // Preserve a same-origin `next` path so OAuth consent (or any protected
@@ -138,7 +139,7 @@ function AuthPage() {
         if (error) throw error;
       }
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : t("auth.failed"));
+      toast.error(authErrorText(err, t("auth.failed"), t));
     } finally {
       setLoading(false);
     }
@@ -158,10 +159,10 @@ function AuthPage() {
         redirect_uri: redirectUri,
       });
       if (res.error) {
-        toast.error(res.error.message ?? t("auth.googleFailed"));
+        toast.error(authErrorText(res.error, t("auth.googleFailed"), t));
       }
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : t("auth.failed"));
+      toast.error(authErrorText(err, t("auth.failed"), t));
     } finally {
       setLoading(false);
     }
@@ -179,10 +180,10 @@ function AuthPage() {
       });
 
       if (res.error) {
-        toast.error(res.error.message ?? t("auth.appleFailed"));
+        toast.error(authErrorText(res.error, t("auth.appleFailed"), t));
       }
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : t("auth.failed"));
+      toast.error(authErrorText(err, t("auth.failed"), t));
     } finally {
       setLoading(false);
     }

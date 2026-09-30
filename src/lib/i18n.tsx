@@ -1688,6 +1688,57 @@ export const DICT: Record<string, Record<UiLang, string>> = {
   },
   "user.someone": { ja: "ユーザー", en: "User", "zh-TW": "使用者" },
   "err.failed": { ja: "失敗しました", en: "Something went wrong", "zh-TW": "失敗了" },
+  // ログイン・新規登録・パスワード再設定の失敗（`errors.ts` の `authErrorText`）。
+  "autherr.invalidCredentials": {
+    ja: "メールアドレスかパスワードが違います",
+    en: "The email or password is incorrect",
+    "zh-TW": "電子郵件或密碼不正確",
+  },
+  "autherr.emailNotConfirmed": {
+    ja: "メールアドレスの確認がまだです。届いたメールのリンクを開いてください",
+    en: "Your email isn't confirmed yet. Open the link in the email we sent you",
+    "zh-TW": "電子郵件尚未驗證，請開啟我們寄給你的信件中的連結",
+  },
+  "autherr.alreadyRegistered": {
+    ja: "このメールアドレスはすでに登録されています。ログインしてください",
+    en: "This email is already registered. Please sign in",
+    "zh-TW": "這個電子郵件已經註冊過了，請直接登入",
+  },
+  "autherr.weakPassword": {
+    ja: "パスワードが短すぎるか、推測されやすいです。別のパスワードにしてください",
+    en: "That password is too short or too easy to guess. Please choose another one",
+    "zh-TW": "密碼太短或太容易被猜到，請換一個密碼",
+  },
+  "autherr.samePassword": {
+    ja: "今のパスワードと同じです。別のパスワードにしてください",
+    en: "That's the same as your current password. Please choose a new one",
+    "zh-TW": "和目前的密碼相同，請換一個新的密碼",
+  },
+  "autherr.rateLimit": {
+    ja: "短い時間に何度も試されました。しばらくしてからもう一度お試しください",
+    en: "Too many attempts. Please wait a moment and try again",
+    "zh-TW": "嘗試次數太多，請稍等一下再試",
+  },
+  "autherr.emailInvalid": {
+    ja: "メールアドレスの形が正しくありません",
+    en: "That doesn't look like a valid email address",
+    "zh-TW": "電子郵件格式不正確",
+  },
+  "autherr.signupDisabled": {
+    ja: "いまは新規登録を受け付けていません",
+    en: "Sign-ups are closed right now",
+    "zh-TW": "目前暫停開放註冊",
+  },
+  "autherr.linkExpired": {
+    ja: "リンクの期限が切れています。もう一度やり直してください",
+    en: "This link has expired. Please start again",
+    "zh-TW": "連結已過期，請重新操作",
+  },
+  "autherr.network": {
+    ja: "通信できませんでした。電波の良い所でもう一度お試しください",
+    en: "Couldn't connect. Please check your connection and try again",
+    "zh-TW": "無法連線，請確認網路後再試一次",
+  },
   "err.dailyCap": {
     ja: "1日の利用上限に達しました。24時間以内に自動で回復します。",
     en: "You've reached today's limit. It resets automatically within 24 hours.",
@@ -2895,6 +2946,21 @@ export const DICT: Record<string, Record<UiLang, string>> = {
   // 変更できるようにして」)。AI が別の語を当てたときに、その場で直せる。
   "card.editHead": { ja: "単語を直す", en: "Edit the word", "zh-TW": "修改單字" },
   "card.editHeadSave": { ja: "直す", en: "Save", "zh-TW": "儲存" },
+  "caption.edit": { ja: "ひと言を直す", en: "Edit the note", "zh-TW": "修改一句話" },
+  "caption.add": { ja: "ひと言を書く", en: "Add a note", "zh-TW": "寫一句話" },
+  "caption.editTitle": { ja: "ひと言", en: "Note", "zh-TW": "一句話" },
+  "caption.editHint": {
+    ja: "空にして保存すると、ひと言を消します。",
+    en: "Save it empty to remove the note.",
+    "zh-TW": "清空後儲存，就會刪除這句話。",
+  },
+  "caption.save": { ja: "保存", en: "Save", "zh-TW": "儲存" },
+  "caption.saved": { ja: "ひと言を保存しました", en: "Note saved", "zh-TW": "已儲存這句話" },
+  "caption.failed": {
+    ja: "ひと言を保存できませんでした",
+    en: "Couldn't save the note",
+    "zh-TW": "無法儲存這句話",
+  },
   "card.editHeadDone": { ja: "単語を直しました", en: "Word updated", "zh-TW": "已修改單字" },
   "card.editHeadNotTarget": {
     ja: "学習している言語の単語を入れてください",
@@ -3959,8 +4025,8 @@ export const DICT: Record<string, Record<UiLang, string>> = {
   },
   "settings.deleteTypeLabel": {
     ja: "確認のため「削除」と入力してください",
-    en: "Type 削除 to confirm",
-    "zh-TW": "請輸入「削除」以確認",
+    en: "Type DELETE to confirm",
+    "zh-TW": "請輸入「刪除」以確認",
   },
   "settings.deleteButton": {
     ja: "アカウントを完全に削除する",

@@ -36,7 +36,7 @@ export function CameraStripScene({ q }: { q: URLSearchParams }) {
         </div>
         <CameraModeStrip mode={mode} onChange={setMode} />
         <div className="capture-actions">
-          <CameraLibraryButton photoUrl={null} onOpen={() => {}} />
+          <CameraLibraryButton onOpen={() => {}} />
           <CameraShutter mode={mode} label="タップして撮影" busy={busy} onPress={() => {}} />
           <CameraFlipButton facing="environment" withLabel onFlip={() => {}} />
         </div>
