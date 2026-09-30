@@ -134,6 +134,11 @@ export function pickReadingOf(
   kind: ReadingKind,
   readings: Partial<Record<ReadingKind, string | null | undefined>>,
 ): string {
+  // **英語の発音記号は出さない**（オーナー指示 2026-09-30「学習言語英語の
+  // 発音記号は消して」）。読みの表示は全画面がここを通るので、ここ1箇所で
+  // 4択・単語の詳細・候補・図鑑のすべてから消える。データ（IPA の列）は
+  // 残す — 音声や解説の生成が読んでいる。
+  if (!showsReading(profile)) return "";
   for (const k of [kind, ...profile.readings]) {
     const v = readings[k]?.trim();
     // IPA は**学習者の見慣れた形**で出す（`learner-ipa.ts`、オーナー報告
@@ -145,6 +150,17 @@ export function pickReadingOf(
 
 function isIpaProfile(profile: TargetProfile): boolean {
   return profile.readings.some((r) => r === "ipa-us" || r === "ipa-uk");
+}
+
+/**
+ * その言語で読みの表記を画面に出すか。
+ *
+ * 台湾華語（注音・拼音）は出す。英語（IPA）は出さない（オーナー指示
+ * 2026-09-30）。設定の「発音表記」の行もこれを見て、英語では
+ * 米式／英式の切り替えごと出さない。
+ */
+export function showsReading(profile: TargetProfile): boolean {
+  return !isIpaProfile(profile);
 }
 
 /**

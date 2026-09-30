@@ -35,6 +35,7 @@ import {
   levelInstruction,
   explanationLanguageRule,
   getExplanationLanguage,
+  explanationLanguageName,
   l1Rule,
   getLearnerL1Code,
   isProUser,
@@ -1406,7 +1407,9 @@ export const getSpeakingFeedback = createServerFn({ method: "POST" })
     const levelRule = await levelInstruction(userId);
     const langRule = await explanationLanguageRule(userId);
     // 本文の「日本語で」という指示が langRule と矛盾しないよう言語名を差し替える。
-    const NL = (await getExplanationLanguage(userId)) === "en" ? "英語" : "日本語";
+    // **3言語すべてを名前で引く**（`=== "en" ? "英語" : "日本語"` だと繁體中文の人の
+    // 解説が日本語で作られる。`ai-provider.server.ts` の注と同じ話）。
+    const NL = explanationLanguageName(await getExplanationLanguage(userId));
     // 母語ごとの干渉(語順・アスペクト・発音)を添削の観点に入れる。
     const l1 = await l1Rule(userId, "both");
     const levelGoal = await getUserLevelGoal(userId);

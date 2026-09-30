@@ -430,11 +430,37 @@ describe("中身の無いプロフィールで端末の言語を上書きしな�
     // オーナー報告 2026-08-26(2度目)「一度設定を保存したらその後キープして」。
     // ここは画面を開くたびに走るので、設定画面だけ直しても塞げない。
     const src = codeOnly(read("lib/use-language-prefs.ts"));
-    expect(src).toMatch(/reconcileLanguage\(\{[\s\S]{0,120}?stored: storedTargetLang\(\)/);
-    expect(src).toMatch(/reconcileLanguage\(\{[\s\S]{0,120}?stored: storedUiLang\(\)/);
+    expect(src).toMatch(
+      /reconcileLanguage\(\{[\s\S]{0,120}?stored: (?:foreign \? null : )?storedTargetLang\(\)/,
+    );
+    expect(src).toMatch(
+      /reconcileLanguage\(\{[\s\S]{0,120}?stored: (?:foreign \? null : )?storedUiLang\(\)/,
+    );
     // 生のサーバの値をそのまま書かないこと。
     expect(src).not.toMatch(/setTargetLang\(p\.target_language\)/);
     expect(src).not.toMatch(/setUiLang\(normalizeUiLang\(p\.ui_language\)\)/);
+  });
+
+  it("**端末が勝ったら、どの画面から入ってもサーバへ書き戻す**", () => {
+    // オーナー報告 2026-09-30「学習言語台湾華語なのに英語の4択が表示されてる」。
+    // 復習・図鑑はサーバ側で profiles.target_language を読んで絞るので、
+    // 書き戻しが設定画面だけだと、端末とサーバが食い違ったまま残る。
+    const src = codeOnly(read("lib/use-language-prefs.ts"));
+    expect(src).toMatch(/target\.pushToServer/);
+    expect(src).toMatch(/saveProfile\(\{[\s\S]{0,80}?target_language: target\.value/);
+    // 書き戻した後、前の言語で作った一覧を読み直す。
+    expect(src).toMatch(/\.then\(\(\) => refreshLanguageScoped\(qc\)\)/);
+    // 別のアカウントの写しでは書き戻さない（同じ端末で入り直した人）。
+    expect(src).toMatch(/stored: foreign \? null : storedTargetLang\(\)/);
+  });
+
+  it("**学習言語を変えたら、復習の束はメモリからも端末からも捨てる**", () => {
+    // 復習は `refetchOnMount: false` なので、古い印だけでは前の言語の束が出る。
+    const src = codeOnly(read("lib/use-language-prefs.ts"));
+    expect(src).toMatch(/localStorage\.removeItem\(REVIEW_CACHE_KEY\)/);
+    expect(src).toMatch(/resetQueries\(\{ queryKey: \["reviews-due"\] \}\)/);
+    const review = codeOnly(read("routes/_authenticated/review.tsx"));
+    expect(review).toMatch(/matchesTargetLanguage\(c\.language, target\)/);
   });
 
   it("設定の画面も同じ規則で突き合わせ、揃えるために書き戻す", () => {
@@ -5023,8 +5049,11 @@ describe("ホームは今日の誌面", () => {
     );
     // 2026-09-24「過去のものが多すぎで画面で確認できないから、過去のものは全て
     // 削除して」: 帯には**今回の依頼の面だけ**。
-    // 2026-09-30「チュートリアルの4択が本物と異なってる」の回。先頭はチュートリアルの復習。
-    expect(list.slice(0, list.indexOf("},"))).toMatch(/scene: "first-catch&step=review"/);
+    // 2026-09-30「単語の詳細の注音を漢字の横に」「英語の発音記号は消して」の回。
+    // 先頭は単語の詳細。
+    expect(list.slice(0, list.indexOf("},"))).toMatch(/scene: "word-card"/);
+    // 前の回（チュートリアルの4択）の面は残さない。
+    expect(list).not.toMatch(/scene: "first-catch&step=review"/);
     // 前の回（R26/R27）の面は残さない。
     expect(list).not.toMatch(/scene: "home-shelf"/);
     expect(list).not.toMatch(/scene: "dex-map"/);
@@ -6735,4 +6764,24 @@ describe("R26: 生のエラー文を画面に出さない", () => {
       expect(src).toMatch(/useReadableError\(\)/);
     });
   }
+});
+
+describe("全体点検 2026-09-30: 撮る画面", () => {
+  it("**圏外で預けた写真を「もう一枚撮る」で捨てない**", () => {
+    // 預けた面は「あとでホームの『解析待ち』から続きができます」と約束している。
+    // `reset` は預けた行を消すので、この面からは先に手放してから畳む。
+    const src = codeOnly(read("routes/_authenticated/capture.tsx"));
+    const panel = src.slice(
+      src.indexOf("<OfflineSavedPanel"),
+      src.indexOf("<OfflineSavedPanel") + 600,
+    );
+    expect(panel).not.toMatch(/onAgain=\{reset\}/);
+    expect(panel).toMatch(/pendingIdRef\.current = null;\s*reset\(\);/);
+  });
+
+  it("解析・検索の失敗で生のエラー文を出さない", () => {
+    const src = codeOnly(read("routes/_authenticated/capture.tsx"));
+    expect(src).toMatch(/const reason = readable\(e, t\("cap\.aiFailed"\)\)/);
+    expect(src).not.toMatch(/e instanceof Error && e\.message\s*\?\s*e\.message/);
+  });
 });

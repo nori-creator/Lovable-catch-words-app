@@ -27,9 +27,10 @@
  */
 
 import { useEffect, useRef } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
+import { REVIEW_CACHE_KEY } from "@/lib/review-cache";
 import { useServerFn } from "@tanstack/react-start";
-import { getMyProfile } from "@/lib/profile.functions";
+import { getMyProfile, updateMyProfile } from "@/lib/profile.functions";
 import { setTargetLang, storedTargetLang, useTargetLang } from "@/lib/target-lang-pref";
 import { setUiLang, normalizeUiLang, storedUiLang } from "@/lib/i18n";
 import { reconcileLanguage } from "@/lib/language-sync";
@@ -43,6 +44,10 @@ import { DEFAULT_TARGET_LANGUAGE } from "@/lib/target-lang";
  */
 export function useLanguagePrefsSync(): void {
   const fetchProfile = useServerFn(getMyProfile);
+  const saveProfile = useServerFn(updateMyProfile);
+  const qc = useQueryClient();
+  /** 同じ組を何度も書き戻さない（届いたプロフィールの読み直しで再び走るため）。 */
+  const pushed = useRef<string | null>(null);
   const { data } = useQuery({
     queryKey: ["profile"],
     queryFn: () => fetchProfile(),
@@ -51,7 +56,7 @@ export function useLanguagePrefsSync(): void {
 
   useEffect(() => {
     const p = data as
-      | { target_language?: string; ui_language?: string; partial?: boolean }
+      | { id?: string; target_language?: string; ui_language?: string; partial?: boolean }
       | undefined;
     if (!p) return;
     /**
@@ -76,21 +81,63 @@ export function useLanguagePrefsSync(): void {
      * **選んでいない端末にだけ**サーバの値を配る
      * (突き合わせの規則は `language-sync.ts` の1つだけ)。
      */
+    /**
+     * **別の人が選んだ値を、この人の選択として扱わない。**
+     *
+     * 端末の写しは人ごとに分かれていない。同じ端末で別のアカウントに
+     * 入り直すと、前の人の言語が「この端末で選んだ値」に見え、下の
+     * 書き戻しで**次の人のサーバの値まで塗り替えて**しまう。
+     * 写しの持ち主を憶え、違う人ならサーバの値を受ける（書き戻さない）。
+     * 持ち主が無い（この直しより前から使っている端末・登録前の初回体験）
+     * ときは、今までどおり端末の選択を使う。
+     */
+    const foreign = !!p.id && !!langOwner() && langOwner() !== p.id;
     const target = reconcileLanguage({
-      stored: storedTargetLang(),
+      stored: foreign ? null : storedTargetLang(),
       server: p.target_language,
       fallback: DEFAULT_TARGET_LANGUAGE,
     });
     const ui = reconcileLanguage({
-      stored: storedUiLang(),
+      stored: foreign ? null : storedUiLang(),
       server: p.ui_language,
       fallback: "ja",
     });
+    if (p.id) setLangOwner(p.id);
     // `setTargetLang` / `setUiLang` は同じ値なら何も知らせないので、
     // プロフィールが届くたびに描き直しが起きることはない。
     setTargetLang(target.value);
     setUiLang(normalizeUiLang(ui.value));
-  }, [data]);
+
+    /**
+     * **端末が勝ったら、サーバへ書き戻す**（オーナー報告 2026-09-30
+     * 「学習言語台湾華語なのに英語の4択が表示されてる」）。
+     *
+     * `language-sync.ts` は「端末が勝つ。違っていればサーバへ書き戻す」と
+     * 決めていて `pushToServer` を返すのに、**ここはその返事を読んでいな
+     * かった**（書き戻していたのは設定画面を開いたときだけ）。
+     *
+     * ところが復習・図鑑・記憶の一覧は**サーバ側で** `profiles.target_language`
+     * を読んで絞る。端末は台湾華語・サーバは英語のままだと、
+     *   ・設定画面の表示は台湾華語
+     *   ・復習の4択は英語の語と英語の辞書から作られる
+     * という、報告どおりの食い違いになる。
+     *
+     * 書き戻したら、その言語で絞った一覧を読み直す（前の言語で作った物が
+     * React Query に残っているので）。
+     */
+    if (!target.pushToServer && !ui.pushToServer) return;
+    const pair = `${target.value}|${ui.value}`;
+    if (pushed.current === pair) return;
+    pushed.current = pair;
+    void saveProfile({
+      data: { target_language: target.value, ui_language: normalizeUiLang(ui.value) },
+    })
+      .then(() => refreshLanguageScoped(qc))
+      .catch(() => {
+        // 端末の選択は効いたまま。次に開いたときにもう一度試す。
+        pushed.current = null;
+      });
+  }, [data, saveProfile, qc]);
 }
 
 /**
@@ -140,8 +187,47 @@ export function useRefreshOnTargetLanguage(): void {
     }
     if (seen.current === target) return;
     seen.current = target;
-    for (const key of LANGUAGE_SCOPED_QUERIES) {
-      void qc.invalidateQueries({ queryKey: [key] });
-    }
+    refreshLanguageScoped(qc);
   }, [target, qc]);
+}
+
+/** 端末の言語の写しが誰の物か（`useLanguagePrefsSync`）。 */
+const LANG_OWNER_KEY = "lang-prefs-owner-v1";
+
+function langOwner(): string | null {
+  try {
+    return localStorage.getItem(LANG_OWNER_KEY);
+  } catch {
+    return null;
+  }
+}
+
+function setLangOwner(id: string): void {
+  try {
+    localStorage.setItem(LANG_OWNER_KEY, id);
+  } catch {
+    /* storage unavailable */
+  }
+}
+
+/**
+ * 言語で絞った一覧を、次に見たときに読み直させる。
+ *
+ * **復習の束だけは「古い」と印を付けるだけでは足りない**（オーナー報告
+ * 2026-09-30「学習言語台湾華語なのに英語の4択が表示されてる」）。
+ * 復習の画面は開くたびに作り直さないよう `refetchOnMount: false` に
+ * してあるので、印の付いた束もそのまま出る。しかも束は端末にも
+ * 20時間残る（`review-cache.ts`）。**両方とも捨てる。**
+ */
+function refreshLanguageScoped(qc: QueryClient): void {
+  try {
+    localStorage.removeItem(REVIEW_CACHE_KEY);
+  } catch {
+    /* storage unavailable */
+  }
+  void qc.resetQueries({ queryKey: ["reviews-due"] });
+  for (const key of LANGUAGE_SCOPED_QUERIES) {
+    if (key === "reviews-due") continue;
+    void qc.invalidateQueries({ queryKey: [key] });
+  }
 }

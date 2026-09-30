@@ -52,7 +52,7 @@ import { SlidingIndicator } from "@/components/SlidingIndicator";
 import { PickerRow } from "@/components/PickerRow";
 import { toast } from "sonner";
 import { useTheme } from "@/components/theme-provider";
-import { useReadingPref, setReadingPref, readingLabelKey } from "@/lib/phonetic";
+import { useReadingPref, setReadingPref, readingLabelKey, showsReading } from "@/lib/phonetic";
 import { targetProfile } from "@/lib/target-profile";
 import { levelOptions, restoreLevel } from "@/lib/level-scale";
 import { UI_LANGS, UI_LANG_LABEL_KEYS, TARGET_LANG_LABEL_KEYS, normalizeUiLang } from "@/lib/i18n";
@@ -1004,6 +1004,10 @@ export function PhoneticRow({ lang }: { lang?: string } = {}) {
   // **選ぶものが無いなら行ごと出さない。** 読みが1つしか無い言語を足した日に
   // 「選択肢が1つだけのボタンの列」が残るのは、設定として意味が無い。
   if (profile.readings.length < 2) return null;
+  // **読みを出さない言語では切り替えも出さない**（英語の IPA 米式／英式。
+  // オーナー指示 2026-09-30）。画面に出ない物の選び方だけが残ると、
+  // 押しても何も変わらないボタンになる。
+  if (!showsReading(profile)) return null;
   return (
     <ChoiceRow
       cols={cols}

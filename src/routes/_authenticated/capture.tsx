@@ -685,7 +685,8 @@ function CapturePage() {
     } catch (e) {
       console.error(e);
       if (runTokenRef.current !== token) return;
-      const reason = e instanceof Error ? e.message : t("cap.aiFailed");
+      // 生の英語（Failed to fetch 等）や、サーバの日本語の文をそのまま出さない。
+      const reason = readable(e, t("cap.aiFailed"));
 
       // 撮った写真は**必ず**残す。
       //
@@ -830,10 +831,10 @@ function CapturePage() {
     } catch (e) {
       // **本当の理由をそのまま出す。** 上限に達した・鍵が無いなど、
       // 打ち直しても直らない話をここで握り潰すと「機能してない」になる。
+      // 上限に達した等の理由は `readable` が画面の言語の文に直す。
+      // 生の `e.message`（Failed to fetch・サーバの日本語）は出さない。
       setError(
-        e instanceof Error && e.message
-          ? e.message
-          : t("input.notTargetLang", { lang: t(TARGET_LANG_LABEL_KEYS[targetLanguage]) }),
+        readable(e, t("input.notTargetLang", { lang: t(TARGET_LANG_LABEL_KEYS[targetLanguage]) })),
       );
     } finally {
       setSearching(false);
@@ -1555,7 +1556,13 @@ function CapturePage() {
           savedReason={savedReason}
           onRetry={() => void runAi()}
           onHome={() => navigate({ to: "/home" })}
-          onAgain={reset}
+          onAgain={() => {
+            // **預けた写真は捨てない**（この面は「あとでホームの『解析待ち』から
+            // 続きができます」と約束している）。`reset` は預けた行を消すので、
+            // 先に手放してから畳む。
+            pendingIdRef.current = null;
+            reset();
+          }}
         />
       )}
       {/* キャッチ演出中だけ載る層: 飛ぶ絵・閃光・大きな単語

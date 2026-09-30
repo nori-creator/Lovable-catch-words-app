@@ -60,7 +60,8 @@ import { usePhoneticPref, pickReadingOf, Reading, neutralReadings } from "@/lib/
 import { Term } from "@/components/Term";
 import { ZhuyinWord } from "@/components/ZhuyinWord";
 import { pairZhuyin } from "@/lib/zhuyin-layout";
-import { useTargetLang } from "@/lib/target-lang-pref";
+import { getTargetLang, useTargetLang } from "@/lib/target-lang-pref";
+import { matchesTargetLanguage } from "@/lib/language-filter";
 import { targetProfile } from "@/lib/target-profile";
 import { stickerPhotoUrl } from "@/lib/sticker-photo";
 import { resolvePrefer, usePhotoPref } from "@/lib/photo-pref";
@@ -176,12 +177,23 @@ function ReviewPage() {
   const [cachedBatch] = useState(() => {
     if (typeof window === "undefined") return null;
     try {
-      return readBatch<DueReviewCard>(
+      const batch = readBatch<DueReviewCard>(
         localStorage.getItem(REVIEW_CACHE_KEY),
         localStorage.getItem(REVIEW_CACHE_USER_KEY) ?? "",
         wantedSticker ?? null,
         Date.now(),
       );
+      /**
+       * **別の学習言語で作った束は出さない**（オーナー報告 2026-09-30
+       * 「学習言語台湾華語なのに英語の4択が表示されてる」）。束は最大20時間
+       * 端末に残るので、英語から台湾華語へ切り替えた後も英語の4択が出ていた。
+       * 判定は `language-filter.ts` の1つだけ（サーバの絞りと同じ規則）。
+       */
+      const target = getTargetLang();
+      if (batch && !batch.cards.every((c) => matchesTargetLanguage(c.language, target))) {
+        return null;
+      }
+      return batch;
     } catch {
       return null;
     }

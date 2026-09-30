@@ -1999,22 +1999,43 @@ function RelatedWordRow({
   tone: string;
   language?: string | null;
 }) {
+  // **注音は字ごとに右へ縦に**（オーナー指示 2026-09-30「単語の詳細の注音が
+  // 右に書かれる。それぞれの漢字の横に書いて。漢字との大きさのバランスは
+  // 単語の見出しと同じにして」）。見出しと同じ `ZhuyinWord` と同じ比
+  // （`zy-word--balanced` = 字の 0.36 倍）。比を揃えると本文の大きさの字では
+  // 注音が読めない大きさになるので、字は画面の題の大きさにする。
+  // 組めない語（拼音を選んだ人・字と音節の数が合わない語）は前のまま。
+  const units = useZhuyinUnits(language, word, reading);
   return (
     <div className="flex items-start gap-2">
       <div className="min-w-0 flex-1">
         <span className="flex flex-wrap items-baseline gap-x-2">
-          <Term
-            lang={language}
-            className={`inline-block rounded-full px-2.5 py-0.5 text-body font-medium shadow-sm ring-1 ring-border ${tone}`}
-          >
-            {word}
-          </Term>
-          <ReadingOf
-            lang={language}
-            primary={reading}
-            alt={readingAlt}
-            className="text-caption text-muted-foreground"
-          />
+          {units ? (
+            <span
+              className={`inline-block rounded-2xl px-2.5 py-0.5 shadow-sm ring-1 ring-border ${tone}`}
+            >
+              <ZhuyinWord
+                units={units}
+                lang={language}
+                className="zy-word--balanced text-title font-medium"
+              />
+            </span>
+          ) : (
+            <>
+              <Term
+                lang={language}
+                className={`inline-block rounded-full px-2.5 py-0.5 text-body font-medium shadow-sm ring-1 ring-border ${tone}`}
+              >
+                {word}
+              </Term>
+              <ReadingOf
+                lang={language}
+                primary={reading}
+                alt={readingAlt}
+                className="text-caption text-muted-foreground"
+              />
+            </>
+          )}
         </span>
         {note && <span className="mt-0.5 block text-caption text-muted-foreground">{note}</span>}
       </div>
@@ -2109,19 +2130,32 @@ function MeasureWordRow({
   // 読んでいた(オーナー報告①)。省略が正しい場所と間違っている場所を
   // 見た目で区別できないのが、その3つが何週間も残った理由。
   const pronounce = usePronounce(DEFAULT_TARGET_LANGUAGE);
+  // 量詞の「個」は輕聲（˙ㄍㄜ）で読む（オーナー指示 2026-09-30、`tw-neutral-tone.ts`）。
+  const zhuyinText = neutralizeMeasureGe(word, zhuyin, { measureWord: true });
+  // **注音は字の右に縦に、見出しと同じ比で**（`RelatedWordRow` と同じ指示・同じ組み方）。
+  const units = useZhuyinUnits(DEFAULT_TARGET_LANGUAGE, word, zhuyinText);
   return (
     <>
       <span className="min-w-0 flex-1">
         <span className="flex flex-wrap items-baseline gap-x-2">
-          <span lang="zh-Hant" className="text-body font-semibold">
-            {word}
-          </span>
-          {/* 量詞の「個」は輕聲（˙ㄍㄜ）で読む（オーナー指示 2026-09-30、`tw-neutral-tone.ts`）。 */}
-          <Reading
-            zhuyin={neutralizeMeasureGe(word, zhuyin, { measureWord: true })}
-            pinyin={neutralizeMeasureGePinyin(word, pinyin, { measureWord: true })}
-            className="text-caption text-muted-foreground"
-          />
+          {units ? (
+            <ZhuyinWord
+              units={units}
+              lang={DEFAULT_TARGET_LANGUAGE}
+              className="zy-word--balanced text-title font-semibold"
+            />
+          ) : (
+            <>
+              <span lang="zh-Hant" className="text-body font-semibold">
+                {word}
+              </span>
+              <Reading
+                zhuyin={zhuyinText}
+                pinyin={neutralizeMeasureGePinyin(word, pinyin, { measureWord: true })}
+                className="text-caption text-muted-foreground"
+              />
+            </>
+          )}
         </span>
         {note && <span className="mt-0.5 block text-caption text-muted-foreground">{note}</span>}
       </span>

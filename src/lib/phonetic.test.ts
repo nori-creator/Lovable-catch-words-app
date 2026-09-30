@@ -4,6 +4,7 @@ import {
   pickReadingOf,
   readReadingPref,
   writeReadingPref,
+  showsReading,
   type ReadingStore,
 } from "./phonetic";
 import { EN_PROFILE, ZH_TW_PROFILE } from "./target-profile";
@@ -150,11 +151,14 @@ describe("pickReadingOf", () => {
     expect(pickReadingOf(ZH_TW_PROFILE, "zhuyin", { zhuyin: null, pinyin: undefined })).toBe("");
   });
 
-  it("英語も同じ形で選べる", () => {
+  it("**英語の発音記号は出さない**(オーナー指示 2026-09-30「学習言語英語の発音記号は消して」)", () => {
     const r = { "ipa-us": "ˈtoʊmeɪtoʊ", "ipa-uk": "təˈmɑːtəʊ" } as const;
-    expect(pickReadingOf(EN_PROFILE, "ipa-us", r)).toBe("ˈtoʊmeɪtoʊ");
-    expect(pickReadingOf(EN_PROFILE, "ipa-uk", r)).toBe("təˈmɑːtəʊ");
-    expect(pickReadingOf(EN_PROFILE, "ipa-uk", { "ipa-us": "ˈtoʊmeɪtoʊ" })).toBe("ˈtoʊmeɪtoʊ");
+    expect(pickReadingOf(EN_PROFILE, "ipa-us", r)).toBe("");
+    expect(pickReadingOf(EN_PROFILE, "ipa-uk", r)).toBe("");
+    expect(pickReadingOf(EN_PROFILE, "ipa-uk", { "ipa-us": "ˈtoʊmeɪtoʊ" })).toBe("");
+    // 台湾華語の注音・拼音はそのまま出す。
+    expect(showsReading(EN_PROFILE)).toBe(false);
+    expect(showsReading(ZH_TW_PROFILE)).toBe(true);
   });
 
   it("**別の言語の読みを混ぜない**(英語のカードに注音が出ない)", () => {
