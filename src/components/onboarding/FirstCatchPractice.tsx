@@ -1,5 +1,5 @@
 import { StickerSheet } from "../StickerSheet";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useT } from "@/lib/i18n";
 import { useTargetLang } from "@/lib/target-lang-pref";
 import { firstCatchSticker, type FirstCatch } from "@/lib/first-catch";
@@ -86,10 +86,17 @@ export function FirstCatchDex({ draft, onOpen }: { draft: FirstCatch; onOpen: ()
 
 export function practiceCard(
   sticker: NonNullable<ReturnType<typeof firstCatchSticker>>,
-  alternatives: string[],
+  pool: ReadonlyArray<NonNullable<ReturnType<typeof firstCatchSticker>>>,
 ): DueReviewCard {
   const w = sticker.word;
-  const choices = [...new Set([w.headword, ...alternatives])].slice(0, 4);
+  const choices = [...new Set([w.headword, ...pool.map((p) => p.word.headword)])].slice(0, 4);
+  // 選択肢の**全部**に読みを付ける（本物の4択と同じ。正解だけに付けると答えが透ける）。
+  const readingOf = new Map(
+    [...pool, sticker].map((p) => [
+      p.word.headword,
+      { zhuyin: p.word.reading_zhuyin || null, pinyin: p.word.pinyin || null },
+    ]),
+  );
   // Stable ordering; never substitutes a sample for the learner's photographed word.
   choices.push(choices.shift()!);
   return {
@@ -128,8 +135,8 @@ export function practiceCard(
     headword_choices: choices,
     headword_choice_infos: choices.map((headword) => ({
       headword,
-      zhuyin: headword === w.headword ? w.reading_zhuyin : null,
-      pinyin: headword === w.headword ? w.pinyin : null,
+      zhuyin: readingOf.get(headword)?.zhuyin ?? null,
+      pinyin: readingOf.get(headword)?.pinyin ?? null,
     })),
   };
 }
@@ -146,18 +153,24 @@ export function FirstCatchReview({
   const [expanded, setExpanded] = useState(false);
   const [memoryWord, setMemoryWord] = useState<MemoryWord | null>(null);
   const [introduced, setIntroduced] = useState(false);
+  /**
+   * 説明を読んだ後も、**押す所（選択肢 → 答えの「次へ」）を青い光で囲う**
+   * （オーナー指示 2026-09-30「次に進むためにどこタップすればいいか一目瞭然となるように」）。
+   * 答えの面は画面の一番上へ出す部品（`document.body`）なので、印は `html` に付ける。
+   */
+  useEffect(() => {
+    if (!introduced) return;
+    const root = document.documentElement;
+    root.dataset.firstGuide = "review";
+    return () => {
+      delete root.dataset.firstGuide;
+    };
+  }, [introduced]);
   const samples = sampleStickers(draft, t, lang);
   const own = firstCatchSticker(draft);
   const sample = samples.find((s) => s.word.headword !== own?.word.headword) ?? samples[0];
   const cards = [own ?? samples[0], sample];
-  const memoryWords = cards.map((card) =>
-    memWordOf(
-      practiceCard(
-        card,
-        samples.map((s) => s.word.headword),
-      ),
-    ),
-  );
+  const memoryWords = cards.map((card) => memWordOf(practiceCard(card, samples)));
   return (
     <FirstCatchShell tab={3} fixedViewport={!expanded}>
       <ReviewSessionHeader
@@ -177,10 +190,7 @@ export function FirstCatchReview({
       />
       <ReviewQuestion
         key={index}
-        card={practiceCard(
-          cards[index],
-          samples.map((s) => s.word.headword),
-        )}
+        card={practiceCard(cards[index], samples)}
         practice
         format="choice"
         onNext={() => {

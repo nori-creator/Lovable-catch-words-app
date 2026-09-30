@@ -8,6 +8,7 @@ import {
 } from "./first-catch-ai-schema";
 import { personalizationRule } from "./learning-preferences";
 import { targetProfile } from "./target-profile";
+import { coerceTargetHeadword, isTargetHeadword } from "./target-language";
 import { CATEGORY_KEYS } from "./category";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
@@ -78,7 +79,23 @@ export async function generateFirstCatchAI(raw: unknown) {
   let card;
   try {
     parsed = parseJsonFromAiText(result.text);
-    if (data.action === "suggest") return FirstCatchSuggestionsSchema.parse(parsed);
+    if (data.action === "suggest") {
+      /**
+       * **見出しは学習言語の語だけ**（βテスト 2026-09-30「学習言語を英語にすると単語が日本語の
+       * 見出しになる」）。本物の撮影（`suggestWords`）と同じ関門を通す: 付け足しの注釈は
+       * 一度だけ直し（`coerceTargetHeadword`）、それでも学習言語でない候補は捨てる。
+       * 全部捨てたら0件 → 画面が「近づいて撮り直す」と言う。
+       */
+      const raw = FirstCatchSuggestionsSchema.parse(parsed);
+      return {
+        suggestions: raw.suggestions
+          .map((c) => ({
+            ...c,
+            headword: coerceTargetHeadword(c.headword, data.targetLanguage) ?? "",
+          }))
+          .filter((c) => c.headword && isTargetHeadword(c.headword, data.targetLanguage)),
+      };
+    }
     if (data.action === "lesson") return PersonalLessonSchema.parse(parsed);
     card = CardSchema.parse(parsed);
   } catch (e) {
@@ -89,6 +106,12 @@ export async function generateFirstCatchAI(raw: unknown) {
     );
     throw new Error("FIRST_CATCH_AI_FORMAT");
   }
-  if (!card.headword_zh.trim()) throw new Error("FIRST_CATCH_AI_UNAVAILABLE");
+  // カードの見出しも学習言語に揃える。返事が別の言語なら、選ばれた語（候補は上で学習言語に
+  // 揃えてある）を使う。どちらも学習言語でなければ、形の崩れとして扱う。
+  const head =
+    coerceTargetHeadword(card.headword_zh, data.targetLanguage) ??
+    coerceTargetHeadword(data.headword, data.targetLanguage);
+  if (!head) throw new Error("FIRST_CATCH_AI_FORMAT");
+  card.headword_zh = head;
   return { ...card, level: "", extras: { ...card.extras, explain_lang: data.uiLanguage } };
 }

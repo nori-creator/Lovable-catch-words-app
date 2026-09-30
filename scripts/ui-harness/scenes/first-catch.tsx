@@ -152,6 +152,7 @@ export function FirstCatchScene({ q }: { q: URLSearchParams }) {
       ) : (
         <FirstCatchFlow
           initialDraft={draft}
+          initialSettingsOpen={q.get("settings") === "1"}
           services={services}
           persist={async (next) => {
             if (q.get("fail") === "storage" && next.stage === "added")

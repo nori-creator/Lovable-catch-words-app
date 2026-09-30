@@ -2311,6 +2311,7 @@ export function LightModeCard({
          * 伸びすぎることはない。
          */}
         <ul
+          data-tour="review-choices"
           className="grid min-h-0 gap-1.5 overflow-y-auto overscroll-contain"
           style={{ gridTemplateRows: `repeat(${infos.length}, minmax(3rem, 4.25rem))` }}
         >
@@ -2540,6 +2541,7 @@ export function LightModeCard({
                     // 第1引数に渡り、`correct` として truthy に見えるので、
                     // 不正解も正解として数えられてしまう。
                     onClick={() => onNext(correct)}
+                    data-tour="review-next"
                     className="min-h-11 flex-1 rounded-xl bg-primary py-3 text-body font-semibold text-primary-foreground active:scale-[0.98] motion-reduce:active:scale-100"
                   >
                     {t("review.next")}

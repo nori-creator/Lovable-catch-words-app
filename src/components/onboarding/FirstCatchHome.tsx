@@ -1,5 +1,5 @@
 import { AppShellFrame } from "../AppShell";
-import { useOpenTutorialMenu } from "./TutorialMenu";
+import { useOpenTutorialSettings } from "./TutorialSettings";
 import { AppNavigation } from "../AppNavigation";
 import type { ReactNode } from "react";
 import { HomeSurface } from "@/routes/_authenticated/home";
@@ -19,6 +19,7 @@ export function sampleStickers(
       id: "00000000-0000-4000-8000-000000000001",
       photo: "/first-catch-cafe.webp",
       word: selected === "en" ? "coffee" : "咖啡",
+      reading: selected === "en" ? ["/ˈkɔːfi/", ""] : ["ㄎㄚ ㄈㄟ", "kāfēi"],
       meaning: t("first.sampleCoffee"),
       category: "drink",
     },
@@ -26,6 +27,7 @@ export function sampleStickers(
       id: "00000000-0000-4000-8000-000000000002",
       photo: "/first-catch-flower.webp",
       word: selected === "en" ? "flower" : "花",
+      reading: selected === "en" ? ["/ˈflaʊər/", ""] : ["ㄏㄨㄚ", "huā"],
       meaning: t("first.sampleFlower"),
       category: "plant",
     },
@@ -33,6 +35,7 @@ export function sampleStickers(
       id: "00000000-0000-4000-8000-000000000003",
       photo: "/first-catch-cat.webp",
       word: selected === "en" ? "cat" : "貓",
+      reading: selected === "en" ? ["/kæt/", ""] : ["ㄇㄠ", "māo"],
       meaning: t("first.sampleCat"),
       category: "animal",
     },
@@ -40,10 +43,12 @@ export function sampleStickers(
       id: "00000000-0000-4000-8000-000000000004",
       photo: "/first-catch-ready.webp",
       word: selected === "en" ? "sea" : "海",
+      reading: selected === "en" ? ["/siː/", ""] : ["ㄏㄞˇ", "hǎi"],
       meaning: t("first.sampleSea"),
       category: "nature",
     },
-  ].map(({ id, photo, word, meaning, category }, i) => ({
+    // 見本にも読みを持たせる（βテスト 2026-09-30「4択の一つだけしか注音が出てない」）。
+  ].map(({ id, photo, word, reading, meaning, category }, i) => ({
     ...firstCatchSticker({
       version: 1,
       id,
@@ -56,6 +61,8 @@ export function sampleStickers(
       card: CardSchema.parse({
         headword_zh: word,
         meaning_ja: meaning,
+        reading_zhuyin: reading[0],
+        pinyin: reading[1],
         category_key: category,
         level: "",
       }),
@@ -81,7 +88,7 @@ export function FirstCatchShell({
   onTab?: (index: number) => void;
 }) {
   // 「設定」のタブはチュートリアル用の設定（言語・最初に戻る）を開く。
-  const openMenu = useOpenTutorialMenu();
+  const openMenu = useOpenTutorialSettings();
   return (
     <AppShellFrame
       bare={camera}

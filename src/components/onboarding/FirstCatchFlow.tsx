@@ -45,7 +45,7 @@ import { DexSurface, JUST_CAUGHT_VIEW } from "@/routes/_authenticated/dex";
 import { StickerSheet } from "@/components/StickerSheet";
 import { FirstCatchHome, FirstCatchShell } from "./FirstCatchHome";
 import { Spotlight } from "./Spotlight";
-import { TutorialMenu, TutorialMenuContext } from "./TutorialMenu";
+import { TutorialSettings, TutorialSettingsContext } from "./TutorialSettings";
 import "./first-catch.css";
 
 type Suggestion = Awaited<ReturnType<typeof suggestWords>>["suggestions"][number];
@@ -99,7 +99,10 @@ export function FirstCatchFlow({
   onAccount,
   initialDraft,
   persist = writeFirstCatch,
+  initialSettingsOpen = false,
 }: {
+  /** 見本（UI ハーネス）で設定画面を開いた状態から見せるため。 */
+  initialSettingsOpen?: boolean;
   services: FirstCatchServices;
   onAccount: () => void;
   initialDraft?: FirstCatch;
@@ -126,7 +129,7 @@ export function FirstCatchFlow({
    */
   const [cameraUnavailable, setCameraUnavailable] = useState(false);
   /** チュートリアル用の設定（言語・最初に戻る）。下のタブの「設定」から開く。 */
-  const [menuOpen, setMenuOpen] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(initialSettingsOpen);
   const openMenu = useRef(() => setMenuOpen(true)).current;
   const hero = useRef<HTMLDivElement>(null);
   const fly = useRef<HTMLImageElement>(null);
@@ -366,10 +369,11 @@ export function FirstCatchFlow({
     setError(null);
     setSuggestions([]);
   }
-  function changeLanguage(next: Pick<FirstCatch, "uiLanguage" | "targetLanguage">) {
+  /** チュートリアル中の設定で変えた値を下書きへ（言語は画面にもすぐ効かせる）。 */
+  function changeSettings(next: FirstCatch) {
     const current = draftRef.current;
     if (!current) return;
-    let updated: FirstCatch = { ...current, ...next };
+    let updated: FirstCatch = { ...current, ...next, stage: current.stage };
     // 学ぶ言語を変えたら、前の言語で作った写真の語は使えない。ホームからやり直す。
     if (next.targetLanguage !== current.targetLanguage && (current.photo || current.card)) {
       abandonRun();
@@ -409,29 +413,35 @@ export function FirstCatchFlow({
     setDraft(next);
     void persist(next).catch(() => setError(t("first.storage")));
   }
-  const menu =
-    draft.stage !== "intro" && draft.stage !== "account" && !landing ? (
-      <TutorialMenu
-        draft={draft}
-        open={menuOpen}
-        onOpenChange={setMenuOpen}
-        showButton={
-          ["questions", "notifications", "ready"].includes(draft.stage)
-            ? "right"
-            : // 単語の詳細はシートが下のタブを覆うので、左上（右上は閉じる）に出す。
-              draft.stage === "explore"
-              ? "left"
-              : false
-        }
-        onChangeLanguage={changeLanguage}
-        onRestart={restart}
-      />
-    ) : null;
+  const settingsOpen = menuOpen && draft.stage !== "intro" && draft.stage !== "account";
+  /**
+   * 下のタブの「設定」を押すと、その段の画面の代わりに**設定画面**を出す
+   * （オーナー指示 2026-09-30「チュートリアルでも設定が触れて変更できるように」）。
+   * 「チュートリアルに戻る」で元の段へ戻る（段は下書きに残っているので続きから）。
+   */
   const withMenu = (node: React.ReactNode) => (
-    <TutorialMenuContext.Provider value={openMenu}>
-      {node}
-      {menu}
-    </TutorialMenuContext.Provider>
+    <TutorialSettingsContext.Provider value={openMenu}>
+      {settingsOpen ? (
+        <FirstCatchShell tab={4} onTab={(index) => index !== 4 && setMenuOpen(false)}>
+          <TutorialSettings
+            draft={draft}
+            onChange={changeSettings}
+            onClose={() => setMenuOpen(false)}
+            onRedoQuestions={() => {
+              abandonRun();
+              setMenuOpen(false);
+              void action(() => commit({ ...draft, stage: "questions", questionIndex: 0 }));
+            }}
+            onRestart={restart}
+            onSignIn={() => {
+              window.location.assign("/auth");
+            }}
+          />
+        </FirstCatchShell>
+      ) : (
+        node
+      )}
+    </TutorialSettingsContext.Provider>
   );
   if (draft.stage === "intro")
     return <FirstCatchIntro draft={draft} busy={!!busy} onStart={() => move("questions")} />;
