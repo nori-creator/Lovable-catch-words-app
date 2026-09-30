@@ -19,9 +19,10 @@ describe("normalizeReviewMode", () => {
   // `Number(null) === 0` で「中立」を既定にしてしまった件と同じ罠を
   // ここで作らない — 通ってはいけない物が通らないことを試験で押さえる。
   it.each([null, undefined, "", " ", "Hybrid", "HYBRID", 0, 1, true, false, {}, []])(
-    "%p は既定の speaking に落ちる",
+    // 既定は4択（オーナー指示 2026-09-30「話すモードは消して、四択だけにして」）。
+    "%p は既定の choice に落ちる",
     (bad) => {
-      expect(normalizeReviewMode(bad)).toBe("speaking");
+      expect(normalizeReviewMode(bad)).toBe("choice");
     },
   );
 });
@@ -125,9 +126,9 @@ describe("reviewFormatFor", () => {
     ).toBe("choice");
   });
 
-  it("保存されている値が壊れていても、これまでの見た目(作文発話)に落ちる", () => {
-    expect(reviewFormatFor({ pref: null, ...fresh })).toBe("compose");
-    expect(reviewFormatFor({ pref: "hybird", ...fresh })).toBe("compose");
+  it("保存されている値が壊れていても、既定の4択に落ちる", () => {
+    expect(reviewFormatFor({ pref: null, ...fresh })).toBe("choice");
+    expect(reviewFormatFor({ pref: "hybird", ...fresh })).toBe("choice");
   });
 
   /**

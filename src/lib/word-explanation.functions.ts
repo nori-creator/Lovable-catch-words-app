@@ -237,3 +237,121 @@ export const getReaderMeanings = createServerFn({ method: "POST" })
     for (const [id, r] of best) out[id] = String(r.meaning);
     return out;
   });
+
+/**
+ * 生成済みの型定義に無い表を、読み書きの両方で触るための緩い形。
+ * 使う所（1行を引く・1行を書き換える）だけを書く。
+ */
+type LooseRowDb = {
+  from: (t: string) => {
+    select: (c: string) => {
+      eq: (
+        k: string,
+        v: string,
+      ) => {
+        eq: (
+          k: string,
+          v: string,
+        ) => {
+          eq: (
+            k: string,
+            v: string,
+          ) => { maybeSingle: () => Promise<{ data: unknown; error: unknown }> };
+        };
+      };
+    };
+    update: (row: unknown) => {
+      eq: (
+        k: string,
+        v: string,
+      ) => {
+        eq: (k: string, v: string) => { eq: (k: string, v: string) => Promise<{ error: unknown }> };
+      };
+    };
+  };
+};
+
+/**
+ * その人向けの解説の行を1つ引く（無ければ・表が無ければ null）。
+ *
+ * **裏で項目を埋める処理（`runSectionRegen`）が、画面と同じ行を見るため。**
+ * 画面は `word_explanations` の行があればそちらの解説を出す。埋める側が
+ * 共有の `words.extras` だけを見て書いていたので、行のある語では
+ * **作っても作っても画面に出ない**項目が残っていた（βテスト 2026-09-30
+ * 「例文以下のチャンクなどが表示されない」）。
+ */
+export async function readReaderExplanation(
+  admin: unknown,
+  wordId: string,
+  key: { explainLang: string; l1: string },
+): Promise<{
+  meaning: string;
+  example_translation: string | null;
+  extras: ReturnType<typeof normalizeExtras>;
+  source: string;
+} | null> {
+  try {
+    const { data, error } = await (admin as LooseRowDb)
+      .from("word_explanations")
+      .select("meaning, example_translation, extras, source")
+      .eq("word_id", wordId)
+      .eq("explain_lang", key.explainLang)
+      .eq("l1", key.l1)
+      .maybeSingle();
+    if (error || !data) return null;
+    const r = data as Record<string, unknown>;
+    return {
+      meaning: String(r.meaning ?? ""),
+      example_translation: (r.example_translation as string | null) ?? null,
+      extras: normalizeExtras(r.extras),
+      source: String(r.source ?? "ai"),
+    };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * その人向けの解説の行に、**1項目ぶんだけ**重ねて書く。
+ *
+ * 書く直前に読み直してから重ねる（同時に何項目も作るので、最初に読んだ
+ * 物に重ねると先に書かれた項目を消す — `runSectionRegen` と同じ理由）。
+ * 人が確かめた行（`verified`）は触らない。
+ */
+export async function mergeIntoReaderExplanation(
+  admin: unknown,
+  wordId: string,
+  key: { explainLang: string; l1: string },
+  patch: {
+    extras: Record<string, unknown>;
+    meaning?: string | null;
+    example_translation?: string | null;
+  },
+): Promise<boolean> {
+  const current = await readReaderExplanation(admin, wordId, key);
+  if (!current || current.source === "verified") return false;
+  const { mergeExtras } = await import("./extras");
+  const row: Record<string, unknown> = {
+    extras: mergeExtras(current.extras, patch.extras as never),
+    updated_at: new Date().toISOString(),
+  };
+  if ((patch.meaning ?? "").trim()) row.meaning = patch.meaning;
+  const tr = readerText(patch.example_translation ?? null, key.explainLang);
+  if (tr) row.example_translation = tr;
+  try {
+    const { error } = await (admin as LooseRowDb)
+      .from("word_explanations")
+      .update(row)
+      .eq("word_id", wordId)
+      .eq("explain_lang", key.explainLang)
+      .eq("l1", key.l1);
+    if (error) {
+      console.warn("mergeIntoReaderExplanation failed", error);
+      return false;
+    }
+    return true;
+  } catch (e) {
+    console.warn("mergeIntoReaderExplanation threw", e);
+    return false;
+  }
+}

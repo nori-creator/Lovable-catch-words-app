@@ -1117,7 +1117,11 @@ export const updateWordExtras = createServerFn({ method: "POST" })
      * 速さのための付け足しで、無くても動く(移行待ちの環境がまさにそれ)。
      */
     const ex = (data.extras ?? {}) as Record<string, unknown>;
-    void import("./word-explanation.functions").then(({ saveWordExplanation }) =>
+    // **待ってから返す**（βテスト 2026-09-30「単語の項目を表示するのが遅い」）。
+    // 待たずに返すと、画面が解説を読み直した時点でまだ書けておらず、
+    // 次に開くまで（最大30分の読み置き）古い解説が出続けていた。
+    // 失敗しても投げない関数なので、カードの保存は巻き込まない。
+    await import("./word-explanation.functions").then(({ saveWordExplanation }) =>
       saveWordExplanation(supabaseAdmin as never, {
         word_id: data.word_id,
         explain_lang: String(ex.explain_lang ?? ""),

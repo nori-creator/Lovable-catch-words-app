@@ -1,4 +1,5 @@
 import { AppShellFrame } from "../AppShell";
+import { useOpenTutorialMenu } from "./TutorialMenu";
 import { AppNavigation } from "../AppNavigation";
 import type { ReactNode } from "react";
 import { HomeSurface } from "@/routes/_authenticated/home";
@@ -79,6 +80,8 @@ export function FirstCatchShell({
   fixedViewport?: boolean;
   onTab?: (index: number) => void;
 }) {
+  // 「設定」のタブはチュートリアル用の設定（言語・最初に戻る）を開く。
+  const openMenu = useOpenTutorialMenu();
   return (
     <AppShellFrame
       bare={camera}
@@ -86,13 +89,21 @@ export function FirstCatchShell({
       headerless={tab === 3}
       fixedViewport={fixedViewport}
       navigation={
-        <div inert={!onTab}>
+        <div inert={!onTab && !openMenu}>
           <AppNavigation
             cursor={tab}
             onCamera={camera}
             indicatorOpacity={camera ? 0 : 1}
-            renderLink={(_item, index, props) => (
-              <button type="button" {...props} onClick={() => onTab?.(index)} />
+            renderLink={(item, index, props) => (
+              <button
+                type="button"
+                {...props}
+                data-tour-escape={item.to === "/settings" && openMenu ? "" : undefined}
+                onClick={() => {
+                  if (item.to === "/settings" && openMenu) openMenu();
+                  else onTab?.(index);
+                }}
+              />
             )}
           />
         </div>
@@ -124,7 +135,7 @@ export function FirstCatchHome({
   const samples = sampleStickers(draft, t, target);
   const items = sticker ? [sticker] : samples;
   return (
-    <FirstCatchShell onTab={onCamera ? () => onCamera() : undefined}>
+    <FirstCatchShell onTab={onCamera ? (index) => index === 2 && onCamera() : undefined}>
       <section data-tour="home">
         <div inert={!sticker}>
           <HomeSurface

@@ -73,6 +73,8 @@ export function FirstCatchDex({ draft, onOpen }: { draft: FirstCatch; onOpen: ()
           text={t(!browsed ? "first.dexSwipe" : !changed ? "first.dexTypes" : "first.dexOpen")}
           interactive
           allowSelector={!browsed ? ".dex-cf__stage, .dex-cf__stage *" : undefined}
+          // 押す所: 写真を横に払う → 表示の切替 → 「ことばを開く」（札の釦が光る）。
+          tap={!browsed ? ".dex-cf__stage" : !changed ? '[data-tour="dex-views"]' : undefined}
           step="3 / 5"
           nextLabel={t("first.openWord")}
           onNext={browsed && changed ? onOpen : undefined}

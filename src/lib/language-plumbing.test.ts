@@ -5023,12 +5023,16 @@ describe("ホームは今日の誌面", () => {
     );
     // 2026-09-24「過去のものが多すぎで画面で確認できないから、過去のものは全て
     // 削除して」: 帯には**今回の依頼の面だけ**。
-    // 2026-09-30 の回（R26/R27）: 日記の左ページ（ホームと同じ置き方・操作）・カメラ・マップ・
-    // アカウント削除。先頭は**いちばん大きく変えた面**（日記の左ページ）。
-    expect(list.slice(0, list.indexOf("},"))).toMatch(/scene: "home-shelf"/);
-    expect(list).toMatch(/scene: "capture-object"/);
-    expect(list).toMatch(/scene: "dex-map"/);
-    expect(list).not.toMatch(/scene: "first-catch/);
+    // 2026-09-30 βテスト（父・母の報告）の回: チュートリアルのカメラ・設定タブ・戻る・青い光の枠。
+    // 先頭は**いちばん困っていた面**（チュートリアルのカメラが使えない時の直し方）。
+    expect(list.slice(0, list.indexOf("},"))).toMatch(
+      /scene: "first-catch&step=camera&cam=denied"/,
+    );
+    expect(list).toMatch(/scene: "first-catch&step=camera&cam=line"/);
+    expect(list).toMatch(/scene: "first-catch&step=dex"/);
+    // 前の回（R26/R27）の面は残さない。
+    expect(list).not.toMatch(/scene: "home-shelf"/);
+    expect(list).not.toMatch(/scene: "dex-map"/);
     expect(list).not.toMatch(/scene: "dex-cards&swap=1&n=12"/);
     expect(list).not.toMatch(/scene: "review-choice"/);
     expect(list).not.toMatch(/scene: "candidate-picker"/);

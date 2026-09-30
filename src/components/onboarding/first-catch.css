@@ -1474,3 +1474,162 @@ html[data-motion="reduce"] .first-run *::after {
   color: var(--foreground);
   background: var(--background);
 }
+
+/* チュートリアルのどこからでも開けるメニュー（言語・最初に戻る）。
+   案内の覆い（z-index 150）より上に置く。 */
+.tutorial-menu {
+  position: fixed;
+  top: calc(env(safe-area-inset-top, 0px) + 8px);
+  right: 12px;
+  z-index: 170;
+  display: grid;
+  justify-items: end;
+  gap: 8px;
+}
+.tutorial-menu__button {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: color-mix(in oklab, var(--card) 88%, transparent);
+  color: var(--foreground);
+  box-shadow: 0 4px 14px rgb(0 0 0 / 0.12);
+  backdrop-filter: blur(10px);
+}
+.tutorial-menu__panel {
+  width: min(300px, calc(100vw - 24px));
+  padding: 14px;
+  border-radius: 20px;
+  border: 1px solid var(--border);
+  background: var(--card);
+  color: var(--foreground);
+  box-shadow: 0 12px 32px rgb(0 0 0 / 0.18);
+  display: grid;
+  gap: 8px;
+}
+.tutorial-menu__label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--muted-foreground);
+}
+.tutorial-menu__label small {
+  font-weight: 400;
+}
+.tutorial-menu__choices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.tutorial-menu__choices button {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 40px;
+  padding: 0 12px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--background);
+  font-size: 14px;
+  font-weight: 600;
+}
+.tutorial-menu__choices button[aria-pressed="true"] {
+  border-color: var(--primary);
+  background: var(--primary);
+  color: var(--primary-foreground);
+}
+.tutorial-menu__restart {
+  margin-top: 4px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 44px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--primary-ink, var(--primary));
+}
+.tutorial-menu[data-anchor="bottom"] {
+  top: auto;
+  bottom: calc(env(safe-area-inset-bottom, 0px) + 100px);
+}
+.tutorial-menu__panel {
+  position: relative;
+}
+.tutorial-menu__close {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 999px;
+  color: var(--muted-foreground);
+}
+/* 質問の画面は右上に「1 / 7」があるので、メニューの分だけ空ける。 */
+.first-question-nav {
+  padding-right: 48px;
+}
+.tutorial-menu[data-side="left"] {
+  right: auto;
+  left: 12px;
+  justify-items: start;
+}
+
+/* **次に押す所は、広がる青い光で囲う**（オーナー指示 2026-09-30「次に進むためにどこタップすれば
+   いいか一目瞭然となるように、青い光の枠で必ずその部分を同様の広がるアニメーションで囲って」）。
+   照らす枠と同じ色・同じ光で、外へ広がりながら消える輪を繰り返す。 */
+@keyframes tour-tap-pulse {
+  0% {
+    box-shadow:
+      0 0 0 0 color-mix(in oklab, var(--primary) 55%, transparent),
+      0 0 18px color-mix(in oklab, var(--primary) 50%, transparent);
+  }
+  70% {
+    box-shadow:
+      0 0 0 12px color-mix(in oklab, var(--primary) 0%, transparent),
+      0 0 18px color-mix(in oklab, var(--primary) 50%, transparent);
+  }
+  100% {
+    box-shadow:
+      0 0 0 0 color-mix(in oklab, var(--primary) 0%, transparent),
+      0 0 18px color-mix(in oklab, var(--primary) 50%, transparent);
+  }
+}
+.tour-tap {
+  position: absolute;
+  pointer-events: none;
+  border: 2px solid var(--primary);
+  animation:
+    tour-tap-in 0.5s cubic-bezier(0.22, 1, 0.36, 1) both,
+    tour-tap-pulse 1.6s ease-out 0.5s infinite;
+}
+@keyframes tour-tap-in {
+  from {
+    opacity: 0;
+    scale: 1.25;
+  }
+}
+.tour-pulse {
+  outline: 2px solid var(--primary);
+  outline-offset: 3px;
+  animation: tour-tap-pulse 1.6s ease-out infinite;
+}
+/* 照らした範囲そのものが押す所の時は、枠が光り続ける（暗幕の影は保ったまま）。 */
+.tour-ring--tap::after {
+  content: "";
+  position: absolute;
+  inset: -2px;
+  border-radius: inherit;
+  animation: tour-tap-pulse 1.6s ease-out infinite;
+  pointer-events: none;
+}
+html[data-motion="reduce"] .tour-tap,
+html[data-motion="reduce"] .tour-pulse,
+html[data-motion="reduce"] .tour-ring--tap::after {
+  animation: none !important;
+}

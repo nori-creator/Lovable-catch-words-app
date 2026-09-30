@@ -1181,7 +1181,7 @@ export function DexHeader({
             4px のままだと隣の当たり判定と 2px ずつ重なり、端を押したときに
             隣のボタンが反応する(当たり判定は後ろの兄弟が勝つ)。
             36 + 8 = 44 でちょうど隣り合い、重ならない。 */}
-        <div className="flex shrink-0 gap-2 rounded-full bg-secondary p-1">
+        <div className="flex shrink-0 gap-2 rounded-full bg-secondary p-1" data-tour="dex-views">
           {[
             ...(DEX_SHELF_ENABLED ? [["shelf", Library, t("dex.shelf")] as const] : []),
             // **並びは 箱 → カード → 地図 → 段**（オーナー指示 2026-09-23「図鑑の

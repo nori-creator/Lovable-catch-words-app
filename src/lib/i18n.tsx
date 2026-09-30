@@ -322,6 +322,15 @@ export const DICT: Record<string, Record<UiLang, string>> = {
   "first.start": { ja: "体験をはじめる", en: "Try your first Catch", "zh-TW": "開始體驗" },
   "first.next": { ja: "次へ", en: "Next", "zh-TW": "下一步" },
   "first.back": { ja: "戻る", en: "Back", "zh-TW": "返回" },
+  "first.menu": { ja: "言語とやり直し", en: "Language and restart", "zh-TW": "語言與重新開始" },
+  "first.menuClose": { ja: "閉じる", en: "Close", "zh-TW": "關閉" },
+  "first.menuDisplay": { ja: "表示言語", en: "Display language", "zh-TW": "介面語言" },
+  "first.menuTarget": { ja: "学ぶ言語", en: "Language to learn", "zh-TW": "要學的語言" },
+  "first.backToWelcome": {
+    ja: "最初の画面に戻る",
+    en: "Back to the welcome screen",
+    "zh-TW": "回到最初的畫面",
+  },
   "first.sampleSea": { ja: "海", en: "sea", "zh-TW": "海" },
   "first.dexSwipe": {
     ja: "写真を横にスライド。見つけた場面から、ことばを思い出せます。",
@@ -429,6 +438,16 @@ export const DICT: Record<string, Record<UiLang, string>> = {
     ja: "この端末に保存できませんでした。空き容量やブラウザの保存設定を確認してください。",
     en: "Could not save on this device. Check free space and browser storage settings.",
     "zh-TW": "無法儲存在這個裝置上，請確認剩餘空間與瀏覽器儲存設定。",
+  },
+  "first.noWords": {
+    ja: "写真から言葉を見つけられませんでした。明るい所で、撮りたい物に近づいて撮り直してください。",
+    en: "No words were found in this photo. Move closer to the object in good light and retake it.",
+    "zh-TW": "無法從照片中找到單字。請在明亮的地方靠近想拍的東西，再拍一次。",
+  },
+  "first.aiFormat": {
+    ja: "AIの返事を読み取れませんでした。もう一度試してください。写真は残っています。",
+    en: "Could not read the AI's reply. Please try again; your photo is kept.",
+    "zh-TW": "無法讀取 AI 的回覆。請再試一次，照片仍保留著。",
   },
   "first.retry": { ja: "もう一度試す", en: "Try again", "zh-TW": "再試一次" },
   "first.retake": { ja: "撮り直す", en: "Retake photo", "zh-TW": "重新拍照" },
@@ -2358,6 +2377,124 @@ export const DICT: Record<string, Record<UiLang, string>> = {
     "zh-TW": "把發現的東西放進框內",
   },
   "capture.tapToShoot": { ja: "タップして撮影", en: "Tap to shoot", "zh-TW": "點一下拍照" },
+  "camhelp.title.inapp": {
+    ja: "このままではカメラを使えません",
+    en: "The camera can't be used here",
+    "zh-TW": "這裡無法使用相機",
+  },
+  "camhelp.body.inapp": {
+    ja: "LINEなどのアプリの中でページを開いています。SafariやChromeで開き直すと、この画面でカメラが使えます。",
+    en: "This page is open inside another app (such as LINE). Open it in Safari or Chrome to use the camera on this screen.",
+    "zh-TW":
+      "目前是在 LINE 等 App 裡開啟的頁面。改用 Safari 或 Chrome 開啟，就能在這個畫面使用相機。",
+  },
+  "camhelp.title.denied": {
+    ja: "カメラの使用が許可されていません",
+    en: "Camera access is not allowed",
+    "zh-TW": "尚未允許使用相機",
+  },
+  "camhelp.body.denied": {
+    ja: "写真を撮るには、このページにカメラの使用を許可してください。",
+    en: "To take a photo, allow this page to use the camera.",
+    "zh-TW": "要拍照，請允許這個網頁使用相機。",
+  },
+  "camhelp.title.unavailable": {
+    ja: "カメラを起動できませんでした",
+    en: "Couldn't start the camera",
+    "zh-TW": "無法啟動相機",
+  },
+  "camhelp.body.unavailable": {
+    ja: "ほかのアプリがカメラを使っていたら閉じてから、もう一度試してください。",
+    en: "If another app is using the camera, close it and try again.",
+    "zh-TW": "如果有其他 App 正在使用相機，請先關閉再試一次。",
+  },
+  "camhelp.title.unsupported": {
+    ja: "このブラウザではカメラを使えません",
+    en: "This browser can't use the camera",
+    "zh-TW": "這個瀏覽器無法使用相機",
+  },
+  "camhelp.body.unsupported": {
+    ja: "SafariかChromeの最新版で、このページを開いてください。",
+    en: "Open this page in the latest Safari or Chrome.",
+    "zh-TW": "請用最新版的 Safari 或 Chrome 開啟這個頁面。",
+  },
+  "camhelp.ios1": {
+    ja: "ホーム画面の「設定」アプリを開き、「アプリ」→「Safari」を選ぶ（iOS 17以前は「設定」→「Safari」）",
+    en: "Open the Settings app, then tap Apps → Safari (on iOS 17 or earlier: Settings → Safari)",
+    "zh-TW": "打開「設定」App，點「App」→「Safari」（iOS 17 以前為「設定」→「Safari」）",
+  },
+  "camhelp.ios2": {
+    ja: "下の方の「カメラ」を「許可」（または「確認」）にして、このページに戻る",
+    en: "Set “Camera” to “Allow” (or “Ask”), then come back to this page",
+    "zh-TW": "把下方的「相機」改成「允許」（或「詢問」），再回到這個頁面",
+  },
+  "camhelp.iosChrome1": {
+    ja: "iPhoneの「設定」→「アプリ」→「Chrome」を開く",
+    en: "Open iPhone Settings → Apps → Chrome",
+    "zh-TW": "打開 iPhone「設定」→「App」→「Chrome」",
+  },
+  "camhelp.iosChrome2": {
+    ja: "「カメラ」をオンにして、この画面に戻る",
+    en: "Turn on “Camera” and come back to this screen",
+    "zh-TW": "開啟「相機」後回到這個畫面",
+  },
+  "camhelp.android1": {
+    ja: "アドレス欄の左端のマーク（鍵や、つまみの形のアイコン）を押す",
+    en: "Tap the icon at the left end of the address bar (a lock or slider icon)",
+    "zh-TW": "點網址列最左邊的圖示（鎖頭或調整鈕的圖示）",
+  },
+  "camhelp.android2": {
+    ja: "「権限」（または「サイトの設定」）→「カメラ」を「許可」にして、このページに戻る",
+    en: "Open “Permissions” (or “Site settings”) → “Camera”, choose “Allow”, then come back to this page",
+    "zh-TW": "點「權限」（或「網站設定」）→「相機」改成「允許」，再回到這個頁面",
+  },
+  "camhelp.android3": {
+    ja: "出てこないときは、スマホの「設定」→「アプリ」→「{browser}」→「権限」→「カメラ」を「許可」にする",
+    en: "If it isn't there, open phone Settings → Apps → {browser} → Permissions → Camera and choose “Allow”",
+    "zh-TW":
+      "如果找不到，請到手機「設定」→「應用程式」→「{browser}」→「權限」→「相機」改成「允許」",
+  },
+  "camhelp.desktop1": {
+    ja: "アドレス欄の左のアイコンから、カメラを「許可」にする",
+    en: "Use the icon at the left of the address bar to allow the camera",
+    "zh-TW": "從網址列左邊的圖示把相機改成「允許」",
+  },
+  "camhelp.inappIos": {
+    ja: "画面の「…」や共有ボタンから「Safariで開く」（またはブラウザで開く）を選ぶ。見つからないときは下の「リンクをコピー」を押し、Safariに貼り付けて開く",
+    en: "Use the “…” or share button and choose “Open in Safari” (or open in browser). If you can't find it, tap “Copy link” below and paste it into Safari",
+    "zh-TW":
+      "從「…」或分享按鈕選擇「用 Safari 開啟」（或用瀏覽器開啟）。找不到時，按下方「複製連結」，再貼到 Safari 開啟",
+  },
+  "camhelp.inappOther": {
+    ja: "画面の「…」メニューから「ブラウザで開く」を選ぶ。見つからないときは下の「リンクをコピー」を押し、Chromeに貼り付けて開く",
+    en: "Use the “…” menu and choose “Open in browser”. If you can't find it, tap “Copy link” below and paste it into Chrome",
+    "zh-TW": "從「…」選單選擇「用瀏覽器開啟」。找不到時，按下方「複製連結」，再貼到 Chrome 開啟",
+  },
+  "camhelp.openBrowser": {
+    ja: "ブラウザで開き直す",
+    en: "Open in your browser",
+    "zh-TW": "用瀏覽器重新開啟",
+  },
+  "camhelp.retry": {
+    ja: "もう一度カメラを試す",
+    en: "Try the camera again",
+    "zh-TW": "再試一次相機",
+  },
+  "camhelp.allowRetry": {
+    ja: "許可したので、もう一度試す",
+    en: "I allowed it — try again",
+    "zh-TW": "已經允許，再試一次",
+  },
+  "camhelp.copyLink": {
+    ja: "リンクをコピー",
+    en: "Copy link",
+    "zh-TW": "複製連結",
+  },
+  "camhelp.copied": {
+    ja: "コピーしました。ブラウザに貼り付けて開いてください",
+    en: "Copied. Paste it into your browser",
+    "zh-TW": "已複製，請貼到瀏覽器開啟",
+  },
   // オーナー指示 2026-09-15「文字で調べれば検索と名前を変えて」。
   "capture.typeWord": { ja: "検索", en: "Search", "zh-TW": "搜尋" },
   "capture.openScan": {

@@ -61,8 +61,13 @@ export function FirstCatchQuestions({
             type="button"
             className="first-back"
             aria-label={t("first.back")}
-            disabled={step === 0 || busy}
-            onClick={() => onContinue({ ...draft, questionIndex: step - 1 })}
+            disabled={busy}
+            // 1問目の「戻る」は最初の画面（ウェルカム）へ（βテスト 2026-09-30）。
+            onClick={() =>
+              onContinue(
+                step === 0 ? { ...draft, stage: "intro" } : { ...draft, questionIndex: step - 1 },
+              )
+            }
           >
             <ArrowLeft size={22} />
           </button>
@@ -209,7 +214,7 @@ export function FirstCatchQuestions({
         {error}
         <footer className="first-footer">
           <button
-            className="first-primary"
+            className="first-primary tour-pulse"
             disabled={busy}
             onClick={() =>
               onContinue({

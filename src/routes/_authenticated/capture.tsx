@@ -86,6 +86,8 @@ import { useUiLang } from "@/lib/i18n";
 import { tStatic } from "@/lib/i18n";
 import { Sound } from "@/lib/sound-engine";
 import { haptic } from "@/lib/haptics";
+import { CameraHelp } from "@/components/CameraHelp";
+import { cameraProblemOf, inAppBrowser, type CameraProblem } from "@/lib/camera-access";
 import { useLockPageZoom } from "@/hooks/use-lock-page-zoom";
 import { Capacitor } from "@capacitor/core";
 import {
@@ -2147,6 +2149,35 @@ function readTrackZoom(track: MediaStreamTrack | null | undefined): number {
   return typeof z === "number" && Number.isFinite(z) && z > 0 ? z : 1;
 }
 
+/** 許可の後、絵が届くのを待つ上限。 */
+const CAMERA_FRAME_WAIT_MS = 5000;
+
+/**
+ * 撮った絵が**ほぼ真っ黒**か。小さく縮めて明るさの平均を見る（重さは 16×16 の1回ぶん）。
+ * 夜の暗い写真まで落とさないよう、閾値はごく低くしてある。
+ */
+function isBlankFrame(source: HTMLCanvasElement): boolean {
+  try {
+    const probe = document.createElement("canvas");
+    probe.width = probe.height = 16;
+    const ctx = probe.getContext("2d");
+    if (!ctx) return false;
+    ctx.drawImage(source, 0, 0, 16, 16);
+    const px = ctx.getImageData(0, 0, 16, 16).data;
+    let sum = 0;
+    let max = 0;
+    for (let i = 0; i < px.length; i += 4) {
+      const y = 0.299 * px[i] + 0.587 * px[i + 1] + 0.114 * px[i + 2];
+      sum += y;
+      if (y > max) max = y;
+    }
+    probe.width = probe.height = 0;
+    return sum / (px.length / 4) < 4 && max < 12;
+  } catch {
+    return false;
+  }
+}
+
 export function CaptureObjectPanel({
   selfieMode = false,
   onSkipSelfie,
@@ -2161,7 +2192,10 @@ export function CaptureObjectPanel({
   initialMode = "photo",
   onOpenScan,
   error,
+  onCameraUnavailable,
 }: {
+  /** 映像が取れないと分かったとき（チュートリアルが案内の覆いを外すのに使う）。 */
+  onCameraUnavailable?: (unavailable: boolean) => void;
   /** 復習の「もう一度撮ってみる?」から来たときの語。 */
   selfieMode?: boolean;
   onSkipSelfie?: () => void;
@@ -2190,6 +2224,55 @@ export function CaptureObjectPanel({
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const [cameraReady, setCameraReady] = useState(false);
+  /**
+   * **映像が取れない理由**（βテスト 2026-09-30、父の報告「チュートリアルのカメラが
+   * 起動しない、撮り直せと出るけど撮れない」／オーナー指示「どんなブラウザで開いても、
+   * LINEのリンクから開いても…カメラの許可をとる、必要であればスマホの設定を変えるように
+   * 誘導して。必ずアプリ内のカメラで撮影させたい」）。
+   *
+   * 前は枠が黒いまま何も言わず、シャッターは黒い絵をそのまま AI に渡していたので
+   * 「言葉が見つからない → 撮り直す → また黒い絵」で止まっていた。理由が分かったら
+   * 枠の中に**直し方**（許可のやり直し・設定の手順・ふつうのブラウザで開き直す）を出す。
+   * 端末の別のカメラアプリへは逃がさない — この画面のカメラで撮ってもらう。
+   */
+  const [cameraProblem, setCameraProblem] = useState<CameraProblem | null>(null);
+  /** 増やすと、カメラをもう一度頼む（許可を変えて戻ってきたとき・「もう一度」）。 */
+  const [cameraAttempt, setCameraAttempt] = useState(0);
+  const retryCamera = () => {
+    setCameraProblem(null);
+    setCameraAttempt((n) => n + 1);
+  };
+  const unavailableRef = useRef(onCameraUnavailable);
+  unavailableRef.current = onCameraUnavailable;
+  useEffect(() => {
+    unavailableRef.current?.(cameraProblem !== null);
+  }, [cameraProblem]);
+  /**
+   * 設定アプリで許可を変えて戻ってきたら、**押さなくても**もう一度頼む。
+   * 許可の状態が変わったと知らせてくれるブラウザでは、それでも頼み直す。
+   */
+  useEffect(() => {
+    if (!cameraProblem || cameraProblem === "unsupported") return;
+    const onVisible = () => {
+      if (document.visibilityState === "visible") retryCamera();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    let status: PermissionStatus | null = null;
+    const onChange = () => {
+      if (status?.state === "granted") retryCamera();
+    };
+    void navigator.permissions
+      ?.query({ name: "camera" as PermissionName })
+      .then((s) => {
+        status = s;
+        s.addEventListener("change", onChange);
+      })
+      .catch(() => {});
+    return () => {
+      document.removeEventListener("visibilitychange", onVisible);
+      status?.removeEventListener("change", onChange);
+    };
+  }, [cameraProblem]);
   /** 映像の縦横比。枠をこれに合わせて、映像を**切らずに全部**見せる。 */
   const [camAspect, setCamAspect] = useState(3 / 4);
   /**
@@ -2248,8 +2331,15 @@ export function CaptureObjectPanel({
   );
 
   useEffect(() => {
-    if (onNativeCapture || !navigator.mediaDevices?.getUserMedia) return;
+    if (onNativeCapture) return;
+    const app = inAppBrowser(navigator.userAgent);
+    if (!navigator.mediaDevices?.getUserMedia) {
+      setCameraProblem(app ? "inapp" : "unsupported");
+      return;
+    }
     let cancelled = false;
+    /** 許可は出たのに絵が1枚も届かない端末がある。待っても来なければ取れない扱い。 */
+    let noFrames: ReturnType<typeof setTimeout> | undefined;
     void navigator.mediaDevices
       .getUserMedia({
         video: {
@@ -2278,6 +2368,10 @@ export function CaptureObjectPanel({
         if (video.videoWidth && video.videoHeight)
           setCamAspect(video.videoWidth / video.videoHeight);
         setCameraReady(true);
+        noFrames = setTimeout(() => {
+          if (!cancelled && !videoRef.current?.videoWidth)
+            setCameraProblem(app ? "inapp" : "unavailable");
+        }, CAMERA_FRAME_WAIT_MS);
         /**
          * **倍率を持っているかは端末に聞く。**（持っていない端末に
          * 動かないつまみを置かないため。標準外の項目なので `unknown`
@@ -2295,16 +2389,21 @@ export function CaptureObjectPanel({
         setHwZoom(readTrackZoom(track));
         setFocusCap(focusSupport(track));
       })
-      .catch(() => setCameraReady(false));
+      .catch((e) => {
+        if (cancelled) return;
+        setCameraReady(false);
+        setCameraProblem(cameraProblemOf(e, app));
+      });
     return () => {
       cancelled = true;
+      clearTimeout(noFrames);
       setFocusCap(null);
       setReticle(null);
       streamRef.current?.getTracks().forEach((track) => track.stop());
       streamRef.current = null;
       zoomCapsRef.current = null;
     };
-  }, [onNativeCapture, facing]);
+  }, [onNativeCapture, facing, cameraAttempt]);
 
   /**
    * 倍率を当てる。端末が持っていれば本物のレンズへ、無ければ**見た目だけ**
@@ -2435,6 +2534,16 @@ export function CaptureObjectPanel({
           canvas.width,
           canvas.height,
         );
+        /**
+         * **真っ黒な絵は AI に渡さない。** 映像が「在る」ことになっていても、
+         * アプリ内ブラウザなどでは黒い絵しか来ないことがある。渡すと AI は
+         * 何も見つけられず、撮り直しても同じ所で止まる。端末のカメラへ切り替える。
+         */
+        if (isBlankFrame(canvas)) {
+          canvas.width = canvas.height = 0;
+          setCameraProblem(inAppBrowser(navigator.userAgent) ? "inapp" : "unavailable");
+          return;
+        }
         const full = canvas.toDataURL("image/jpeg", 0.9);
         // AI sees the visible guide first; keep the full photo for the user's album.
         const focus = video.parentElement!.querySelector(".capture-focus")?.getBoundingClientRect();
@@ -2470,7 +2579,9 @@ export function CaptureObjectPanel({
         return;
       }
     }
-    cameraInputRef.current?.click();
+    // 映像がまだ無い。**端末の別のカメラへは逃がさない**（オーナー指示 2026-09-30
+    // 「必ずアプリ内のカメラで撮影させたい」）。取れない理由が出ていれば頼み直す。
+    if (cameraProblem) retryCamera();
   };
 
   return (
@@ -2553,6 +2664,9 @@ export function CaptureObjectPanel({
             // `shownZoom` が 1 になるので、ここでは何も起きない。
             style={{ scale: String(shownZoom) }}
           />
+        )}
+        {cameraProblem && !onNativeCapture && (
+          <CameraHelp problem={cameraProblem} onRetry={retryCamera} />
         )}
         {!selfieMode && (
           <div className="capture-focus" aria-hidden="true">

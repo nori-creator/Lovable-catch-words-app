@@ -13,6 +13,8 @@ import { CATEGORY_KEYS, ROOM_KEYS, normalizeCategory } from "./category";
 import { orderByRegister } from "./candidate-order";
 import { ExtrasSchema, emptyExtras, mergeExtras, normalizeExtras } from "./extras";
 import { readerText, scrubForReader, scrubForeignNotes } from "./note-language";
+import { explanationKey } from "./word-explanation";
+import { mergeIntoReaderExplanation, readReaderExplanation } from "./word-explanation.functions";
 import {
   worldExampleRule,
   exampleSourceRule,
@@ -1072,19 +1074,35 @@ async function runSectionRegen(
   // **判定は画面と同じ関数**(`card-sections.ts`)。ここに写しを置くと、
   // server が「空だ」と言い続けて作り直し、画面は「埋まっている」と
   // 言い続ける — 止まらない生成になる。
-  if (
-    data.only_if_empty &&
+  const hasSection = (extras: unknown, meaning: string | null) =>
     sectionHasContent(data.section, {
       headword: word.headword as string,
       // **学習言語を渡す。** 渡さないと英語のカードの例文を台湾華語の
       // 目盛りで数え、英語の型を1つ残らず「無い」と判ずる — つまり
       // 作っても作っても空のままになる(`card-sections.ts` の注)。
       language: word.language as string | null,
-      meaning_ja: word.meaning_ja as string | null,
+      meaning_ja: meaning,
       example_sentence: word.example_sentence as string | null,
-      extras: normalizeExtras(word.extras),
-    })
-  ) {
+      extras: normalizeExtras(extras),
+    });
+  const sharedHas = hasSection(word.extras, word.meaning_ja as string | null);
+  /**
+   * **画面が見ている行でも数える**（βテスト 2026-09-30「例文以下のチャンクなどが
+   * 表示されない」）。画面はその人向けの解説の行（`word_explanations`）があれば
+   * そちらを出す。ここが共有の `words.extras` だけを見ていると、共有側に
+   * 在る項目は「もう在る」と答えて何も作らず、画面には永久に出なかった。
+   * 行の鍵は `generateCard` が刻む物（表示言語 × `getLearnerL1`）と同じ。
+   */
+  const readerKey = explanationKey(
+    await getExplanationLanguage(userId),
+    (await getLearnerL1(userId)).code,
+  );
+  const readerRow =
+    mode === "write" ? await readReaderExplanation(supabaseAdmin, data.word_id, readerKey) : null;
+  const readerHas = readerRow
+    ? hasSection(readerRow.extras, readerRow.meaning || (word.meaning_ja as string | null))
+    : sharedHas;
+  if (data.only_if_empty && readerHas) {
     return { ok: true, section: data.section, filled: false };
   }
 
@@ -1347,6 +1365,20 @@ async function runSectionRegen(
    * 一瞬に縮む。万一消えた項目は「まだ無い」に戻るだけで、次に開いたとき
    * 裏でもう一度作られる（壊れた中身は残らない）。
    */
+  // その人向けの解説の行にも重ねる（画面はこちらを出す）。
+  if (readerRow) {
+    await mergeIntoReaderExplanation(supabaseAdmin, data.word_id, readerKey, {
+      extras: extrasPatch,
+      meaning: data.section === "meaning" ? shortMeaning(String(out.meaning_ja ?? "")) : null,
+      example_translation:
+        data.section === "example" ? ((out.example_translation as string | null) ?? null) : null,
+    });
+  }
+  // 共有の行に既に在る項目は、裏の自動生成では書き換えない（他の人のカードも
+  // 同じ行を見ている）。その人向けの行だけを埋めれば足りる。
+  if (data.only_if_empty && sharedHas) {
+    return { ok: true, section: data.section, filled: true };
+  }
   const { data: fresh } = await supabaseAdmin
     .from("words")
     .select("extras")

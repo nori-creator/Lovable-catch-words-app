@@ -52,6 +52,7 @@ import {
   shouldWriteSharedColumns,
   type ExplanationRow,
 } from "@/lib/word-explanation";
+import { readerL1 } from "@/lib/reader-language";
 import { downscaleDataUrl } from "@/lib/cutout";
 import { toImageDataUrl } from "@/lib/sticker-upload";
 import { listStickerPhotos, type StickerPhoto } from "@/lib/encounters.functions";
@@ -259,8 +260,17 @@ export function StickerSheet({ stickerId, onClose, openPhotoPicker, from, local 
   const canMake3d = adm?.isAdmin === true;
   // 母語。発音のコツと語順の説明はこれで中身が変わるので、
   // 変えたら解説を作り直す(下の useEffect)。
-  const nativeLang =
-    (profile as { native_language?: string } | null | undefined)?.native_language || "ja";
+  //
+  // **server と同じ決め方で引く**（βテスト 2026-09-30「単語の項目を表示するのが遅い」）。
+  // 解説の行は server が `readerL1`（表示言語 → 前の母語 → 学習言語で選べる先頭）で
+  // 刻む。ここが `native_language || "ja"` のままだと、チュートリアルで母語を
+  // 選び直した人などで鍵が食い違い、**開くたびに「その人向けが無い」と判じて
+  // 丸ごと作り直していた**（待たされるうえに、作った物は別の鍵に置かれる）。
+  const nativeLang = readerL1({
+    uiLanguage: uiLang,
+    nativeLanguage: (profile as { native_language?: string } | null | undefined)?.native_language,
+    targetLanguage: (profile as { target_language?: string } | null | undefined)?.target_language,
+  });
   /**
    * その人に出す解説を1つに決める鍵。表示言語と母語で中身が変わる。
    * **`useMemo` で固定する** — 毎回新しい物を返すと、これを見ている
@@ -702,6 +712,9 @@ export function StickerSheet({ stickerId, onClose, openPhotoPicker, from, local 
         });
         await qc.invalidateQueries({ queryKey: ["sticker", stickerId] });
         await qc.invalidateQueries({ queryKey: ["stickers"] });
+        // 画面が出しているのは**その人向けの解説**。こちらを読み直さないと、
+        // 作り終えても最大30分（読み置きの期間）古い解説のままになる。
+        await qc.invalidateQueries({ queryKey: ["word-explanation", s.word_id] });
       } catch (e) {
         console.warn("Enrichment failed", e);
         // Let a later reopen retry instead of leaving the word details blank

@@ -28,6 +28,7 @@ import type { DaySpread } from "@/components/shelf3d/textures";
 import type { RoomId } from "@/components/shelf3d/room";
 import type { PencilDiary } from "@/components/diary-pencil/engine";
 import { prewarmShelf } from "@/components/shelf3d/prewarm";
+import { useVisualViewport } from "@/hooks/use-visual-viewport";
 import {
   SHELF_PLACEHOLDER,
   hasShelfSnapshot,
@@ -157,6 +158,7 @@ export function HomeShelf({
   const [font, setFont] = useState<DiaryFontId>(() => getDiaryFont());
   const fontRef = useRef(font);
   const [writing, setWriting] = useState<string | null>(null);
+  const viewport = useVisualViewport(writing !== null);
   const writingOpen = writing !== null;
   useEffect(() => {
     if (writingOpen) ensureDiaryInputFontCss(font);
@@ -717,6 +719,12 @@ export function HomeShelf({
               role="dialog"
               aria-label={t("shelf.home.writeDiary")}
               className="home-shelf__sheet"
+              // キーボードを除いた、いま見えている範囲に置く（`use-visual-viewport.ts`）。
+              style={
+                viewport
+                  ? { top: viewport.top, height: viewport.height, bottom: "auto" }
+                  : undefined
+              }
             >
               <div className="home-shelf__sheet-card">
                 <div
