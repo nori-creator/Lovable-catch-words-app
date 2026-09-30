@@ -147,7 +147,7 @@ function PostPage() {
               </div>
               {p.caption && <p className="text-body leading-relaxed">{p.caption}</p>}
               <div className="flex items-center gap-3 pt-2">
-                <button
+                <button type="button"
                   onClick={() => likeMut.mutate(!p.liked_by_me)}
                   className={`inline-flex items-center gap-1 text-body active:scale-95 ${p.liked_by_me ? "text-destructive" : "text-foreground"}`}
                 >
