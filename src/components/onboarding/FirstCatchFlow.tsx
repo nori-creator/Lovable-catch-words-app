@@ -494,7 +494,7 @@ export function FirstCatchFlow({
             <img src={draft.photo!} alt="" className="first-complete-photo" />
           </div>
           <footer className="first-standalone-footer">
-            <button className="first-primary" disabled={!!busy} onClick={account}>
+            <button className="first-primary tour-pulse" disabled={!!busy} onClick={account}>
               {t("first.keep")}
               <ArrowRight size={18} />
             </button>

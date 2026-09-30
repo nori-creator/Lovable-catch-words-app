@@ -214,7 +214,7 @@ export function FirstCatchQuestions({
         {error}
         <footer className="first-footer">
           <button
-            className="first-primary"
+            className="first-primary tour-pulse"
             disabled={busy}
             onClick={() =>
               onContinue({

@@ -409,6 +409,8 @@ const REVIEW_SCENES: Array<{ scene: string; label: string }> = [
   },
   { scene: "first-catch&step=camera", label: "チュートリアル: 右下の「設定」で言語・最初に戻る" },
   { scene: "first-catch&step=questions", label: "チュートリアル: 1問目の「戻る」で最初の画面へ" },
+  { scene: "first-catch&step=dex", label: "チュートリアル: 次に押す所を青い光で囲う（図鑑）" },
+  { scene: "first-catch&step=card", label: "チュートリアル: 「次へ」が青く光る（単語カード）" },
 ];
 
 /**

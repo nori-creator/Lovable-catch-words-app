@@ -94,7 +94,12 @@ function PrimaryAction({
   disabled: boolean;
 }) {
   return (
-    <button type="button" className="first-primary" onClick={onClick} disabled={disabled}>
+    <button
+      type="button"
+      className="first-primary tour-pulse"
+      onClick={onClick}
+      disabled={disabled}
+    >
       {children}
       <ArrowRight size={20} />
     </button>

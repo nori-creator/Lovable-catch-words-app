@@ -13,7 +13,17 @@ export function Spotlight({
   onNext,
   interactive = false,
   allowSelector,
+  tap,
 }: {
+  /**
+   * **次に押す所**（オーナー指示 2026-09-30「次に進むためにどこタップすればいいか
+   * 一目瞭然となるように、青い光の枠で必ずその部分を同様の広がるアニメーションで囲って」）。
+   *
+   * 照らす範囲（`target`）が広いとき、その中の押す所をもう1つの光の枠で囲う。
+   * 札に「次へ」がある時はその釦が押す所なので、釦の側が光る（ここは渡さない）。
+   * 渡さず、`interactive` で「次へ」も無い時は、照らした範囲そのものが押す所として光る。
+   */
+  tap?: string;
   target: string;
   /** 短い見出し（「ホーム」「図鑑」…）。本文は1文だけにする。 */
   title?: string;
@@ -31,6 +41,7 @@ export function Spotlight({
   const [revealed, setRevealed] = useState(false);
   const [coachReady, setCoachReady] = useState(false);
   const [targetRadius, setTargetRadius] = useState("0px");
+  const [tapRect, setTapRect] = useState<{ rect: DOMRect; radius: string } | null>(null);
   const panel = useRef<HTMLDivElement>(null);
   useEffect(() => {
     setRevealed(false);
@@ -72,6 +83,12 @@ export function Spotlight({
     const measure = () => {
       setRect(node.getBoundingClientRect());
       setTargetRadius(getComputedStyle(node).borderRadius);
+      const spot = tap ? document.querySelector<HTMLElement>(tap) : null;
+      setTapRect(
+        spot
+          ? { rect: spot.getBoundingClientRect(), radius: getComputedStyle(spot).borderRadius }
+          : null,
+      );
     };
     measure();
     const observer = new ResizeObserver(measure);
@@ -150,7 +167,7 @@ export function Spotlight({
       document.removeEventListener("focusin", focus, true);
       document.removeEventListener("keydown", keys, true);
     };
-  }, [target, interactive, allowSelector, revealed]);
+  }, [target, interactive, allowSelector, revealed, tap]);
   // Let the actual screen appear intact first. The invisible lock keeps a tap
   // during the short preview from skipping the guided control.
   if (!revealed) return <div className="tour-preview-lock" aria-hidden="true" />;
@@ -179,7 +196,7 @@ export function Spotlight({
       {rect && (
         <div
           key={target}
-          className="tour-ring"
+          className={`tour-ring ${coachReady && interactive && !onNext && !tap ? "tour-ring--tap" : ""}`}
           onAnimationEnd={(event) => {
             if (event.animationName === "tour-focus-expand") setCoachReady(true);
           }}
@@ -190,6 +207,19 @@ export function Spotlight({
             height: bottom - top,
             borderRadius: targetRadius,
             pointerEvents: interactive ? "none" : "auto",
+          }}
+        />
+      )}
+      {coachReady && tapRect && (
+        <div
+          className="tour-tap"
+          aria-hidden="true"
+          style={{
+            top: tapRect.rect.top - 4,
+            left: tapRect.rect.left - 4,
+            width: tapRect.rect.width + 8,
+            height: tapRect.rect.height + 8,
+            borderRadius: tapRect.radius === "0px" ? "14px" : tapRect.radius,
           }}
         />
       )}
@@ -213,7 +243,7 @@ export function Spotlight({
           )}
           <p id="tour-coach-text">{text}</p>
           {onNext && (
-            <button className="tour-coach__next" onClick={onNext}>
+            <button className="tour-coach__next tour-pulse" onClick={onNext}>
               {nextLabel}
             </button>
           )}
