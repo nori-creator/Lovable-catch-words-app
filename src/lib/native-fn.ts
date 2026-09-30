@@ -25,6 +25,7 @@ const reviews = () => import("./reviews.functions");
 const profile = () => import("./profile.functions");
 const explanation = () => import("./word-explanation.functions");
 const categories = () => import("./categories.functions");
+const album = () => import("./album-hidden.functions");
 
 function from<M>(mod: () => Promise<M>, name: keyof M & string): Loader {
   return async () => (await mod())[name] as unknown as ServerFn;
@@ -81,6 +82,10 @@ export const NATIVE_FNS: Record<string, Loader> = {
   setStickersCategory: from(categories, "setStickersCategory"),
   saveMyCategory: from(categories, "saveMyCategory"),
   deleteMyCategory: from(categories, "deleteMyCategory"),
+  // ホームのアルバム（外す・戻す・並べ方）
+  listAlbumHidden: from(album, "listAlbumHidden"),
+  setAlbumHidden: from(album, "setAlbumHidden"),
+  saveAlbumLayout: from(stickers, "saveAlbumLayout"),
   // 利用者
   getMyProfile: from(profile, "getMyProfile"),
   updateMyProfile: from(profile, "updateMyProfile"),
