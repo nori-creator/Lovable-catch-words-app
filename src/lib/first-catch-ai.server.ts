@@ -84,7 +84,19 @@ export async function generateFirstCatchAI(raw: unknown) {
   }
   if (data.action === "lesson") return PersonalLessonSchema.parse(parsed);
   const card = CardSchema.parse(parsed);
-  if (!card.headword_zh.trim() || !target.headwordOk(card.headword_zh))
+  // The word the learner selected is authoritative when it is already valid
+  // for the target language. Do not let a card-generation model translate that
+  // English headword back into Japanese/Chinese merely because explanations use
+  // that UI language.
+  const canonicalHeadword = target.headwordOk(data.headword)
+    ? data.headword.trim()
+    : card.headword_zh.trim();
+  if (!canonicalHeadword || !target.headwordOk(canonicalHeadword))
     throw new Error("FIRST_CATCH_AI_UNAVAILABLE");
-  return { ...card, level: "", extras: { ...card.extras, explain_lang: data.uiLanguage } };
+  return {
+    ...card,
+    headword_zh: canonicalHeadword,
+    level: "",
+    extras: { ...card.extras, explain_lang: data.uiLanguage },
+  };
 }
