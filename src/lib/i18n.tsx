@@ -2363,7 +2363,11 @@ export const DICT: Record<string, Record<UiLang, string>> = {
     en: "Allow camera access and try again. You can also choose an existing photo.",
     "zh-TW": "請允許相機權限後再試一次，也可以從相簿選擇照片。",
   },
-  "capture.cameraRetry": { ja: "カメラをもう一度開く", en: "Try camera again", "zh-TW": "再次開啟相機" },
+  "capture.cameraRetry": {
+    ja: "カメラをもう一度開く",
+    en: "Try camera again",
+    "zh-TW": "再次開啟相機",
+  },
   // オーナー指示 2026-09-15「文字で調べれば検索と名前を変えて」。
   "capture.typeWord": { ja: "検索", en: "Search", "zh-TW": "搜尋" },
   "capture.openScan": {

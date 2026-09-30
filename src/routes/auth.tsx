@@ -251,7 +251,9 @@ export function AuthView({
         {/* 最初の画面と同じ写真の束（ホームのアルバムと同じ紙）。 */}
         <FirstCatchPhotoStack labels={labels} lang={lang} className="first-auth-photos" />
         <div className="first-auth-content">
-          <h1 id="first-account-title">{mode === "signup" ? t("auth.signup") : t("auth.signin")}</h1>
+          <h1 id="first-account-title">
+            {mode === "signup" ? (draft ? t("first.account") : t("auth.signup")) : t("auth.signin")}
+          </h1>
           {confirmed && (
             <p role="status" className="first-sub mb-4">
               {t("first.confirm")}

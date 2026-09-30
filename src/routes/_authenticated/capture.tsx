@@ -2154,7 +2154,6 @@ export function CaptureObjectPanel({
   cameraInputRef,
   onObjectFile,
   onNativeCapture,
-  preferSystemCapture = false,
   typedWord,
   setTypedWord,
   onSearch,
@@ -2170,12 +2169,6 @@ export function CaptureObjectPanel({
   cameraInputRef: RefObject<HTMLInputElement | null>;
   onObjectFile: (f: File, analysisImage?: string) => void;
   onNativeCapture?: () => void;
-  /**
-   * Skip the browser live-preview permission request and open the device camera
-   * only when the shutter is pressed. Used by first-run onboarding so learners
-   * do not see two camera permission/selection steps before their first Catch.
-   */
-  preferSystemCapture?: boolean;
   typedWord: string;
   setTypedWord: (v: string) => void;
   onSearch: (word: string) => void;
@@ -2258,7 +2251,7 @@ export function CaptureObjectPanel({
   );
 
   useEffect(() => {
-    if (onNativeCapture || preferSystemCapture || !navigator.mediaDevices?.getUserMedia) return;
+    if (onNativeCapture || !navigator.mediaDevices?.getUserMedia) return;
     let cancelled = false;
     setCameraDenied(false);
     void navigator.mediaDevices
@@ -2320,7 +2313,7 @@ export function CaptureObjectPanel({
       streamRef.current = null;
       zoomCapsRef.current = null;
     };
-  }, [onNativeCapture, preferSystemCapture, facing, cameraAttempt]);
+  }, [onNativeCapture, facing, cameraAttempt]);
 
   /**
    * 倍率を当てる。端末が持っていれば本物のレンズへ、無ければ**見た目だけ**
@@ -2394,7 +2387,7 @@ export function CaptureObjectPanel({
       const t0 = tap.current;
       if (t0 && Math.hypot(e.clientX - t0.x, e.clientY - t0.y) > 10) tap.current = null;
       const p = pinch.current;
-      if (!p || pointers.current.size < 2 || onNativeCapture || preferSystemCapture || !cameraReady) return;
+      if (!p || pointers.current.size < 2 || onNativeCapture || !cameraReady) return;
       const [a, b] = [...pointers.current.values()];
       const next = Math.min(zoomMax, Math.max(zoomMin, (p.z0 * pinchDistance(a, b)) / p.d0));
       cancelAnimationFrame(pinchFrame.current);
@@ -2418,10 +2411,6 @@ export function CaptureObjectPanel({
   const openCamera = () => {
     if (onNativeCapture) {
       onNativeCapture();
-      return;
-    }
-    if (preferSystemCapture) {
-      cameraInputRef.current?.click();
       return;
     }
     const video = videoRef.current;
@@ -2552,7 +2541,7 @@ export function CaptureObjectPanel({
         style={{ "--cam-aspect": String(camAspect) } as CSSProperties}
         {...frameGestures}
       >
-        {!onNativeCapture && !preferSystemCapture && (
+        {!onNativeCapture && (
           <video
             ref={videoRef}
             playsInline
@@ -2592,8 +2581,11 @@ export function CaptureObjectPanel({
           />
         )}
       </div>
-      {!onNativeCapture && !preferSystemCapture && cameraDenied && (
-        <div role="alert" className="absolute inset-x-5 top-24 z-20 rounded-2xl bg-black/65 p-4 text-center text-white backdrop-blur">
+      {!onNativeCapture && cameraDenied && (
+        <div
+          role="alert"
+          className="absolute inset-x-5 top-24 z-20 rounded-2xl bg-black/65 p-4 text-center text-white backdrop-blur"
+        >
           <p className="font-semibold">{t("capture.cameraPermissionTitle")}</p>
           <p className="mt-1 text-sm text-white/85">{t("capture.cameraPermissionHint")}</p>
           <button
@@ -2661,7 +2653,7 @@ export function CaptureObjectPanel({
         )}
 
         {/* 倍率。撮り方の帯のすぐ上（iPhone と同じ位置）。 */}
-        {!onNativeCapture && !preferSystemCapture && cameraReady && (
+        {!onNativeCapture && cameraReady && (
           <div className="mb-3 flex justify-center">
             <CameraZoomMeter
               zoom={zoom}
@@ -2712,7 +2704,7 @@ export function CaptureObjectPanel({
               openCamera();
             }}
           />
-          {onNativeCapture || preferSystemCapture ? (
+          {onNativeCapture ? (
             <span className="camera-side camera-side--empty" aria-hidden="true" />
           ) : (
             <CameraFlipButton
