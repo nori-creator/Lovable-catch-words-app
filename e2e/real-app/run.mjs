@@ -20,7 +20,7 @@
  * 環境変数:
  *   BASE_URL     確かめるアプリ（既定 https://catchwords.lovable.app）
  *   LANGS        表示言語（既定 ja,en,zh-TW）
- *   TARGETS      学習言語（既定 zh-TW,en。表示言語ごとに順に当てる）
+ *   TARGETS      学習言語（既定 zh-TW,zh-TW,en。表示言語ごとに順に当てる）
  *   BROWSERS     chromium,webkit（webkit = iPhone の Safari と同じ描画の仕組み）
  *   E2E_EMAIL / E2E_PASSWORD  試験用アカウント。あればログイン後の画面も回る
  *   OUT          出力先（既定 e2e-report）
@@ -35,12 +35,15 @@ import { writeReport } from "./report.mjs";
 const here = path.dirname(fileURLToPath(import.meta.url));
 const BASE_URL = (process.env.BASE_URL || "https://catchwords.lovable.app").replace(/\/$/, "");
 const LANGS = (process.env.LANGS || "ja,en,zh-TW").split(",").map((s) => s.trim());
-const TARGETS = (process.env.TARGETS || "zh-TW,en").split(",").map((s) => s.trim());
+// 実際にある組み合わせ: 日本語・英語の人は台湾華語を、繁體中文の人は英語を学ぶ。
+const TARGETS = (process.env.TARGETS || "zh-TW,zh-TW,en").split(",").map((s) => s.trim());
 const BROWSERS = (process.env.BROWSERS || "chromium").split(",").map((s) => s.trim());
 const OUT = path.resolve(process.env.OUT || "e2e-report");
 const EMAIL = process.env.E2E_EMAIL || "";
 const PASSWORD = process.env.E2E_PASSWORD || "";
 const STEP_LIMIT = Number(process.env.STEP_LIMIT || 70);
+/** 押せる物が出るのを待つ最長の秒数（AI の解析・カードの生成を待つ）。 */
+const IDLE_LIMIT = Number(process.env.IDLE_LIMIT || 75);
 
 const INSTRUMENT = fs.readFileSync(path.join(here, "instrument.js"), "utf8");
 const PHOTO = `data:image/webp;base64,${fs
@@ -399,6 +402,8 @@ async function firstRun(page, run) {
   await settle(page);
   await snap(page, run, "最初の画面");
   let stuck = 0;
+  /** 押せる物が無くなった時刻。AI の解析やカードの生成を待つあいだは止まったと言わない。 */
+  let idleSince = 0;
   for (let i = 0; i < STEP_LIMIT; i++) {
     if (new URL(page.url()).pathname.startsWith("/auth")) {
       await settle(page);
@@ -415,10 +420,26 @@ async function firstRun(page, run) {
     }
     // AI・撮影のあとは時間がかかる。
     await settle(page, did && /シャッター|案内の枠/.test(did) ? 20000 : 9000);
-    await snap(page, run, did ?? "押せるものが無い");
-    // 押せない、または同じ操作を何度も繰り返している（例: 「もう一度試す」が効かない）。
+    // 待っている間は、待ち始めの1枚だけ残す（3秒ごとに撮ると記録が埋まる）。
+    if (did || !idleSince) await snap(page, run, did ?? "待っている（押せる物が無い）");
+    // 押せる物が無い = 読み込み・AI の解析の最中かもしれない。**時間で**待つ
+    // （最大 IDLE_LIMIT 秒）。回数で数えると、本物の AI の解析中に諦めてしまう。
+    if (!did) {
+      if (!idleSince) idleSince = Date.now();
+      if (Date.now() - idleSince < IDLE_LIMIT * 1000) {
+        await sleep(3000);
+        i--; // 待っているだけの回は、段の数に数えない
+        continue;
+      }
+      await snap(page, run, "待っても進まない（最後の画面）");
+      run.result = "stuck";
+      run.note = `${IDLE_LIMIT} 秒待っても押せる物が出なかった（最後のスクリーンショットを参照）`;
+      return;
+    }
+    idleSince = 0;
+    // 同じ操作を何度も繰り返している（例: 「もう一度試す」やシャッターが効かない）。
     const repeats = run.steps.slice(-5).filter((x) => x.label === did).length;
-    if (!did || repeats >= 5) stuck++;
+    if (repeats >= 5) stuck++;
     else stuck = 0;
     if (stuck >= 3) {
       run.result = "stuck";
