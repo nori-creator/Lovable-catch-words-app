@@ -138,7 +138,7 @@
 
   // ---- 本物の写真を映すカメラ -------------------------------------------------
   const photo = W.__QA_CAMERA_IMAGE__;
-  if (photo && navigator.mediaDevices) {
+  if (photo) {
     const img = new Image();
     img.src = photo;
     const fake = async (constraints) => {
@@ -163,10 +163,36 @@
       stream.getVideoTracks()[0].addEventListener("ended", () => clearInterval(iv));
       return stream;
     };
-    try {
-      navigator.mediaDevices.getUserMedia = fake;
-    } catch {
-      Object.defineProperty(navigator.mediaDevices, "getUserMedia", { value: fake });
+    // WebKit（Safari と同じ仕組み）は呼び口を `MediaDevices.prototype` に持つので、
+    // 端末の物（navigator.mediaDevices）だけ差し替えても効かない。両方を差し替える。
+    const put = (target) => {
+      if (!target) return;
+      try {
+        Object.defineProperty(target, "getUserMedia", {
+          value: fake,
+          configurable: true,
+          writable: true,
+        });
+      } catch {
+        /* 差し替えられない所は飛ばす */
+      }
+    };
+    if (W.MediaDevices) put(MediaDevices.prototype);
+    if (!navigator.mediaDevices) {
+      try {
+        Object.defineProperty(navigator, "mediaDevices", { value: {}, configurable: true });
+      } catch {
+        /* 無い端末ではカメラ無しのまま */
+      }
+    }
+    put(navigator.mediaDevices);
+    // 許可の状態を聞かれたら「許可済み」と答える（本物の許可の画面は出さない）。
+    if (navigator.permissions && navigator.permissions.query) {
+      const query = navigator.permissions.query.bind(navigator.permissions);
+      navigator.permissions.query = (desc) =>
+        desc && (desc.name === "camera" || desc.name === "microphone")
+          ? Promise.resolve({ state: "granted", addEventListener() {}, removeEventListener() {} })
+          : query(desc);
     }
   }
 })();

@@ -28,7 +28,7 @@ on:
         default: ja,en,zh-TW
       targets:
         description: 学習言語（表示言語の順に当てる）
-        default: zh-TW,en,zh-TW
+        default: zh-TW,zh-TW,en
       browsers:
         description: chromium（Android の Chrome と同じ仕組み）/ webkit（iPhone の Safari と同じ仕組み）
         default: chromium,webkit
@@ -60,7 +60,7 @@ jobs:
         env:
           BASE_URL: ${{ inputs.base_url || 'https://catchwords.lovable.app' }}
           LANGS: ${{ inputs.langs || 'ja,en,zh-TW' }}
-          TARGETS: ${{ inputs.targets || 'zh-TW,en,zh-TW' }}
+          TARGETS: ${{ inputs.targets || 'zh-TW,zh-TW,en' }}
           BROWSERS: ${{ inputs.browsers || 'chromium,webkit' }}
           # 試験用アカウント（任意）。Settings → Secrets and variables → Actions に置くと、
           # ログイン後の画面（ホーム・図鑑・復習・設定・撮影）も回る。
