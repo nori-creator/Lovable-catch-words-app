@@ -302,7 +302,7 @@ function ShelfItem({
   const photo = cutout ? null : (picked?.url ?? null);
 
   return (
-    <button
+    <button type="button"
       id={`dex-cell-${s.id}`}
       onClick={() => onOpen(s.id)}
       className={`shelf-item ${landing ? "reward-slot-in" : ""}`}
