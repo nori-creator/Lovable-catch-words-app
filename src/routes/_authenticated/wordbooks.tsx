@@ -282,7 +282,7 @@ function ImportConfirm({
                 </span>
               )}
             </span>
-            <button
+            <button type="button"
               onClick={() =>
                 onChange({ ...draft, entries: draft.entries.filter((_, j) => j !== i) })
               }
@@ -296,7 +296,7 @@ function ImportConfirm({
       </ul>
 
       <div className="flex flex-wrap gap-2">
-        <button
+        <button type="button"
           disabled={saving || draft.entries.length === 0}
           onClick={() => void save()}
           className="press-in inline-flex min-h-11 items-center gap-2 rounded-full bg-primary px-5 text-body font-semibold text-primary-foreground disabled:bg-secondary disabled:text-muted-foreground"
@@ -304,7 +304,7 @@ function ImportConfirm({
           {saving && <Loader2 className="h-4 w-4 animate-spin" aria-hidden />}
           {t("wb.saveN", { n: formatCount(draft.entries.length) })}
         </button>
-        <button
+        <button type="button"
           onClick={onCancel}
           className="min-h-11 rounded-full px-4 text-body font-semibold text-muted-foreground"
         >
@@ -357,7 +357,7 @@ function WordbookReview({ bookId, onClose }: { bookId: string; onClose: () => vo
 
   return (
     <AppShell title={t("wb.reviewTitle")}>
-      <button
+      <button type="button"
         onClick={onClose}
         className="mb-3 min-h-11 text-footnote font-semibold text-primary-ink"
       >
@@ -379,7 +379,7 @@ function WordbookReview({ bookId, onClose }: { bookId: string; onClose: () => vo
               total: formatCount(tally.answered),
             })}
           </p>
-          <button
+          <button type="button"
             onClick={onClose}
             className="press-in mt-4 min-h-11 rounded-full bg-primary px-5 text-body font-semibold text-primary-foreground"
           >
