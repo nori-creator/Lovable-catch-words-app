@@ -13,6 +13,9 @@ describe("native-fn allowlist", () => {
       "synthesizeSpeech",
       "gradeReview",
       "deleteMyAccount",
+      "setStickerCategory",
+      "saveMyCategory",
+      "deleteMyCategory",
     ]) {
       expect(NATIVE_FNS[name]).toBeTypeOf("function");
     }

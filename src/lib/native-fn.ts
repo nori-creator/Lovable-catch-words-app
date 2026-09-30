@@ -24,6 +24,7 @@ const tts = () => import("./tts.functions");
 const reviews = () => import("./reviews.functions");
 const profile = () => import("./profile.functions");
 const explanation = () => import("./word-explanation.functions");
+const categories = () => import("./categories.functions");
 
 function from<M>(mod: () => Promise<M>, name: keyof M & string): Loader {
   return async () => (await mod())[name] as unknown as ServerFn;
@@ -75,6 +76,11 @@ export const NATIVE_FNS: Record<string, Loader> = {
   getReviewCapState: from(reviews, "getReviewCapState"),
   getStickerMemoryHistory: from(reviews, "getStickerMemoryHistory"),
   getUpcomingDueTimes: from(reviews, "getUpcomingDueTimes"),
+  // 棚（自分の棚・語の置き場所）
+  setStickerCategory: from(categories, "setStickerCategory"),
+  setStickersCategory: from(categories, "setStickersCategory"),
+  saveMyCategory: from(categories, "saveMyCategory"),
+  deleteMyCategory: from(categories, "deleteMyCategory"),
   // 利用者
   getMyProfile: from(profile, "getMyProfile"),
   updateMyProfile: from(profile, "updateMyProfile"),
