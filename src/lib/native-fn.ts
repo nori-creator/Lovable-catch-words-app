@@ -26,6 +26,8 @@ const profile = () => import("./profile.functions");
 const explanation = () => import("./word-explanation.functions");
 const categories = () => import("./categories.functions");
 const album = () => import("./album-hidden.functions");
+const journal = () => import("./journal.functions");
+const stats = () => import("./stats.functions");
 
 function from<M>(mod: () => Promise<M>, name: keyof M & string): Loader {
   return async () => (await mod())[name] as unknown as ServerFn;
@@ -86,7 +88,14 @@ export const NATIVE_FNS: Record<string, Loader> = {
   listAlbumHidden: from(album, "listAlbumHidden"),
   setAlbumHidden: from(album, "setAlbumHidden"),
   saveAlbumLayout: from(stickers, "saveAlbumLayout"),
+  // 日記（添削・書き出しの質問・過去の日記・本人の文の保存）
+  listJournal: from(journal, "listJournal"),
+  correctMyJournal: from(journal, "correctMyJournal"),
+  getJournalPrompts: from(journal, "getJournalPrompts"),
+  saveMyDiary: from(journal, "saveMyDiary"),
+  listMyDiaryMonth: from(journal, "listMyDiaryMonth"),
   // 利用者
+  getMyStats: from(stats, "getMyStats"),
   getMyProfile: from(profile, "getMyProfile"),
   updateMyProfile: from(profile, "updateMyProfile"),
   deleteMyAccount: from(profile, "deleteMyAccount"),

@@ -16,6 +16,10 @@ describe("native-fn allowlist", () => {
       "setStickerCategory",
       "saveMyCategory",
       "deleteMyCategory",
+      "correctMyJournal",
+      "getJournalPrompts",
+      "listJournal",
+      "getMyStats",
     ]) {
       expect(NATIVE_FNS[name]).toBeTypeOf("function");
     }
