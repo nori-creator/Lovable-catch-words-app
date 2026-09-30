@@ -6155,7 +6155,7 @@ describe("ホームの一番上の本棚（2026-09-29「ホームのアルバム
     // 壁（div）は過去の日の後で閉じる。
     expect(home.slice(past)).toMatch(/<\/div>/);
     // 棚の下端のぼかしは壁の中の帯だけ（全画面で本を開いた時にはかけない）。
-    expect(read("styles.css")).not.toMatch(/\n\.home-shelf__canvas \{\n  mask-image/);
+    expect(read("styles.css")).not.toMatch(/\n\.home-shelf__canvas \{\n {2}mask-image/);
   });
 
   it("R20: 開いた瞬間は端末に置いた棚の絵（無ければ同梱の空の棚）を出し、3D が描けたら差し替える", () => {
