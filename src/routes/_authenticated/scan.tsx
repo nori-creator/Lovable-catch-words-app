@@ -1248,7 +1248,7 @@ export function ScanChip({
       <div className="rounded-2xl border border-border bg-card p-4 shadow-md">
         <div className="mb-2 flex items-center justify-between">
           <p className="text-body font-medium text-muted-foreground">{t("scan.whichOne")}</p>
-          <button
+          <button type="button"
             onClick={onClose}
             aria-label={t("common.close")}
             // **出口は 44px を割らない。** この札は画面を覆っていて、ここが
@@ -1262,7 +1262,7 @@ export function ScanChip({
         </div>
         <div className="flex flex-wrap gap-2">
           {candidates.map((c) => (
-            <button
+            <button type="button"
               key={c}
               onClick={() => onPickCandidate(c)}
               className="rounded-full bg-amber-100 px-4 py-2.5 text-body font-semibold text-amber-900 ring-1 ring-amber-200 active:scale-95 motion-reduce:active:scale-100 dark:bg-amber-500/20 dark:text-amber-100 dark:ring-amber-400/30"
@@ -1320,14 +1320,14 @@ export function ScanChip({
             </span>
           )}
         </div>
-        <button
+        <button type="button"
           onClick={onPlay}
           aria-label={t("scan.playPron")}
           className="speak-button lift grid h-11 w-11 shrink-0 place-items-center rounded-full active:scale-95 motion-reduce:active:scale-100"
         >
           <Volume2 className="h-5 w-5" />
         </button>
-        <button
+        <button type="button"
           onClick={onClose}
           aria-label={t("common.close")}
           className="-mr-2 -mt-2 grid h-11 w-11 shrink-0 place-items-center rounded-full text-muted-foreground"
@@ -1340,7 +1340,7 @@ export function ScanChip({
           検出を掛ける道で、部品の印が親の印の上に重なって出ていた。
           押す物はこの面に「キャッチ」1つでいい。 */}
       <div className="mt-3 flex flex-wrap gap-2">
-        <button
+        <button type="button"
           onClick={onCatch}
           className="inline-flex min-h-11 flex-1 items-center justify-center gap-1.5 rounded-full bg-primary px-3 py-3 text-body font-semibold text-primary-foreground shadow-md shadow-primary/20 active:scale-95 motion-reduce:active:scale-100"
         >
@@ -1413,7 +1413,7 @@ function DevMetrics({
   ];
   return (
     <div className="rounded-xl border border-dashed border-amber-400 bg-amber-50/70 p-3 text-footnote">
-      <button
+      <button type="button"
         onClick={() => setOpen((v) => !v)}
         className="flex w-full items-center justify-between gap-2 text-amber-900 font-semibold"
       >
@@ -1847,7 +1847,7 @@ export function ScanDots({
             ? `clamp(${4 - dotX}px, -50%, calc(${boxWidth - 4 - dotX}px - 100%)) 0`
             : "-50% 0";
         return (
-          <button
+          <button type="button"
             key={it.id}
             onClick={() => openChip(it)}
             style={pos}
