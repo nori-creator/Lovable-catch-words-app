@@ -127,6 +127,7 @@ export function FirstCatchTransfer({
           <h1>{t(error ? "first.importFailed" : "first.importing")}</h1>
           {error && (
             <button
+              type="button"
               className="first-primary mt-6"
               onClick={() => {
                 setError(false);

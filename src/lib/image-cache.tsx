@@ -187,8 +187,9 @@ async function resolveSrc(signedUrl: string): Promise<string> {
  */
 export function CachedImg({
   src,
+  alt,
   ...rest
-}: { src: string } & Omit<React.ImgHTMLAttributes<HTMLImageElement>, "src">) {
+}: { src: string; alt: string } & Omit<React.ImgHTMLAttributes<HTMLImageElement>, "src" | "alt">) {
   const [resolved, setResolved] = useState<string | null>(() => {
     const p = pathFromSignedUrl(src);
     return (p && objectUrls.get(p)) || null;
@@ -219,6 +220,7 @@ export function CachedImg({
   return (
     <img
       src={resolved}
+      alt={alt}
       // blob: の解放とすれ違って読み込みに失敗することは起こりうる
       // (別のタブが同じパスを解放した直後など)。**黙って白いままに
       // しない** — 一度だけ解決からやり直す。端末内のキャッシュから

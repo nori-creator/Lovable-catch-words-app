@@ -203,7 +203,7 @@ export function Spotlight({
           )}
           <p id="tour-coach-text">{text}</p>
           {onNext && (
-            <button className="tour-coach__next" onClick={onNext}>
+            <button type="button" className="tour-coach__next" onClick={onNext}>
               {nextLabel}
             </button>
           )}

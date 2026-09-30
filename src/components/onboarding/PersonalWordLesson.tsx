@@ -131,7 +131,7 @@ export function PersonalWordLesson({
       {query.isError && (
         <div role="alert">
           <p>{t("first.personalFailed")}</p>
-          <button className="first-secondary" onClick={() => void query.refetch()}>
+          <button type="button" className="first-secondary" onClick={() => void query.refetch()}>
             {t("first.retry")}
           </button>
         </div>

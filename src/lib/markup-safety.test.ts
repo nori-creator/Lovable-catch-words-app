@@ -16,7 +16,13 @@ function walk(dir: string): string[] {
  * Read a JSX opening tag without being fooled by ">" inside quoted attributes
  * or JSX expressions such as onClick={() => ...}.
  */
+function maskComments(src: string): string {
+  const blockMasked = src.replace(/\/\*[\s\S]*?\*\//g, (m) => m.replace(/[^\n]/g, " "));
+  return blockMasked.replace(/^[ \t]*\/\/.*$/gm, (m) => " ".repeat(m.length));
+}
+
 function openingTags(src: string, name: string): Array<{ tag: string; offset: number }> {
+  src = maskComments(src);
   const out: Array<{ tag: string; offset: number }> = [];
   const needle = `<${name}`;
   let from = 0;
