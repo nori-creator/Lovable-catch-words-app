@@ -204,6 +204,8 @@ async function snap(page, run, label) {
         path: location.pathname + location.search,
         issues,
         animations: document.getAnimations ? document.getAnimations().length : 0,
+        // 止まった所の手がかり（実行ログにも出す）。
+        visible: text.replace(/\s+/g, " ").slice(0, 240),
       };
     }, run.lang)
     .catch((e) => ({
@@ -212,6 +214,10 @@ async function snap(page, run, label) {
       animations: 0,
     }));
   run.steps.push({ label, file, ...info, at: Date.now() });
+  // 実行ログにも1行ずつ出す（結果のファイルを開かなくても、どこで止まったか分かる）。
+  console.log(
+    `  [${run.id}] ${n} ${label} | ${info.path.slice(0, 40)}${info.issues.length ? " | 問題: " + info.issues.map((i) => i.kind).join(", ") : ""}`,
+  );
   return info;
 }
 
@@ -607,6 +613,18 @@ async function runOne(browserType, browserName, lang, target, scenario) {
   console.log(
     `${run.id}: ${run.result} (${run.steps.length} 段, ${run.seconds} 秒)${run.note ? " — " + run.note : ""}`,
   );
+  if (run.result !== "passed") {
+    const last = run.steps[run.steps.length - 1];
+    if (last) console.log(`  最後の画面の文字: ${last.visible ?? ""}`);
+    for (const n of [
+      ...new Set(run.network.map((x) => `${x.status} ${x.url.slice(0, 120)} ${x.detail}`)),
+    ].slice(0, 6))
+      console.log(`  通信: ${n}`);
+    for (const c of [
+      ...new Set(run.console.filter((x) => x.type !== "warning").map((x) => x.text.slice(0, 200))),
+    ].slice(0, 6))
+      console.log(`  エラー: ${c}`);
+  }
   return run;
 }
 
