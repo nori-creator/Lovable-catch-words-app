@@ -170,7 +170,7 @@ function SelfImprovePanel() {
         <h2 className="flex items-center gap-1.5 text-body font-semibold">
           <Brain className="h-4 w-4 text-primary" /> 自己改善(毎日=監査のみ)
         </h2>
-        <button
+        <button type="button"
           onClick={run}
           disabled={running}
           className="inline-flex items-center gap-1.5 rounded-full bg-primary px-4 py-1.5 text-footnote font-semibold text-primary-foreground shadow-sm active:scale-95 disabled:opacity-60"
@@ -299,7 +299,7 @@ function EntryReportsPanel() {
           AI に1件ずつ判定させ、AI由来の行で確信 0.85 以上のものだけ直す。
           迷ったもの・公式由来の行は open のまま残して人間へ回す。 */}
       <div className="mb-2 flex flex-wrap items-center gap-2">
-        <button
+        <button type="button"
           onClick={async () => {
             setTriaging(true);
             setTriageResult(null);
@@ -341,13 +341,13 @@ function EntryReportsPanel() {
                 <span className="min-w-0 flex-1 truncate text-muted-foreground">「{r.note}」</span>
               )}
               <span className="ml-auto flex gap-1">
-                <button
+                <button type="button"
                   onClick={() => resolve(r.id, "resolved")}
                   className="rounded-md bg-primary/10 px-2 py-1 text-caption font-medium text-primary-ink"
                 >
                   対応済み
                 </button>
-                <button
+                <button type="button"
                   onClick={() => resolve(r.id, "dismissed")}
                   className="rounded-md bg-background px-2 py-1 text-caption text-muted-foreground"
                 >
@@ -435,7 +435,7 @@ function TtsPregenPanel() {
         </h2>
         <div className="flex items-center gap-2">
           {TARGET_LANGUAGES.map((code) => (
-            <button
+            <button type="button"
               key={code}
               onClick={() => {
                 setLanguage(code);
@@ -453,7 +453,7 @@ function TtsPregenPanel() {
             </button>
           ))}
         </div>
-        <button
+        <button type="button"
           onClick={run}
           className={`inline-flex items-center gap-1.5 rounded-full px-4 py-1.5 text-footnote font-semibold active:scale-95 ${
             running
