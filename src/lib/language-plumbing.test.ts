@@ -5267,9 +5267,9 @@ describe("日本語の検索・候補の行・項目の並べ替え", () => {
     // `pointercancel` を呼び、掴んだ手がその場で離れる。
     const card = codeOnly(read("components/WordCard.tsx"));
     // 最初の当たりは `onPointerDown` の中の判定。**釦の方**を見る。
-    const handleAt = card.indexOf("data-drag-handle");
-    expect(handleAt).toBeGreaterThan(0);
-    expect(card.slice(Math.max(0, handleAt - 160), handleAt + 520)).toMatch(/touch-none/);
+    const handleAttr = /\n\s*data-drag-handle\s*\n/.exec(card);
+    expect(handleAttr?.index ?? -1).toBeGreaterThan(0);
+    expect(card.slice(handleAttr!.index, handleAttr!.index + 700)).toMatch(/touch-none/);
     expect(card).toMatch(/dragging\s*\n?\s*\? "touch-none /);
   });
 });
