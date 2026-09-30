@@ -2211,6 +2211,8 @@ export function CaptureObjectPanel({
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const [cameraReady, setCameraReady] = useState(false);
+  const [cameraDenied, setCameraDenied] = useState(false);
+  const [cameraAttempt, setCameraAttempt] = useState(0);
   /** 映像の縦横比。枠をこれに合わせて、映像を**切らずに全部**見せる。 */
   const [camAspect, setCamAspect] = useState(3 / 4);
   /**
@@ -2222,6 +2224,7 @@ export function CaptureObjectPanel({
   useEffect(() => {
     setFacing(selfieMode ? "user" : "environment");
     setCameraReady(false);
+    setCameraDenied(false);
   }, [selfieMode]);
   /** カメラロールから選ぶ口（撮る口と違い `capture` を付けない — 付けると
       カメラしか開かない端末がある）。 */
@@ -2283,6 +2286,7 @@ export function CaptureObjectPanel({
   useEffect(() => {
     if (onNativeCapture || !navigator.mediaDevices?.getUserMedia) return;
     let cancelled = false;
+    setCameraDenied(false);
     void navigator.mediaDevices
       .getUserMedia({
         video: {
@@ -2310,6 +2314,7 @@ export function CaptureObjectPanel({
         await video.play().catch(() => {});
         if (video.videoWidth && video.videoHeight)
           setCamAspect(video.videoWidth / video.videoHeight);
+        setCameraDenied(false);
         setCameraReady(true);
         /**
          * **倍率を持っているかは端末に聞く。**（持っていない端末に
@@ -2328,7 +2333,11 @@ export function CaptureObjectPanel({
         setHwZoom(readTrackZoom(track));
         setFocusCap(focusSupport(track));
       })
-      .catch(() => setCameraReady(false));
+      .catch((err: unknown) => {
+        setCameraReady(false);
+        const name = err instanceof DOMException ? err.name : "";
+        if (name === "NotAllowedError" || name === "SecurityError") setCameraDenied(true);
+      });
     return () => {
       cancelled = true;
       setFocusCap(null);
@@ -2337,7 +2346,7 @@ export function CaptureObjectPanel({
       streamRef.current = null;
       zoomCapsRef.current = null;
     };
-  }, [onNativeCapture, facing]);
+  }, [onNativeCapture, facing, cameraAttempt]);
 
   /**
    * 倍率を当てる。端末が持っていれば本物のレンズへ、無ければ**見た目だけ**
@@ -2605,6 +2614,19 @@ export function CaptureObjectPanel({
           />
         )}
       </div>
+      {!onNativeCapture && cameraDenied && (
+        <div role="alert" className="absolute inset-x-5 top-24 z-20 rounded-2xl bg-black/65 p-4 text-center text-white backdrop-blur">
+          <p className="font-semibold">{t("capture.cameraPermissionTitle")}</p>
+          <p className="mt-1 text-sm text-white/85">{t("capture.cameraPermissionHint")}</p>
+          <button
+            type="button"
+            className="mt-3 min-h-11 rounded-full bg-white px-5 font-semibold text-black"
+            onClick={() => setCameraAttempt((n) => n + 1)}
+          >
+            {t("capture.cameraRetry")}
+          </button>
+        </div>
+      )}
       {selfieMode && (
         <div className="absolute inset-x-5 top-24 z-10 text-center text-white">
           <p className="text-lg font-semibold">{t("capture.selfieLive")}</p>
