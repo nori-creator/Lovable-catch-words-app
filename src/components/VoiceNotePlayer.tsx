@@ -48,7 +48,7 @@ export function VoiceNotePlayer({ url }: { url: string }) {
 
   return (
     <>
-      <button
+      <button type="button"
         onClick={toggle}
         aria-label={t(playing ? "voice.pause" : "voice.play")}
         className="press-in grid h-11 w-11 shrink-0 place-items-center rounded-full bg-primary text-primary-foreground"
