@@ -2760,7 +2760,13 @@ export function CaptureObjectPanel({
           className="sr-only"
           tabIndex={-1}
           aria-hidden="true"
-          onChange={(e) => e.target.files?.[0] && onObjectFile(e.target.files[0])}
+          onChange={(e) => {
+            const file = e.target.files?.[0];
+            // Cancelling keeps the camera screen intact; clearing the value also lets
+            // the same photo/file be captured again on browsers that suppress identical changes.
+            e.target.value = "";
+            if (file) onObjectFile(file);
+          }}
         />
         <input
           ref={libraryInputRef}
