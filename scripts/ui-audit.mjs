@@ -305,6 +305,9 @@ const MODES = [
   // 迎える面（ログイン）。**入れたばかりの人が最初に見る面。**
   ...crossThemes("auth", { scene: "auth" }),
   ["auth-signup", "", false, { scene: "auth", variant: "signup" }],
+  ["reset-password", "", false, { scene: "reset-password" }],
+  ["reset-password-sent", "", false, { scene: "reset-password", state: "sent" }],
+  ["reset-password-update", "", false, { scene: "reset-password", state: "update" }],
   ...crossThemes("home-album", { scene: "home-album" }),
   ...crossThemes("home-empty", { scene: "home-empty" }),
   // 読み込み中の面。**起動するたびに必ず通る**のに一度も撮っていなかった。
@@ -576,6 +579,7 @@ const BARE_SCENES = new Set([
   "first-catch",
   // 迎える面は自前で画面いっぱい（上の帯も下のタブ帯も無い）。
   "auth",
+  "reset-password",
   // 剥がして捕まえる演出（main 2026-09-19）も全画面。
   "sticker-peel",
   "onboarding",

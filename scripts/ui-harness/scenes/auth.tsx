@@ -7,12 +7,13 @@
  */
 import { useState } from "react";
 import { AuthView } from "@/routes/auth";
+import { ResetPasswordView } from "@/routes/reset-password";
 
 export function AuthScene({ q }: { q: URLSearchParams }) {
   const [mode, setMode] = useState<"signin" | "signup">(
     q.get("variant") === "signup" ? "signup" : "signin",
   );
-  const [email, setEmail] = useState("");
+  const [email, setEmail] = useState(q.get("email") === "1" ? "nori@example.com" : "");
   const [password, setPassword] = useState("");
   return (
     <AuthView
@@ -26,6 +27,35 @@ export function AuthScene({ q }: { q: URLSearchParams }) {
       onEmail={(e) => e.preventDefault()}
       onGoogle={() => {}}
       onApple={() => {}}
+      initialShowEmail={q.get("email") === "1"}
+    />
+  );
+}
+
+/**
+ * パスワードの再設定（オーナー指示 2026-09-30「パスワード忘れた時にリセットできるようにして」）。
+ * `?state=sent` … 送った後 / `?state=update` … メールのリンクから戻って新しいパスワードを決める面。
+ */
+export function ResetPasswordScene({ q }: { q: URLSearchParams }) {
+  const state = q.get("state");
+  const [email, setEmail] = useState("nori@example.com");
+  const [password, setPassword] = useState("");
+  const [sentTo, setSentTo] = useState<string | null>(state === "sent" ? "nori@example.com" : null);
+  return (
+    <ResetPasswordView
+      mode={state === "update" ? "update" : "request"}
+      email={email}
+      setEmail={setEmail}
+      password={password}
+      setPassword={setPassword}
+      loading={false}
+      sentTo={sentTo}
+      onRequest={(e) => {
+        e.preventDefault();
+        setSentTo(email);
+      }}
+      onUpdate={(e) => e.preventDefault()}
+      onResend={() => setSentTo(null)}
     />
   );
 }

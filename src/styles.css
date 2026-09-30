@@ -7478,6 +7478,21 @@ html[data-motion="reduce"] .tabbar__lens--gone {
   font-size: var(--text-footnote);
   color: var(--muted-foreground);
 }
+/* 「パスワードを忘れた方」: 欄の右下に小さく。当たり判定は 44px を確保する。 */
+.auth-forgot {
+  align-self: flex-end;
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  margin-bottom: -0.5rem;
+  padding: 0 0.25rem;
+  font-size: var(--text-footnote);
+  font-weight: 600;
+  color: var(--primary-ink);
+}
+.auth-forgot:hover {
+  text-decoration: underline;
+}
 .auth-switch__link {
   /* §11: 小さく見えるが、当たり判定は上下に伸ばして 44px を確保する。 */
   display: inline-block;
