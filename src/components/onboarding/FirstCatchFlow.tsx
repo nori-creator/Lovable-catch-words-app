@@ -6,7 +6,6 @@ import { usePronounce } from "@/lib/use-pronounce";
 import { useTargetLang } from "@/lib/target-lang-pref";
 import { useEffect, useRef, useState } from "react";
 import { ArrowRight } from "lucide-react";
-import { Capacitor } from "@capacitor/core";
 import { useServerFn } from "@tanstack/react-start";
 import { useNavigate } from "@tanstack/react-router";
 import { supabase } from "@/integrations/supabase/client";
@@ -206,33 +205,6 @@ export function FirstCatchFlow({
     if (!result.suggestions.length) throw new Error("No candidates");
     if (mounted.current && mine === run.current) setSuggestions(result.suggestions);
   }
-  async function openNativeCamera() {
-    try {
-      const {
-        Camera: NativeCamera,
-        CameraResultType,
-        CameraSource,
-      } = await import("@capacitor/camera");
-      const captured = await NativeCamera.getPhoto({
-        source: CameraSource.Camera,
-        resultType: CameraResultType.Uri,
-        quality: 90,
-        saveToGallery: false,
-        correctOrientation: true,
-      });
-      if (!captured.webPath) return;
-      const blob = await (await fetch(captured.webPath)).blob();
-      photo(
-        new File([blob], `first-catch.${captured.format || "jpeg"}`, {
-          type: blob.type || "image/jpeg",
-        }),
-      );
-    } catch (e) {
-      // Cancelling the native camera is not an onboarding failure.
-      console.warn("first-catch native capture cancelled or failed", e);
-    }
-  }
-
   function photo(file: File) {
     if (!draft) return;
     void action(async () => {
@@ -460,10 +432,6 @@ export function FirstCatchFlow({
                 retakeWord={null}
                 cameraInputRef={input}
                 onObjectFile={photo}
-                onNativeCapture={
-                  Capacitor.isNativePlatform() ? () => void openNativeCamera() : undefined
-                }
-                preferSystemCapture
                 typedWord=""
                 setTypedWord={() => {}}
                 onSearch={() => {}}
