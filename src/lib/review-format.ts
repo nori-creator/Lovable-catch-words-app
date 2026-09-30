@@ -61,7 +61,7 @@ const PREFS: readonly ReviewModePref[] = ["speaking", "choice", "hybrid"];
 export function normalizeReviewMode(raw: unknown): ReviewModePref {
   return typeof raw === "string" && (PREFS as readonly string[]).includes(raw)
     ? (raw as ReviewModePref)
-    : "speaking";
+    : "choice";
 }
 
 /**
