@@ -1,5 +1,9 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { ReaderMeaning } from "@/components/ReaderMeaning";
+import { Term } from "@/components/Term";
+import { ZhuyinWord, useZhuyinUnits } from "@/components/ZhuyinWord";
+import { neutralReadings, useReadingText } from "@/lib/phonetic";
+import { targetProfile } from "@/lib/target-profile";
 import { useReadableError } from "@/lib/errors";
 import { resolvePrefer, usePhotoPref } from "@/lib/photo-pref";
 import { stickerPhotoUrl } from "@/lib/sticker-photo";
@@ -495,12 +499,12 @@ export function StickerDetailHero({
 
       {/* Core word info — always visible (§6: 単語+発音+意味+写真) */}
       <section className="mb-4 rounded-3xl border border-border bg-card p-4 text-center shadow-sm">
-        <div lang="zh-Hant" className="text-hero font-bold tracking-tight">
-          {s.word.headword}
-        </div>
-        <div lang="zh-Hant" className="mt-1 text-body text-muted-foreground">
-          {s.word.reading_zhuyin} {s.word.pinyin && `· ${s.word.pinyin}`}
-        </div>
+        <DetailHeadword
+          headword={s.word.headword}
+          language={s.word.language}
+          zhuyin={s.word.reading_zhuyin}
+          pinyin={s.word.pinyin}
+        />
         <div className="mt-2 text-headline font-medium">
           <ReaderMeaning text={s.word.meaning_ja} wordId={s.word_id} />
         </div>
@@ -510,6 +514,49 @@ export function StickerDetailHero({
           </span>
         )}
       </section>
+    </>
+  );
+}
+
+/**
+ * 見出し語と読み。**ほかの画面と同じ部品を通す**（オーナー指示 2026-09-30
+ * 「学習言語英語の発音記号は消して」「注音はそれぞれの漢字の横に」）。
+ *
+ * ここだけ `reading_zhuyin · pinyin` を生で並べていたので、英語の語に
+ * IPA が出て、中国語の語でも読みの設定（注音か拼音か）と量詞「個」の
+ * 輕聲が効いていなかった。
+ */
+function DetailHeadword({
+  headword,
+  language,
+  zhuyin,
+  pinyin,
+}: {
+  headword: string;
+  language: string | null | undefined;
+  zhuyin: string | null | undefined;
+  pinyin: string | null | undefined;
+}) {
+  const units = useZhuyinUnits(language, headword, zhuyin);
+  const reading = useReadingText(language, neutralReadings(language, zhuyin, pinyin, headword));
+  if (units) {
+    return (
+      <ZhuyinWord units={units} lang={language} className="text-hero font-bold tracking-tight" />
+    );
+  }
+  return (
+    <>
+      <Term as="div" lang={language} className="text-hero font-bold tracking-tight">
+        {headword}
+      </Term>
+      {reading && (
+        <div
+          lang={targetProfile(language).scriptLang}
+          className="mt-1 text-body text-muted-foreground"
+        >
+          {reading}
+        </div>
+      )}
     </>
   );
 }

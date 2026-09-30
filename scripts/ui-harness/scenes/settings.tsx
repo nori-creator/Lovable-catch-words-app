@@ -158,7 +158,10 @@ export function SettingsChoicesScene() {
  * 見分けにくさも一度も測られていなかった。
  */
 export function SettingsSelectsScene() {
-  const [target, setTarget] = useState("zh-TW");
+  // `?target=en` … 英語を学んでいる人の束（発音表記の行が出ないこと）。
+  const [target, setTarget] = useState(
+    () => new URLSearchParams(location.search).get("target") ?? "zh-TW",
+  );
   const [cur, setCur] = useState("TOCFL-2");
   const [goal, setGoal] = useState("TOCFL-4");
   const [ui, setUi] = useState<string>(() => getUiLang());

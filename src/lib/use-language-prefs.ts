@@ -27,7 +27,8 @@
  */
 
 import { useEffect, useRef } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
+import { REVIEW_CACHE_KEY } from "@/lib/review-cache";
 import { useServerFn } from "@tanstack/react-start";
 import { getMyProfile, updateMyProfile } from "@/lib/profile.functions";
 import { setTargetLang, storedTargetLang, useTargetLang } from "@/lib/target-lang-pref";
@@ -55,7 +56,8 @@ export function useLanguagePrefsSync(): void {
 
   useEffect(() => {
     const p = data as
-      { target_language?: string; ui_language?: string; partial?: boolean } | undefined;
+      | { id?: string; target_language?: string; ui_language?: string; partial?: boolean }
+      | undefined;
     if (!p) return;
     /**
      * **中身の無いプロフィールで上書きしない。**
@@ -79,16 +81,28 @@ export function useLanguagePrefsSync(): void {
      * **選んでいない端末にだけ**サーバの値を配る
      * (突き合わせの規則は `language-sync.ts` の1つだけ)。
      */
+    /**
+     * **別の人が選んだ値を、この人の選択として扱わない。**
+     *
+     * 端末の写しは人ごとに分かれていない。同じ端末で別のアカウントに
+     * 入り直すと、前の人の言語が「この端末で選んだ値」に見え、下の
+     * 書き戻しで**次の人のサーバの値まで塗り替えて**しまう。
+     * 写しの持ち主を憶え、違う人ならサーバの値を受ける（書き戻さない）。
+     * 持ち主が無い（この直しより前から使っている端末・登録前の初回体験）
+     * ときは、今までどおり端末の選択を使う。
+     */
+    const foreign = !!p.id && !!langOwner() && langOwner() !== p.id;
     const target = reconcileLanguage({
-      stored: storedTargetLang(),
+      stored: foreign ? null : storedTargetLang(),
       server: p.target_language,
       fallback: DEFAULT_TARGET_LANGUAGE,
     });
     const ui = reconcileLanguage({
-      stored: storedUiLang(),
+      stored: foreign ? null : storedUiLang(),
       server: p.ui_language,
       fallback: "ja",
     });
+    if (p.id) setLangOwner(p.id);
     // `setTargetLang` / `setUiLang` は同じ値なら何も知らせないので、
     // プロフィールが届くたびに描き直しが起きることはない。
     setTargetLang(target.value);
@@ -118,11 +132,7 @@ export function useLanguagePrefsSync(): void {
     void saveProfile({
       data: { target_language: target.value, ui_language: normalizeUiLang(ui.value) },
     })
-      .then(() => {
-        for (const key of LANGUAGE_SCOPED_QUERIES) {
-          void qc.invalidateQueries({ queryKey: [key] });
-        }
-      })
+      .then(() => refreshLanguageScoped(qc))
       .catch(() => {
         // 端末の選択は効いたまま。次に開いたときにもう一度試す。
         pushed.current = null;
@@ -177,8 +187,47 @@ export function useRefreshOnTargetLanguage(): void {
     }
     if (seen.current === target) return;
     seen.current = target;
-    for (const key of LANGUAGE_SCOPED_QUERIES) {
-      void qc.invalidateQueries({ queryKey: [key] });
-    }
+    refreshLanguageScoped(qc);
   }, [target, qc]);
+}
+
+/** 端末の言語の写しが誰の物か（`useLanguagePrefsSync`）。 */
+const LANG_OWNER_KEY = "lang-prefs-owner-v1";
+
+function langOwner(): string | null {
+  try {
+    return localStorage.getItem(LANG_OWNER_KEY);
+  } catch {
+    return null;
+  }
+}
+
+function setLangOwner(id: string): void {
+  try {
+    localStorage.setItem(LANG_OWNER_KEY, id);
+  } catch {
+    /* storage unavailable */
+  }
+}
+
+/**
+ * 言語で絞った一覧を、次に見たときに読み直させる。
+ *
+ * **復習の束だけは「古い」と印を付けるだけでは足りない**（オーナー報告
+ * 2026-09-30「学習言語台湾華語なのに英語の4択が表示されてる」）。
+ * 復習の画面は開くたびに作り直さないよう `refetchOnMount: false` に
+ * してあるので、印の付いた束もそのまま出る。しかも束は端末にも
+ * 20時間残る（`review-cache.ts`）。**両方とも捨てる。**
+ */
+function refreshLanguageScoped(qc: QueryClient): void {
+  try {
+    localStorage.removeItem(REVIEW_CACHE_KEY);
+  } catch {
+    /* storage unavailable */
+  }
+  void qc.resetQueries({ queryKey: ["reviews-due"] });
+  for (const key of LANGUAGE_SCOPED_QUERIES) {
+    if (key === "reviews-due") continue;
+    void qc.invalidateQueries({ queryKey: [key] });
+  }
 }

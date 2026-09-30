@@ -398,13 +398,14 @@ const q = new URLSearchParams(location.search);
  * 「これを見てください」と差し出すことになる。
  */
 const REVIEW_SCENES: Array<{ scene: string; label: string }> = [
-  // 2026-09-30「チュートリアルの4択が本物と異なってる」の直し。先頭の面は **4択の部品を
-  // 本物のまま**にし、押す所は他の段と同じ案内の枠で示す。
+  // 2026-09-30「単語の詳細の注音が右に書かれる。それぞれの漢字の横に書いて」
+  // 「学習言語英語の発音記号は消して／米英の切替は消して」の直し。
   {
-    scene: "first-catch&step=review",
-    label: "チュートリアルの復習: 4択は本物のまま・押す所は案内の枠",
+    scene: "word-card",
+    label: "単語の詳細: 量詞・関連語の注音が字ごとに右へ（見出しと同じ比）",
   },
-  { scene: "first-catch&step=camera&settings=1", label: "チュートリアル: 下の「設定」" },
+  { scene: "word-card-en", label: "英語の単語の詳細: 発音記号なし" },
+  { scene: "settings-selects&target=en", label: "英語を学ぶ人の設定: 発音表記（米英）の行なし" },
 ];
 
 /**
