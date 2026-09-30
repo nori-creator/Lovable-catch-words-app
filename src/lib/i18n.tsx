@@ -322,10 +322,22 @@ export const DICT: Record<string, Record<UiLang, string>> = {
   "first.start": { ja: "体験をはじめる", en: "Try your first Catch", "zh-TW": "開始體驗" },
   "first.next": { ja: "次へ", en: "Next", "zh-TW": "下一步" },
   "first.back": { ja: "戻る", en: "Back", "zh-TW": "返回" },
-  "first.menu": { ja: "言語とやり直し", en: "Language and restart", "zh-TW": "語言與重新開始" },
-  "first.menuClose": { ja: "閉じる", en: "Close", "zh-TW": "關閉" },
-  "first.menuDisplay": { ja: "表示言語", en: "Display language", "zh-TW": "介面語言" },
-  "first.menuTarget": { ja: "学ぶ言語", en: "Language to learn", "zh-TW": "要學的語言" },
+  "first.backToTutorial": {
+    ja: "チュートリアルに戻る",
+    en: "Back to the tutorial",
+    "zh-TW": "回到教學",
+  },
+  "first.settingsNote": {
+    ja: "登録前の設定です。登録すると、そのままあなたのアカウントに引き継がれます。",
+    en: "These are your settings before signing up. They carry over to your account when you sign up.",
+    "zh-TW": "這是註冊前的設定。註冊後會直接沿用到你的帳號。",
+  },
+  "first.dailyTime": { ja: "1日の学習時間", en: "Daily study time", "zh-TW": "每天的學習時間" },
+  "first.redoQuestions": {
+    ja: "最初の質問に答え直す",
+    en: "Answer the first questions again",
+    "zh-TW": "重新回答一開始的問題",
+  },
   "first.backToWelcome": {
     ja: "最初の画面に戻る",
     en: "Back to the welcome screen",
@@ -477,9 +489,21 @@ export const DICT: Record<string, Record<UiLang, string>> = {
     "zh-TW": "尚未完成轉存，照片和單字仍保留在裝置上。請重試。",
   },
   "first.confirm": {
-    ja: "確認メールを送りました。メールのリンクを開いて、登録を完了してください。写真と単語はこの端末に残っています。",
-    en: "Check your email to finish signing up. Your photo and word are kept on this device.",
-    "zh-TW": "請開啟確認信中的連結完成註冊，照片和單字仍保留在這個裝置上。",
+    ja: "確認メールを送りました。メールのリンクを開いて登録を完了したら、このページに戻って「ログイン」してください。撮った写真と単語は、このブラウザで引き継がれます。",
+    en: "We sent a confirmation email. After opening the link, come back to this page and sign in. Your photo and word carry over in this browser.",
+    "zh-TW":
+      "已寄出確認信。開啟信中的連結完成註冊後，請回到這個頁面「登入」。拍的照片和單字會在這個瀏覽器中接續。",
+  },
+  "auth.googleInApp": {
+    ja: "LINEなどアプリの中で開いているため、Googleでは登録できません（Googleの決まりです）。メールかAppleで登録してください。",
+    en: "Google sign-in isn't allowed inside other apps such as LINE (Google's policy). Please use email or Apple.",
+    "zh-TW":
+      "目前是在 LINE 等 App 裡開啟，依 Google 的規定無法用 Google 註冊。請改用電子郵件或 Apple。",
+  },
+  "auth.confirmedSignin": {
+    ja: "確認が終わったので、ログインする",
+    en: "I've confirmed — sign in",
+    "zh-TW": "已完成確認，登入",
   },
   "first.signin": {
     ja: "アカウントをお持ちの方はログイン",

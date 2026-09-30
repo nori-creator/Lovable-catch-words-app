@@ -17,6 +17,7 @@ import { Mail } from "lucide-react";
 import { useT } from "@/lib/i18n";
 import { tStatic } from "@/lib/i18n";
 import { authErrorText } from "@/lib/errors";
+import { inAppBrowser } from "@/lib/camera-access";
 
 export const Route = createFileRoute("/auth")({
   // Preserve a same-origin `next` path so OAuth consent (or any protected
@@ -241,6 +242,15 @@ export function AuthView({
   const labels = sampleStickers(draft, t, target).map((sample) => sample.word.headword);
   /** メールの欄は**押すまで出さない**（見本の絵と同じ。既定は2つのボタン）。 */
   const [showEmail, setShowEmail] = useState(false);
+  /**
+   * **LINE などアプリの中のブラウザでは、Google のログインが断られる**
+   * （Google の方針で、埋め込みの画面からの Google ログインは 2021-09-30 から拒否。
+   * 「403 disallowed_useragent」）。押してから失敗させず、先に理由とメール・Apple を案内する。
+   */
+  const [embedded, setEmbedded] = useState(false);
+  useEffect(() => {
+    setEmbedded(!!inAppBrowser(navigator.userAgent));
+  }, []);
   return (
     <div className="first-run first-auth">
       <main className="first-auth-page" aria-labelledby="first-account-title">
@@ -255,12 +265,37 @@ export function AuthView({
             {mode === "signup" ? (draft ? t("first.account") : t("auth.signup")) : t("auth.signin")}
           </h1>
           {confirmed && (
-            <p role="status" className="first-sub mb-4">
-              {t("first.confirm")}
-            </p>
+            <div role="status" className="first-sub mb-4 space-y-3">
+              <p>{t("first.confirm")}</p>
+              {/* **確認メールのリンクは、別のアプリの中で開かれることが多い**（Gmail・LINE など）。
+                  写真と単語はこのブラウザにしか無いので、確認が終わったらここへ戻って
+                  ログインしてもらう（ログインした所で引き継ぎが走る。`FirstCatchTransfer`）。 */}
+              {mode === "signup" && (
+                <button
+                  type="button"
+                  className="first-primary tour-pulse"
+                  onClick={() => {
+                    setMode("signin");
+                    setShowEmail(true);
+                  }}
+                >
+                  {t("auth.confirmedSignin")}
+                </button>
+              )}
+            </div>
           )}
           <div className="auth-card">
-            <button type="button" className="auth-oauth" onClick={onGoogle} disabled={loading}>
+            {embedded && (
+              <p role="note" className="rounded-2xl bg-secondary px-4 py-3 text-footnote">
+                {t("auth.googleInApp")}
+              </p>
+            )}
+            <button
+              type="button"
+              className="auth-oauth"
+              onClick={onGoogle}
+              disabled={loading || embedded}
+            >
               <svg className="auth-oauth__icon" viewBox="0 0 48 48" aria-hidden="true">
                 <path
                   fill="#EA4335"
