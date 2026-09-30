@@ -420,6 +420,11 @@ export const DICT: Record<string, Record<UiLang, string>> = {
     en: "That did not work. Your photo is kept so you can retry.",
     "zh-TW": "處理失敗。照片仍保留著，可以再試一次。",
   },
+  "first.busy": {
+    ja: "いま体験が混み合っています。少し時間をおいて、もう一度試してください。写真は残っています。",
+    en: "The trial is busy right now. Your photo is kept; please try again in a little while.",
+    "zh-TW": "目前體驗人數較多。照片仍保留著，請稍後再試一次。",
+  },
   "first.storage": {
     ja: "この端末に保存できませんでした。空き容量やブラウザの保存設定を確認してください。",
     en: "Could not save on this device. Check free space and browser storage settings.",
