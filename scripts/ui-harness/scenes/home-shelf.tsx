@@ -52,6 +52,8 @@ export function HomeShelfScene({ q }: { q: URLSearchParams }) {
   // 棚・日付・今日のアルバムは同じ 1 枚の壁（`.home-scene`）の上に載る（R19: 1つの作品）。
   // 部屋は A（自然光）に決まった。`?months=1` で「1か月しか撮っていない人」（本が1冊だけ）を見る。
   const months = Number(q.get("months") ?? 7);
+  // 開いた本の見開き（左＝その日のアルバム、右＝日記）を最初から見せる（`?open=left|right` で片ページ）。
+  const open = (q.get("open") ?? "spread") as "spread" | "left" | "right";
   const items =
     months >= 7
       ? ITEMS
@@ -60,6 +62,7 @@ export function HomeShelfScene({ q }: { q: URLSearchParams }) {
     <div className="home-scene">
       <HomeShelf
         items={items}
+        autoOpen={open}
         loaders={{
           diary: async (month) => {
             const [y, m] = month.split("-").map(Number);

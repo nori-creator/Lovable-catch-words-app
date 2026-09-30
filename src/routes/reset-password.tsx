@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { useT } from "@/lib/i18n";
 import { tStatic } from "@/lib/i18n";
+import { authErrorText } from "@/lib/errors";
 
 export const Route = createFileRoute("/reset-password")({
   head: () => ({
@@ -48,7 +49,7 @@ function ResetPasswordPage() {
       if (error) throw error;
       toast.success(t("rp.sent"));
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : t("rp.sendFailed"));
+      toast.error(authErrorText(err, t("rp.sendFailed"), t));
     } finally {
       setLoading(false);
     }
@@ -63,7 +64,7 @@ function ResetPasswordPage() {
       toast.success(t("rp.updated"));
       navigate({ to: "/home", replace: true });
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : t("rp.updateFailed"));
+      toast.error(authErrorText(err, t("rp.updateFailed"), t));
     } finally {
       setLoading(false);
     }

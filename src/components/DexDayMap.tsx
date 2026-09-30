@@ -96,6 +96,12 @@ export function DexDayMap({
 
   const [calendarOpen, setCalendarOpen] = useState(false);
   const [open, setOpen] = useState(initialOpen);
+  // 時間軸の欄は日付を変えても同じ要素のまま中身だけが替わるので、前の日の位置
+  // （一番下まで送っていたら、新しい日の一番下）がそのまま残っていた。
+  // 日付が変わったら**必ずその日の最初**を出す（オーナー報告 2026-09-30）。
+  // 描く前に戻す（一瞬でも下が見えない）。`programmatic` は、この戻しで
+  // 「読んでいる行」を選び直さないための印（先頭の写真が選ばれた状態のまま）。
+  // `listRef` / `programmatic` は下で宣言するので、ここでは参照だけ（実行は描画のあと）。
   /** 下の帯（と時間軸）の高さ。地図はこの上の見えている所にピンを寄せる。 */
   const dockRef = useRef<HTMLDivElement | null>(null);
   const [dockH, setDockH] = useState(160);
@@ -121,6 +127,12 @@ export function DexDayMap({
   // ---- 時間軸を送ると、読んでいる行の立ち寄りへ -----------------------------
   const listRef = useRef<HTMLDivElement | null>(null);
   const programmatic = useRef(0);
+  useLayoutEffect(() => {
+    const list = listRef.current;
+    if (!list) return;
+    programmatic.current = performance.now() + 300;
+    list.scrollTop = 0;
+  }, [current]);
   /**
    * **送るだけで地図のバブルが応える**（オーナー指示 2026-09-27「タイムラインを
    * スクロールしたら、タップしなくても自動で地図のバブルが滑らかに反応して」）。

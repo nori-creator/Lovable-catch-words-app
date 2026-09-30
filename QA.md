@@ -115,3 +115,11 @@ The minimum review experience should be intentionally small.
 - Traditional Chinese handwritten lines (e.g. 眼前的東西，要怎麼說？) render every glyph in one typeface (Iansui).
 - Camera screen: a two-finger pinch must not zoom the page; inside the frame it changes the camera zoom. Tap-to-focus shows the ring only on devices that support `pointsOfInterest`; elsewhere a tap does nothing visible.
 - Measure-word 個 reads with the neutral tone (˙ㄍㄜ / ge) in the measure-word section and after numerals/demonstratives (一個・這個・幾個); non-measure uses (個人・個性) stay ㄍㄜˋ (`tw-neutral-tone.ts`).
+
+## R26/R27 regression checks (2026-09-30)
+
+- Camera / scan screens: the whole page never zooms (`useLockPageZoom`: viewport `user-scalable=no` + `html.page-zoom-locked` only while the camera is mounted; restored on leave). Camera zoom stays a pinch inside the frame only. Bottom-left button is "add a photo from the camera roll" (ImagePlus), never a thumbnail of the last catch.
+- Dex map: changing the day (arrows, calendar, list) always scrolls the timeline back to that day's first item.
+- Diary book, left page: keeps the book's own paper look (white mount, masking tape, bold word, brown handwritten note ≤3 lines) but photos sit where the home album puts them (size / angle / stacking), from the single layout function `lib/album-day-layout.ts`. Nothing is laid over the book (an overlay drifted from the page). Arranging photos or editing a note in the home album updates the open book's page (`refreshDays`). Photos hidden from the home album are not pasted. Home pixels must stay identical when touching the layout function (compare `home`, `home-album`, `home-past`, `home-memorial` before/after).
+- Note (ひと言) can be edited from word detail and the home album (arrange mode) — not from the diary book; owner only (`updateStickerCaption`), empty saves as removed.
+- Account delete confirmation accepts 削除 / DELETE / 刪除 in every UI language. Auth failures are shown in the UI language (`authErrorText`); raw server messages are never toasted (`readableError`).

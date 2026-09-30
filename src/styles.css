@@ -3067,6 +3067,16 @@ html[data-motion="reduce"] .camera-launch__morph {
   }
 }
 
+/*
+ * カメラの画面にいる間だけ、ページ全体のタッチ操作（つまむ・2回たたく拡大）を止める
+ * （`hooks/use-lock-page-zoom.ts` が `<html>` に付ける）。`.capture-viewfinder` の中だけでは、
+ * 下のバーや上の余白から始めた2本指で画面ごと拡大されていた（2026-09-30）。
+ */
+html.page-zoom-locked,
+html.page-zoom-locked body {
+  touch-action: none;
+  overscroll-behavior: none;
+}
 .capture-viewfinder {
   position: fixed;
   inset: 0;
@@ -9922,6 +9932,15 @@ html[data-motion="reduce"] .memorial-reveal * {
 }
 .album-remove:active::before {
   transform: scale(0.9);
+}
+/* ひと言を直す鉛筆: 写真の左上の角。色はアプリの青（赤は「外す」だけの色）。 */
+.album-caption-edit {
+  right: auto;
+  left: 0;
+  translate: -50% -50%;
+}
+.album-caption-edit::before {
+  background: var(--primary, #2f6bff);
 }
 @keyframes album-remove-in {
   from {

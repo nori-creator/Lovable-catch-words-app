@@ -16,6 +16,7 @@ import { toast } from "sonner";
 import { Mail } from "lucide-react";
 import { useT } from "@/lib/i18n";
 import { tStatic } from "@/lib/i18n";
+import { authErrorText } from "@/lib/errors";
 
 export const Route = createFileRoute("/auth")({
   // Preserve a same-origin `next` path so OAuth consent (or any protected
@@ -138,7 +139,7 @@ function AuthPage() {
         if (error) throw error;
       }
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : t("auth.failed"));
+      toast.error(authErrorText(err, t("auth.failed"), t));
     } finally {
       setLoading(false);
     }
@@ -158,10 +159,10 @@ function AuthPage() {
         redirect_uri: redirectUri,
       });
       if (res.error) {
-        toast.error(res.error.message ?? t("auth.googleFailed"));
+        toast.error(authErrorText(res.error, t("auth.googleFailed"), t));
       }
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : t("auth.failed"));
+      toast.error(authErrorText(err, t("auth.failed"), t));
     } finally {
       setLoading(false);
     }
@@ -179,10 +180,10 @@ function AuthPage() {
       });
 
       if (res.error) {
-        toast.error(res.error.message ?? t("auth.appleFailed"));
+        toast.error(authErrorText(res.error, t("auth.appleFailed"), t));
       }
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : t("auth.failed"));
+      toast.error(authErrorText(err, t("auth.failed"), t));
     } finally {
       setLoading(false);
     }
@@ -250,7 +251,9 @@ export function AuthView({
         {/* 最初の画面と同じ写真の束（ホームのアルバムと同じ紙）。 */}
         <FirstCatchPhotoStack labels={labels} lang={lang} className="first-auth-photos" />
         <div className="first-auth-content">
-          <h1 id="first-account-title">{mode === "signup" ? t("auth.signup") : t("auth.signin")}</h1>
+          <h1 id="first-account-title">
+            {mode === "signup" ? (draft ? t("first.account") : t("auth.signup")) : t("auth.signin")}
+          </h1>
           {confirmed && (
             <p role="status" className="first-sub mb-4">
               {t("first.confirm")}

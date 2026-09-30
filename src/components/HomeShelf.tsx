@@ -5,6 +5,9 @@ import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 import type { StickerWithWord } from "@/lib/stickers.functions";
 import { stickerPhotoUrl } from "@/lib/sticker-photo";
+import { usePhotoPref } from "@/lib/photo-pref";
+import { useSurfaceRoleMap } from "@/lib/photo-surface";
+import { albumHeroUrl, layoutDayAlbum, type DayLayoutItem } from "@/lib/album-day-layout";
 import { resolveCachedSrc } from "@/lib/image-cache";
 import { listMyDiaryMonth, saveMyDiary } from "@/lib/journal.functions";
 import { monthDays, monthKey, shelfMonths } from "@/lib/home-shelf";
@@ -66,12 +69,27 @@ type Loaders = {
 
 type View = "spread" | "left" | "right" | "cover";
 
+/** 置き方を計算する時の台紙の幅（CSS px）。ふつうのスマホの誌面の幅。 */
+const LAYOUT_BOARD_W = 340;
+
 export function HomeShelf({
   items,
   loaders,
   room = "a",
+  hiddenIds,
+  autoOpen,
 }: {
   items: ReadonlyArray<StickerWithWord>;
+  /**
+   * ホームのアルバムから外した写真（`useAlbumHidden`）。**本の左ページにも貼らない**
+   * （ホームと同じ誌面にするため）。本の数・枚数（棚の見た目）は変えない。
+   */
+  hiddenIds?: ReadonlySet<string>;
+  /**
+   * 描けたらすぐ最初の本を開き、そのページ（見開き / 左 / 右）を見せる。**確認用ページ用**
+   * （オーナーが本を探して押さなくても、直した画面がそのまま出る。本番は渡さない）。
+   */
+  autoOpen?: View;
   /** 日記の読み書き（確認用ページでは差し替える）。 */
   loaders?: Partial<Loaders>;
   /** 部屋（参考画像 A〜D）。 */
@@ -93,6 +111,13 @@ export function HomeShelf({
   loadRef.current = load;
   const itemsRef = useRef(items);
   itemsRef.current = items;
+  const hiddenRef = useRef(hiddenIds);
+  hiddenRef.current = hiddenIds;
+  // アルバムに貼る絵の選び方（設定と、長押しで選んだ絵）。ホームと同じ答えを使う。
+  const photoPref = usePhotoPref();
+  const surfaceRoles = useSurfaceRoleMap();
+  const heroCtx = useRef({ photoPref, surfaceRoles });
+  heroCtx.current = { photoPref, surfaceRoles };
 
   // 撮った月だけ（1か月しか無ければ 1 冊だけ）。
   const months = useMemo(() => shelfMonths(items), [items]);
@@ -158,8 +183,8 @@ export function HomeShelf({
       }),
     [locale],
   );
-  const labelsRef = useRef({ monthTitle, dayLabel, t });
-  labelsRef.current = { monthTitle, dayLabel, t };
+  const labelsRef = useRef({ monthTitle, dayLabel, t, locale });
+  labelsRef.current = { monthTitle, dayLabel, t, locale };
 
   /** 広げる: 帯の位置から画面いっぱいへ（元の位置は閉じる時に戻る先）。 */
   const expand = useCallback(() => {
@@ -232,29 +257,60 @@ export function HomeShelf({
   /** その月の見開き（写真・一言・日記）を揃える。 */
   const prepare = useCallback(async (b: MonthBook) => {
     const key = monthKey(b.y, b.m);
-    const groups = monthDays(itemsRef.current, b.y, b.m);
+    const hidden = hiddenRef.current;
+    const shown = hidden ? itemsRef.current.filter((s) => !hidden.has(s.id)) : itemsRef.current;
+    // 1日に貼る写真の数は絞らない（ホームのアルバムと同じ全部。上限は安全のためだけ）。
+    const groups = monthDays(shown, b.y, b.m, 60);
+    const { photoPref: pref, surfaceRoles: roles } = heroCtx.current;
+    const urls = groups.map((g) =>
+      g.items.map((s) => albumHeroUrl(s, { surfaceRoles: roles, photoPref: pref, thumb: true })),
+    );
     const [diaries, photos] = await Promise.all([
       loadRef.current.diary(key).catch(() => [] as Array<{ date: string; text: string }>),
-      Promise.all(
-        groups.map((g) =>
-          Promise.all(g.items.map((s) => loadImage(stickerPhotoUrl(s, { thumb: true })))),
-        ),
-      ),
+      Promise.all(urls.map((row) => Promise.all(row.map((u) => loadImage(u))))),
     ]);
     const diaryByDay = new Map(diaries.map((d) => [Number(d.date.slice(8, 10)), d.text]));
     const { dayLabel: label } = labelsRef.current;
-    const days: DaySpread[] = groups.map((g, i) => ({
-      y: b.y,
-      m: b.m,
-      d: g.d,
-      label: label(b.y, b.m, g.d),
-      photos: g.items.map((s, j) => ({
-        img: photos[i][j],
-        word: s.word.headword,
-        note: s.caption ?? undefined,
-      })),
-      diary: diaryByDay.get(g.d) ?? "",
-    }));
+    const days: DaySpread[] = groups.map((g, i) => {
+      // 写真の縦横比（読めた物）から、ホームと同じ置き方を計算する。
+      const ratios: Record<string, number> = {};
+      const heroIds = new Set<string>();
+      g.items.forEach((s, j) => {
+        const img = photos[i][j];
+        if (urls[i][j]) heroIds.add(s.id);
+        const iw = img?.naturalWidth || img?.width || 0;
+        const ih = img?.naturalHeight || img?.height || 0;
+        if (iw && ih) ratios[s.id] = ih / iw;
+      });
+      const layout = layoutDayAlbum({
+        stickers: g.items,
+        hasHero: (id) => heroIds.has(id),
+        photoRatio: ratios,
+        boardW: LAYOUT_BOARD_W,
+      });
+      const at = new Map<string, DayLayoutItem>(layout.items.map((it) => [it.id, it]));
+      return {
+        y: b.y,
+        m: b.m,
+        d: g.d,
+        label: label(b.y, b.m, g.d),
+        photos: g.items.map((s, j) => {
+          const it = at.get(s.id);
+          return {
+            id: s.id,
+            img: photos[i][j],
+            word: s.word.headword,
+            note: s.caption ?? undefined,
+            place: it?.place,
+            ratio: it?.ratio,
+            z: it?.z,
+            plain: !urls[i][j],
+          };
+        }),
+        boardH: layout.boardH,
+        diary: diaryByDay.get(g.d) ?? "",
+      };
+    });
     b.cover = photos.flat().find(Boolean) ?? null;
     daysOf.current.set(b, days);
     // canvas は字体が届く前に描くと代わりの字で焼き付くので、先に読む。
@@ -266,6 +322,45 @@ export function HomeShelf({
       ),
     ]).catch(() => undefined);
   }, []);
+
+  /**
+   * 写真の置き方・一言・外した写真が変わったら、**開いている本の絵を描き直す**（ホームや
+   * 片ページのアルバムで直した内容が、見開きの絵にも出る）。開いていなければ何もしない
+   * （次に開く時に最新を読む）。
+   */
+  const layoutSig = useMemo(
+    () =>
+      items
+        .map((s) =>
+          [
+            s.id,
+            s.caption ?? "",
+            s.album_order ?? "",
+            s.album_x ?? "",
+            s.album_y ?? "",
+            s.album_scale ?? "",
+            s.album_rot ?? "",
+            s.hero_role ?? "",
+          ].join(":"),
+        )
+        .join("|") +
+      "#" +
+      [...(hiddenIds ?? [])].sort().join(","),
+    [items, hiddenIds],
+  );
+  useEffect(() => {
+    const b = state.open;
+    if (!b || !world.current) return;
+    let alive = true;
+    void prepare(b).then(() => {
+      if (alive && world.current?.refreshDays()) bump((n) => n + 1);
+    });
+    return () => {
+      alive = false;
+    };
+    // 開いている本は `state.open`。合図にするのは置き方の署名だけ（開いた瞬間に走らせない）。
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [layoutSig]);
 
   // 端末に置いた棚の絵を読む（ふつう数十ミリ秒）。
   useLayoutEffect(() => {
@@ -400,6 +495,21 @@ export function HomeShelf({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [monthSig, room]);
 
+  // 確認用: 描けたら最初の本を開き、指定のページへ寄る（`autoOpen`）。
+  const autoOpened = useRef(false);
+  const autoViewed = useRef(false);
+  useEffect(() => {
+    if (!autoOpen || !ready || autoOpened.current) return;
+    autoOpened.current = true;
+    world.current?.openMonth(0);
+  }, [autoOpen, ready]);
+  useEffect(() => {
+    if (!autoOpen || autoOpen === "spread" || autoViewed.current) return;
+    if (!state.open || state.cover || view !== "spread") return;
+    autoViewed.current = true;
+    setView(autoOpen);
+  }, [autoOpen, state.open, state.cover, view]);
+
   // 片ページ = **同じ 3D の本のまま、そのページへ寄る**（R19: めくりは見開きと同じ紙の動き）。
   useEffect(() => {
     world.current?.setFocus(state.open ? view : "spread");
@@ -460,11 +570,11 @@ export function HomeShelf({
     return true;
   };
 
-  if (!months.length || failed) return null;
-
   const days = world.current?.openDays ?? [];
   const dayIndex = state.open && !state.cover ? state.page - 1 : -1;
   const day = dayIndex >= 0 ? days[dayIndex] : undefined;
+  if (!months.length || failed) return null;
+
   const heading = state.open
     ? day
       ? (day.label ?? "")

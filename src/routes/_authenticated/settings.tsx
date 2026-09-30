@@ -1015,6 +1015,9 @@ export function PhoneticRow({ lang }: { lang?: string } = {}) {
   );
 }
 
+/** 退会の確認語（表示言語ごとの入力例 `set.deleteWord`: 削除 / DELETE / 刪除）。大文字にして比べる。 */
+const DELETE_WORDS = ["削除", "DELETE", "刪除"];
+
 /**
  * Permanent account deletion (privacy policy §6 / store review requirement).
  * Two-step: open the panel, then type 「削除」 to arm the button — the server
@@ -1038,9 +1041,10 @@ export function DangerZone({
   const navigate = useNavigate();
   const [confirmText, setConfirmText] = useState(defaultConfirmText);
   const [deleting, setDeleting] = useState(false);
-  // 退会の確認語。英語表示の人に日本語入力を強いると操作できないので、
-  // どちらの言語でも通す(表示は今の言語のものだけ)。
-  const armed = ["削除", "DELETE"].includes(confirmText.trim().toUpperCase());
+  // 退会の確認語。入力例（`set.deleteWord`）と案内文（`settings.deleteTypeLabel`）は
+  // 表示言語ごとに違う（削除 / DELETE / 刪除）ので、**3つとも通す**。前は台湾華語の
+  // 入力例「刪除」をそのまま打っても有効にならず、退会できなかった（2026-09-30 の点検）。
+  const armed = DELETE_WORDS.includes(confirmText.trim().toUpperCase());
 
   async function handleDelete() {
     if (!armed || deleting) return;
@@ -1242,6 +1246,7 @@ function DeveloperPanel() {
  */
 export function AvatarRow() {
   const t = useT();
+  const readable = useReadableError();
   const qc = useQueryClient();
   const fetchProfile = useServerFn(getMyProfile);
   const setAvatar = useServerFn(setMyAvatar);
@@ -1265,7 +1270,7 @@ export function AvatarRow() {
       await qc.invalidateQueries({ queryKey: ["profile"] });
       toast.success(t("settings.avatarSaved"));
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : t("settings.avatarFailed"));
+      toast.error(readable(e, t("settings.avatarFailed")));
     } finally {
       setBusy(false);
     }
@@ -1861,6 +1866,7 @@ function ProPlanCard() {
  */
 function AdsPanel() {
   const t = useT();
+  const readable = useReadableError();
   const getFn = useServerFn(getAdConfig);
   const setFn = useServerFn(setAdConfig);
   const qc = useQueryClient();
@@ -1877,7 +1883,7 @@ function AdsPanel() {
       await qc.invalidateQueries({ queryKey: ["ad-config"] });
       toast.success(t("ads.saved"));
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : t("settings.saveFailed"));
+      toast.error(readable(e, t("settings.saveFailed")));
     }
   };
   const num = (k: keyof AdConfig, label: string, min: number, max: number) => (
@@ -2094,6 +2100,8 @@ type ImagePreviewData = {
 };
 
 export function ImageGenerationPanel({ previewData }: { previewData?: ImagePreviewData } = {}) {
+  const t = useT();
+  const readable = useReadableError();
   const getFn = useServerFn(getImageGenerationSettings);
   const setFn = useServerFn(setImageGenerationSettings);
   const qc = useQueryClient();
@@ -2122,7 +2130,7 @@ export function ImageGenerationPanel({ previewData }: { previewData?: ImagePrevi
       await qc.invalidateQueries({ queryKey: ["image-generation-settings"] });
       toast.success("画像生成の設定を保存しました");
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "設定を保存できませんでした");
+      toast.error(readable(e, t("settings.saveFailed")));
     } finally {
       setSaving(false);
     }
@@ -2195,6 +2203,7 @@ export function ImageGenerationPanel({ previewData }: { previewData?: ImagePrevi
 
 function AiModelPanel() {
   const t = useT();
+  const readable = useReadableError();
   const getFn = useServerFn(getAiModelConfig);
   const setFn = useServerFn(setAiModelConfig);
   const qc = useQueryClient();
@@ -2232,7 +2241,7 @@ function AiModelPanel() {
       await qc.invalidateQueries({ queryKey: ["ai-model-config"] });
       toast.success(t("settings.aiApplied"));
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : t("settings.saveFailed"));
+      toast.error(readable(e, t("settings.saveFailed")));
     } finally {
       setSaving(false);
     }

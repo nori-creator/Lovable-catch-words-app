@@ -398,15 +398,12 @@ const q = new URLSearchParams(location.search);
  * 「これを見てください」と差し出すことになる。
  */
 const REVIEW_SCENES: Array<{ scene: string; label: string }> = [
-  // 2026-09-30 の依頼（R25: 初回の写真・ベータテストの指摘・カメラ）で触った面だけ。
-  // **毎回ここを入れ替える** — 前の依頼の面は残さない（オーナー指示「過去のものは全て削除して」）。
-  { scene: "first-catch&step=intro", label: "最初の画面: C（猫が主役の花束）" },
-  { scene: "word-card&measure=ge", label: "量詞「個」を輕聲に" },
-  { scene: "first-catch&step=questions&question=4", label: "興味の質問: 留め具なし" },
-  { scene: "first-catch&step=ready", label: "準備ができました: 留め具なし" },
-  { scene: "capture-object", label: "カメラ: 画面固定・押してピント" },
-  { scene: "home-shelf&lang=zh-TW", label: "日記（台湾華語）: 打っても字が消えない" },
-  { scene: "home-empty&msg=what&lang=zh-TW", label: "說 の字体" },
+  // 2026-09-30 の依頼（R26 全体点検・R27: カメラ固定・日記の左ページ・マップ・ひと言の編集）で触った
+  // 面だけ。**毎回ここを入れ替える** — 前の依頼の面は残さない（オーナー指示「過去のものは全て削除して」）。
+  { scene: "home-shelf", label: "日記の見開き: 元の紙のまま、写真の置き方・ひと言がホームと同じ" },
+  { scene: "capture-object", label: "カメラ: 画面は固定・左下は端末の写真を足す印" },
+  { scene: "dex-map", label: "マップ: 日付を変えたら先頭の時間から" },
+  { scene: "settings-danger", label: "アカウント削除: 3言語で確認の語が通る" },
 ];
 
 const explicitScene = q.get("scene");

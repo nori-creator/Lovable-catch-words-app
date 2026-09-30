@@ -1143,6 +1143,43 @@ export class ShelfWorld {
   }
 
   /**
+   * 見開きの中身（写真の置き方・一言・日記）を差し替えて、開いている本の絵を描き直す。
+   * 日の数が変わった時は何もしない（紙の枚数は本を開いた時に決まるので、次に開き直した時に
+   * 揃う）。変えられたら true。
+   */
+  refreshDays(): boolean {
+    const b = this.active;
+    if (!b || !b.days.length) return false;
+    const next = this.events.days?.(b.data).slice(0, MAX_DAYS) ?? [];
+    if (next.length !== b.days.length) return false;
+    b.days = next;
+    this.repaintAlbum();
+    this.repaintDiary();
+    return true;
+  }
+
+  /**
+   * 写真の置き方・一言が変わった → 開いている本の左ページ（その日のアルバム）を描き直す。
+   * 葉 i の裏が i 日目のアルバム（`paintVerso`）。
+   */
+  repaintAlbum(dayIndex?: number) {
+    this.wake();
+    const b = this.active;
+    if (!b || !b.days.length) return;
+    b.leaves.forEach((leaf, i) => {
+      if (!leaf.verso) return;
+      if (dayIndex !== undefined && i !== dayIndex) return;
+      const c = this.paintVerso(b, i);
+      if (!c) return;
+      leaf.verso = c;
+      leaf.back.map?.dispose();
+      leaf.back.map = tex(mirror(c), true);
+      leaf.back.needsUpdate = true;
+    });
+    this.kick();
+  }
+
+  /**
    * いまの見開きの片側の絵（片ページで大きく見せる用）。左は1つ前の紙の裏
    * （最初は見返し）、右はいまの紙の表（最後は最後のページ）。
    */

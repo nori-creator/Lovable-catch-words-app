@@ -65,6 +65,8 @@ const MAX_LATIN = 32;
 export function shortMeaning(text: string | null | undefined): string {
   const s = (text ?? "").trim();
   if (!s) return "";
+  // ASCII 全域（制御文字を含む）と Latin-1 拡張だけでできた文か。制御文字を含めるのは意図。
+  // eslint-disable-next-line no-control-regex
   const latin = /^[\x00-\x7F\u00C0-\u024F\s]+$/.test(s);
   if (s.length <= (latin ? MAX_LATIN : MAX_CJK)) return s;
   const cut = s.search(/[、，,；;。．(（:：—–]|\.\s/);

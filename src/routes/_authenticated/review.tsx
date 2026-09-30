@@ -1,3 +1,4 @@
+import { useReadableError } from "@/lib/errors";
 import {
   REVIEW_MODE_CHOICE_ENABLED,
   REVIEW_PRACTICE_ENABLED,
@@ -1131,6 +1132,7 @@ export function SpeakingCard({
   const feedbackFn = useServerFn(getSpeakingFeedback);
   const scaffoldFn = useServerFn(getSpeakingScaffold);
   const t = useT();
+  const readable = useReadableError();
   // 鳴らす道は1本(`use-pronounce.tsx`)。作り置きの音は `urls` から
   // 端末へ流し込むので、サーバ関数を1回も呼ばずにそろう。
   const pronounce = usePronounce(card.language ?? undefined);
@@ -1351,7 +1353,7 @@ export function SpeakingCard({
       if (!fb.used_target || fb.natural_score < 3) setFailedAttempts((n) => n + 1);
       setFeedback(fb);
     } catch (e) {
-      setError(e instanceof Error ? e.message : t("rv.feedbackFailed"));
+      setError(readable(e, t("rv.feedbackFailed")));
     } finally {
       setLoading(false);
     }

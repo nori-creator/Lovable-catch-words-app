@@ -1344,6 +1344,38 @@ export const setStickerHeroRole = createServerFn({ method: "POST" })
     throw new Error(error.message);
   });
 
+/** ひと言の長さの上限（撮影画面の欄・アルバムの表示と同じ数を共有する）。 */
+export const CAPTION_MAX = 500;
+
+/**
+ * **その札の「ひと言」を直す**（オーナー指示 2026-09-30「ひと言は単語の詳細や
+ * ホームのアルバム、日記でそれぞれ編集できるようにして」）。
+ *
+ * 空にすると消える（`null`）。**自分の札だけ**（RLS に加えて `user_id` でも絞る）。
+ * 長さは `CAPTION_MAX` まで（撮影画面の欄に上限が無かったので、昔の長い一言も通る広さ）。
+ */
+export const updateStickerCaption = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) =>
+    z
+      .object({
+        sticker_id: z.string().uuid(),
+        caption: z.string().max(CAPTION_MAX),
+      })
+      .parse(input),
+  )
+  .handler(async ({ context, data }): Promise<{ caption: string | null }> => {
+    const { supabase, userId } = context;
+    const caption = data.caption.trim() || null;
+    const { error } = await supabase
+      .from("stickers")
+      .update({ caption })
+      .eq("id", data.sticker_id)
+      .eq("user_id", userId);
+    if (error) throw new Error(error.message);
+    return { caption };
+  });
+
 /** 同じ日のアルバム配置を一括保存する。RLSに加えuser_idでも本人の札に限定。 */
 export const saveAlbumLayout = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])

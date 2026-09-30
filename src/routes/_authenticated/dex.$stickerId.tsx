@@ -7,6 +7,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { AppShell } from "@/components/AppShell";
 import { LoadFailed } from "@/components/LoadFailed";
+import { CaptionLine } from "@/components/CaptionEditDialog";
 import { WordCard } from "@/components/WordCard";
 import { PhotoAddButtons } from "@/components/PhotoAddButtons";
 import { toast } from "sonner";
@@ -489,7 +490,7 @@ export function StickerDetailHero({
             </a>
           )}
         </div>
-        {s.caption && <p className="mt-2 text-body">「{s.caption}」</p>}
+        <CaptionLine stickerId={s.id} caption={s.caption} />
       </section>
 
       {/* Core word info — always visible (§6: 単語+発音+意味+写真) */}

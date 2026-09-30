@@ -130,7 +130,7 @@ export function wrapDiaryLines(
       continue;
     }
     // 欧文の語は塊、ほかは1字ずつ（空白は区切りとして前の塊に付ける）。
-    const tokens = para.match(/[A-Za-z0-9'’\-]+\s*|\s+|./gu) ?? [];
+    const tokens = para.match(/[A-Za-z0-9'’-]+\s*|\s+|./gu) ?? [];
     let line = "";
     for (const tok of tokens) {
       const next = line + tok;
