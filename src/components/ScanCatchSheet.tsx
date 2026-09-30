@@ -536,7 +536,7 @@ export function ScanCatchSheet({
       <div className="flex items-center justify-between px-3 py-2">
         <span className="pl-1 text-footnote font-medium text-white/80">{t("sheet.catch")}</span>
         {phase === "ready" && !saving && (
-          <button
+          <button type="button"
             onClick={onClose}
             aria-label={t("common.close")}
             className="inline-flex h-11 w-11 items-center justify-center rounded-full bg-white/10 text-white active:scale-95 motion-reduce:active:scale-100"
@@ -573,7 +573,7 @@ export function ScanCatchSheet({
           )}
         </div>
 
-        <button
+        <button type="button"
           onClick={doSave}
           disabled={!objectDataUrl || saving}
           className="mx-auto mt-3 inline-flex w-64 max-w-full items-center justify-center gap-2 rounded-full bg-primary px-5 py-3 text-body font-semibold text-primary-foreground shadow-lg shadow-primary/30 transition active:scale-95 disabled:opacity-50"
