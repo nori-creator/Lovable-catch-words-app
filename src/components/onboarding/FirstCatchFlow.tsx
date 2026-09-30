@@ -232,10 +232,7 @@ export function FirstCatchFlow({
       const card = await services.card(headword, draft);
       await commit({
         ...draft,
-        // The learner-selected candidate is the canonical target-language
-        // headword. Card generation may translate/explain it, but must never
-        // replace an English catch with the UI language (for example Japanese).
-        card: { ...card, headword_zh: headword.trim() },
+        card: { ...card, headword_zh: card.headword_zh || headword },
         lesson: undefined,
         stage: "card",
       });
