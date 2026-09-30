@@ -563,7 +563,7 @@ export function DexSurface({
               className="search-field rounded-full pl-9 pr-11"
             />
             {search && (
-              <button
+              <button type="button"
                 onClick={() => setSearch("")}
                 aria-label={t("dex.clearSearch")}
                 className="absolute right-1 top-1/2 grid h-9 w-9 -translate-y-1/2 place-items-center rounded-full text-muted-foreground hover:bg-secondary"
@@ -864,7 +864,7 @@ export function DexAlbumGrid({
         // 飛んで着いた札は、図鑑の側で落とし直さない（`catch-flight.ts`）。
         const slam = s.id === justCaught && !sharedFlightActive && !wasFlown(s.id);
         return (
-          <button
+          <button type="button"
             key={s.id}
             data-dex-item={s.id}
             onClick={() => onOpen(s.id)}
@@ -990,7 +990,7 @@ export function PackGallery({
         // 小さく並ぶ所なので縮小版を先に使う。
         const photo = stickerPhotoUrl(s, { prefer: s.hero_role, thumb: true });
         return (
-          <button
+          <button type="button"
             key={s.id}
             id={`dex-cell-${s.id}`}
             data-dex-item={s.id}
@@ -1047,7 +1047,7 @@ export function DexList({
           key={s.id}
           className={`flex items-center gap-1 pr-2 transition-colors hover:bg-accent/40 ${i > 0 ? "border-t border-border" : ""}`}
         >
-          <button
+          <button type="button"
             data-dex-item={s.id}
             onClick={() => onOpen(s.id)}
             className="flex min-w-0 flex-1 items-center gap-3 p-3 text-left active:bg-accent/50"
@@ -1198,7 +1198,7 @@ export function DexHeader({
           ]
             .filter(([v]) => !allowedViews || allowedViews.includes(v))
             .map(([v, Icon, label]) => (
-              <button
+              <button type="button"
                 key={v}
                 onClick={() => onView(v)}
                 aria-label={label}
@@ -1257,7 +1257,7 @@ export function DexHeader({
               </button>
             )}
             {isFiltering(filter) && (
-              <button
+              <button type="button"
                 onClick={() => onFilter(NO_FILTER)}
                 aria-label={t("dex.filterClearAll")}
                 title={t("dex.filterClearAll")}
