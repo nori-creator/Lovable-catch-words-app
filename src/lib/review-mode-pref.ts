@@ -56,10 +56,13 @@ export function setStoredReviewMode(mode: ReviewModePref): void {
  * 純粋な関数として置くのは、**どちらが勝つかを試験で固定する**ため。
  */
 export function resolveReviewMode(
-  stored: ReviewModePref | null,
-  fromProfile: unknown,
+  _stored: ReviewModePref | null,
+  _fromProfile: unknown,
 ): ReviewModePref {
-  return stored ?? normalizeReviewMode(fromProfile);
+  // オーナー指示 2026-09-30「話すモードは消して、四択だけにして」。
+  // 端末や DB に「話す」が保存されていても、全員4択に固定する。
+  // 発話のコード自体は残し、戻すときはここを元に戻すだけ。
+  return "choice";
 }
 
 /** 画面から使う。DB の値は初期値としてだけ効く。 */
