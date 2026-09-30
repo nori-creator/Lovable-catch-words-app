@@ -1610,7 +1610,7 @@ export function CaptureAnalyzingPanel({
       {/* 全画面で覆う画面には**必ず出口を置く**。ここには閉じるボタンも
           戻るも無く、処理が返ってこないとアプリを強制終了するしか
           逃げ道が無かった(§16 Freedom & Recovery)。 */}
-      <button
+      <button type="button"
         onClick={onCancel}
         className="absolute right-4 top-[calc(1rem+env(safe-area-inset-top))] inline-flex min-h-11 items-center rounded-full bg-white/15 px-4 text-body font-medium text-white backdrop-blur-sm active:scale-95 motion-reduce:active:scale-100"
       >
