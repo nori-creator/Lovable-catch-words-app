@@ -256,7 +256,10 @@ export function FirstCatchFlow({
       const card = await services.card(headword, draft);
       await commit({
         ...draft,
-        card: { ...card, headword_zh: card.headword_zh || headword },
+        // The learner-selected candidate is the canonical target-language
+        // headword. Card generation may translate/explain it, but must never
+        // replace an English catch with the UI language (for example Japanese).
+        card: { ...card, headword_zh: headword.trim() },
         lesson: undefined,
         stage: "card",
       });
@@ -460,6 +463,7 @@ export function FirstCatchFlow({
                 onNativeCapture={
                   Capacitor.isNativePlatform() ? () => void openNativeCamera() : undefined
                 }
+                preferSystemCapture
                 typedWord=""
                 setTypedWord={() => {}}
                 onSearch={() => {}}
