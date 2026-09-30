@@ -348,13 +348,6 @@ export function AuthView({
               <button
                 type="button"
                 onClick={() => {
-                  // A brand-new learner must experience the first-catch tutorial
-                  // before account creation. The tutorial persists its draft and
-                  // returns here in signup mode only after the hands-on flow.
-                  if (mode === "signin" && !draft) {
-                    window.location.assign("/welcome");
-                    return;
-                  }
                   setMode(mode === "signin" ? "signup" : "signin");
                   setShowEmail(true);
                 }}
