@@ -55,7 +55,7 @@ export function PickerRow({
             onChange={onChange}
             options={options}
           />
-          <button
+          <button type="button"
             onClick={() => setOpen(false)}
             className="min-h-12 rounded-full bg-primary px-6 font-semibold text-white"
           >
