@@ -363,7 +363,7 @@ export const DICT: Record<string, Record<UiLang, string>> = {
   "first.completeTitle": {
     ja: "最初のキャッチ、完了！",
     en: "Your first Catch is complete!",
-    "zh-TW": "完成第一次 Catch！",
+    "zh-TW": "完成第一次捕捉！",
   },
   "first.completeHint": {
     ja: "撮って、意味を知って、思い出す。\n身のまわりから、ことばを増やしていこう。",

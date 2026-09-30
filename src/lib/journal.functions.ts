@@ -11,6 +11,7 @@ import {
   levelInstruction,
   explanationLanguageRule,
   getExplanationLanguage,
+  explanationLanguageName,
   l1Rule,
   isProUser,
   logUsage,
@@ -146,7 +147,9 @@ export const correctMyJournal = createServerFn({ method: "POST" })
     const levelRule = await levelInstruction(userId);
     const langRule = await explanationLanguageRule(userId);
     // 本文中の「日本語で」を表示言語に合わせる(#65)。
-    const NL = (await getExplanationLanguage(userId)) === "en" ? "英語" : "日本語";
+    // **3言語すべてを名前で引く**（`=== "en" ? "英語" : "日本語"` だと繁體中文の人の
+    // 解説が日本語で作られる。`ai-provider.server.ts` の注と同じ話）。
+    const NL = explanationLanguageName(await getExplanationLanguage(userId));
     // 日記の間違い方も母語で決まる(SOVの語順、冠詞、動詞活用…)。
     const l1 = await l1Rule(userId, "grammar");
     const corrected = await generateStructured({
@@ -330,7 +333,9 @@ export const getJournalPrompts = createServerFn({ method: "GET" })
     const ai = await getAiFor("journal");
     const levelRule = await levelInstruction(userId);
     const langRule = await explanationLanguageRule(userId);
-    const NL = (await getExplanationLanguage(userId)) === "en" ? "英語" : "日本語";
+    // **3言語すべてを名前で引く**（`=== "en" ? "英語" : "日本語"` だと繁體中文の人の
+    // 解説が日本語で作られる。`ai-provider.server.ts` の注と同じ話）。
+    const NL = explanationLanguageName(await getExplanationLanguage(userId));
     const l1 = await l1Rule(userId, "grammar");
 
     // 参照を **番号で** 返させる。見出し語で返させると、同じ語を2回撮った日に

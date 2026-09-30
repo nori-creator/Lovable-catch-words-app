@@ -6765,3 +6765,23 @@ describe("R26: 生のエラー文を画面に出さない", () => {
     });
   }
 });
+
+describe("全体点検 2026-09-30: 撮る画面", () => {
+  it("**圏外で預けた写真を「もう一枚撮る」で捨てない**", () => {
+    // 預けた面は「あとでホームの『解析待ち』から続きができます」と約束している。
+    // `reset` は預けた行を消すので、この面からは先に手放してから畳む。
+    const src = codeOnly(read("routes/_authenticated/capture.tsx"));
+    const panel = src.slice(
+      src.indexOf("<OfflineSavedPanel"),
+      src.indexOf("<OfflineSavedPanel") + 600,
+    );
+    expect(panel).not.toMatch(/onAgain=\{reset\}/);
+    expect(panel).toMatch(/pendingIdRef\.current = null;\s*reset\(\);/);
+  });
+
+  it("解析・検索の失敗で生のエラー文を出さない", () => {
+    const src = codeOnly(read("routes/_authenticated/capture.tsx"));
+    expect(src).toMatch(/const reason = readable\(e, t\("cap\.aiFailed"\)\)/);
+    expect(src).not.toMatch(/e instanceof Error && e\.message\s*\?\s*e\.message/);
+  });
+});
