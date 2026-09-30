@@ -354,14 +354,14 @@ export function DexDayMap({
               })}
             </span>
           </button>
-          <button
+          <button type="button"
             onClick={() => setCalendarOpen(true)}
             aria-label={t("dex.calendar")}
             className="press-in grid h-11 w-11 shrink-0 place-items-center rounded-full bg-secondary"
           >
             <CalendarDays className="h-5 w-5" />
           </button>
-          <button
+          <button type="button"
             onClick={() => prev && setDay(prev)}
             disabled={!prev}
             aria-label={t("dex.prevDay")}
@@ -369,7 +369,7 @@ export function DexDayMap({
           >
             <ChevronLeft className="h-5 w-5" />
           </button>
-          <button
+          <button type="button"
             onClick={() => next && setDay(next)}
             disabled={!next}
             aria-label={t("dex.nextDay")}
@@ -390,7 +390,7 @@ export function DexDayMap({
             onClick={(e) => e.stopPropagation()}
           >
             <div className="mb-1 flex justify-end">
-              <button
+              <button type="button"
                 onClick={() => setCalendarOpen(false)}
                 aria-label={t("common.close")}
                 className="grid h-11 w-11 place-items-center rounded-full"
