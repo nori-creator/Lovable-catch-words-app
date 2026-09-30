@@ -2084,7 +2084,7 @@ const IMAGE_OPTIONS = [
     key: "HIGGSFIELD_API_KEY / HIGGSFIELD_API_SECRET",
     defaultModel: DEFAULT_HIGGSFIELD_IMAGE_MODEL,
   },
-  { id: "off", label: "画像生成を停止", key: "", defaultModel: "" },
+  { id: "off", label: "off", key: "", defaultModel: "" },
 ] as const;
 type ImageOption = (typeof IMAGE_OPTIONS)[number]["id"];
 
@@ -2094,6 +2094,7 @@ type ImagePreviewData = {
 };
 
 export function ImageGenerationPanel({ previewData }: { previewData?: ImagePreviewData } = {}) {
+  const t = useT();
   const getFn = useServerFn(getImageGenerationSettings);
   const setFn = useServerFn(setImageGenerationSettings);
   const qc = useQueryClient();
@@ -2120,9 +2121,9 @@ export function ImageGenerationPanel({ previewData }: { previewData?: ImagePrevi
     try {
       await setFn({ data: { provider, model: model.trim() } });
       await qc.invalidateQueries({ queryKey: ["image-generation-settings"] });
-      toast.success("画像生成の設定を保存しました");
+      toast.success(t("settings.imageSaved"));
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "設定を保存できませんでした");
+      toast.error(e instanceof Error ? e.message : t("settings.saveFailed"));
     } finally {
       setSaving(false);
     }
@@ -2130,21 +2131,19 @@ export function ImageGenerationPanel({ previewData }: { previewData?: ImagePrevi
   return (
     <details className="rounded-2xl border border-border bg-card p-4">
       <summary className="cursor-pointer list-none text-body font-semibold [&::-webkit-details-marker]:hidden">
-        文字検索のAI画像
+        {t("settings.imageTitle")}
       </summary>
       <div className="mt-4 space-y-3 text-footnote">
-        <p className="text-muted-foreground">
-          文字で見つけた単語の詳細と復習に、AI画像を1枚作ります。ホームのアルバムには表示しません。
-        </p>
+        <p className="text-muted-foreground">{t("settings.imageDescription")}</p>
         <p className="rounded-xl bg-secondary/60 p-3">
-          現在:{" "}
+          {t("settings.imageCurrent")}:{" "}
           {data
-            ? `${IMAGE_OPTIONS.find((o) => o.id === data.effective.provider)?.label ?? data.effective.provider} / ${data.effective.model || "停止"}`
+            ? `${data.effective.provider === "off" ? t("settings.imageOff") : (IMAGE_OPTIONS.find((o) => o.id === data.effective.provider)?.label ?? data.effective.provider)} / ${data.effective.model || t("settings.imageOff")}`
             : error
-              ? "設定を読み込めませんでした"
-              : "読み込み中…"}
+              ? t("settings.imageLoadFailed")
+              : t("sheet.loading")}
         </p>
-        <Label htmlFor="image-provider">画像を作るサービス</Label>
+        <Label htmlFor="image-provider">{t("settings.imageProvider")}</Label>
         <select
           id="image-provider"
           value={provider}
@@ -2157,7 +2156,7 @@ export function ImageGenerationPanel({ previewData }: { previewData?: ImagePrevi
         >
           {IMAGE_OPTIONS.map((o) => (
             <option key={o.id} value={o.id}>
-              {o.label}
+              {o.id === "off" ? t("settings.imageOff") : o.label}
             </option>
           ))}
         </select>
@@ -2165,10 +2164,10 @@ export function ImageGenerationPanel({ previewData }: { previewData?: ImagePrevi
           <>
             <p className={keyPresent ? "text-ok-ink" : "text-destructive-ink"}>
               {keyPresent
-                ? "✓ サーバにキーがあります"
-                : `キーがありません。Lovable → Cloud → Secrets に ${option.key} を追加してください。`}
+                ? t("settings.imageKeyFound")
+                : t("settings.imageKeyMissing", { key: option.key })}
             </p>
-            <Label htmlFor="image-model">画像モデル</Label>
+            <Label htmlFor="image-model">{t("settings.imageModel")}</Label>
             <Input
               id="image-model"
               value={model}
@@ -2176,9 +2175,7 @@ export function ImageGenerationPanel({ previewData }: { previewData?: ImagePrevi
               placeholder={option.defaultModel}
               autoComplete="off"
             />
-            <p className="text-muted-foreground">
-              キーはこの画面に入力しません。各サービスのAPIキーをSecretsへ保存し、ここで提供元を選んでください。
-            </p>
+            <p className="text-muted-foreground">{t("settings.imageKeyHint")}</p>
           </>
         )}
         <Button
@@ -2186,7 +2183,7 @@ export function ImageGenerationPanel({ previewData }: { previewData?: ImagePrevi
           disabled={saving || !data || !keyPresent || Boolean(previewData)}
           className="w-full"
         >
-          {saving ? "保存中…" : "画像生成の設定を保存"}
+          {saving ? t("settings.saving") : t("settings.imageSave")}
         </Button>
       </div>
     </details>
