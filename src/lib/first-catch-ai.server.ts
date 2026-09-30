@@ -72,10 +72,23 @@ export async function generateFirstCatchAI(raw: unknown) {
         }
       : { prompt }),
   });
-  const parsed = parseJsonFromAiText(result.text);
-  if (data.action === "suggest") return FirstCatchSuggestionsSchema.parse(parsed);
-  if (data.action === "lesson") return PersonalLessonSchema.parse(parsed);
-  const card = CardSchema.parse(parsed);
+  // 返事の形が崩れていたときは**コードで**返す（画面が原因を出せるように。
+  // 形の検査の長い英文をそのまま画面に流さない）。
+  let parsed: unknown;
+  let card;
+  try {
+    parsed = parseJsonFromAiText(result.text);
+    if (data.action === "suggest") return FirstCatchSuggestionsSchema.parse(parsed);
+    if (data.action === "lesson") return PersonalLessonSchema.parse(parsed);
+    card = CardSchema.parse(parsed);
+  } catch (e) {
+    console.error(
+      "[first-catch] AI reply unusable:",
+      data.action,
+      e instanceof Error ? e.message.slice(0, 200) : "",
+    );
+    throw new Error("FIRST_CATCH_AI_FORMAT");
+  }
   if (!card.headword_zh.trim()) throw new Error("FIRST_CATCH_AI_UNAVAILABLE");
   return { ...card, level: "", extras: { ...card.extras, explain_lang: data.uiLanguage } };
 }

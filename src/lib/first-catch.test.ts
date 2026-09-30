@@ -174,12 +174,14 @@ describe("photographed candidates and learning context", () => {
       }),
     );
   });
-  it("rejects empty AI suggestions and never invents a fixed word", async () => {
+  // 0件は形として通し、画面が「近づいて撮り直す」と言う（FIRST_CATCH_NO_WORDS）。
+  // 決まった語を勝手に足さないことだけは守る。
+  it("passes empty AI suggestions through and never invents a fixed word", async () => {
     const services = createFirstCatchServices(
       async () => ({ suggestions: [] }),
       async () => {},
     );
-    await expect(services.suggest("any-photo", ready)).rejects.toThrow();
+    await expect(services.suggest("any-photo", ready)).resolves.toEqual({ suggestions: [] });
   });
   it("keeps photographed meaning and varied goals separate from shared word data", () => {
     const prompt = personalizationRule({

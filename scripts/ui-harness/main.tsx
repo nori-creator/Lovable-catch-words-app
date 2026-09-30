@@ -398,13 +398,43 @@ const q = new URLSearchParams(location.search);
  * 「これを見てください」と差し出すことになる。
  */
 const REVIEW_SCENES: Array<{ scene: string; label: string }> = [
-  // 2026-09-30 の依頼（R26 全体点検・R27: カメラ固定・日記の左ページ・マップ・ひと言の編集）で触った
-  // 面だけ。**毎回ここを入れ替える** — 前の依頼の面は残さない（オーナー指示「過去のものは全て削除して」）。
-  { scene: "home-shelf", label: "日記の見開き: 元の紙のまま、写真の置き方・ひと言がホームと同じ" },
-  { scene: "capture-object", label: "カメラ: 画面は固定・左下は端末の写真を足す印" },
-  { scene: "dex-map", label: "マップ: 日付を変えたら先頭の時間から" },
-  { scene: "settings-danger", label: "アカウント削除: 3言語で確認の語が通る" },
+  // 2026-09-30 βテスト（父・母の報告）で触った面だけ。**毎回ここを入れ替える**。
+  {
+    scene: "first-catch&step=camera&cam=denied",
+    label: "チュートリアルのカメラ: 許可されていない時の直し方（iPhone）",
+  },
+  {
+    scene: "first-catch&step=camera&cam=line",
+    label: "チュートリアルのカメラ: LINE から開いた時（ブラウザで開き直す）",
+  },
+  { scene: "first-catch&step=camera", label: "チュートリアル: 右下の「設定」で言語・最初に戻る" },
+  { scene: "first-catch&step=questions", label: "チュートリアル: 1問目の「戻る」で最初の画面へ" },
 ];
+
+/**
+ * **カメラが使えない端末を見本で再現する**（`?cam=denied` / `?cam=line`）。
+ * 見本の環境にはカメラが無いか、あっても許可の状態を選べないので、
+ * 端末の答えを差し替える。本番のコードには何も足さない。
+ */
+{
+  const cam =
+    new URLSearchParams(location.search).get("cam") ??
+    (location.search ? null : (REVIEW_SCENES[0].scene.match(/cam=(\w+)/)?.[1] ?? null));
+  const iphone =
+    "Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1";
+  if (cam === "denied" || cam === "line") {
+    try {
+      Object.defineProperty(navigator, "userAgent", {
+        get: () => (cam === "line" ? `${iphone.replace(" Version/17.5", "")} Line/14.9.0` : iphone),
+      });
+    } catch {
+      /* 差し替えられないブラウザでは、端末そのままの手順が出る。 */
+    }
+    if (navigator.mediaDevices)
+      navigator.mediaDevices.getUserMedia = () =>
+        Promise.reject(new DOMException("preview", "NotAllowedError"));
+  }
+}
 
 const explicitScene = q.get("scene");
 /**

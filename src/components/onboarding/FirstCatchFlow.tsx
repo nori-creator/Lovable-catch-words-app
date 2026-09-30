@@ -42,6 +42,7 @@ import { DexSurface, JUST_CAUGHT_VIEW } from "@/routes/_authenticated/dex";
 import { StickerSheet } from "@/components/StickerSheet";
 import { FirstCatchHome, FirstCatchShell } from "./FirstCatchHome";
 import { Spotlight } from "./Spotlight";
+import { TutorialMenu, TutorialMenuContext } from "./TutorialMenu";
 import "./first-catch.css";
 
 type Suggestion = Awaited<ReturnType<typeof suggestWords>>["suggestions"][number];
@@ -115,6 +116,15 @@ export function FirstCatchFlow({
   const [detailSeen, setDetailSeen] = useState(false);
   const [homeGuide, setHomeGuide] = useState<"album" | "camera">("album");
   const [landing, setLanding] = useState(false);
+  /**
+   * 撮る画面で映像が取れない（アプリ内ブラウザ・許可なし）。そのときは
+   * シャッターだけを照らす案内を外す — 案内の覆いが、枠の中に出る
+   * 「スマホのカメラで撮る」「写真を選ぶ」を押せなくしてしまうため。
+   */
+  const [cameraUnavailable, setCameraUnavailable] = useState(false);
+  /** チュートリアル用の設定（言語・最初に戻る）。下のタブの「設定」から開く。 */
+  const [menuOpen, setMenuOpen] = useState(false);
+  const openMenu = useRef(() => setMenuOpen(true)).current;
   const hero = useRef<HTMLDivElement>(null);
   const fly = useRef<HTMLImageElement>(null);
   const pronounce = usePronounce(useTargetLang());
@@ -206,7 +216,7 @@ export function FirstCatchFlow({
         timer = setTimeout(() => reject(new Error("FIRST_CATCH_ANALYSIS_TIMEOUT")), 55_000);
       }),
     ]).finally(() => clearTimeout(timer));
-    if (!result.suggestions.length) throw new Error("No candidates");
+    if (!result.suggestions.length) throw new Error("FIRST_CATCH_NO_WORDS");
     if (mounted.current && mine === run.current) setSuggestions(result.suggestions);
   }
   function photo(file: File) {
@@ -289,6 +299,8 @@ export function FirstCatchFlow({
       FIRST_CATCH_ANALYSIS_TIMEOUT: "first.analysisTimeout",
       FIRST_CATCH_GUEST_UNAVAILABLE: "first.guestUnavailable",
       FIRST_CATCH_LIMIT: "first.busy",
+      FIRST_CATCH_NO_WORDS: "first.noWords",
+      FIRST_CATCH_AI_FORMAT: "first.aiFormat",
     };
     const key = known[code];
     if (key) return t(key);
@@ -320,10 +332,85 @@ export function FirstCatchFlow({
     </div>
   );
   if (!draft) return <div className="first-questions">{errors ?? <p role="status">…</p>}</div>;
+  /** いま走っている処理を捨てる（分析中でもメニューから抜けられるように）。 */
+  function abandonRun() {
+    run.current++;
+    lock.current = false;
+    setBusy(null);
+    setError(null);
+    setSuggestions([]);
+  }
+  function changeLanguage(next: Pick<FirstCatch, "uiLanguage" | "targetLanguage">) {
+    const current = draftRef.current;
+    if (!current) return;
+    let updated: FirstCatch = { ...current, ...next };
+    // 学ぶ言語を変えたら、前の言語で作った写真の語は使えない。ホームからやり直す。
+    if (next.targetLanguage !== current.targetLanguage && (current.photo || current.card)) {
+      abandonRun();
+      updated = {
+        ...updated,
+        photo: null,
+        card: null,
+        lesson: undefined,
+        capturedAt: null,
+        reviewCompleted: false,
+        stage: ["intro", "questions", "notifications", "ready"].includes(current.stage)
+          ? current.stage
+          : "home",
+      };
+    }
+    applyFirstCatchLanguage(updated);
+    setDraft(updated);
+    void persist(updated).catch(() => setError(t("first.storage")));
+  }
+  function restart() {
+    const current = draftRef.current;
+    if (!current) return;
+    abandonRun();
+    setMenuOpen(false);
+    setHomeGuide("album");
+    setDetailSeen(false);
+    const next: FirstCatch = {
+      ...current,
+      stage: "intro",
+      questionIndex: 0,
+      photo: null,
+      card: null,
+      lesson: undefined,
+      capturedAt: null,
+      reviewCompleted: false,
+    };
+    setDraft(next);
+    void persist(next).catch(() => setError(t("first.storage")));
+  }
+  const menu =
+    draft.stage !== "intro" && draft.stage !== "account" && !landing ? (
+      <TutorialMenu
+        draft={draft}
+        open={menuOpen}
+        onOpenChange={setMenuOpen}
+        showButton={
+          ["questions", "notifications", "ready"].includes(draft.stage)
+            ? "right"
+            : // 単語の詳細はシートが下のタブを覆うので、左上（右上は閉じる）に出す。
+              draft.stage === "explore"
+              ? "left"
+              : false
+        }
+        onChangeLanguage={changeLanguage}
+        onRestart={restart}
+      />
+    ) : null;
+  const withMenu = (node: React.ReactNode) => (
+    <TutorialMenuContext.Provider value={openMenu}>
+      {node}
+      {menu}
+    </TutorialMenuContext.Provider>
+  );
   if (draft.stage === "intro")
     return <FirstCatchIntro draft={draft} busy={!!busy} onStart={() => move("questions")} />;
   if (draft.stage === "questions")
-    return (
+    return withMenu(
       <FirstCatchQuestions
         draft={draft}
         busy={!!busy}
@@ -335,10 +422,10 @@ export function FirstCatchFlow({
         onContinue={(next) => {
           void action(() => commit(next));
         }}
-      />
+      />,
     );
   if (draft.stage === "notifications")
-    return (
+    return withMenu(
       <FirstCatchNotifications
         draft={draft}
         busy={!!busy}
@@ -346,19 +433,19 @@ export function FirstCatchFlow({
         onChange={(reminders) => setDraft({ ...draft, reminders })}
         onBack={() => void action(() => commit({ ...draft, stage: "questions", questionIndex: 4 }))}
         onContinue={() => move("ready")}
-      />
+      />,
     );
   if (draft.stage === "ready")
-    return (
+    return withMenu(
       <FirstCatchReady
         draft={draft}
         busy={!!busy}
         onBack={() => move("notifications")}
         onStart={() => move("home")}
-      />
+      />,
     );
   if (busy && busy !== "save")
-    return (
+    return withMenu(
       <FirstCatchShell tab={2} camera>
         {/* **本物の撮影画面の分析中の面**（`CaptureAnalyzingPanel`）。候補を選んだ後の
             準備も、本物と同じく切り抜きの演出で待つ。 */}
@@ -367,10 +454,10 @@ export function FirstCatchFlow({
           cutout={busy === "card"}
           onCancel={cancelAnalysis}
         />
-      </FirstCatchShell>
+      </FirstCatchShell>,
     );
   const sticker = firstCatchSticker(draft);
-  return (
+  return withMenu(
     <div className="first-run" data-first-stage={draft.stage}>
       {draft.stage === "home" && (
         <FirstCatchHome
@@ -458,6 +545,7 @@ export function FirstCatchFlow({
                 onSearch={() => {}}
                 onOpenScan={() => {}}
                 error={null}
+                onCameraUnavailable={setCameraUnavailable}
               />
             ))}
         </FirstCatchShell>
@@ -563,7 +651,7 @@ export function FirstCatchFlow({
           allowSelector={homeGuide === "camera" ? '[data-tour="tab-camera"]' : undefined}
         />
       )}
-      {!error && !landing && draft.stage === "camera" && !draft.photo && (
+      {!error && !landing && !cameraUnavailable && draft.stage === "camera" && !draft.photo && (
         <Spotlight
           target=".camera-shutter"
           title={t("first.shootTitle")}
@@ -599,6 +687,6 @@ export function FirstCatchFlow({
           lang={draft.targetLanguage}
         />
       )}
-    </div>
+    </div>,
   );
 }

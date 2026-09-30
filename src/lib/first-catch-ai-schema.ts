@@ -34,7 +34,9 @@ export const FirstCatchSuggestionsSchema = z.object({
         distinction: z.string().default(""),
       }),
     )
-    .min(1)
+    // **0件も形としては正しい**（暗い・何も写っていない写真）。0件を形の誤りとして
+    // 落とすと「処理できませんでした」になり、撮り直しても同じ所で止まる
+    // （βテスト 2026-09-30、父の報告）。0件は画面で「近づいて撮り直す」と言う。
     .max(5),
 });
 const common = {

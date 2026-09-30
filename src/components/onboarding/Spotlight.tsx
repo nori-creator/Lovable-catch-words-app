@@ -79,6 +79,8 @@ export function Spotlight({
     window.addEventListener("resize", measure);
     window.addEventListener("scroll", measure, true);
     const allowed = (e: Event) =>
+      // チュートリアルのメニュー（言語・最初に戻る）はいつでも押せる。
+      (e.target instanceof Element && !!e.target.closest("[data-tour-escape]")) ||
       // The shutter's file-picker fallback dispatches a click on its hidden input.
       (target === ".camera-shutter" &&
         e.type === "click" &&
@@ -95,6 +97,14 @@ export function Spotlight({
       if (!allowed(e)) {
         e.preventDefault();
         e.stopImmediatePropagation();
+        // 覆いの下にある「いつでも押せる物」（下のタブの設定）へは、押した所から渡す。
+        if (e.type === "click" && e instanceof MouseEvent) {
+          const escape = document
+            .elementsFromPoint(e.clientX, e.clientY)
+            .map((el) => el.closest<HTMLElement>("[data-tour-escape]"))
+            .find((el): el is HTMLElement => !!el);
+          escape?.click();
+        }
       }
     };
     const focus = (e: Event) => {
