@@ -74,10 +74,15 @@ describe("buildMessage — 「」の中も表示言語", () => {
 });
 
 describe("buildMessage — 場所は地名で言う", () => {
+  // 通知の日付は端末の地方時で表示する。CI のタイムゾーンに依存させない。
+  const localDate = new Date(base.taken_at!).toLocaleDateString("ja-JP", {
+    month: "long",
+    day: "numeric",
+  });
   it("日付と地名の両方が在れば両方出す", () => {
     const { body } = buildMessage(base);
     expect(body).toContain("士林夜市");
-    expect(body).toContain("7月5日");
+    expect(body).toContain(localDate);
   });
 
   /** **「ここ」で済ませない**(オーナー指摘)。 */
@@ -87,7 +92,7 @@ describe("buildMessage — 場所は地名で言う", () => {
 
   it("地名が無ければ日付だけ", () => {
     const { body } = buildMessage({ ...base, location_name: null });
-    expect(body).toContain("7月5日");
+    expect(body).toContain(localDate);
     expect(body).not.toContain("（");
   });
 
