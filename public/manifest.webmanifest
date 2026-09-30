@@ -1,9 +1,9 @@
 {
-  "id": "/home",
+  "id": "/",
   "name": "CatchWords — 街で出会う、台湾華語",
   "short_name": "CatchWords",
   "description": "街で見たものの単語と発音が瞬間的に分かる。撮って、切り抜いて、自分だけの図鑑を作る台湾華語学習アプリ。",
-  "start_url": "/home",
+  "start_url": "/",
   "scope": "/",
   "display": "standalone",
   "orientation": "portrait",
