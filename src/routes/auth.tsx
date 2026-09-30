@@ -395,7 +395,7 @@ export function AuthView({
 
           <p className="auth-legal">
             <a href="/terms">{t("auth.terms")}</a>
-            <span aria-hidden="true">・</span>
+            <span aria-hidden="true">·</span>
             <a href="/privacy">{t("auth.privacy")}</a>
           </p>
         </div>
