@@ -1528,15 +1528,3 @@ html[data-motion="reduce"] .tour-pulse,
 html[data-motion="reduce"] .tour-ring--tap::after {
   animation: none !important;
 }
-
-/* 復習の段: 説明の後も、押す所（選択肢・答えの「次へ」）を同じ青い光で囲う。 */
-html[data-first-guide="review"] [data-tour="review-choices"] > li > button:not(:disabled),
-html[data-first-guide="review"] [data-tour="review-next"] {
-  outline: 2px solid var(--primary);
-  outline-offset: 2px;
-  animation: tour-tap-pulse 1.6s ease-out infinite;
-}
-html[data-motion="reduce"][data-first-guide="review"] [data-tour="review-choices"] button,
-html[data-motion="reduce"][data-first-guide="review"] [data-tour="review-next"] {
-  animation: none !important;
-}

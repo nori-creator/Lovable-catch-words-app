@@ -273,7 +273,7 @@ export function AuthView({
               {mode === "signup" && (
                 <button
                   type="button"
-                  className="first-primary tour-pulse"
+                  className="first-primary"
                   onClick={() => {
                     setMode("signin");
                     setShowEmail(true);

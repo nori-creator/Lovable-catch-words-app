@@ -154,17 +154,20 @@ export function FirstCatchReview({
   const [memoryWord, setMemoryWord] = useState<MemoryWord | null>(null);
   const [introduced, setIntroduced] = useState(false);
   /**
-   * 説明を読んだ後も、**押す所（選択肢 → 答えの「次へ」）を青い光で囲う**
+   * 説明を読んだ後も、**押す所を他の段と同じ案内の枠（`Spotlight`）で囲う**
    * （オーナー指示 2026-09-30「次に進むためにどこタップすればいいか一目瞭然となるように」）。
-   * 答えの面は画面の一番上へ出す部品（`document.body`）なので、印は `html` に付ける。
+   * 選択肢 → 答えの「次へ」の順。**4択の部品そのものには手を入れない**
+   * （同日「チュートリアルの4択が本物と異なってる。チュートリアルだから勝手に作らないで」）。
+   * 答えの面は `document.body` へ出る部品なので、出たかどうかは画面から見る。
    */
+  const [answerOpen, setAnswerOpen] = useState(false);
   useEffect(() => {
     if (!introduced) return;
-    const root = document.documentElement;
-    root.dataset.firstGuide = "review";
-    return () => {
-      delete root.dataset.firstGuide;
-    };
+    const check = () => setAnswerOpen(!!document.querySelector('[data-tour="review-next"]'));
+    check();
+    const observer = new MutationObserver(check);
+    observer.observe(document.body, { childList: true, subtree: true });
+    return () => observer.disconnect();
   }, [introduced]);
   const samples = sampleStickers(draft, t, lang);
   const own = firstCatchSticker(draft);
@@ -206,6 +209,13 @@ export function FirstCatchReview({
           step="5 / 5"
           nextLabel={t("first.next")}
           onNext={() => setIntroduced(true)}
+        />
+      )}
+      {introduced && !memoryWord && !expanded && (
+        <Spotlight
+          target={answerOpen ? '[data-tour="review-next"]' : '[data-tour="review-choices"]'}
+          text={t(answerOpen ? "first.reviewNext" : "first.reviewPick")}
+          interactive
         />
       )}
       {memoryWord && (
