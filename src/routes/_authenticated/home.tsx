@@ -219,14 +219,14 @@ export function PendingCapturesCard({
             周りの文字と見分けがつかない */}
       <div className="flex shrink-0 items-center justify-end gap-1">
         {confirming && (
-          <button
+          <button type="button"
             onClick={onCancelDiscard}
             className="inline-flex min-h-11 items-center rounded-full px-2 text-caption font-medium text-muted-foreground hover:text-foreground"
           >
             {t("home.pendingDiscardCancel")}
           </button>
         )}
-        <button
+        <button type="button"
           onClick={onDiscard}
           className={`inline-flex min-h-11 items-center gap-1 rounded-full px-2 text-caption font-medium ${
             confirming
@@ -697,7 +697,7 @@ export function JournalLink({ onWrite }: { onWrite?: () => void }) {
     <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
       {onWrite ? (
         <>
-          <button onClick={onWrite} className={cls}>
+          <button type="button" onClick={onWrite} className={cls}>
             <BookText className="h-4 w-4 text-primary" />
             {t("home.writeToday")}
           </button>
@@ -1775,7 +1775,7 @@ export function DayCollage({
 
             return (
               <Fragment key={s.id}>
-                <button
+                <button type="button"
                   /* 写真の無い札。**枠が字の高さしか無い**ので、指の当たり判定の
                  下限（§11 の 44px）を CSS 側でも保証する。 */
                   data-plain={heroUrl ? undefined : ""}
