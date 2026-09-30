@@ -6729,3 +6729,26 @@ describe("R27: 日記の左ページはホームのアルバムと同じ置き�
     }
   });
 });
+
+/**
+ * R26（オーナー指示 2026-09-30 全体点検）: サーバーの生のエラー文（英語・技術用語・日本語）を
+ * 利用者の画面にそのまま出さない。`readableError` を通せば、日本語の文は日本語の画面にだけ、
+ * 知っている文は画面の言語へ、知らない文は汎用の文になる。
+ */
+describe("R26: 生のエラー文を画面に出さない", () => {
+  const files = [
+    "components/TtsVoiceForm.tsx",
+    "components/StickerSheet.tsx",
+    "routes/_authenticated/settings.tsx",
+    "routes/_authenticated/review.tsx",
+  ];
+  for (const f of files) {
+    it(`${f}: e.message を直に toast / 画面へ出さない`, () => {
+      const src = codeOnly(read(f));
+      expect(src).not.toMatch(/toast\.error\(e instanceof Error \? e\.message/);
+      expect(src).not.toMatch(/setError\(e instanceof Error \? e\.message/);
+      expect(src).not.toMatch(/setEnrichError\(e instanceof Error \? e\.message/);
+      expect(src).toMatch(/useReadableError\(\)/);
+    });
+  }
+});

@@ -127,3 +127,9 @@ The tutorial is a controller over production presentation components, not a seco
 Changes to shared presentation components therefore affect the app and tutorial in the same build. New features still need intentional tutorial copy/step decisions; this mechanism does not generate explanations automatically. Keep semantic `data-tour` anchors with the production controls when moving them.
 
 `onboarding-shared-surfaces.test.ts` guards the rendering boundary and rejects tutorial-specific replacements/size overrides. Visual review must exercise the same production components with deterministic local data, and live capture/AI must also be tested on a backend-enabled deployment before release.
+
+## Home album layout: one function (2026-09-30)
+
+`src/lib/album-day-layout.ts` decides where every photo of a day sits (`settleDayAlbum` → `frameRatio` + `settledById`; `layoutDayAlbum` for the whole day). Both the home `DayCollage` (DOM) and the 3D diary book's left page (`shelf3d/textures.ts` → `paintPlacedPhotos`) use it, and `albumHeroUrl` picks the picture. Do not add a second layout path. `HomeShelf` takes `renderDayPage` so the app can mount the real `DayCollage` over the single left page; `CaptionEditDialog` is the shared note editor.
+
+Dead-code policy used in R26: delete only files with zero references (code, tests, harness, docs) — done: WordTreeView, AuthProviderButtons, ImagePicker, ai-gateway.server, first-catch-sample, words.functions, catch-landing v1–v4. Kept on purpose: shadcn `ui/*` primitives, `DayJournalPage`, `use-voice-input`, `admob`, `quests.functions`, `catch-landing/v5_physics` (tests gate a future re-connection), `src/server.ts` (SSR entry; knip false positive). Unused npm dependencies are listed for the owner, not removed (lockfile/Lovable sync).

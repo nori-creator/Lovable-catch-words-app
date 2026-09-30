@@ -1,3 +1,4 @@
+import { useReadableError } from "@/lib/errors";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -52,6 +53,7 @@ export function TtsVoiceForm({
   defaultOpen?: boolean;
 }) {
   const t = useT();
+  const readable = useReadableError();
   type Draft = { provider: string; voice: string; model: string };
   const [draft, setDraft] = useState<Record<string, Draft>>({});
   const [busy, setBusy] = useState<string | null>(null);
@@ -90,7 +92,7 @@ export function TtsVoiceForm({
       setTook((m) => ({ ...m, [lang]: r.ms }));
       void new Audio(r.audio_url).play();
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : t("settings.saveFailed"));
+      toast.error(readable(e, t("settings.saveFailed")));
     } finally {
       setBusy(null);
     }
@@ -106,7 +108,7 @@ export function TtsVoiceForm({
       }
       await onSave(languages, tw);
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : t("settings.saveFailed"));
+      toast.error(readable(e, t("settings.saveFailed")));
     } finally {
       setBusy(null);
     }
@@ -125,7 +127,7 @@ export function TtsVoiceForm({
       setTook((m) => ({ ...m, [TAIWAN_LANGUAGE]: r.ms }));
       void new Audio(r.audio_url).play();
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : t("settings.saveFailed"));
+      toast.error(readable(e, t("settings.saveFailed")));
     } finally {
       setBusy(null);
     }
@@ -137,7 +139,7 @@ export function TtsVoiceForm({
     try {
       setDiag(await onDiagnose());
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : t("settings.saveFailed"));
+      toast.error(readable(e, t("settings.saveFailed")));
     } finally {
       setBusy(null);
     }

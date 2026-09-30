@@ -1246,6 +1246,7 @@ function DeveloperPanel() {
  */
 export function AvatarRow() {
   const t = useT();
+  const readable = useReadableError();
   const qc = useQueryClient();
   const fetchProfile = useServerFn(getMyProfile);
   const setAvatar = useServerFn(setMyAvatar);
@@ -1269,7 +1270,7 @@ export function AvatarRow() {
       await qc.invalidateQueries({ queryKey: ["profile"] });
       toast.success(t("settings.avatarSaved"));
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : t("settings.avatarFailed"));
+      toast.error(readable(e, t("settings.avatarFailed")));
     } finally {
       setBusy(false);
     }
@@ -1865,6 +1866,7 @@ function ProPlanCard() {
  */
 function AdsPanel() {
   const t = useT();
+  const readable = useReadableError();
   const getFn = useServerFn(getAdConfig);
   const setFn = useServerFn(setAdConfig);
   const qc = useQueryClient();
@@ -1881,7 +1883,7 @@ function AdsPanel() {
       await qc.invalidateQueries({ queryKey: ["ad-config"] });
       toast.success(t("ads.saved"));
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : t("settings.saveFailed"));
+      toast.error(readable(e, t("settings.saveFailed")));
     }
   };
   const num = (k: keyof AdConfig, label: string, min: number, max: number) => (
@@ -2098,6 +2100,8 @@ type ImagePreviewData = {
 };
 
 export function ImageGenerationPanel({ previewData }: { previewData?: ImagePreviewData } = {}) {
+  const t = useT();
+  const readable = useReadableError();
   const getFn = useServerFn(getImageGenerationSettings);
   const setFn = useServerFn(setImageGenerationSettings);
   const qc = useQueryClient();
@@ -2126,7 +2130,7 @@ export function ImageGenerationPanel({ previewData }: { previewData?: ImagePrevi
       await qc.invalidateQueries({ queryKey: ["image-generation-settings"] });
       toast.success("画像生成の設定を保存しました");
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "設定を保存できませんでした");
+      toast.error(readable(e, t("settings.saveFailed")));
     } finally {
       setSaving(false);
     }
@@ -2199,6 +2203,7 @@ export function ImageGenerationPanel({ previewData }: { previewData?: ImagePrevi
 
 function AiModelPanel() {
   const t = useT();
+  const readable = useReadableError();
   const getFn = useServerFn(getAiModelConfig);
   const setFn = useServerFn(setAiModelConfig);
   const qc = useQueryClient();
@@ -2236,7 +2241,7 @@ function AiModelPanel() {
       await qc.invalidateQueries({ queryKey: ["ai-model-config"] });
       toast.success(t("settings.aiApplied"));
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : t("settings.saveFailed"));
+      toast.error(readable(e, t("settings.saveFailed")));
     } finally {
       setSaving(false);
     }

@@ -341,7 +341,9 @@ export function StickerSheet({ stickerId, onClose, openPhotoPicker, from, local 
       const msg = e instanceof Error ? e.message : "";
       // 母語のまま入れられた回。**何を入れればいいかを言う。**
       toast.error(
-        msg === "NOT_TARGET_LANGUAGE" ? t("card.editHeadNotTarget") : msg || t("card.photoFailed"),
+        msg === "NOT_TARGET_LANGUAGE"
+          ? t("card.editHeadNotTarget")
+          : readable(e, t("card.photoFailed")),
       );
       throw e;
     }
@@ -707,12 +709,25 @@ export function StickerSheet({ stickerId, onClose, openPhotoPicker, from, local 
         enrichedRef.current.delete(guardKey);
         // 失敗を黙って握りつぶすと「解説がずっと出ない」状態と見分けが付かない。
         // 理由と再試行手段を必ず画面に出す(apple-design §8 / §21 fallback)。
-        setEnrichError(e instanceof Error ? e.message : String(e));
+        setEnrichError(readable(e, t("err.failed")));
       } finally {
         setEnriching(false);
       }
     })();
-  }, [s, stickerId, enrichWord, saveExtras, qc, uiLang, nativeLang, explanation, wantKey, local]);
+  }, [
+    s,
+    stickerId,
+    enrichWord,
+    saveExtras,
+    qc,
+    uiLang,
+    nativeLang,
+    explanation,
+    wantKey,
+    local,
+    readable,
+    t,
+  ]);
 
   // reset flip when sticker changes
   useEffect(() => {
