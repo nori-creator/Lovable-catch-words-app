@@ -41,6 +41,12 @@ export function writeCachedExplanation<T>(key: string, value: T): void {
   }
 }
 
+function lacksNotes(v: unknown): boolean {
+  return (
+    Array.isArray(v) && v.every((r) => !String((r as { note?: unknown } | null)?.note ?? "").trim())
+  );
+}
+
 /**
  * **いま見えている項目は差し替えない**。AI が欠けた項目を埋め直す時、既に中身の
  * ある項目は画面に出ている物をそのまま残し、空だった項目だけ新しい物で埋める
@@ -55,7 +61,11 @@ export function keepShownFields<T extends Record<string, unknown>>(
     Array.isArray(v) ? v.length > 0 : typeof v === "string" ? v.trim().length > 0 : v != null;
   const out: Record<string, unknown> = { ...fresh };
   for (const [k, v] of Object.entries(shown)) {
-    if (filled(v)) out[k] = v;
+    if (!filled(v)) continue;
+    // 語だけで解説（note）が1つも無い関連語は「見えている中身」に数えない
+    // （2026-09-30 保溫瓶: 空の解説が新しく作った解説を押しのけて残り続けた）。
+    if (k === "related_words" && lacksNotes(v)) continue;
+    out[k] = v;
   }
   // 解説の言語の目印は新しい方（その人向けに作った物）を使う。
   if ("explain_lang" in fresh) out.explain_lang = fresh.explain_lang;

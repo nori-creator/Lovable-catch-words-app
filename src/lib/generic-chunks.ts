@@ -101,6 +101,23 @@ export const FRAME_WORDS: Record<string, readonly string[]> = {
   ],
 };
 
+/**
+ * **指し示すだけの語**（この・その・あの + 量詞）。見出し語にこれだけを足した型は
+ * 汎用として落とす。
+ *
+ * オーナー報告 2026-09-30（保溫瓶）: 使い方チャンクが `這款 + 保溫瓶`（この保温ボトル）
+ * の1つだけになっていた。「この〜」はどの名詞にも付くので、ネイティブがその語を使う
+ * 形を何も教えない。
+ *
+ * **量詞付きの物だけ**にする。`這` `那` 単独は `那時候` `這邊` のような決まった言い方を
+ * 作るので落とさない。`這麼` `這樣` も入れない（`這麼好吃` は状態動詞の型そのもの）。
+ * 英語は `this morning` `so that` のように指示語と組んだ決まった言い方が多いので置かない。
+ */
+const DETERMINERS: Record<string, RegExp> = {
+  "zh-TW":
+    /^[這那哪](?:個|款|種|些|支|隻|張|本|台|臺|輛|件|條|位|家|間|把|杯|瓶|顆|塊|份|雙|頂|盒|包|碗|盤|部|套)$/u,
+};
+
 // **既定の言語を直に書かない。** 正は `target-lang.ts` の定数1つで、
 // そこを見る門が `target-lang.test.ts` に立っている(実際この門が、
 // 最初の版が既定を直に書いていたのを捕まえた)。
@@ -134,15 +151,20 @@ export function isGenericChunk(
   const light = listFor(LIGHT_WORDS, language);
   const frame = listFor(FRAME_WORDS, language);
   const head = normalize(headword);
+  const determiner = DETERMINERS[normalizeTargetLanguage(language)] ?? null;
   const content: string[] = [];
+  const others: string[] = [];
   for (const p of parts ?? []) {
     const text = normalize(p?.text ?? "");
     if (!text) continue;
     // 見出し語そのもの（`喝` + `珍珠奶茶` の後ろ側）は中身に数えない。
     if (head && (text === head || text.includes(head) || head.includes(text))) continue;
+    others.push(text);
     if (frame.has(text)) continue;
     content.push(text);
   }
+  // 「この〜」「あの〜」しか足していない型（`這款` + `保溫瓶`）。どの名詞にも付く。
+  if (determiner && others.length > 0 && others.every((w) => determiner.test(w))) return true;
   if (content.length === 0) return false;
   return content.every((w) => light.has(w));
 }

@@ -105,3 +105,24 @@ describe("withoutGenericChunks", () => {
     expect(withoutGenericChunks(chunks, "socks", "en")).toHaveLength(0);
   });
 });
+
+describe("isGenericChunk — この・その（指示語+量詞）だけの型（2026-09-30 保溫瓶）", () => {
+  it("`這款 + 保溫瓶` は落とす", () => {
+    expect(isGenericChunk(parts("這款", "保溫瓶"), "保溫瓶", "zh-TW")).toBe(true);
+    expect(isGenericChunk(parts("那個", "保溫瓶"), "保溫瓶", "zh-TW")).toBe(true);
+  });
+
+  it("指示語のほかに中身があれば残す", () => {
+    expect(isGenericChunk(parts("裝", "咖啡", "在", "保溫瓶"), "保溫瓶", "zh-TW")).toBe(false);
+    expect(isGenericChunk(parts("這款", "保溫瓶", "很", "保溫"), "保溫瓶", "zh-TW")).toBe(false);
+  });
+
+  it("量詞の無い 這・那 と 這麼 は落とさない（決まった言い方を作る）", () => {
+    expect(isGenericChunk(parts("那", "時候"), "時候", "zh-TW")).toBe(false);
+    expect(isGenericChunk(parts("這麼", "好吃"), "好吃", "zh-TW")).toBe(false);
+  });
+
+  it("英語には当てない（this morning / so that）", () => {
+    expect(isGenericChunk(parts("this", "morning"), "morning", "en")).toBe(false);
+  });
+});

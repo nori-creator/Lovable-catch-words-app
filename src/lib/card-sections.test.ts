@@ -7,6 +7,8 @@ import {
   sectionHasContent,
   sectionsFor,
   missingSections,
+  relatedWordsLackNotes,
+  sectionNeedsFill,
   type SectionContentInput,
   type SectionId,
 } from "./card-sections";
@@ -248,7 +250,7 @@ describe("missingSections", () => {
           },
         ],
         measure_words: [{ word: "一把" }],
-        related_words: [{ word: "傘", kind: "syn", note: "" }],
+        related_words: [{ word: "傘", kind: "syn", note: "傘の総称" }],
         pronunciation_tips: "三声",
         etymology: "雨+傘",
         mnemonic: "雨の傘",
@@ -262,5 +264,37 @@ describe("missingSections", () => {
       }),
     });
     expect(missingSections([...SECTION_IDS], full)).toEqual([]);
+  });
+});
+
+describe("sectionNeedsFill — 解説の無い関連語（2026-09-30 保溫瓶）", () => {
+  const input = (related: Array<{ word: string; kind: string; note: string }>) => ({
+    headword: "保溫瓶",
+    language: "zh-TW",
+    extras: normalizeExtras({ related_words: related }),
+  });
+
+  it("語だけ並んで note が全部空なら、節は出したまま作り直しに回す", () => {
+    const i = input([
+      { word: "保溫效果", kind: "rel", note: "" },
+      { word: "真空", kind: "rel", note: " " },
+    ]);
+    expect(sectionHasContent("related_words", i)).toBe(true);
+    expect(relatedWordsLackNotes(i.extras)).toBe(true);
+    expect(sectionNeedsFill("related_words", i)).toBe(true);
+    expect(missingSections(["related_words"], i)).toEqual(["related_words"]);
+  });
+
+  it("1つでも解説があれば作り直さない（全部そろうまで回し続けない）", () => {
+    const i = input([
+      { word: "炒麵", kind: "syn", note: "一般的な炒め麺。" },
+      { word: "義大利麵", kind: "rel", note: "" },
+    ]);
+    expect(sectionNeedsFill("related_words", i)).toBe(false);
+  });
+
+  it("server も同じ判定を使う（画面と食い違うと直らない節が残る）", () => {
+    const src = fs.readFileSync("src/lib/ai.functions.ts", "utf8");
+    expect(src).toMatch(/!sectionNeedsFill\(data\.section,/);
   });
 });

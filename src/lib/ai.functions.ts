@@ -31,7 +31,7 @@ import { coerceTargetHeadword, isTargetHeadword } from "./target-language";
 import { taiwanUsageFrom } from "./taiwan-usage";
 import {
   REGEN_SECTIONS,
-  sectionHasContent,
+  sectionNeedsFill,
   type RegenSection,
   type SectionId,
 } from "./card-sections";
@@ -377,6 +377,15 @@ ${langRule}
     return { candidates };
   });
 
+/**
+ * 解説の言語と学ぶ言語が同じか（台湾華語で読む人が台湾華語を学ぶ等）。
+ * 同じなら「学ぶ言語で書かない」と指示すると矛盾する。
+ */
+function sameLanguage(explainLang: string, targetCode: string): boolean {
+  const base = (x: string) => (x ?? "").toLowerCase().split("-")[0];
+  return base(explainLang) === base(targetCode);
+}
+
 export const generateCard = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) => CardInput.parse(input))
@@ -507,7 +516,7 @@ ${
   ○ 文旦・肉燥麵(台湾の名物 → specialty) / 悠遊卡(台湾だけの仕組み → institution) /
     その土地だけの言い方(→ regional_word)
   **迷ったら空文字にする。** 誤って限定と書くほうが、書かないより害が大きい
-${want("related_words") ? `- related_words: 類義語(kind:"syn")2〜3・反義語(kind:"ant")0〜2・関連語(kind:"rel")2〜5 の配列。**反義語が無い語(物の名前など)は無理に作らず、その語を使うときに一緒によく使う語を関連語で出す**${cardProfile.code.startsWith("zh") ? "（例: 珍珠奶茶 → 甜度・冰塊・吸管・手搖飲）" : "（例: bubble tea → sweetness level, ice, straw）"}。各 {word:${cardProfile.promptName}の語, kind, note:使い分け・関係の短い説明(${NL}), reading:その語の${cardReadingNames.primary}${cardReadingNames.alt ? `, reading_alt:その語の${cardReadingNames.alt}` : ""}}。類義語の note には「${data.headword}」とのニュアンスの違いを必ず書く。**reading を空にしない** — 読めない語を並べても覚えられない` : ""}
+${want("related_words") ? `- related_words: 類義語(kind:"syn")2〜3・反義語(kind:"ant")0〜2・関連語(kind:"rel")2〜5 の配列。**反義語が無い語(物の名前など)は無理に作らず、その語を使うときに一緒によく使う語を関連語で出す**${cardProfile.code.startsWith("zh") ? "（例: 珍珠奶茶 → 甜度・冰塊・吸管・手搖飲）" : "（例: bubble tea → sweetness level, ice, straw）"}。各 {word:${cardProfile.promptName}の語, kind, note:使い分け・関係の短い説明(${NL}), reading:その語の${cardReadingNames.primary}${cardReadingNames.alt ? `, reading_alt:その語の${cardReadingNames.alt}` : ""}}。類義語の note には「${data.headword}」とのニュアンスの違いを必ず書く。**note は全部の語に必ず${NL}で書く**${sameLanguage(explainLang, cardProfile.code) ? "" : `。**${cardProfile.promptName}で書かない**(${cardProfile.promptName}なのは word/reading だけ。${cardProfile.promptName}の note は読めないので捨てられ、解説の無い語だけが残る)`}。**reading を空にしない** — 読めない語を並べても覚えられない` : ""}
 ${want("measure_words") ? `- measure_words: **名詞の場合のみ**、その名詞に使う量詞を1〜3個 {word:"一張"のように数字1つき繁体字, zhuyin:注音, pinyin:拼音, note:いつその量詞を使うか(複数ある場合は使い分けを短く、${NL}で)}。名詞でなければ空配列。**note を中国語で書かない** — 中国語なのは word/zhuyin/pinyin だけ` : ""}
 ${want("pronunciation_tips") ? `- pronunciation_tips: **${learnerL1}が${cardProfile.promptName}でつまずくポイントに絞った発音アドバイス**（2〜3文、${NL}）。\n${l1}\n  ${cardProfile.capture.pronunciationFocus}と、上の干渉項目のうち**この語に実際に当てはまるものだけ**を具体的に書く` : ""}
 ${want(noteSection) ? `- ${cardProfile.capture.noteField}: ${cardProfile.capture.noteRule}（${NL}）` : ""}
@@ -964,6 +973,7 @@ function specificChunkRule(headword: string, levelGoal: string): string {
     `**どの語にも付く組み合わせを書かない。**\n` +
     `✗「買${headword}」「喜歡${headword}」「有${headword}」のように、買う・好き・持っている だけを` +
     `足した形 — 名詞さえあれば言えるので、その語について何も教えていない。\n` +
+    `✗「這款${headword}」「這個${headword}」のように、この・その（指示語+量詞）だけを足した形も同じ。\n` +
     `○ **その語とだけ強く結び付いている**言い方（飲み物なら「半糖少冰」「加珍珠」、` +
     `動詞ならその動詞が取る決まった相手・補語、形容詞なら一緒に立つ名詞）。\n` +
     `基準は「**その語を別の語に入れ替えたら成り立たなくなるか**」。成り立つ形は書かない。\n` +
@@ -1074,8 +1084,9 @@ async function runSectionRegen(
   // **判定は画面と同じ関数**(`card-sections.ts`)。ここに写しを置くと、
   // server が「空だ」と言い続けて作り直し、画面は「埋まっている」と
   // 言い続ける — 止まらない生成になる。
+  // 語だけ在って解説（note）が空の関連語も「まだ無い」と数える（`sectionNeedsFill`）。
   const hasSection = (extras: unknown, meaning: string | null) =>
-    sectionHasContent(data.section, {
+    !sectionNeedsFill(data.section, {
       headword: word.headword as string,
       // **学習言語を渡す。** 渡さないと英語のカードの例文を台湾華語の
       // 目盛りで数え、英語の型を1つ残らず「無い」と判ずる — つまり
@@ -1198,7 +1209,7 @@ async function runSectionRegen(
       }),
     },
     related_words: {
-      prompt: `${base}\n類義語(syn)2〜3・反義語(ant)0〜2・関連語(rel)2〜5。**反義語が無い語(物の名前など)は無理に作らず、その語を使うときに一緒によく使う語を関連語で出す**${regenProfile.code.startsWith("zh") ? "（例: 珍珠奶茶 → 甜度・冰塊・吸管）" : "（例: bubble tea → sweetness level, ice, straw）"}。類義語の note には「${head}」との使い分けを必ず書く。\n**reading を空にしない** — 読めない語を並べても覚えられない(オーナー指示 2026-08-27 ⑧)。\n{"related_words":[{"word":"${targetName}の語","kind":"syn|ant|rel","note":"短い説明(${NL})","reading":"${regenReadingNames.primary}"${regenReadingNames.alt ? `,"reading_alt":"${regenReadingNames.alt}"` : ""}}]}`,
+      prompt: `${base}\n類義語(syn)2〜3・反義語(ant)0〜2・関連語(rel)2〜5。**反義語が無い語(物の名前など)は無理に作らず、その語を使うときに一緒によく使う語を関連語で出す**${regenProfile.code.startsWith("zh") ? "（例: 珍珠奶茶 → 甜度・冰塊・吸管）" : "（例: bubble tea → sweetness level, ice, straw）"}。類義語の note には「${head}」との使い分けを必ず書く。\n**note は全部の語に必ず${NL}で書く**${sameLanguage(regenLang, regenProfile.code) ? "" : `。**${targetName}で書かない**(${targetName}なのは word/reading だけ。${targetName}の note は読めないので捨てられる — オーナー報告 2026-09-30「関連語の解説がなくなってる」)`}。\n**reading を空にしない** — 読めない語を並べても覚えられない(オーナー指示 2026-08-27 ⑧)。\n{"related_words":[{"word":"${targetName}の語","kind":"syn|ant|rel","note":"短い説明(${NL})","reading":"${regenReadingNames.primary}"${regenReadingNames.alt ? `,"reading_alt":"${regenReadingNames.alt}"` : ""}}]}`,
       schema: z.object({
         related_words: z
           .array(
