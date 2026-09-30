@@ -154,7 +154,7 @@ export function HeroPhotoPicker({
             {t(surface === "album" ? "photo.forAlbum" : "photo.forDetail")}
           </span>
         </span>
-        <button
+        <button type="button"
           onClick={onClose}
           aria-label={t("common.close")}
           className="grid h-11 w-11 place-items-center rounded-full border border-border bg-card active:scale-95 motion-reduce:active:scale-100"
@@ -170,7 +170,7 @@ export function HeroPhotoPicker({
           const on = current === role;
           return (
             <li key={role}>
-              <button
+              <button type="button"
                 onClick={() => onPick(role)}
                 disabled={saving}
                 aria-pressed={on}
@@ -214,7 +214,7 @@ export function HeroPhotoPicker({
           「どれを主役にするか」とは別の用事。差し替える口を持たない画面
           では出さない。 */}
       {onReplaceFile && (
-        <button
+        <button type="button"
           onClick={onReplaceFile}
           disabled={saving}
           className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-2xl border border-border bg-card text-body font-medium"
