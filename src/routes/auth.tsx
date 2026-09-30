@@ -251,7 +251,7 @@ export function AuthView({
         {/* 最初の画面と同じ写真の束（ホームのアルバムと同じ紙）。 */}
         <FirstCatchPhotoStack labels={labels} lang={lang} className="first-auth-photos" />
         <div className="first-auth-content">
-          <h1 id="first-account-title">{draft ? t("first.account") : t("auth.signin")}</h1>
+          <h1 id="first-account-title">{mode === "signup" ? t("auth.signup") : t("auth.signin")}</h1>
           {confirmed && (
             <p role="status" className="first-sub mb-4">
               {t("first.confirm")}
@@ -346,6 +346,13 @@ export function AuthView({
               <button
                 type="button"
                 onClick={() => {
+                  // A brand-new learner must experience the first-catch tutorial
+                  // before account creation. The tutorial persists its draft and
+                  // returns here in signup mode only after the hands-on flow.
+                  if (mode === "signin" && !draft) {
+                    window.location.assign("/welcome");
+                    return;
+                  }
                   setMode(mode === "signin" ? "signup" : "signin");
                   setShowEmail(true);
                 }}

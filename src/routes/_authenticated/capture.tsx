@@ -2154,6 +2154,7 @@ export function CaptureObjectPanel({
   cameraInputRef,
   onObjectFile,
   onNativeCapture,
+  preferSystemCapture = false,
   typedWord,
   setTypedWord,
   onSearch,
@@ -2169,6 +2170,12 @@ export function CaptureObjectPanel({
   cameraInputRef: RefObject<HTMLInputElement | null>;
   onObjectFile: (f: File, analysisImage?: string) => void;
   onNativeCapture?: () => void;
+  /**
+   * Skip the browser live-preview permission request and open the device camera
+   * only when the shutter is pressed. Used by first-run onboarding so learners
+   * do not see two camera permission/selection steps before their first Catch.
+   */
+  preferSystemCapture?: boolean;
   typedWord: string;
   setTypedWord: (v: string) => void;
   onSearch: (word: string) => void;
@@ -2190,6 +2197,8 @@ export function CaptureObjectPanel({
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const [cameraReady, setCameraReady] = useState(false);
+  const [cameraDenied, setCameraDenied] = useState(false);
+  const [cameraAttempt, setCameraAttempt] = useState(0);
   /** 映像の縦横比。枠をこれに合わせて、映像を**切らずに全部**見せる。 */
   const [camAspect, setCamAspect] = useState(3 / 4);
   /**
@@ -2201,6 +2210,7 @@ export function CaptureObjectPanel({
   useEffect(() => {
     setFacing(selfieMode ? "user" : "environment");
     setCameraReady(false);
+    setCameraDenied(false);
   }, [selfieMode]);
   /** カメラロールから選ぶ口（撮る口と違い `capture` を付けない — 付けると
       カメラしか開かない端末がある）。 */
@@ -2248,8 +2258,9 @@ export function CaptureObjectPanel({
   );
 
   useEffect(() => {
-    if (onNativeCapture || !navigator.mediaDevices?.getUserMedia) return;
+    if (onNativeCapture || preferSystemCapture || !navigator.mediaDevices?.getUserMedia) return;
     let cancelled = false;
+    setCameraDenied(false);
     void navigator.mediaDevices
       .getUserMedia({
         video: {
@@ -2277,6 +2288,7 @@ export function CaptureObjectPanel({
         await video.play().catch(() => {});
         if (video.videoWidth && video.videoHeight)
           setCamAspect(video.videoWidth / video.videoHeight);
+        setCameraDenied(false);
         setCameraReady(true);
         /**
          * **倍率を持っているかは端末に聞く。**（持っていない端末に
@@ -2295,7 +2307,11 @@ export function CaptureObjectPanel({
         setHwZoom(readTrackZoom(track));
         setFocusCap(focusSupport(track));
       })
-      .catch(() => setCameraReady(false));
+      .catch((err: unknown) => {
+        setCameraReady(false);
+        const name = err instanceof DOMException ? err.name : "";
+        if (name === "NotAllowedError" || name === "SecurityError") setCameraDenied(true);
+      });
     return () => {
       cancelled = true;
       setFocusCap(null);
@@ -2304,7 +2320,7 @@ export function CaptureObjectPanel({
       streamRef.current = null;
       zoomCapsRef.current = null;
     };
-  }, [onNativeCapture, facing]);
+  }, [onNativeCapture, preferSystemCapture, facing, cameraAttempt]);
 
   /**
    * 倍率を当てる。端末が持っていれば本物のレンズへ、無ければ**見た目だけ**
@@ -2378,7 +2394,7 @@ export function CaptureObjectPanel({
       const t0 = tap.current;
       if (t0 && Math.hypot(e.clientX - t0.x, e.clientY - t0.y) > 10) tap.current = null;
       const p = pinch.current;
-      if (!p || pointers.current.size < 2 || onNativeCapture || !cameraReady) return;
+      if (!p || pointers.current.size < 2 || onNativeCapture || preferSystemCapture || !cameraReady) return;
       const [a, b] = [...pointers.current.values()];
       const next = Math.min(zoomMax, Math.max(zoomMin, (p.z0 * pinchDistance(a, b)) / p.d0));
       cancelAnimationFrame(pinchFrame.current);
@@ -2402,6 +2418,10 @@ export function CaptureObjectPanel({
   const openCamera = () => {
     if (onNativeCapture) {
       onNativeCapture();
+      return;
+    }
+    if (preferSystemCapture) {
+      cameraInputRef.current?.click();
       return;
     }
     const video = videoRef.current;
@@ -2532,7 +2552,7 @@ export function CaptureObjectPanel({
         style={{ "--cam-aspect": String(camAspect) } as CSSProperties}
         {...frameGestures}
       >
-        {!onNativeCapture && (
+        {!onNativeCapture && !preferSystemCapture && (
           <video
             ref={videoRef}
             playsInline
@@ -2572,6 +2592,19 @@ export function CaptureObjectPanel({
           />
         )}
       </div>
+      {!onNativeCapture && !preferSystemCapture && cameraDenied && (
+        <div role="alert" className="absolute inset-x-5 top-24 z-20 rounded-2xl bg-black/65 p-4 text-center text-white backdrop-blur">
+          <p className="font-semibold">{t("capture.cameraPermissionTitle")}</p>
+          <p className="mt-1 text-sm text-white/85">{t("capture.cameraPermissionHint")}</p>
+          <button
+            type="button"
+            className="mt-3 min-h-11 rounded-full bg-white px-5 font-semibold text-black"
+            onClick={() => setCameraAttempt((n) => n + 1)}
+          >
+            {t("capture.cameraRetry")}
+          </button>
+        </div>
+      )}
       {selfieMode && (
         <div className="absolute inset-x-5 top-24 z-10 text-center text-white">
           <p className="text-lg font-semibold">{t("capture.selfieLive")}</p>
@@ -2628,7 +2661,7 @@ export function CaptureObjectPanel({
         )}
 
         {/* 倍率。撮り方の帯のすぐ上（iPhone と同じ位置）。 */}
-        {!onNativeCapture && cameraReady && (
+        {!onNativeCapture && !preferSystemCapture && cameraReady && (
           <div className="mb-3 flex justify-center">
             <CameraZoomMeter
               zoom={zoom}
@@ -2679,7 +2712,7 @@ export function CaptureObjectPanel({
               openCamera();
             }}
           />
-          {onNativeCapture ? (
+          {onNativeCapture || preferSystemCapture ? (
             <span className="camera-side camera-side--empty" aria-hidden="true" />
           ) : (
             <CameraFlipButton
@@ -2702,7 +2735,13 @@ export function CaptureObjectPanel({
           className="sr-only"
           tabIndex={-1}
           aria-hidden="true"
-          onChange={(e) => e.target.files?.[0] && onObjectFile(e.target.files[0])}
+          onChange={(e) => {
+            const file = e.target.files?.[0];
+            // Cancelling keeps the camera screen intact; clearing the value also lets
+            // the same photo/file be captured again on browsers that suppress identical changes.
+            e.target.value = "";
+            if (file) onObjectFile(file);
+          }}
         />
         <input
           ref={libraryInputRef}
