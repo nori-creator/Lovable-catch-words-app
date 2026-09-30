@@ -398,28 +398,13 @@ const q = new URLSearchParams(location.search);
  * 「これを見てください」と差し出すことになる。
  */
 const REVIEW_SCENES: Array<{ scene: string; label: string }> = [
-  // 2026-09-30 新規ユーザーの流れの点検（質問 → チュートリアル → 登録）で触った面だけ。
+  // 2026-09-30「チュートリアルの4択が本物と異なってる」の直し。先頭の面は **4択の部品を
+  // 本物のまま**にし、押す所は他の段と同じ案内の枠で示す。
   {
-    scene: "first-catch&step=camera&settings=1",
-    label: "チュートリアル: 下の「設定」で本物の設定部品が触れる",
+    scene: "first-catch&step=review",
+    label: "チュートリアルの復習: 4択は本物のまま・押す所は案内の枠",
   },
-  { scene: "first-catch&step=review", label: "チュートリアルの復習: 選択肢と「次へ」も青く光る" },
-  {
-    scene: "first-catch&step=review&target=en",
-    label: "チュートリアルの復習（英語）: 4択の全部に読みが出る",
-  },
-  {
-    scene: "first-catch&step=account",
-    label: "登録: 確認メールの後は戻ってログイン／LINE 内は Google 不可の案内",
-  },
-  {
-    scene: "first-catch&step=camera&cam=denied",
-    label: "チュートリアルのカメラ: 許可されていない時の直し方（iPhone）",
-  },
-  {
-    scene: "first-catch&step=camera&cam=android-app",
-    label: "チュートリアルのカメラ: Android のアプリ内ブラウザ",
-  },
+  { scene: "first-catch&step=camera&settings=1", label: "チュートリアル: 下の「設定」" },
 ];
 
 /**

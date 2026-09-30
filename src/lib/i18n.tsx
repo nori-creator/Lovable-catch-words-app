@@ -520,6 +520,16 @@ export const DICT: Record<string, Record<UiLang, string>> = {
     en: "Collection",
     "zh-TW": "圖鑑",
   },
+  "first.reviewPick": {
+    ja: "写真に合うことばを選んでください。",
+    en: "Choose the word that matches the photo.",
+    "zh-TW": "請選出和照片相符的單字。",
+  },
+  "first.reviewNext": {
+    ja: "答えを確かめたら「次へ」。",
+    en: "Check the answer, then tap “Next”.",
+    "zh-TW": "確認答案後，按「下一步」。",
+  },
   "first.reviewTitle": {
     ja: "復習",
     en: "Review",
