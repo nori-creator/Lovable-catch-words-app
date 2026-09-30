@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { cameraPlatform, cameraProblemOf, externalBrowserUrl, inAppBrowser } from "./camera-access";
+import {
+  cameraPlatform,
+  cameraProblemOf,
+  externalBrowserUrl,
+  inAppBrowser,
+  mayAutoOpenExternal,
+} from "./camera-access";
 
 const IOS_LINE =
   "Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148 Safari Line/14.9.0";
@@ -41,9 +47,18 @@ describe("camera-access", () => {
     );
   });
 
-  it("iOS の他のアプリ内ブラウザ・ふつうのブラウザは URL を作らない", () => {
-    expect(externalBrowserUrl("https://catchwords.lovable.app/", IOS_INSTAGRAM)).toBeNull();
+  it("iPhone の他のアプリ内ブラウザは Safari に渡す・ふつうのブラウザは URL を作らない", () => {
+    expect(externalBrowserUrl("https://catchwords.lovable.app/welcome?x=1", IOS_INSTAGRAM)).toBe(
+      "x-safari-https://catchwords.lovable.app/welcome?x=1",
+    );
     expect(externalBrowserUrl("https://catchwords.lovable.app/", IOS_SAFARI)).toBeNull();
+    expect(externalBrowserUrl("https://catchwords.lovable.app/", ANDROID_CHROME)).toBeNull();
+  });
+
+  it("自動で開き直すのは1度だけ（LINE で開き直した後は繰り返さない）", () => {
+    expect(mayAutoOpenExternal("https://a.app/welcome", false)).toBe(true);
+    expect(mayAutoOpenExternal("https://a.app/welcome", true)).toBe(false);
+    expect(mayAutoOpenExternal("https://a.app/welcome?openExternalBrowser=1", false)).toBe(false);
   });
 
   it("失敗の理由を振り分ける", () => {

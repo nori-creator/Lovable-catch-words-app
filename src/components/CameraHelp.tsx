@@ -1,9 +1,10 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useT } from "@/lib/i18n";
 import {
   cameraPlatform,
   externalBrowserUrl,
   inAppBrowser,
+  mayAutoOpenExternal,
   type CameraProblem,
 } from "@/lib/camera-access";
 
@@ -30,12 +31,30 @@ export function CameraHelp({ problem, onRetry }: { problem: CameraProblem; onRet
       : null;
   const chromeOnIos = /CriOS/i.test(ua);
 
+  /**
+   * **押さなくても、1度だけ自動でブラウザを開く**（オーナー指示 2026-09-30「ブラウザで
+   * 開き直すボタンは実際にブラウザで自動的に開くように」）。アプリによっては押した時しか
+   * 開かないので、釦も残す。
+   */
+  useEffect(() => {
+    if (!external) return;
+    const KEY = "catchwords-external-tried";
+    let tried = false;
+    try {
+      tried = sessionStorage.getItem(KEY) === "1";
+      sessionStorage.setItem(KEY, "1");
+    } catch {
+      /* 覚えられなくても、LINE は URL の目印で繰り返さない。 */
+    }
+    if (mayAutoOpenExternal(location.href, tried)) location.href = external;
+  }, [external]);
+
   const steps: string[] =
     problem === "denied"
       ? platform === "ios"
         ? chromeOnIos
           ? [t("camhelp.iosChrome1"), t("camhelp.iosChrome2")]
-          : [t("camhelp.ios1"), t("camhelp.ios2"), t("camhelp.ios3")]
+          : [t("camhelp.ios1"), t("camhelp.ios2")]
         : platform === "android"
           ? [t("camhelp.android1"), t("camhelp.android2"), t("camhelp.android3")]
           : [t("camhelp.desktop1")]

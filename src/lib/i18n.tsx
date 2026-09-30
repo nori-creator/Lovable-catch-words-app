@@ -2419,19 +2419,14 @@ export const DICT: Record<string, Record<UiLang, string>> = {
     "zh-TW": "請用最新版的 Safari 或 Chrome 開啟這個頁面。",
   },
   "camhelp.ios1": {
-    ja: "アドレス欄の「ぁあ」（または「AA」）ボタンを押す",
-    en: "Tap the “AA” button in the address bar",
-    "zh-TW": "點網址列的「AA」頁面選單按鈕",
+    ja: "ホーム画面の「設定」アプリを開き、「アプリ」→「Safari」を選ぶ（iOS 17以前は「設定」→「Safari」）",
+    en: "Open the Settings app, then tap Apps → Safari (on iOS 17 or earlier: Settings → Safari)",
+    "zh-TW": "打開「設定」App，點「App」→「Safari」（iOS 17 以前為「設定」→「Safari」）",
   },
   "camhelp.ios2": {
-    ja: "「Webサイトの設定」→「カメラ」→「許可」を選ぶ",
-    en: "Choose “Website Settings” → “Camera” → “Allow”",
-    "zh-TW": "選擇「網站設定」→「相機」→「允許」",
-  },
-  "camhelp.ios3": {
-    ja: "出てこないときは、iPhoneの「設定」→「アプリ」→「Safari」→「カメラ」を「許可」にする",
-    en: "If it isn't there, open iPhone Settings → Apps → Safari → Camera and choose “Allow”",
-    "zh-TW": "如果找不到，請到 iPhone「設定」→「App」→「Safari」→「相機」改成「允許」",
+    ja: "下の方の「カメラ」を「許可」（または「確認」）にして、このページに戻る",
+    en: "Set “Camera” to “Allow” (or “Ask”), then come back to this page",
+    "zh-TW": "把下方的「相機」改成「允許」（或「詢問」），再回到這個頁面",
   },
   "camhelp.iosChrome1": {
     ja: "iPhoneの「設定」→「アプリ」→「Chrome」を開く",

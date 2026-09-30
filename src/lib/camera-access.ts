@@ -40,7 +40,8 @@ export function inAppBrowser(ua: string): InAppBrowser {
  * - LINE: URL に `openExternalBrowser=1` を付けると、LINE が端末の標準ブラウザで開く
  *   （LINE の公式ヘルプに載っている指定）。
  * - Android の他のアプリ内ブラウザ: `intent://` で Chrome を指名して開く。
- * - iOS の他のアプリ内ブラウザ: 外から Safari を開かせる確かな手段が無いので null。
+ * - iPhone の他のアプリ内ブラウザ: `x-safari-https://` で Safari に渡す（iOS 17 以降の
+ *   Safari が受ける指定。アプリによっては効かないので、手順とリンクのコピーも残す）。
  */
 export function externalBrowserUrl(
   href: string,
@@ -58,11 +59,28 @@ export function externalBrowserUrl(
     url.searchParams.set("openExternalBrowser", "1");
     return url.toString();
   }
-  if (cameraPlatform(ua) === "android") {
+  const platform = cameraPlatform(ua);
+  if (platform === "android") {
     const scheme = url.protocol.replace(":", "");
     return `intent://${url.host}${url.pathname}${url.search}${url.hash}#Intent;scheme=${scheme};package=com.android.chrome;end`;
   }
+  if (platform === "ios" && url.protocol === "https:") {
+    return `x-safari-https://${url.host}${url.pathname}${url.search}${url.hash}`;
+  }
   return null;
+}
+
+/**
+ * 自動で開き直してよいか。**1度だけ**（開き直した先がまた同じアプリ内ブラウザ
+ * だったとき、行ったり来たりを繰り返さない）。LINE は開き直した URL に目印が残る。
+ */
+export function mayAutoOpenExternal(href: string, alreadyTried: boolean): boolean {
+  if (alreadyTried) return false;
+  try {
+    return new URL(href).searchParams.get("openExternalBrowser") !== "1";
+  } catch {
+    return false;
+  }
 }
 
 /** カメラが使えない理由。画面の文言と手順を選ぶのに使う。 */

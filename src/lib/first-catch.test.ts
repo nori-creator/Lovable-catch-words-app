@@ -195,3 +195,27 @@ describe("photographed candidates and learning context", () => {
     expect(prompt).toContain("Do not force an unrelated interest");
   });
 });
+
+describe("ブラウザを開き直した時の引き継ぎ", () => {
+  it("答えは戻り、写真や単語は載せない", async () => {
+    const { encodeFirstCatchHandoff, decodeFirstCatchHandoff } = await import("./first-catch");
+    const draft = {
+      version: 1 as const,
+      id: "3f8a2c1e-5b6d-4e7f-8a9b-0c1d2e3f4a5b",
+      uiLanguage: "zh-TW" as const,
+      targetLanguage: "en" as const,
+      dailyMinutes: 15 as const,
+      goals: ["travel" as const],
+      stage: "camera" as const,
+      photo: null,
+      card: null,
+      capturedAt: null,
+    };
+    const back = decodeFirstCatchHandoff(encodeFirstCatchHandoff(draft));
+    expect(back?.uiLanguage).toBe("zh-TW");
+    expect(back?.goals).toEqual(["travel"]);
+    expect(back?.stage).toBe("camera");
+    expect(decodeFirstCatchHandoff("こわれた")).toBeNull();
+    expect(decodeFirstCatchHandoff(null)).toBeNull();
+  });
+});

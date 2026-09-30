@@ -27,6 +27,9 @@ import {
 import {
   readFirstCatch,
   writeFirstCatch,
+  decodeFirstCatchHandoff,
+  encodeFirstCatchHandoff,
+  FIRST_CATCH_HANDOFF_PARAM,
   canRequestAccount,
   firstCatchSticker,
   type FirstCatch,
@@ -138,22 +141,31 @@ export function FirstCatchFlow({
       void readFirstCatch()
         .then((saved) => {
           if (!mounted.current) return;
+          // LINE などから開き直してきた時は、URL に載せた答えから続ける（`fc`）。
+          // この端末に進んだ下書きが既にあれば、そちらを優先する。
+          const handoff = decodeFirstCatchHandoff(
+            new URLSearchParams(location.search).get(FIRST_CATCH_HANDOFF_PARAM),
+          );
+          const fresh = !saved || saved.stage === "done" || saved.stage === "intro";
           const next: FirstCatch =
-            saved?.stage !== "done" && saved
-              ? saved
-              : {
-                  version: 1,
-                  id: crypto.randomUUID(),
-                  uiLanguage: getUiLang(),
-                  targetLanguage: getTargetLang(),
-                  dailyMinutes: 10,
-                  stage: "intro",
-                  photo: null,
-                  card: null,
-                  capturedAt: null,
-                };
+            handoff && fresh
+              ? handoff
+              : saved?.stage !== "done" && saved
+                ? saved
+                : {
+                    version: 1,
+                    id: crypto.randomUUID(),
+                    uiLanguage: getUiLang(),
+                    targetLanguage: getTargetLang(),
+                    dailyMinutes: 10,
+                    stage: "intro",
+                    photo: null,
+                    card: null,
+                    capturedAt: null,
+                  };
           applyFirstCatchLanguage(next);
           setDraft(next);
+          if (handoff && fresh) void writeFirstCatch(next).catch(() => {});
         })
         .catch(() => {
           if (mounted.current) setError(t("first.storage"));
@@ -162,6 +174,20 @@ export function FirstCatchFlow({
       mounted.current = false;
     };
   }, []);
+  /**
+   * 撮る画面にいる間だけ、答えを URL に載せておく（開き直した先で続きから始めるため）。
+   * 他の画面では外す — 写真を撮った後の下書きは載せない。
+   */
+  useEffect(() => {
+    if (!draft || typeof window === "undefined") return;
+    const url = new URL(window.location.href);
+    if (draft.stage === "camera" && !draft.photo)
+      url.searchParams.set(FIRST_CATCH_HANDOFF_PARAM, encodeFirstCatchHandoff(draft));
+    else if (url.searchParams.has(FIRST_CATCH_HANDOFF_PARAM))
+      url.searchParams.delete(FIRST_CATCH_HANDOFF_PARAM);
+    else return;
+    window.history.replaceState(window.history.state, "", url);
+  }, [draft]);
   async function commit(next: FirstCatch) {
     await persist(next);
     if (mounted.current) setDraft(next);

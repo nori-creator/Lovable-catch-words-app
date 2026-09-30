@@ -149,3 +149,42 @@ export function firstCatchSticker(draft: FirstCatch): StickerWithWord | null {
     },
   };
 }
+
+/**
+ * **ブラウザを開き直しても、チュートリアルの続きから始める**（オーナー指示 2026-09-30
+ * 「ブラウザで開き直すボタンは実際にブラウザで自動的に開くように」）。
+ *
+ * 下書きは端末のそのブラウザの中にしか無いので、LINE などから Safari / Chrome へ
+ * 移ると最初の画面に戻ってしまう。撮る画面にいる間だけ、答え（言語・目的・興味など）を
+ * URL の `fc` に載せておき、開き直した先で読み戻す。写真・単語・個人の解説は載せない。
+ */
+export const FIRST_CATCH_HANDOFF_PARAM = "fc";
+
+export function encodeFirstCatchHandoff(draft: FirstCatch): string {
+  const light: FirstCatch = {
+    ...draft,
+    stage: "camera",
+    photo: null,
+    card: null,
+    lesson: undefined,
+    capturedAt: null,
+    importedUserId: undefined,
+  };
+  const bytes = new TextEncoder().encode(JSON.stringify(light));
+  let bin = "";
+  bytes.forEach((b) => (bin += String.fromCharCode(b)));
+  return btoa(bin).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+
+export function decodeFirstCatchHandoff(raw: string | null | undefined): FirstCatch | null {
+  if (!raw || raw.length > 8000) return null;
+  try {
+    const bin = atob(raw.replace(/-/g, "+").replace(/_/g, "/"));
+    const bytes = Uint8Array.from(bin, (c) => c.charCodeAt(0));
+    const parsed = FirstCatchSchema.safeParse(JSON.parse(new TextDecoder().decode(bytes)));
+    if (!parsed.success || parsed.data.stage !== "camera" || parsed.data.photo) return null;
+    return parsed.data;
+  } catch {
+    return null;
+  }
+}
