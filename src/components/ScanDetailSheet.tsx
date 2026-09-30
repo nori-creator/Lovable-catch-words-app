@@ -77,7 +77,7 @@ export function ScanDetailSheet({ headword, item, dict, cardPromise, onClose }: 
         <span className="pl-1 text-body font-semibold">
           <Zh>{headword}</Zh>
         </span>
-        <button
+        <button type="button"
           onClick={onClose}
           aria-label={t("common.close")}
           // **出口は 44px を割らない。** ここは覆っている面の唯一の出口で、
