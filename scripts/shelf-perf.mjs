@@ -80,7 +80,7 @@ await new Promise((r) => server.listen(0, "127.0.0.1", r));
 const URL_ = `http://127.0.0.1:${server.address().port}/index.html?scene=shelf&count=${COUNT}`;
 
 const browser = await chromium.launch({
-  executablePath: process.env.PW_CHROME || "/opt/pw-browsers/chromium-1194/chrome-linux/chrome",
+  ...(process.env.PW_CHROME ? { executablePath: process.env.PW_CHROME } : {}),
 });
 
 /** 同じ計測を数回まわして中央値を取る(1回だけだと揺れが大きすぎる)。 */
