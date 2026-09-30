@@ -743,6 +743,9 @@ export const WordCard = forwardRef<
  * `src/lib/auto-fill.ts` に置いてテストしてある。全部失敗したら
  * ボタンに戻し、黙って叩き続けない。
  */
+/** そろうのを待つ上限。過ぎたらできている分から出す。 */
+const AUTO_FILL_REVEAL_MS = 8000;
+
 function AutoFillSections({
   wordId,
   missing,
@@ -802,20 +805,47 @@ function AutoFillSections({
      * 同時に書き込んでも項目が消えないよう、server は書く直前に読み直して
      * 重ねる（`runSectionRegen`）。
      */
+    /**
+     * 画面が読むのは札（`sticker`）と、その人向けの解説（`word-explanation`）。
+     * **両方を読み直す**（βテスト 2026-09-30「例文以下のチャンクなどが表示されない」）。
+     * 札だけを読み直していたので、解説の行がある語では作り終えても出なかった。
+     */
+    const refresh = async () => {
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: ["sticker"] }),
+        qc.invalidateQueries({ queryKey: ["stickers"] }),
+        qc.invalidateQueries({ queryKey: ["word-explanation", wordId] }),
+      ]);
+    };
     void (async () => {
       const queue = nextAutoFillQueue(missingRef.current, attempted, budget);
       for (const section of queue) attempted.add(section);
       setState({ done: 0, total: queue.length, failed: false });
+      /**
+       * **一番遅い1本を待ちすぎない**（βテスト 2026-09-30「単語の項目を表示するのが
+       * 遅い」）。そろってから1度に出す形は残すが、`AUTO_FILL_REVEAL_MS` を過ぎたら
+       * その時点でできている分を出し、残りは届いたときにもう1度だけ出す。
+       */
+      let settled = 0;
+      let revealed = false;
+      const timer = setTimeout(() => {
+        if (settled > 0 && settled < queue.length) {
+          revealed = true;
+          void refresh();
+        }
+      }, AUTO_FILL_REVEAL_MS);
       const results = await Promise.allSettled(
-        queue.map((section) => fillFn({ data: { word_id: wordId, section, only_if_empty: true } })),
+        queue.map((section) =>
+          fillFn({ data: { word_id: wordId, section, only_if_empty: true } }).finally(() => {
+            settled += 1;
+          }),
+        ),
       );
-      if (cancelled) return;
+      clearTimeout(timer);
       const ok = results.filter((r) => r.status === "fulfilled").length;
-      // 1つでもできていれば、できた分を**まとめて**出す。
-      if (ok > 0) {
-        await qc.invalidateQueries({ queryKey: ["sticker"] });
-        await qc.invalidateQueries({ queryKey: ["stickers"] });
-      }
+      // 1つでもできていれば、できた分を**まとめて**出す。**閉じた後でも読み直す** —
+      // 読み直さないと、次に開いたときに古い札のまま「まだ無い」と判じてもう一度作る。
+      if (ok > 0 || revealed) await refresh();
       if (cancelled) return;
       // **全部だめだった時だけ**ボタンに戻す（上限・鍵なしのような、
       // 待っても直らない失敗で AI を叩き続けない）。
