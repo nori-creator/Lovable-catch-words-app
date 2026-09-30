@@ -79,7 +79,7 @@ describe("JSX markup safety", () => {
         if (!/\btype\s*=/.test(tag)) bad.push(`${file}:${lineOf(src, offset)}`);
       }
     }
-    expect(bad, "Use type=\"button\" for actions or type=\"submit\" intentionally.").toEqual([]);
+    expect(bad, 'Use type="button" for actions or type="submit" intentionally.').toEqual([]);
   });
 
   it("raw img elements always declare alt", () => {
@@ -90,7 +90,7 @@ describe("JSX markup safety", () => {
         if (!/\balt\s*=/.test(tag)) bad.push(`${file}:${lineOf(src, offset)}`);
       }
     }
-    expect(bad, "Every image needs meaningful alt text or alt=\"\" when decorative.").toEqual([]);
+    expect(bad, 'Every image needs meaningful alt text or alt="" when decorative.').toEqual([]);
   });
 
   it("target blank links declare rel and placeholder links are absent", () => {

@@ -64,7 +64,8 @@ export function PhotoAddButtons({
   return (
     <div className={`flex flex-col gap-2 ${className}`}>
       {canCutout && (
-        <button type="button"
+        <button
+          type="button"
           onClick={onCutout}
           disabled={busy}
           className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-2xl bg-primary/12 text-body font-semibold text-primary-ink disabled:opacity-60"

@@ -673,7 +673,8 @@ export function InputCatchSheet({ initialMode, initialText, autoLookup, onClose 
         <span className="inline-flex items-center gap-1.5 pl-1 text-footnote font-medium text-muted-foreground">
           <Keyboard className="h-3.5 w-3.5" /> {t("input.title")}
         </span>
-        <button type="button"
+        <button
+          type="button"
           onClick={onClose}
           aria-label={t("common.close")}
           className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-border bg-card active:scale-95 motion-reduce:active:scale-100"
@@ -741,7 +742,8 @@ export function InputCatchSheet({ initialMode, initialText, autoLookup, onClose 
                 </li>
               ))}
             </ul>
-            <button type="button"
+            <button
+              type="button"
               onClick={() => {
                 // **前の選択を忘れる。** 残したまま書き直すと、
                 // 新しく書いた語ではなく前に選んだ語でカードを作ってしまう。
@@ -770,7 +772,8 @@ export function InputCatchSheet({ initialMode, initialText, autoLookup, onClose 
                 e.target.value = "";
               }}
             />
-            <button type="button"
+            <button
+              type="button"
               ref={landingSourceRef}
               onClick={() => fileInputRef.current?.click()}
               className="relative mx-auto block aspect-square w-48"
@@ -796,7 +799,8 @@ export function InputCatchSheet({ initialMode, initialText, autoLookup, onClose 
                 </div>
               )}
             </button>
-            <button type="button"
+            <button
+              type="button"
               onClick={save}
               disabled={step === "saving"}
               className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-primary px-5 py-3 text-body font-semibold text-primary-foreground shadow-lg shadow-primary/30 active:scale-95 disabled:bg-secondary disabled:text-muted-foreground disabled:shadow-none"
@@ -824,7 +828,8 @@ export function InputCatchSheet({ initialMode, initialText, autoLookup, onClose 
             {!attachedDataUrl && candidates.length > 1 && (
               <div className="flex justify-center gap-2">
                 {candidates.slice(0, 4).map((c, i) => (
-                  <button type="button"
+                  <button
+                    type="button"
                     key={i}
                     onClick={() => setPicked(i)}
                     aria-pressed={picked === i}
@@ -844,7 +849,8 @@ export function InputCatchSheet({ initialMode, initialText, autoLookup, onClose 
               <div className="flex items-baseline gap-2">
                 <h2 className="text-title font-bold tracking-tight">{text.trim()}</h2>
                 {/* **発音ボタン(NORI指定)。** 決める前に音で確かめられる。 */}
-                <button type="button"
+                <button
+                  type="button"
                   onClick={() => void pronounce(text.trim())}
                   aria-label={t("common.playWord", { word: text.trim() })}
                   className="speak-button grid h-11 w-11 shrink-0 place-items-center self-center rounded-full active:scale-95 motion-reduce:active:scale-100"
@@ -988,7 +994,8 @@ export function InputCatchFace({
       </p>
 
       {showMic && (
-        <button type="button"
+        <button
+          type="button"
           onClick={onToggleRecord}
           disabled={loading}
           className={`lift mx-auto flex h-16 w-16 items-center justify-center rounded-full shadow-xl transition-colors ${
@@ -1044,7 +1051,8 @@ export function InputCatchFace({
         </p>
       )}
 
-      <button type="button"
+      <button
+        type="button"
         onClick={onSubmit}
         disabled={!text.trim() || loading}
         className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-primary px-5 py-3 text-body font-semibold text-primary-foreground shadow-lg shadow-primary/30 active:scale-95 disabled:bg-secondary disabled:text-muted-foreground disabled:shadow-none"

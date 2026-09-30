@@ -224,7 +224,8 @@ export function ChoiceRow<T extends string | number>({
           className="bottom-0 left-0 top-0 bg-primary"
         />
         {options.map((o) => (
-          <button type="button"
+          <button
+            type="button"
             key={String(o.value)}
             role="radio"
             aria-checked={value === o.value}
@@ -1208,7 +1209,8 @@ function DeveloperPanel() {
             n={timings.fast.n}
           />
           {timings.detail.n + timings.fast.n > 0 && (
-            <button type="button"
+            <button
+              type="button"
               onClick={() => {
                 clearCatchTimings();
                 setTimings(summarizeCatchTimings(readCatchTimings()));
@@ -1640,7 +1642,8 @@ export function ToggleRow({
         )}
       </div>
       {/* §11: the switch is 24px tall but the tap target is padded to 44px. */}
-      <button type="button"
+      <button
+        type="button"
         onClick={() => onChange(!value)}
         role="switch"
         aria-checked={value}
@@ -1983,7 +1986,8 @@ function UiThemePicker() {
       <ul className="mt-3 space-y-1.5">
         {UI_THEMES.map((themeMeta) => (
           <li key={themeMeta.id}>
-            <button type="button"
+            <button
+              type="button"
               onClick={() => pick(themeMeta.id)}
               aria-pressed={theme === themeMeta.id}
               className={`flex w-full items-center gap-3 rounded-xl border p-2 text-left transition ${

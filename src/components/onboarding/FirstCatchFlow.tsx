@@ -276,11 +276,17 @@ export function FirstCatchFlow({
   const errors = error && (
     <div role="alert" className="first-error">
       <p>{error}</p>
-      <button type="button" className="first-primary" onClick={() => retry.current()} disabled={!!busy}>
+      <button
+        type="button"
+        className="first-primary"
+        onClick={() => retry.current()}
+        disabled={!!busy}
+      >
         {t("first.retry")}
       </button>
       {draft?.stage === "camera" && !canRequestAccount(draft) && (
-        <button type="button"
+        <button
+          type="button"
           className="first-secondary"
           onClick={() => {
             setError(null);
@@ -409,13 +415,15 @@ export function FirstCatchFlow({
             ) : draft.photo ? (
               <div className="first-content">
                 <img src={draft.photo} alt="" className="rounded-3xl" />
-                <button type="button"
+                <button
+                  type="button"
                   className="first-primary mt-6"
                   onClick={() => void action(() => analyze(draft), "photo")}
                 >
                   {t("first.retry")}
                 </button>
-                <button type="button"
+                <button
+                  type="button"
                   className="first-secondary w-full"
                   onClick={() =>
                     void action(() => commit({ ...draft, photo: null, capturedAt: null }))

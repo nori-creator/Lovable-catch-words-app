@@ -83,7 +83,8 @@ export function WordbookShelf({
           })}
         </p>
         <div className="mt-3 flex items-center gap-2">
-          <button type="button"
+          <button
+            type="button"
             onClick={() => onOpen(selected.id)}
             className="press-in inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-full bg-primary px-4 text-footnote font-semibold text-primary-foreground"
           >
@@ -91,7 +92,8 @@ export function WordbookShelf({
             {t("wb.review")}
           </button>
           {onDelete && (
-            <button type="button"
+            <button
+              type="button"
               onClick={() => onDelete(selected.id)}
               aria-label={t("wb.delete", { title: selected.title })}
               className="grid h-11 w-11 shrink-0 place-items-center rounded-full border border-border text-muted-foreground"

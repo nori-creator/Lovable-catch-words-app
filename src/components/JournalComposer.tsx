@@ -171,7 +171,8 @@ export function JournalComposer({
           <p className="min-w-0 flex-1 truncate text-footnote text-muted-foreground">
             {t("journal.leftover", { d: leftover.date, s: leftover.text.slice(0, 24) })}
           </p>
-          <button type="button"
+          <button
+            type="button"
             onClick={() => {
               setDraft(leftover.text);
               setLeftover(null);
@@ -206,7 +207,8 @@ export function JournalComposer({
       )}
 
       <div className="flex flex-wrap gap-2">
-        <button type="button"
+        <button
+          type="button"
           disabled={correctMut.isPending || draft.trim().length < 2}
           onClick={() => correctMut.mutate()}
           className="lift inline-flex min-h-11 items-center gap-1.5 rounded-full bg-primary px-5 py-2 text-footnote font-semibold text-primary-foreground shadow-sm shadow-primary/30 disabled:bg-secondary disabled:text-muted-foreground disabled:shadow-none"

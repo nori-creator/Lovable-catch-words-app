@@ -44,7 +44,8 @@ export function JournalWritingPage({
           </span>
         </div>
         {onClose && (
-          <button type="button"
+          <button
+            type="button"
             onClick={onClose}
             aria-label={t("common.close")}
             className="-m-2 grid h-11 w-11 place-items-center rounded-full text-muted-foreground"

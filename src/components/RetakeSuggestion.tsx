@@ -53,7 +53,8 @@ export function RetakeSuggestion({
           </p>
         </div>
       </div>
-      <button type="button"
+      <button
+        type="button"
         onClick={onRetake}
         className="mt-2 min-h-11 w-full rounded-xl bg-secondary py-2 text-footnote font-semibold active:scale-[0.98] motion-reduce:active:scale-100"
       >

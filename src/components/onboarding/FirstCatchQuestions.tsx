@@ -131,7 +131,8 @@ export function FirstCatchQuestions({
             </div>
             <div className="first-time-grid" role="radiogroup" aria-label={t("first.time")}>
               {([5, 10, 15, 30, 60] as const).map((value) => (
-                <button type="button"
+                <button
+                  type="button"
                   key={value}
                   role="radio"
                   aria-checked={draft.dailyMinutes === value}
@@ -208,7 +209,8 @@ export function FirstCatchQuestions({
         )}
         {error}
         <footer className="first-footer">
-          <button type="button"
+          <button
+            type="button"
             className="first-primary"
             disabled={busy}
             onClick={() =>

@@ -423,7 +423,8 @@ export function WordCardSectionsEditor() {
                 (検査は要素そのものの箱を測る。そしてそれが正しい —
                 指は見た目を触るのであって、見えない枠を狙う人はいない)。 */}
             <span className="flex shrink-0">
-              <button type="button"
+              <button
+                type="button"
                 className="lift-soft inline-flex h-11 w-11 items-center justify-center rounded-md"
                 onClick={() => toggle(id)}
                 aria-label={t("card.toggleShow")}
@@ -445,7 +446,8 @@ export function WordCardSectionsEditor() {
                * **消したら touch 以外の人が並べ替えられなくなる**ので、
                * ボタンを減らすなら道は取っ手のほうへ移す。
                */}
-              <button type="button"
+              <button
+                type="button"
                 data-drag-handle
                 /**
                  * **取っ手の上では最初から巻き取らせない。** 指はここに
@@ -832,7 +834,8 @@ function AutoFillSections({
   if (state.failed) {
     return (
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-        <button type="button"
+        <button
+          type="button"
           onClick={() => {
             attemptedRef.current = new Set();
             setState({ done: 0, total: 0, failed: false });
@@ -977,7 +980,8 @@ function HeaderRow({
             {/* **鉛筆は渡された画面にだけ出す。** 直す口を持たない画面
                 （撮った直後の面など）で出しても、押して何も起きない。 */}
             {!minimal && onEditHeadword && !editingHead && (
-              <button type="button"
+              <button
+                type="button"
                 onClick={() => {
                   setHeadDraft(word.headword);
                   setEditingHead(true);
@@ -990,7 +994,8 @@ function HeaderRow({
               </button>
             )}
             {editingHead ? (
-              <button type="button"
+              <button
+                type="button"
                 onClick={() => void saveHead()}
                 disabled={savingHead}
                 className="lift-soft inline-flex h-11 shrink-0 items-center rounded-full bg-primary px-4 text-body font-semibold text-primary-foreground disabled:opacity-60"
@@ -1168,7 +1173,8 @@ function ReportButton({
   }
   return (
     <span ref={selfRef} className="relative ml-auto">
-      <button type="button"
+      <button
+        type="button"
         onClick={() => setOpen((v) => !v)}
         disabled={busy}
         aria-expanded={open}
@@ -1195,7 +1201,8 @@ function ReportButton({
                 placeholder={t("card.reportAutoHint")}
                 className="w-full resize-none rounded-lg border border-input bg-background p-2 text-footnote"
               />
-              <button type="button"
+              <button
+                type="button"
                 onClick={() => send("auto", note.trim())}
                 className="block min-h-11 w-full rounded-lg bg-primary px-2 text-footnote font-semibold text-primary-foreground"
               >
@@ -1203,7 +1210,8 @@ function ReportButton({
               </button>
             </div>
           ) : (
-            <button type="button"
+            <button
+              type="button"
               onClick={() => setAsking(true)}
               className="block min-h-11 w-full rounded-lg px-2 py-1.5 text-left text-footnote font-semibold text-primary hover:bg-secondary"
             >
@@ -1212,7 +1220,8 @@ function ReportButton({
           )}
           <p className="px-2 py-1 text-caption text-muted-foreground">{t("card.reportWhat")}</p>
           {items.map((item) => (
-            <button type="button"
+            <button
+              type="button"
               key={item}
               onClick={() => send(item)}
               className="block min-h-11 w-full rounded-lg px-2 py-1.5 text-left text-footnote hover:bg-secondary"
@@ -1308,7 +1317,8 @@ function SectionCard({
             (ホームの「Past Pages」と同じ穴)。 */}
         <h3 className="text-footnote font-semibold text-foreground">{label}</h3>
         {canRegen && (
-          <button type="button"
+          <button
+            type="button"
             onClick={regen}
             disabled={regenerating}
             aria-label={`${label}: ${t("card.regen")}`}
@@ -2163,7 +2173,8 @@ function WebImagesBody({
                 className="h-full w-full object-cover"
               />
               {onPickImage && (
-                <button type="button"
+                <button
+                  type="button"
                   onClick={() => void pick(c.url)}
                   disabled={picking !== null}
                   className="absolute inset-0 grid place-items-center bg-black/0 text-caption font-semibold text-white opacity-0 transition-opacity active:bg-black/45 active:opacity-100"
@@ -2189,7 +2200,8 @@ function WebImagesBody({
       )}
 
       <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1">
-        <button type="button"
+        <button
+          type="button"
           onClick={() => setSeed((v) => v + 1)}
           disabled={isFetching}
           className="relative inline-flex items-center gap-1 rounded-full bg-secondary px-2.5 py-1 text-caption font-medium shadow-sm ring-1 ring-border before:absolute before:-inset-x-1 before:-inset-y-2.5 before:content-[''] active:scale-95 disabled:opacity-60"

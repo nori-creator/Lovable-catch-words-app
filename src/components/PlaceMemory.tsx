@@ -156,7 +156,8 @@ export function PlaceMemoryCard({
             alt=""
             className="aspect-[16/10] max-h-[32vh] w-full object-cover"
           />
-          <button type="button"
+          <button
+            type="button"
             onClick={onDismiss}
             aria-label={t("common.close")}
             className="absolute right-2 top-2 grid h-11 w-11 place-items-center rounded-full bg-black/35 text-white backdrop-blur active:scale-95"
@@ -167,13 +168,15 @@ export function PlaceMemoryCard({
             {meta && <p className="truncate text-footnote text-muted-foreground">{meta}</p>}
             <p className="mt-0.5 text-headline font-bold">{t("place.sayItIn", { lang })}</p>
             <div className="mt-3 flex gap-2">
-              <button type="button"
+              <button
+                type="button"
                 onClick={onStart}
                 className="min-h-11 flex-1 rounded-full bg-primary px-5 text-body font-semibold text-primary-foreground active:scale-[0.98]"
               >
                 {t("place.review")}
               </button>
-              <button type="button"
+              <button
+                type="button"
                 onClick={onDismiss}
                 className="min-h-11 rounded-full bg-secondary px-5 text-body font-semibold text-foreground active:scale-[0.98]"
               >
@@ -197,7 +200,8 @@ export function PlaceMemoryCard({
             </span>
             <span className="block truncate text-caption text-muted-foreground">{line}</span>
           </button>
-          <button type="button"
+          <button
+            type="button"
             onClick={onDismiss}
             aria-label={t("common.close")}
             className="grid h-11 w-11 shrink-0 place-items-center rounded-full text-muted-foreground active:scale-95"

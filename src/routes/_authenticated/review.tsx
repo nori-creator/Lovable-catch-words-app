@@ -677,7 +677,8 @@ export function ReviewSessionHeader({
       )}
       {memOverview && memOverview.words.length > 0 && (
         <>
-          <button type="button"
+          <button
+            type="button"
             onClick={onToggle}
             aria-expanded={memListOpen}
             className="relative w-full text-left before:absolute before:inset-x-0 before:-inset-y-2 before:content-['']"
@@ -874,7 +875,8 @@ export function CardMemoryBadge({ card, onOpen }: { card: DueReviewCard; onOpen?
   const t = useT();
   const { level: lv, percent } = memoryOf(card);
   return (
-    <button type="button"
+    <button
+      type="button"
       onClick={onOpen}
       aria-label={`${t(lv.labelKey)} ${percent}%`}
       // 見た目は小さな印のままでいい(カードの隅の飾りなので、44px の塊に
@@ -938,7 +940,8 @@ export function MemoryOverviewPanel({
           const { level: lv, percent } = memoryOf(w);
           return (
             <li key={w.sticker_id}>
-              <button type="button"
+              <button
+                type="button"
                 onClick={() => onOpenWord(w)}
                 /**
                  * **行の高さは 44px を割らない**（HIG §11 / 絵の検査で発覚）。
@@ -1056,7 +1059,8 @@ export function ForgettingCurveModal({
           <h3 lang="zh-Hant" className="text-headline font-bold">
             {word.headword}
           </h3>
-          <button type="button"
+          <button
+            type="button"
             onClick={onClose}
             aria-label={t("common.close")}
             className="rounded-full p-1 text-muted-foreground"
@@ -1526,7 +1530,8 @@ export function SpeakingCard({
             </div>
             <div className="mt-0.5 flex items-start gap-2">
               <p className="flex-1 text-body font-semibold text-sky-950">{scaffold.question_zh}</p>
-              <button type="button"
+              <button
+                type="button"
                 onClick={() => void pronounce(scaffold.question_zh)}
                 className="speak-button relative mt-0.5 inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full before:absolute before:-inset-2 before:content-[''] active:scale-95 motion-reduce:active:scale-100"
                 aria-label={t("rv.readQuestion")}
@@ -1551,7 +1556,8 @@ export function SpeakingCard({
                     <span className="text-caption font-semibold label-caps text-sky-700">
                       {t(`review.partKind.${p.kind}`)}
                     </span>
-                    <button type="button"
+                    <button
+                      type="button"
                       onClick={() => void pronounce(p.zh)}
                       className="speak-button relative ml-auto grid h-7 w-7 shrink-0 place-items-center rounded-full before:absolute before:-inset-2 before:content-[''] active:scale-95 motion-reduce:active:scale-100"
                       aria-label={t("review.playHint")}
@@ -1622,7 +1628,8 @@ export function SpeakingCard({
         {!answered && (
           <div className="space-y-3">
             <div className="flex items-center justify-center gap-4">
-              <button type="button"
+              <button
+                type="button"
                 onClick={listening ? stopListen : startListen}
                 disabled={loading}
                 className={`lift flex h-20 w-20 items-center justify-center rounded-full shadow-xl transition-colors ${
@@ -1646,7 +1653,8 @@ export function SpeakingCard({
             {error && <p className="text-footnote text-bad-ink">{error}</p>}
 
             <div className="flex gap-2">
-              <button type="button"
+              <button
+                type="button"
                 onClick={submit}
                 disabled={!transcript.trim() || loading}
                 className="lift flex-1 rounded-xl bg-primary py-3 text-body font-semibold text-primary-foreground disabled:bg-secondary disabled:text-muted-foreground disabled:shadow-none"
@@ -1663,7 +1671,8 @@ export function SpeakingCard({
                   t("review.submit")
                 )}
               </button>
-              <button type="button"
+              <button
+                type="button"
                 onClick={() => commitAndNext("skip")}
                 className="rounded-xl border border-border bg-background px-3 text-footnote text-muted-foreground"
               >
@@ -1783,7 +1792,8 @@ export function SayResult({
           (完了の面で一度直したのと同じ自己矛盾)。
           外したときは言い直す側を、通じたときは進む側を塗る。 */}
       <div className="mt-2 flex gap-2">
-        <button type="button"
+        <button
+          type="button"
           onClick={onRetry}
           className={`min-h-11 flex-1 rounded-xl py-3 text-body font-semibold active:scale-[0.98] motion-reduce:active:scale-100 ${
             ok ? "border border-border bg-background" : "bg-primary text-primary-foreground"
@@ -1792,7 +1802,8 @@ export function SayResult({
           <Repeat className="mr-1 inline h-4 w-4" />
           {t("rv.sayRetry")}
         </button>
-        <button type="button"
+        <button
+          type="button"
           onClick={onNext}
           className={`min-h-11 flex-1 rounded-xl py-3 text-body font-semibold active:scale-[0.98] motion-reduce:active:scale-100 ${
             ok ? "bg-primary text-primary-foreground" : "border border-border bg-background"
@@ -1954,14 +1965,16 @@ function FeedbackView({
 
       <div className="flex gap-2">
         {round === 1 && (
-          <button type="button"
+          <button
+            type="button"
             onClick={onRetry}
             className="flex-1 rounded-xl border border-primary/40 bg-primary/5 py-3 text-body font-semibold text-primary"
           >
             <Repeat className="mr-1 inline h-4 w-4" /> {t("review.retryPattern")}
           </button>
         )}
-        <button type="button"
+        <button
+          type="button"
           // 引数を渡さない。ここは話す側の面で、正誤は `commitAndNext` が
           // 既に数えている(二重に数えない)。
           onClick={() => onNext()}
@@ -2343,7 +2356,8 @@ export function LightModeCard({
             // 押す物は入れられないので、箱は敷いたまま音声だけ上に重ねる。
             return (
               <li key={c} className="relative flex min-h-0 scroll-mb-56 items-stretch">
-                <button type="button"
+                <button
+                  type="button"
                   disabled={!!picked}
                   onClick={() => submit(c)}
                   // `transition-all` は**焦点の輪郭まで遷移させる**。
@@ -2533,7 +2547,8 @@ export function LightModeCard({
                     <BookOpen className="h-4 w-4 text-primary" aria-hidden />
                     {t("review.openInDex")}
                   </button>
-                  <button type="button"
+                  <button
+                    type="button"
                     // **`onClick={onNext}` と書かない。** クリックの event が
                     // 第1引数に渡り、`correct` として truthy に見えるので、
                     // 不正解も正解として数えられてしまう。
@@ -2735,7 +2750,8 @@ export function ReviewHeader({
               当たり判定は 44px（`::before` ではなく箱そのもの）。 */}
           {/* 形を選ぶ所は止めてある（`REVIEW_MODE_CHOICE_ENABLED` の注）。 */}
           {REVIEW_PRACTICE_ENABLED && REVIEW_MODE_CHOICE_ENABLED && (
-            <button type="button"
+            <button
+              type="button"
               onClick={() => setModeOpen((v) => !v)}
               aria-expanded={modeOpen}
               aria-label={t("rv.modeAria")}
@@ -2781,7 +2797,8 @@ export function ReviewHeader({
             雛形が見出しを描いていなかったので**一度も測られていなかった**
             ことがある(実測 72×25px)。 */}
         {MODE_TABS.map((m) => (
-          <button type="button"
+          <button
+            type="button"
             key={m.id}
             role="tab"
             aria-selected={mode === m.id}
@@ -2873,7 +2890,8 @@ export function DoneState({
           {t("review.moreHint", { n: formatCount(batch?.dueRemaining ?? 0) })}
         </p>
         <div className="mt-4 flex flex-wrap items-center gap-2">
-          <button type="button"
+          <button
+            type="button"
             onClick={onAgain}
             className="lift inline-flex min-h-11 items-center rounded-full bg-primary px-5 py-2.5 text-body font-semibold text-primary-foreground"
           >
@@ -2931,7 +2949,8 @@ export function DoneState({
         >
           {t("review.toDex")}
         </Link>
-        <button type="button"
+        <button
+          type="button"
           onClick={onAgain}
           className="inline-flex min-h-11 items-center rounded-full px-4 py-2.5 text-body font-semibold text-primary-ink"
         >

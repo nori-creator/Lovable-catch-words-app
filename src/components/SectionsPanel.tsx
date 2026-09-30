@@ -42,7 +42,8 @@ export function SectionsPanel({ open, onClose }: { open: boolean; onClose: () =>
           <p className="min-w-0 truncate text-footnote font-semibold text-muted-foreground">
             {t("card.sections")}
           </p>
-          <button type="button"
+          <button
+            type="button"
             onClick={onClose}
             // **44px。** この形は今まで絵に映っていなかったので、
             // 40px のまま指の下限を割っていた(検査に入れた途端に出た)。
