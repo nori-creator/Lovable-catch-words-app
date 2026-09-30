@@ -215,6 +215,9 @@ const MODES = [
   // それをやると、棚で潰したはずの「実物と違うものを見る検査」に戻る。
   // 何を見て何を見ていないかは README ではなく、ここの一覧が事実として示す。
   ...crossThemes("tokens", { scene: "tokens" }),
+  ...crossThemes("image-settings", { scene: "image-settings", click: "summary" }),
+  ["image-settings-en", "", false, { scene: "image-settings", lang: "en", click: "summary" }],
+  ["image-settings-zh", "", false, { scene: "image-settings", lang: "zh-TW", click: "summary" }],
   ...crossThemes("failed", { scene: "load-failed" }),
   // 再試行中は**見出しも文言もボタン名も**変わる。以前はアイコンが回るだけで、
   // 押せたのかどうか分からなかった(独立監査の指摘)。
@@ -1713,6 +1716,7 @@ for (const scene of MOTION_SCENES) {
     reducedMotion: "reduce",
   });
   await page.goto(sceneUrl(BASE, { scene }), { waitUntil: "load" });
+  await page.evaluate(() => { document.documentElement.dataset.motion = "reduce"; });
   await page.waitForTimeout(400);
   const { running, marked } = await page.evaluate(() => ({
     // `animationName` を持つ物だけが CSS アニメーション(transition は持たない)。
