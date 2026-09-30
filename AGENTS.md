@@ -44,3 +44,7 @@ When a task changes UI, UX, layout, styling, motion, animation, transitions, cam
 9. Do not merge until the user has visually approved the result.
 
 Netlify is configured by `netlify.toml` to build the UI harness for deploy previews. A normal push to the PR branch should therefore refresh the same PR's Netlify Deploy Preview automatically.
+
+## Real app check
+
+The UI harness renders production components with fixture data; it never exercises the real backend, AI, audio or image loading. To verify the **published** app end to end (video of every step, recorded Web Audio output, sound/vibration log, per-second frame rate, broken images, network/console errors, mixed-language text), use the Real app check: GitHub Actions → "Real app check（実物確認）" → Run workflow, then open `index.html` from the `real-app-report` artifact. Details, limits and the optional test-account secrets are in `docs/real-app-check.md`. The tutorial driver follows the Spotlight ring and `data-tour` anchors, so keep those anchors on production controls.

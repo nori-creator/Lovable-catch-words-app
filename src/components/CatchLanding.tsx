@@ -1,7 +1,7 @@
 import { forwardRef, type CSSProperties, type RefObject } from "react";
 import { waitForRef } from "@/lib/wait-for-ref";
 import { Score, SCORE } from "@/lib/celebration-score";
-import { Sound, unlockAudio } from "@/lib/sound-engine";
+import { unlockAudio } from "@/lib/sound-engine";
 import { haptic } from "@/lib/haptics";
 import { Term } from "@/components/Term";
 import { v5reward } from "@/components/effects/catch-landing/v5_reward";
@@ -18,18 +18,6 @@ import { motionReducedNow } from "@/hooks/use-reduced-motion";
  * **どの版でも共通の前後処理**(チャイム・振動・reduced motion の判定)と、
  * 振り付けが掴む DOM(#catch-trail / #catch-hero-flash / #catch-hero-word)。
  */
-
-/**
- * 短い「キャッチ!」音。
- *
- * 中身は sound-engine の `Sound.catchChime()`。以前ここには**自前の
- * AudioContext**があり、音量設定(オフ/控えめ/しっかり)を無視して
- * 常に同じ大きさで鳴っていた。「オフ」を選んでも、アプリでいちばん
- * 大きな音だけが鳴る — 設定が嘘になっていた。
- */
-export function playCatchChime() {
-  Sound.catchChime();
-}
 
 /**
  * 選ばれている版の振り付けを走らせる。

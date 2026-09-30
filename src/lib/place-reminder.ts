@@ -224,11 +224,6 @@ export async function getCurrentPosition(): Promise<{ lat: number; lng: number }
   }
 }
 
-/** 通知の許可を求める。設定でONにした直後にだけ呼ぶ。 */
-export async function requestNotificationPermission(): Promise<boolean> {
-  return (await requestNotificationPermissionDetailed()).ok;
-}
-
 /**
  * 通知の許可を取る。**なぜ失敗したか**まで返す。
  *

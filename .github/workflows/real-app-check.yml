@@ -1,0 +1,78 @@
+# 公開中のアプリを「本物のまま」確かめる。
+#
+# ## これが何をするものか
+# GitHub 側のパソコンが、公開中の CatchWords（https://catchwords.lovable.app）を
+# スマホの画面の大きさで開き、初めての人と同じように最初から操作する。
+# 撮影は本物の写真を映したカメラで行い、AI の解析も本物のサーバで動く。
+# 操作の動画・鳴った音の録音・段ごとの画面・見つけた問題を1つのページにまとめる。
+#
+# ## 使い方
+# 1. GitHub のこのリポジトリを開く
+# 2. 上の「Actions」タブ → 左の「Real app check（実物確認）」を選ぶ
+# 3. 右の「Run workflow」ボタンを押す（10〜20分待つ）
+# 4. 終わったら実行結果の画面の下にある「Artifacts」から real-app-report をダウンロード
+# 5. 解凍して index.html をブラウザで開く
+#
+# 詳しくは docs/real-app-check.md。
+
+name: Real app check（実物確認）
+
+on:
+  workflow_dispatch:
+    inputs:
+      base_url:
+        description: 確かめるアプリの URL
+        default: https://catchwords.lovable.app
+      langs:
+        description: 表示言語（カンマ区切り）
+        default: ja,en,zh-TW
+      targets:
+        description: 学習言語（表示言語の順に当てる）
+        default: zh-TW,en,zh-TW
+      browsers:
+        description: chromium（Android の Chrome と同じ仕組み）/ webkit（iPhone の Safari と同じ仕組み）
+        default: chromium,webkit
+  # この仕組み自体を直したときは、PR の上で1回走らせて動くことを確かめる。
+  pull_request:
+    paths:
+      - "e2e/real-app/**"
+      - ".github/workflows/real-app-check.yml"
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      # アプリ本体の依存は入れない（確かめる相手は公開中のアプリ）。
+      - name: ブラウザを自動で動かす道具を入れる
+        working-directory: e2e/real-app
+        run: |
+          npm install --no-audit --no-fund
+          npx playwright install --with-deps chromium webkit
+
+      - name: 公開中のアプリを操作して記録する
+        env:
+          BASE_URL: ${{ inputs.base_url || 'https://catchwords.lovable.app' }}
+          LANGS: ${{ inputs.langs || 'ja,en,zh-TW' }}
+          TARGETS: ${{ inputs.targets || 'zh-TW,en,zh-TW' }}
+          BROWSERS: ${{ inputs.browsers || 'chromium,webkit' }}
+          # 試験用アカウント（任意）。Settings → Secrets and variables → Actions に置くと、
+          # ログイン後の画面（ホーム・図鑑・復習・設定・撮影）も回る。
+          E2E_EMAIL: ${{ secrets.E2E_EMAIL }}
+          E2E_PASSWORD: ${{ secrets.E2E_PASSWORD }}
+          OUT: e2e-report
+        run: node e2e/real-app/run.mjs
+
+      - name: 記録をダウンロードできるようにする
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: real-app-report
+          path: e2e-report
+          retention-days: 14
