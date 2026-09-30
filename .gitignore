@@ -34,3 +34,6 @@ dist-ssr
 # 画面の検査ハーネスの組み立て結果
 .ui-harness/
 .promo-frames/
+
+# 実物確認の結果（docs/real-app-check.md）
+e2e-report/

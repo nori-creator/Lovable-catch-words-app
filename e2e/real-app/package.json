@@ -1,0 +1,12 @@
+{
+  "name": "catchwords-real-app-check",
+  "private": true,
+  "type": "module",
+  "description": "公開中の CatchWords を本物のサーバ・AI で操作し、動画・録音・画面を残す（docs/real-app-check.md）",
+  "scripts": {
+    "check": "node run.mjs"
+  },
+  "dependencies": {
+    "playwright": "1.62.0"
+  }
+}
