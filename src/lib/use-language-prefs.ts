@@ -29,7 +29,7 @@
 import { useEffect, useRef } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { getMyProfile } from "@/lib/profile.functions";
+import { getMyProfile, updateMyProfile } from "@/lib/profile.functions";
 import { setTargetLang, storedTargetLang, useTargetLang } from "@/lib/target-lang-pref";
 import { setUiLang, normalizeUiLang, storedUiLang } from "@/lib/i18n";
 import { reconcileLanguage } from "@/lib/language-sync";
@@ -43,6 +43,10 @@ import { DEFAULT_TARGET_LANGUAGE } from "@/lib/target-lang";
  */
 export function useLanguagePrefsSync(): void {
   const fetchProfile = useServerFn(getMyProfile);
+  const saveProfile = useServerFn(updateMyProfile);
+  const qc = useQueryClient();
+  /** 同じ組を何度も書き戻さない（届いたプロフィールの読み直しで再び走るため）。 */
+  const pushed = useRef<string | null>(null);
   const { data } = useQuery({
     queryKey: ["profile"],
     queryFn: () => fetchProfile(),
@@ -51,8 +55,7 @@ export function useLanguagePrefsSync(): void {
 
   useEffect(() => {
     const p = data as
-      | { target_language?: string; ui_language?: string; partial?: boolean }
-      | undefined;
+      { target_language?: string; ui_language?: string; partial?: boolean } | undefined;
     if (!p) return;
     /**
      * **中身の無いプロフィールで上書きしない。**
@@ -90,7 +93,41 @@ export function useLanguagePrefsSync(): void {
     // プロフィールが届くたびに描き直しが起きることはない。
     setTargetLang(target.value);
     setUiLang(normalizeUiLang(ui.value));
-  }, [data]);
+
+    /**
+     * **端末が勝ったら、サーバへ書き戻す**（オーナー報告 2026-09-30
+     * 「学習言語台湾華語なのに英語の4択が表示されてる」）。
+     *
+     * `language-sync.ts` は「端末が勝つ。違っていればサーバへ書き戻す」と
+     * 決めていて `pushToServer` を返すのに、**ここはその返事を読んでいな
+     * かった**（書き戻していたのは設定画面を開いたときだけ）。
+     *
+     * ところが復習・図鑑・記憶の一覧は**サーバ側で** `profiles.target_language`
+     * を読んで絞る。端末は台湾華語・サーバは英語のままだと、
+     *   ・設定画面の表示は台湾華語
+     *   ・復習の4択は英語の語と英語の辞書から作られる
+     * という、報告どおりの食い違いになる。
+     *
+     * 書き戻したら、その言語で絞った一覧を読み直す（前の言語で作った物が
+     * React Query に残っているので）。
+     */
+    if (!target.pushToServer && !ui.pushToServer) return;
+    const pair = `${target.value}|${ui.value}`;
+    if (pushed.current === pair) return;
+    pushed.current = pair;
+    void saveProfile({
+      data: { target_language: target.value, ui_language: normalizeUiLang(ui.value) },
+    })
+      .then(() => {
+        for (const key of LANGUAGE_SCOPED_QUERIES) {
+          void qc.invalidateQueries({ queryKey: [key] });
+        }
+      })
+      .catch(() => {
+        // 端末の選択は効いたまま。次に開いたときにもう一度試す。
+        pushed.current = null;
+      });
+  }, [data, saveProfile, qc]);
 }
 
 /**

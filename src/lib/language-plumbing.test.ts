@@ -437,6 +437,17 @@ describe("中身の無いプロフィールで端末の言語を上書きしな�
     expect(src).not.toMatch(/setUiLang\(normalizeUiLang\(p\.ui_language\)\)/);
   });
 
+  it("**端末が勝ったら、どの画面から入ってもサーバへ書き戻す**", () => {
+    // オーナー報告 2026-09-30「学習言語台湾華語なのに英語の4択が表示されてる」。
+    // 復習・図鑑はサーバ側で profiles.target_language を読んで絞るので、
+    // 書き戻しが設定画面だけだと、端末とサーバが食い違ったまま残る。
+    const src = codeOnly(read("lib/use-language-prefs.ts"));
+    expect(src).toMatch(/target\.pushToServer/);
+    expect(src).toMatch(/saveProfile\(\{[\s\S]{0,80}?target_language: target\.value/);
+    // 書き戻した後、前の言語で作った一覧を読み直す。
+    expect(src).toMatch(/\.then\(\(\) => \{[\s\S]{0,120}?LANGUAGE_SCOPED_QUERIES/);
+  });
+
   it("設定の画面も同じ規則で突き合わせ、揃えるために書き戻す", () => {
     const src = codeOnly(read("routes/_authenticated/settings.tsx"));
     // 突き合わせは `settings-restore.ts` ただ1つ(3度目の報告で移した)。
