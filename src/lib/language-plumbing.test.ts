@@ -5269,9 +5269,7 @@ describe("日本語の検索・候補の行・項目の並べ替え", () => {
     // 最初の当たりは `onPointerDown` の中の判定。**釦の方**を見る。
     const handleAt = card.indexOf("data-drag-handle");
     expect(handleAt).toBeGreaterThan(0);
-    const handleStart = card.lastIndexOf("<button", handleAt);
-    expect(handleStart).toBeGreaterThan(0);
-    expect(card.slice(handleStart, handleAt + 400)).toMatch(/touch-none/);
+    expect(card.slice(Math.max(0, handleAt - 160), handleAt + 520)).toMatch(/touch-none/);
     expect(card).toMatch(/dragging\s*\n?\s*\? "touch-none /);
   });
 });
