@@ -66,7 +66,7 @@ const nav = ["ホーム", "図鑑", "スキャン", "復習", "設定"]
   .join("");
 
 const browser = await chromium.launch({
-  executablePath: process.env.PW_CHROME || "/opt/pw-browsers/chromium-1194/chrome-linux/chrome",
+  ...(process.env.PW_CHROME ? { executablePath: process.env.PW_CHROME } : {}),
 });
 const page = await browser.newPage({ viewport: { width: 390, height: 780 } });
 const report = [];
