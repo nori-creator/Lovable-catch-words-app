@@ -23,6 +23,8 @@ import {
   applyFirstCatchLanguage,
   ensureFirstCatchSession,
   isGuestRefusal,
+  canonicalHeadword,
+  preferTargetLanguageCandidates,
 } from "@/lib/first-catch-services";
 import {
   readFirstCatch,
@@ -207,7 +209,8 @@ export function FirstCatchFlow({
       }),
     ]).finally(() => clearTimeout(timer));
     if (!result.suggestions.length) throw new Error("No candidates");
-    if (mounted.current && mine === run.current) setSuggestions(result.suggestions);
+    if (mounted.current && mine === run.current)
+      setSuggestions(preferTargetLanguageCandidates(result.suggestions, next.targetLanguage));
   }
   function photo(file: File) {
     if (!draft) return;
@@ -232,7 +235,10 @@ export function FirstCatchFlow({
       const card = await services.card(headword, draft);
       await commit({
         ...draft,
-        card: { ...card, headword_zh: card.headword_zh || headword },
+        card: {
+          ...card,
+          headword_zh: canonicalHeadword(headword, card.headword_zh, draft.targetLanguage),
+        },
         lesson: undefined,
         stage: "card",
       });

@@ -2,6 +2,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { setUiLang } from "./i18n";
 import { setTargetLang } from "./target-lang-pref";
 import type { FirstCatch } from "./first-catch";
+import { targetProfile } from "./target-profile";
 
 let opening: Promise<void> | null = null;
 /** Anonymous auth keeps existing AI auth/cost controls intact. No public AI endpoint. */
@@ -28,6 +29,39 @@ const GUEST_REFUSALS = new Set([
 export function isGuestRefusal(error: unknown): boolean {
   return error instanceof Error && GUEST_REFUSALS.has(error.message);
 }
+/**
+ * **見出しは、学習者が選んだ語を正とする。**（オーナー確認 2026-09-30「学習言語を英語に
+ * したとき、単語の見出しが英語になるか」）カード生成のAIは、説明の言語（日本語など）に
+ * 引きずられて見出しまで訳してしまうことがある。選んだ語が学習言語として正しければ
+ * それを使い、そうでなければカードの見出し、それも違えば**そのまま通す**
+ * （ここで失敗にして体験を止めない）。
+ */
+export function canonicalHeadword(
+  picked: string,
+  cardHeadword: string,
+  targetLanguage: FirstCatch["targetLanguage"],
+): string {
+  const profile = targetProfile(targetLanguage);
+  const choice = picked.trim();
+  const fromCard = cardHeadword.trim();
+  if (choice && profile.headwordOk(choice)) return choice;
+  if (fromCard && profile.headwordOk(fromCard)) return fromCard;
+  return fromCard || choice;
+}
+
+/**
+ * 候補のうち学習言語として正しい語だけを残す。**1つも残らないときは全部そのまま**
+ * 返す（判定の取りこぼしで「候補なし」にして体験を止めない）。
+ */
+export function preferTargetLanguageCandidates<T extends { headword: string }>(
+  candidates: T[],
+  targetLanguage: FirstCatch["targetLanguage"],
+): T[] {
+  const profile = targetProfile(targetLanguage);
+  const ok = candidates.filter((c) => profile.headwordOk(c.headword));
+  return ok.length ? ok : candidates;
+}
+
 export function applyFirstCatchLanguage(draft: FirstCatch) {
   setUiLang(draft.uiLanguage);
   setTargetLang(draft.targetLanguage);

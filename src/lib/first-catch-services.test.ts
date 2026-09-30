@@ -1,7 +1,11 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/integrations/supabase/client", () => ({ supabase: {} }));
-import { firstCatchPhoto } from "./first-catch-services";
+import {
+  canonicalHeadword,
+  firstCatchPhoto,
+  preferTargetLanguageCandidates,
+} from "./first-catch-services";
 
 afterEach(() => vi.unstubAllGlobals());
 
@@ -57,5 +61,30 @@ describe("first photo on iOS-like browsers", () => {
       "FIRST_CATCH_PHOTO_UNSUPPORTED",
     );
     expect(revoke).toHaveBeenCalledWith("blob:unsupported");
+  });
+});
+
+describe("headword follows the learning language", () => {
+  it("keeps the word the learner picked when it is valid for the learning language", () => {
+    // English learning language, Japanese explanations: the card model must not retitle it.
+    expect(canonicalHeadword("chair", "いす", "en")).toBe("chair");
+    expect(canonicalHeadword(" night market ", "夜市", "en")).toBe("night market");
+    expect(canonicalHeadword("椅子", "いす", "zh-TW")).toBe("椅子");
+  });
+  it("falls back to the card's headword, then to whatever exists, and never throws", () => {
+    expect(canonicalHeadword("いす", "chair", "en")).toBe("chair");
+    expect(canonicalHeadword("いす", "いす", "en")).toBe("いす");
+    expect(canonicalHeadword("chair", "", "en")).toBe("chair");
+    expect(canonicalHeadword("", "", "en")).toBe("");
+  });
+  it("drops candidates in the wrong language, but never leaves the list empty", () => {
+    const list = [{ headword: "椅子" }, { headword: "chair" }, { headword: "seat" }];
+    expect(preferTargetLanguageCandidates(list, "en").map((c) => c.headword)).toEqual([
+      "chair",
+      "seat",
+    ]);
+    expect(preferTargetLanguageCandidates(list, "zh-TW").map((c) => c.headword)).toEqual(["椅子"]);
+    const onlyWrong = [{ headword: "いす" }];
+    expect(preferTargetLanguageCandidates(onlyWrong, "en")).toEqual(onlyWrong);
   });
 });
