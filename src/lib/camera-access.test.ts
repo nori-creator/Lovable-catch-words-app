@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  androidBrowserName,
   cameraPlatform,
   cameraProblemOf,
   externalBrowserUrl,
@@ -66,5 +67,23 @@ describe("camera-access", () => {
     expect(cameraProblemOf({ name: "NotReadableError" }, null)).toBe("unavailable");
     expect(cameraProblemOf({ name: "NotAllowedError" }, "line")).toBe("inapp");
     expect(cameraProblemOf(new TypeError("x"), null)).toBe("unsupported");
+  });
+
+  it("Android の手順はそのブラウザの名前で書く", () => {
+    expect(androidBrowserName(ANDROID_CHROME)).toBe("Chrome");
+    expect(
+      androidBrowserName(
+        "Mozilla/5.0 (Linux; Android 14; SM-S911B) AppleWebKit/537.36 (KHTML, like Gecko) SamsungBrowser/25.0 Chrome/121.0 Mobile Safari/537.36",
+      ),
+    ).toBe("Samsung Internet");
+  });
+
+  it("Android の Google アプリ内ブラウザも Chrome で開き直す", () => {
+    const gsa =
+      "Mozilla/5.0 (Linux; Android 14; SM-S911B; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/125.0 Mobile Safari/537.36 GSA/15.20";
+    expect(inAppBrowser(gsa)).toBe("google");
+    expect(externalBrowserUrl("https://catchwords.lovable.app/welcome", gsa)).toMatch(
+      /^intent:\/\/catchwords\.lovable\.app\/welcome#Intent;scheme=https;package=com\.android\.chrome;end$/,
+    );
   });
 });

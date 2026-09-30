@@ -24,6 +24,15 @@ export function cameraPlatform(ua: string): CameraPlatform {
   return "other";
 }
 
+/** 設定アプリの中でのブラウザの名前（Android の手順で使う）。 */
+export function androidBrowserName(ua: string): string {
+  if (/SamsungBrowser/i.test(ua)) return "Samsung Internet";
+  if (/EdgA\//i.test(ua)) return "Edge";
+  if (/Firefox\//i.test(ua)) return "Firefox";
+  if (/OPR\//i.test(ua)) return "Opera";
+  return "Chrome";
+}
+
 export function inAppBrowser(ua: string): InAppBrowser {
   if (/\bLine\//i.test(ua)) return "line";
   if (/Instagram/i.test(ua)) return "instagram";

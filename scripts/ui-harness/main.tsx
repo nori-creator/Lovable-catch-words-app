@@ -407,6 +407,14 @@ const REVIEW_SCENES: Array<{ scene: string; label: string }> = [
     scene: "first-catch&step=camera&cam=line",
     label: "チュートリアルのカメラ: LINE から開いた時（ブラウザで開き直す）",
   },
+  {
+    scene: "first-catch&step=camera&cam=android",
+    label: "チュートリアルのカメラ: 許可されていない時の直し方（Android）",
+  },
+  {
+    scene: "first-catch&step=camera&cam=android-app",
+    label: "チュートリアルのカメラ: Android のアプリ内ブラウザ（Chrome で開き直す）",
+  },
   { scene: "first-catch&step=camera", label: "チュートリアル: 右下の「設定」で言語・最初に戻る" },
   { scene: "first-catch&step=questions", label: "チュートリアル: 1問目の「戻る」で最初の画面へ" },
   { scene: "first-catch&step=dex", label: "チュートリアル: 次に押す所を青い光で囲う（図鑑）" },
@@ -421,14 +429,21 @@ const REVIEW_SCENES: Array<{ scene: string; label: string }> = [
 {
   const cam =
     new URLSearchParams(location.search).get("cam") ??
-    (location.search ? null : (REVIEW_SCENES[0].scene.match(/cam=(\w+)/)?.[1] ?? null));
+    (location.search ? null : (REVIEW_SCENES[0].scene.match(/cam=([\w-]+)/)?.[1] ?? null));
   const iphone =
     "Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1";
-  if (cam === "denied" || cam === "line") {
+  const android =
+    "Mozilla/5.0 (Linux; Android 14; SM-S911B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0 Mobile Safari/537.36";
+  const agents: Record<string, string> = {
+    denied: iphone,
+    line: `${iphone.replace(" Version/17.5", "")} Line/14.9.0`,
+    android,
+    // Android の Google アプリの中のブラウザ（WebView は「; wv)」を名乗る）。
+    "android-app": `${android.replace("SM-S911B)", "SM-S911B; wv)")} GSA/15.20`,
+  };
+  if (cam && agents[cam]) {
     try {
-      Object.defineProperty(navigator, "userAgent", {
-        get: () => (cam === "line" ? `${iphone.replace(" Version/17.5", "")} Line/14.9.0` : iphone),
-      });
+      Object.defineProperty(navigator, "userAgent", { get: () => agents[cam] });
     } catch {
       /* 差し替えられないブラウザでは、端末そのままの手順が出る。 */
     }

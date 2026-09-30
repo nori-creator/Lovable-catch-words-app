@@ -2439,19 +2439,20 @@ export const DICT: Record<string, Record<UiLang, string>> = {
     "zh-TW": "開啟「相機」後回到這個畫面",
   },
   "camhelp.android1": {
-    ja: "アドレス欄の左にあるアイコン（鍵や調整のマーク）を押す",
-    en: "Tap the icon at the left of the address bar",
-    "zh-TW": "點網址列左邊的圖示",
+    ja: "アドレス欄の左端のマーク（鍵や、つまみの形のアイコン）を押す",
+    en: "Tap the icon at the left end of the address bar (a lock or slider icon)",
+    "zh-TW": "點網址列最左邊的圖示（鎖頭或調整鈕的圖示）",
   },
   "camhelp.android2": {
-    ja: "「権限」→「カメラ」→「許可」を選ぶ",
-    en: "Choose “Permissions” → “Camera” → “Allow”",
-    "zh-TW": "選擇「權限」→「相機」→「允許」",
+    ja: "「権限」（または「サイトの設定」）→「カメラ」を「許可」にして、このページに戻る",
+    en: "Open “Permissions” (or “Site settings”) → “Camera”, choose “Allow”, then come back to this page",
+    "zh-TW": "點「權限」（或「網站設定」）→「相機」改成「允許」，再回到這個頁面",
   },
   "camhelp.android3": {
-    ja: "出てこないときは、スマホの「設定」→「アプリ」→「Chrome」→「権限」→「カメラ」を「許可」にする",
-    en: "If it isn't there, open phone Settings → Apps → Chrome → Permissions → Camera and choose “Allow”",
-    "zh-TW": "如果找不到，請到手機「設定」→「應用程式」→「Chrome」→「權限」→「相機」改成「允許」",
+    ja: "出てこないときは、スマホの「設定」→「アプリ」→「{browser}」→「権限」→「カメラ」を「許可」にする",
+    en: "If it isn't there, open phone Settings → Apps → {browser} → Permissions → Camera and choose “Allow”",
+    "zh-TW":
+      "如果找不到，請到手機「設定」→「應用程式」→「{browser}」→「權限」→「相機」改成「允許」",
   },
   "camhelp.desktop1": {
     ja: "アドレス欄の左のアイコンから、カメラを「許可」にする",

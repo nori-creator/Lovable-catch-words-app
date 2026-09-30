@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useT } from "@/lib/i18n";
 import {
+  androidBrowserName,
   cameraPlatform,
   externalBrowserUrl,
   inAppBrowser,
@@ -56,7 +57,11 @@ export function CameraHelp({ problem, onRetry }: { problem: CameraProblem; onRet
           ? [t("camhelp.iosChrome1"), t("camhelp.iosChrome2")]
           : [t("camhelp.ios1"), t("camhelp.ios2")]
         : platform === "android"
-          ? [t("camhelp.android1"), t("camhelp.android2"), t("camhelp.android3")]
+          ? [
+              t("camhelp.android1"),
+              t("camhelp.android2"),
+              t("camhelp.android3", { browser: androidBrowserName(ua) }),
+            ]
           : [t("camhelp.desktop1")]
       : problem === "inapp" && !external
         ? [platform === "ios" ? t("camhelp.inappIos") : t("camhelp.inappOther")]
