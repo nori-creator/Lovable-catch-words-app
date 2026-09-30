@@ -64,7 +64,7 @@ export function LoadFailed({
       <p className="ja-phrase mt-1 max-w-[22em] text-balance text-body text-muted-foreground">
         {retrying ? t("err.retryingHint") : offline ? t("err.offlineHint") : t("err.loadHint")}
       </p>
-      <button
+      <button type="button"
         onClick={onRetry}
         disabled={retrying}
         aria-busy={retrying}
