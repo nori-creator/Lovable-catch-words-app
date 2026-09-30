@@ -2302,6 +2302,17 @@ export const DICT: Record<string, Record<UiLang, string>> = {
     "zh-TW": "把發現的東西放進框內",
   },
   "capture.tapToShoot": { ja: "タップして撮影", en: "Tap to shoot", "zh-TW": "點一下拍照" },
+  "capture.cameraPermissionTitle": {
+    ja: "カメラへのアクセスが必要です",
+    en: "Camera access is needed",
+    "zh-TW": "需要相機權限",
+  },
+  "capture.cameraPermissionHint": {
+    ja: "カメラを許可して、もう一度試してください。写真から選ぶこともできます。",
+    en: "Allow camera access and try again. You can also choose an existing photo.",
+    "zh-TW": "請允許相機權限後再試一次，也可以從相簿選擇照片。",
+  },
+  "capture.cameraRetry": { ja: "カメラをもう一度開く", en: "Try camera again", "zh-TW": "再次開啟相機" },
   // オーナー指示 2026-09-15「文字で調べれば検索と名前を変えて」。
   "capture.typeWord": { ja: "検索", en: "Search", "zh-TW": "搜尋" },
   "capture.openScan": {
