@@ -38,7 +38,7 @@ function FeedPage() {
       <div className="mb-4 inline-flex rounded-full bg-secondary p-1">
         {/* map の引数を t にすると翻訳関数 t を隠してしまうので id にする。 */}
         {(["following", "popular"] as const).map((id) => (
-          <button
+          <button type="button"
             key={id}
             onClick={() => setTab(id)}
             className={`rounded-full px-4 py-1.5 text-body transition-all ${tab === id ? "bg-card text-foreground shadow-sm" : "text-muted-foreground"}`}
@@ -169,7 +169,7 @@ function PostCard({ post }: { post: FeedPost }) {
 
       <div className="space-y-2 p-3">
         <div className="flex items-center gap-3">
-          <button
+          <button type="button"
             onClick={() => mut.mutate(!liked)}
             className={`inline-flex items-center gap-1 text-body transition-transform active:scale-95 ${liked ? "text-destructive" : "text-foreground"}`}
             aria-label={t("feed.like")}
