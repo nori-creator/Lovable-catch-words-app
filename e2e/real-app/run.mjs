@@ -309,13 +309,37 @@ async function step(page, run) {
           e.width > 0
         );
       };
-      const tap = document.querySelector(".tour-tap");
-      const swipe =
-        !!document.querySelector(".dex-cf__stage") &&
-        !!tap &&
-        tap.getBoundingClientRect().width > 0 &&
-        document.querySelector(".dex-cf__stage").getBoundingClientRect().top <=
-          tap.getBoundingClientRect().top;
+      // 案内が「ここを触って」と示す印（`.tour-tap`）。印の真ん中の下に在る物を調べ、
+      // 図鑑のめくる面（カバーフロー）なら横に払い、ボタンならそれを押す。
+      // 印は対象より 4px 外側に描かれるので、位置の比べ合いではなく「真ん中の下」を見る。
+      let tap = null;
+      const tapEl = document.querySelector(".tour-tap");
+      if (tapEl) {
+        const t = tapEl.getBoundingClientRect();
+        if (t.width > 0 && t.height > 0) {
+          const cx = t.left + t.width / 2;
+          const cy = t.top + t.height / 2;
+          const under = document
+            .elementsFromPoint(cx, cy)
+            .filter((el) => !el.closest(".tour-layer"));
+          const onStage = under.some((el) => el.closest(".dex-cf__stage"));
+          const hit = under
+            .map((el) => el.closest("button, a[href], [role=button], [role=tab], [role=radio]"))
+            .find(Boolean);
+          const hb = hit ? hit.getBoundingClientRect() : null;
+          tap = {
+            x: hb ? hb.left + hb.width / 2 : cx,
+            y: hb ? hb.top + hb.height / 2 : cy,
+            left: t.left,
+            w: t.width,
+            cy,
+            swipe: onStage,
+            name: hit
+              ? (hit.getAttribute("aria-label") || hit.textContent || "").trim().slice(0, 30)
+              : "",
+          };
+        }
+      }
       const peel =
         !!document.querySelector('[data-tour="peel"]') &&
         inside(document.querySelector('[data-tour="peel"]'));
@@ -328,7 +352,7 @@ async function step(page, run) {
         y: b.top + b.height / 2,
         w: b.width,
         h: b.height,
-        swipe,
+        tap,
         peel,
         btn: bb
           ? {
@@ -355,15 +379,21 @@ async function step(page, run) {
       await page.mouse.up();
       return "シールをはがす";
     }
-    if (ring.swipe) {
-      await page.mouse.move(ring.x + ring.w * 0.3, ring.y);
+    if (ring.tap?.swipe) {
+      // めくる面を右から左へ払う（1枚ぶん）。
+      const y = ring.tap.cy;
+      await page.mouse.move(ring.tap.left + ring.tap.w * 0.8, y);
       await page.mouse.down();
-      for (let i = 1; i <= 10; i++) {
-        await page.mouse.move(ring.x + ring.w * (0.3 - i * 0.06), ring.y);
+      for (let i = 1; i <= 12; i++) {
+        await page.mouse.move(ring.tap.left + ring.tap.w * (0.8 - i * 0.055), y);
         await sleep(25);
       }
       await page.mouse.up();
-      return "カードを横にめくる";
+      return "写真を横にめくる";
+    }
+    if (ring.tap) {
+      await page.mouse.click(ring.tap.x, ring.tap.y);
+      return `案内の印を押す${ring.tap.name ? `（${ring.tap.name}）` : ""}`;
     }
     const at = ring.btn ?? ring;
     await page.mouse.click(at.x, at.y);
