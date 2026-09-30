@@ -68,7 +68,7 @@ export function WordbookReviewCard({
                 : "border-border bg-secondary opacity-60";
           return (
             <li key={c}>
-              <button
+              <button type="button"
                 disabled={!!picked}
                 onClick={() => setPicked(c)}
                 className={`min-h-11 w-full rounded-2xl border px-4 py-3 text-left text-headline font-semibold ${tone}`}
@@ -107,7 +107,7 @@ export function WordbookReviewCard({
           </div>
           {/* **押す物の強さを結果で入れ替える。** 間違えた直後にいちばん
               目立つボタンが「次へ」だと、間違いを見ないまま先へ進む。 */}
-          <button
+          <button type="button"
             onClick={() => onAnswer(correct)}
             className={`mt-3 min-h-11 w-full rounded-xl py-3 text-body font-semibold ${
               correct
