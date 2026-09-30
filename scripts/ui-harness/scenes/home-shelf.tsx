@@ -7,11 +7,7 @@
  * 写真は端末に同梱の見本、撮った日は今日から遡って 7 か月ぶん。日記は見本の文（保存は
  * その場だけ）。上の帯の右端に小さな棚（本番と同じ並び）、下には今日のアルバムが続く。
  */
-import { useState } from "react";
-import { useQueryClient } from "@tanstack/react-query";
 import { HomeShelf } from "@/components/HomeShelf";
-import { StickerSheet } from "@/components/StickerSheet";
-import { DayCollage } from "@/routes/_authenticated/home";
 import { FIXTURES, HomePastScene, HomeScene, makeSticker } from "./home";
 
 const PHOTOS = [
@@ -56,12 +52,8 @@ export function HomeShelfScene({ q }: { q: URLSearchParams }) {
   // 棚・日付・今日のアルバムは同じ 1 枚の壁（`.home-scene`）の上に載る（R19: 1つの作品）。
   // 部屋は A（自然光）に決まった。`?months=1` で「1か月しか撮っていない人」（本が1冊だけ）を見る。
   const months = Number(q.get("months") ?? 7);
-  // 開いた本の左ページ（その日のアルバム）を最初から見せる（`?open=spread|right` で別のページ）。
-  const open = (q.get("open") ?? "left") as "spread" | "left" | "right";
-  const qc = useQueryClient();
-  if (!qc.getQueryData(["stickers", "harness"]))
-    qc.setQueryData(["stickers", "harness"], { items: ITEMS });
-  const [openId, setOpenId] = useState<string | null>(null);
+  // 開いた本の見開き（左＝その日のアルバム、右＝日記）を最初から見せる（`?open=left|right` で片ページ）。
+  const open = (q.get("open") ?? "spread") as "spread" | "left" | "right";
   const items =
     months >= 7
       ? ITEMS
@@ -71,12 +63,6 @@ export function HomeShelfScene({ q }: { q: URLSearchParams }) {
       <HomeShelf
         items={items}
         autoOpen={open}
-        detailOpen={openId !== null}
-        // 本番と同じ: 左の片ページは、ホームのアルバムと同じ部品（置き方・並べ替え・ひと言の編集・
-        // タップで単語の詳細）。
-        renderDayPage={(stickers) => (
-          <DayCollage key={stickers[0]?.id} stickers={stickers} onOpen={(id) => setOpenId(id)} />
-        )}
         loaders={{
           diary: async (month) => {
             const [y, m] = month.split("-").map(Number);
@@ -96,7 +82,6 @@ export function HomeShelfScene({ q }: { q: URLSearchParams }) {
       <HomeScene q={q} />
       {/* 過去の日も同じ壁の上（本番と同じ並び。2026-09-29「9/28 以下が白くなってる」）。 */}
       <HomePastScene q={q} />
-      <StickerSheet stickerId={openId} onClose={() => setOpenId(null)} />
     </div>
   );
 }

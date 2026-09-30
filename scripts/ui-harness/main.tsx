@@ -400,7 +400,7 @@ const q = new URLSearchParams(location.search);
 const REVIEW_SCENES: Array<{ scene: string; label: string }> = [
   // 2026-09-30 の依頼（R26 全体点検・R27: カメラ固定・日記の左ページ・マップ・ひと言の編集）で触った
   // 面だけ。**毎回ここを入れ替える** — 前の依頼の面は残さない（オーナー指示「過去のものは全て削除して」）。
-  { scene: "home-shelf", label: "日記の左ページ: ホームと同じ置き方・同じ操作（ひと言も直せる）" },
+  { scene: "home-shelf", label: "日記の見開き: 元の紙のまま、写真の置き方・ひと言がホームと同じ" },
   { scene: "capture-object", label: "カメラ: 画面は固定・左下は端末の写真を足す印" },
   { scene: "dex-map", label: "マップ: 日付を変えたら先頭の時間から" },
   { scene: "settings-danger", label: "アカウント削除: 3言語で確認の語が通る" },

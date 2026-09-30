@@ -372,7 +372,6 @@ function HomePage() {
         albumItems={albumItems}
         today={today}
         surfaceClass={surfaceClass}
-        detailOpen={openId !== null}
         loading={isLoading}
         failed={
           isError ? (
@@ -465,7 +464,6 @@ export function HomeSurface({
   albumItems,
   today,
   surfaceClass,
-  detailOpen = false,
   loading = false,
   failed = null,
   blankMessage,
@@ -481,8 +479,6 @@ export function HomeSurface({
   albumItems: StickerWithWord[];
   today: Date;
   surfaceClass: string;
-  /** 単語の詳細が開いている（本の片ページの層をその下へ回す）。 */
-  detailOpen?: boolean;
   loading?: boolean;
   /** 読み込みに失敗したときに出す物（出すなら、誌面の代わりにこれを出す）。 */
   failed?: React.ReactNode;
@@ -531,23 +527,7 @@ export function HomeSurface({
     */
     <div className={ready ? "home-scene" : undefined}>
       {ready ? (
-        <HomeShelf
-          items={albumItems}
-          loaders={shelfLoaders}
-          hiddenIds={albumHidden.hidden}
-          detailOpen={detailOpen}
-          // 本の左ページは、**ホームのアルバムと同じ部品**（置き方・並べ替え・タップで単語の詳細・
-          // ひと言の編集）。オーナー指示 2026-09-30「日記の左側にホームと全く同じ操作で」。
-          renderDayPage={(stickers) => (
-            <DayCollage
-              key={stickers[0]?.id}
-              stickers={stickers}
-              onOpen={onOpen}
-              onLongPress={onLongPress}
-              surface={surfaceClass}
-            />
-          )}
-        />
+        <HomeShelf items={albumItems} loaders={shelfLoaders} hiddenIds={albumHidden.hidden} />
       ) : null}
       {/* **日付は壁紙に直に書く**（オーナー指示 2026-09-23「ホーム画面の日付は
         背景の壁紙に直接書いて。日記のように」）。上の見出しの帯はやめ、
@@ -1556,7 +1536,7 @@ export function DayCollage({
           <button
             type="button"
             onClick={finishEditing}
-            className="album-done lift fixed bottom-[calc(5rem+env(safe-area-inset-bottom))] left-1/2 z-50 inline-flex min-h-11 -translate-x-1/2 items-center gap-1.5 rounded-full bg-primary px-5 text-footnote font-semibold text-primary-foreground shadow-xl"
+            className="lift fixed bottom-[calc(5rem+env(safe-area-inset-bottom))] left-1/2 z-50 inline-flex min-h-11 -translate-x-1/2 items-center gap-1.5 rounded-full bg-primary px-5 text-footnote font-semibold text-primary-foreground shadow-xl"
           >
             <Check className="h-4 w-4" />
             {t("album.done")}

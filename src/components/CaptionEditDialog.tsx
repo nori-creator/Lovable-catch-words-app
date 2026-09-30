@@ -68,8 +68,7 @@ export function CaptionEditDialog({
 
   return (
     <Dialog open={target !== null} onOpenChange={(o) => !o && !busy && onClose()}>
-      {/* 本の片ページ（z-80）や詳細の上でも隠れないよう、層を上げる。 */}
-      <DialogContent className="z-[120] max-w-sm" overlayClassName="z-[120]">
+      <DialogContent className="max-w-sm">
         <DialogHeader>
           <DialogTitle>{t("caption.editTitle")}</DialogTitle>
           <DialogDescription>{t("caption.editHint")}</DialogDescription>

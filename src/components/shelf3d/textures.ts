@@ -11,7 +11,6 @@
  * 凹凸は「高さの絵」を描いてから法線の絵に変える（heightToNormal）。
  */
 
-import { decorFor } from "@/lib/collage-decor";
 import { diaryFont, wrapDiaryLines, type DiaryFontId } from "@/lib/diary-fonts";
 import { clamp, COLLAGE_CAP_MIN, COLLAGE_CAP_W, sizePx, type Placement } from "@/lib/album-place";
 
@@ -487,11 +486,8 @@ export type DaySpread = {
     /** 札の枠の縦横比（高さ / 幅）と重なりの順。 */
     ratio?: number;
     z?: number;
-    /** 撮った時刻（写真の下の白い余白に、語の隣へ小さく書く）。 */
-    time?: string;
     /** 字だけの札（写真を貼らず、紙に字を書く）。 */
     plain?: boolean;
-    /** テープの色分けに使う（`decorFor`）。 */
     id?: string;
   }>;
   /** 台紙の高さ（幅に対する割合）。置き方が在る時だけ。 */
@@ -665,20 +661,13 @@ function paintDoodles(ctx: CanvasRenderingContext2D, s: DaySpread, w: number, h:
   }
 }
 
-// ── ホームのアルバムと同じ置き方で貼る（オーナー指示 2026-09-30） ─────────────────────
-// 大きさ・向き・重なり・写真の下の白い余白（語と時刻）・一言（3行まで）・テープは、
-// ホームの `DayCollage`（`styles.css` の `.collage__*`）と同じ数で描く。置き方の計算は
-// `lib/album-day-layout.ts` の1本を共有するので、ホームで直した置き方がそのまま本にも出る。
+// ── ホームのアルバムでの置き方（大きさ・向き・重なり）で貼る（オーナー指示 2026-09-30）───────
+// 見た目は**本の元の紙のまま**（白い台紙・マスキングテープ・太字の語・茶色の手書きの一言）。
+// ホームの `DayCollage` の操作画面を上に重ねるのはやめた（本とページがずれる）。置き方の計算は
+// `lib/album-day-layout.ts` の1本を共有するので、ホームで直した置き方・一言がそのまま本に出る。
 
-/** 置き方を計算した時の台紙の幅（CSS px）。字の大きさ（px 指定）を canvas へ写す基準。 */
+/** 置き方を計算した時の台紙の幅（CSS px）。字の大きさを canvas へ写す基準。 */
 const REF_BOARD_CSS = 340;
-const TAPE_RGBA = {
-  iris: "rgba(167,166,214,0.72)",
-  sage: "rgba(160,196,168,0.72)",
-  rose: "rgba(226,168,178,0.72)",
-  cream: "rgba(226,206,160,0.75)",
-} as const;
-const PIN_RGB = { red: "#e5484d", blue: "#3b82f6", yellow: "#f2c230", green: "#3fa66b" } as const;
 const SANS = `"Noto Sans TC", "PingFang TC", sans-serif`;
 
 function roundedRect(
@@ -721,62 +710,6 @@ function clampLines(
   return head;
 }
 
-function paintFasteners(
-  ctx: CanvasRenderingContext2D,
-  id: string,
-  cw: number,
-  ch: number,
-  strip: number,
-  k: number,
-) {
-  const d = decorFor(id, "paper");
-  if (d.kind === "none") return;
-  if (d.kind === "pin") {
-    ctx.fillStyle = PIN_RGB[d.color];
-    ctx.shadowColor = "rgba(0,0,0,0.35)";
-    ctx.shadowBlur = 4 * k;
-    ctx.beginPath();
-    ctx.arc((d.x / 100 - 0.5) * cw, -ch / 2 + 4 * k, 6 * k, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.shadowColor = "transparent";
-    return;
-  }
-  if (d.kind === "corners") {
-    ctx.fillStyle = "rgba(96,82,62,0.55)";
-    const t = 16 * k;
-    const bottom = ch / 2 + strip;
-    const corners: Array<[number, number, number, number]> = [
-      [-cw / 2, -ch / 2, 1, 1],
-      [cw / 2, -ch / 2, -1, 1],
-      [-cw / 2, bottom, 1, -1],
-      [cw / 2, bottom, -1, -1],
-    ];
-    for (const [x, y, sx, sy] of corners) {
-      ctx.beginPath();
-      ctx.moveTo(x, y);
-      ctx.lineTo(x + sx * t, y);
-      ctx.lineTo(x, y + sy * t);
-      ctx.closePath();
-      ctx.fill();
-    }
-    return;
-  }
-  for (const tp of d.tapes) {
-    ctx.save();
-    const [tx, ty] =
-      tp.spot === "top"
-        ? [0, -ch / 2]
-        : tp.spot === "corner-tl"
-          ? [-cw / 2 + 8 * k, -ch / 2 + 2 * k]
-          : [cw / 2 - 8 * k, -ch / 2 + 2 * k];
-    ctx.translate(tx, ty);
-    ctx.rotate(((tp.spot === "top" ? tp.rot : tp.spot === "corner-tl" ? -38 : 38) * Math.PI) / 180);
-    ctx.fillStyle = TAPE_RGBA[tp.color];
-    ctx.fillRect(-26 * k, -8 * k, 52 * k, 16 * k);
-    ctx.restore();
-  }
-}
-
 function paintPlacedPhotos(ctx: CanvasRenderingContext2D, s: DaySpread, w: number, h: number) {
   const M = 52;
   const top = 150;
@@ -787,66 +720,57 @@ function paintPlacedPhotos(ctx: CanvasRenderingContext2D, s: DaySpread, w: numbe
   const bw = boardMaxW * fit;
   const ox = M + (boardMaxW - bw) / 2;
   const k = bw / REF_BOARD_CSS;
-  const strip = 34 * k;
   const order = s.photos.map((p, i) => ({ p, i })).sort((a, b) => (a.p.z ?? a.i) - (b.p.z ?? b.i));
 
-  for (const { p, i } of order) {
+  for (const { p } of order) {
     const pl = p.place!;
     const { w: cw, h: ch } = sizePx(pl, bw, p.ratio ?? 1.2);
     const X = ox + pl.x * bw;
     const Y = top + pl.y * bw;
+    // 語を書く下の余白（元の本と同じく写真より少し広い台紙）。
+    const strip = Math.max(30 * k, cw * 0.2);
+    const wordPx = clamp(cw * 0.12, 15 * k, 26 * k);
+    const notePx = Math.max(13 * k, 20);
     ctx.save();
     ctx.translate(X, Y);
     ctx.rotate((pl.rot * Math.PI) / 180);
-    const rad = 13 * k;
 
     if (p.plain) {
-      // 字だけの札: 枠も地も持たず、紙に時刻と語と一言を書く。
+      // 字だけの札: 枠も地も持たず、紙に語と一言を書く。
       ctx.textAlign = "left";
       ctx.textBaseline = "alphabetic";
-      const wordPx = 22 * k;
       ctx.font = `700 ${wordPx}px ${SANS}`;
-      ctx.fillStyle = "#2a231c";
-      const timeW = p.time ? 40 * k : 0;
-      ctx.fillText(
-        fitOneLine(ctx, p.word, Math.max(cw - timeW, wordPx * 2)),
-        -cw / 2 + timeW,
-        -ch / 2 + wordPx,
-      );
-      if (p.time) {
-        ctx.font = `600 ${11 * k}px ${SANS}`;
-        ctx.fillStyle = "#8a7f6f";
-        ctx.fillText(p.time, -cw / 2, -ch / 2 + wordPx);
-      }
+      ctx.fillStyle = "#2b2520";
+      ctx.fillText(fitOneLine(ctx, p.word, Math.max(cw, wordPx * 3)), -cw / 2, -ch / 2 + wordPx);
       if (p.note) {
-        ctx.font = `400 ${rad}px ${HAND}`;
-        ctx.fillStyle = "#6b5a48";
-        const lh = rad * 1.35;
+        ctx.font = `400 ${notePx}px ${HAND}`;
+        ctx.fillStyle = "#7a4e2a";
+        const lh = notePx * 1.3;
         clampLines(ctx, p.note, Math.max(cw, bw * COLLAGE_CAP_MIN), 3).forEach((ln, n) =>
-          inkText(ctx, ln, -cw / 2, -ch / 2 + wordPx + lh * (n + 1), rad),
+          inkText(ctx, ln, -cw / 2, -ch / 2 + wordPx + lh * (n + 1), notePx),
         );
       }
       ctx.restore();
       continue;
     }
 
-    // 印画紙（角は少し丸く、地から浮かせる）。下の白い余白は札の箱の外へ `strip` はみ出す。
-    ctx.shadowColor = "rgba(60,42,18,0.34)";
-    ctx.shadowBlur = 14 * k;
-    ctx.shadowOffsetY = 6 * k;
-    ctx.fillStyle = "#fdfcf8";
-    roundedRect(ctx, -cw / 2, -ch / 2, cw, ch + strip, 6 * k);
-    ctx.fill();
+    // 白い台紙（元の本と同じ: 影つき・角ばった紙）
+    const pad = Math.max(8, cw * 0.045);
+    ctx.shadowColor = "rgba(40,30,20,0.32)";
+    ctx.shadowBlur = 16;
+    ctx.shadowOffsetY = 6;
+    ctx.fillStyle = "#fcfbf7";
+    ctx.fillRect(-cw / 2, -ch / 2, cw, ch + strip);
     ctx.shadowColor = "transparent";
     ctx.shadowOffsetY = 0;
-    // 写真（`object-fit: cover`）
-    const pad = 5 * k;
+    // 写真（枠いっぱいに `cover`）
     const px = -cw / 2 + pad;
     const py = -ch / 2 + pad;
     const pw = cw - 2 * pad;
     const ph = ch - pad;
     ctx.save();
-    roundedRect(ctx, px, py, pw, ph, 3 * k);
+    ctx.beginPath();
+    ctx.rect(px, py, pw, ph);
     ctx.clip();
     if (p.img) {
       const iw = p.img.naturalWidth || p.img.width;
@@ -860,45 +784,30 @@ function paintPlacedPhotos(ctx: CanvasRenderingContext2D, s: DaySpread, w: numbe
       ctx.fillRect(px, py, pw, ph);
     }
     ctx.restore();
-    // 語（真ん中）と時刻（小さく隣に）。
-    ctx.textBaseline = "middle";
-    const wordPx = clamp(0.13 * cw, 13 * k, 19 * k);
+    // マスキングテープ
+    ctx.fillStyle = "rgba(214,190,140,0.62)";
+    ctx.save();
+    ctx.translate(0, -ch / 2 - 4);
+    ctx.rotate(-0.08);
+    const tw = clamp(cw * 0.34, 56, 100);
+    ctx.fillRect(-tw / 2, -14, tw, 28);
+    ctx.restore();
+    // 語（太字・真ん中）
+    ctx.fillStyle = "#2b2520";
     ctx.font = `700 ${wordPx}px ${SANS}`;
-    const timePx = 11 * k;
-    const gap = 5 * k;
-    let timeW = 0;
-    if (p.time) {
-      ctx.font = `600 ${timePx}px ${SANS}`;
-      timeW = ctx.measureText(p.time).width + gap;
-    }
-    ctx.font = `700 ${wordPx}px ${SANS}`;
-    const word = fitOneLine(ctx, p.word, cw - 2 * pad - timeW);
-    const wordW = ctx.measureText(word).width;
-    const startX = -(wordW + timeW) / 2;
-    const midY = ch / 2 + strip / 2;
-    ctx.textAlign = "left";
-    ctx.fillStyle = "#3a3128";
-    ctx.fillText(word, startX, midY);
-    if (p.time) {
-      ctx.font = `600 ${timePx}px ${SANS}`;
-      ctx.fillStyle = "#8a7f6f";
-      ctx.fillText(p.time, startX + wordW + gap, midY);
-    }
+    ctx.textAlign = "center";
     ctx.textBaseline = "alphabetic";
-    paintFasteners(ctx, p.id ?? String(i), cw, ch, strip, k);
-
-    // 本人の一言（写真の下・手書き・3行まで）
+    const wordY = ch / 2 + strip * 0.68;
+    ctx.fillText(fitOneLine(ctx, p.word, cw - 2 * pad), 0, wordY);
+    // 本人の一言（茶色の手書き。3行まで、台紙の幅で折る）
     if (p.note) {
-      const capW = clamp(cw, bw * COLLAGE_CAP_MIN, bw * COLLAGE_CAP_W);
-      // 台紙の外へ出ないように、はみ出すぶんだけ内へ寄せる（`captionAlign`）。
+      const capW = clamp(cw + 10, bw * COLLAGE_CAP_MIN, bw * COLLAGE_CAP_W);
       const dx = Math.max(0, ox - (X - capW / 2)) - Math.max(0, X + capW / 2 - (ox + bw));
-      ctx.font = `400 ${rad}px ${HAND}`;
-      ctx.fillStyle = "#6b5a48";
-      ctx.textAlign = "center";
-      const lh = rad * 1.35;
-      const y0 = ch / 2 + strip + 3.5 * k;
+      ctx.font = `400 ${notePx}px ${HAND}`;
+      ctx.fillStyle = "#7a4e2a";
+      const lh = notePx * 1.3;
       clampLines(ctx, p.note, capW, 3).forEach((ln, n) =>
-        inkText(ctx, ln, dx, y0 + lh * (n + 1) - lh * 0.25, rad),
+        inkText(ctx, ln, dx, ch / 2 + strip + lh * (n + 1) - lh * 0.15, notePx),
       );
     }
     ctx.restore();

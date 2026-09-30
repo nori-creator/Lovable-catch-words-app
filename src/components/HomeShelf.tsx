@@ -77,8 +77,6 @@ export function HomeShelf({
   loaders,
   room = "a",
   hiddenIds,
-  renderDayPage,
-  detailOpen = false,
   autoOpen,
 }: {
   items: ReadonlyArray<StickerWithWord>;
@@ -87,14 +85,6 @@ export function HomeShelf({
    * （ホームと同じ誌面にするため）。本の数・枚数（棚の見た目）は変えない。
    */
   hiddenIds?: ReadonlySet<string>;
-  /**
-   * 片ページ（左）で、**その日のアルバムをホームと同じ部品で描く**（オーナー指示 2026-09-30
-   * 「この日記のところでもホーム画面と全く同じように操作できるようにして」）。渡された時だけ、
-   * 左の片ページに操作できるアルバムを重ねる。渡さなければ 3D の絵だけ。
-   */
-  renderDayPage?: (stickers: StickerWithWord[]) => React.ReactNode;
-  /** 単語の詳細が開いている間は、片ページの層をその下へ回す。 */
-  detailOpen?: boolean;
   /**
    * 描けたらすぐ最初の本を開き、そのページ（見開き / 左 / 右）を見せる。**確認用ページ用**
    * （オーナーが本を探して押さなくても、直した画面がそのまま出る。本番は渡さない）。
@@ -280,7 +270,7 @@ export function HomeShelf({
       Promise.all(urls.map((row) => Promise.all(row.map((u) => loadImage(u))))),
     ]);
     const diaryByDay = new Map(diaries.map((d) => [Number(d.date.slice(8, 10)), d.text]));
-    const { dayLabel: label, locale: loc } = labelsRef.current;
+    const { dayLabel: label } = labelsRef.current;
     const days: DaySpread[] = groups.map((g, i) => {
       // 写真の縦横比（読めた物）から、ホームと同じ置き方を計算する。
       const ratios: Record<string, number> = {};
@@ -315,11 +305,6 @@ export function HomeShelf({
             ratio: it?.ratio,
             z: it?.z,
             plain: !urls[i][j],
-            time: new Date(s.taken_at ?? s.created_at).toLocaleTimeString(loc, {
-              hour: "2-digit",
-              minute: "2-digit",
-              hour12: false,
-            }),
           };
         }),
         boardH: layout.boardH,
@@ -550,8 +535,6 @@ export function HomeShelf({
   useEffect(() => {
     if (!state.open) return;
     const onKey = (e: KeyboardEvent) => {
-      // 単語の詳細が上に開いている間は、詳細のほうがキーを受ける。
-      if (detailOpen) return;
       if (e.key === "ArrowRight" && view !== "spread") stepSingle(1);
       else if (e.key === "ArrowLeft" && view !== "spread") stepSingle(-1);
       if (e.key !== "Escape") return;
@@ -560,7 +543,7 @@ export function HomeShelf({
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [state.open, view, detailOpen]);
+  }, [state.open, view]);
 
   /**
    * 片ページで次・前へ: 表紙 → 右（扉）→ 左（1日目のアルバム）→ 右（1日目の日記）→ …。
@@ -590,17 +573,6 @@ export function HomeShelf({
   const days = world.current?.openDays ?? [];
   const dayIndex = state.open && !state.cover ? state.page - 1 : -1;
   const day = dayIndex >= 0 ? days[dayIndex] : undefined;
-  /** 片ページ（左）に出す、その日の札（外した札も含む。外す・戻すは部品の側が扱う）。 */
-  const dayKeyY = day?.y;
-  const dayKeyM = day?.m;
-  const dayKeyD = day?.d;
-  const dayStickers = useMemo(
-    () =>
-      dayKeyY === undefined || dayKeyM === undefined || dayKeyD === undefined
-        ? []
-        : (monthDays(items, dayKeyY, dayKeyM, 60).find((g) => g.d === dayKeyD)?.items ?? []),
-    [items, dayKeyY, dayKeyM, dayKeyD],
-  );
   if (!months.length || failed) return null;
 
   const heading = state.open
@@ -651,7 +623,6 @@ export function HomeShelf({
           className={`home-shelf__stage home-shelf--room-${room}`}
           data-full={full || undefined}
           data-open={state.open ? "" : undefined}
-          data-under-detail={detailOpen ? "" : undefined}
         >
           <span aria-hidden className="home-shelf__room" />
           <canvas ref={canvasRef} data-home-shelf className="home-shelf__canvas" />
@@ -801,12 +772,6 @@ export function HomeShelf({
           heading={heading}
           onStep={stepSingle}
           onClose={() => setView("spread")}
-          underDetail={detailOpen}
-          live={
-            view === "left" && day && renderDayPage ? (
-              <LivePage onStep={stepSingle}>{renderDayPage(dayStickers)}</LivePage>
-            ) : null
-          }
           // 片ページでも日記を書ける（オーナー指示 2026-09-29「片ページモードにしたときにも
           // 日記を書くボタンを表示して」）。書く欄は見開きと同じ物を開く。
           onWrite={day ? () => setWriting(day.diary) : undefined}
@@ -840,44 +805,6 @@ export function HomeShelf({
 }
 
 /**
- * 左の片ページに重ねる、**操作できるアルバム**の入れ物（中身はホームと同じ `DayCollage`）。
- * 縦に払えば台紙が送られ、**横に素早く払えば隣のページへ**めくる（R20「左ページで左へ払うと
- * 右ページへ」）。札を動かしている最中（並べ替え）は横の払いを見ない。
- */
-function LivePage({
-  children,
-  onStep,
-}: {
-  children: React.ReactNode;
-  onStep: (dir: 1 | -1) => boolean;
-}) {
-  const start = useRef<{ x: number; y: number; t: number } | null>(null);
-  return (
-    <div
-      className="home-shelf__live"
-      onPointerDown={(e) => {
-        start.current = e.isPrimary ? { x: e.clientX, y: e.clientY, t: e.timeStamp } : null;
-      }}
-      onPointerUp={(e) => {
-        const s0 = start.current;
-        start.current = null;
-        if (!s0 || e.currentTarget.querySelector(".album-editing")) return;
-        const dx = e.clientX - s0.x;
-        const dy = e.clientY - s0.y;
-        if (Math.abs(dx) > 70 && Math.abs(dx) > Math.abs(dy) * 2 && e.timeStamp - s0.t < 600) {
-          onStep(dx < 0 ? 1 : -1);
-        }
-      }}
-      onPointerCancel={() => {
-        start.current = null;
-      }}
-    >
-      {children}
-    </div>
-  );
-}
-
-/**
  * **片ページ**の操作部品（上の題と切替、下の前へ・次へ）。ページそのものは**同じ 3D の本**が
  * 手前へ寄って見せる（`ShelfWorld.setFocus`）ので、ここに絵は無い。だから
  *  - 開く・閉じる = 見開きの中のページへ寄る・戻る 3D の動き（R17「ズームするように」）
@@ -892,30 +819,18 @@ function SinglePage({
   onWrite,
   writeLabel,
   labels,
-  live,
-  underDetail,
 }: {
   view: Exclude<View, "spread">;
   heading: string;
   onStep: (dir: 1 | -1) => boolean;
   onClose: () => void;
-  /** 左のページに重ねる、操作できるアルバム（`LivePage`）。 */
-  live?: React.ReactNode;
-  /** 単語の詳細が上に開いている（層をその下へ回す）。 */
-  underDetail?: boolean;
   /** 日記を書く（その日のページを見ている時だけ）。 */
   onWrite?: () => void;
   writeLabel: string;
   labels: Record<"single" | "spread" | "pageView" | "back" | "prev" | "next" | "side", string>;
 }) {
   return (
-    <div
-      role="dialog"
-      aria-label={labels.single}
-      className="home-shelf__single"
-      data-view={view}
-      data-under-detail={underDetail ? "" : undefined}
-    >
+    <div role="dialog" aria-label={labels.single} className="home-shelf__single" data-view={view}>
       <div className="home-shelf__single-top">
         <span className="home-shelf__single-title">{heading}</span>
         <div role="radiogroup" aria-label={labels.pageView} className="home-shelf__seg">
@@ -927,7 +842,6 @@ function SinglePage({
           </button>
         </div>
       </div>
-      {live}
       <div>
         {onWrite && (
           <div className="home-shelf__single-write">

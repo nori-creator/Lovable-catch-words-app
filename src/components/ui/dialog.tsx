@@ -31,13 +31,10 @@ DialogOverlay.displayName = DialogPrimitive.Overlay.displayName;
 
 const DialogContent = React.forwardRef<
   React.ElementRef<typeof DialogPrimitive.Content>,
-  React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content> & {
-    /** 幕の層（本の片ページの上など、`z-50` より上に出したい時）。 */
-    overlayClassName?: string;
-  }
->(({ className, overlayClassName, children, ...props }, ref) => (
+  React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content>
+>(({ className, children, ...props }, ref) => (
   <DialogPortal>
-    <DialogOverlay className={overlayClassName} />
+    <DialogOverlay />
     <DialogPrimitive.Content
       ref={ref}
       className={cn(

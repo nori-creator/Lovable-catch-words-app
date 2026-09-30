@@ -10157,10 +10157,6 @@ html[data-dex-dragging] {
   border-radius: 0;
   touch-action: none;
 }
-/* 単語の詳細（z-50）が開いている間は、全画面の棚もその下へ回す（詳細の上に 3D が居座らない）。 */
-.home-shelf__stage[data-full][data-under-detail] {
-  z-index: 47;
-}
 /* 部屋（壁・窓・空）。3D は透明の上に棚だけを描くので、ここが後ろに見える。 */
 .home-shelf__room {
   position: absolute;
@@ -10433,32 +10429,6 @@ html[data-dex-dragging] {
 }
 .home-shelf__single > * {
   pointer-events: auto;
-}
-/* 単語の詳細（z-50）が上に開いている間は、その下へ回す。 */
-.home-shelf__single[data-under-detail] {
-  z-index: 49;
-}
-/* 左の片ページに重ねる、操作できるアルバム（ホームと同じ `DayCollage`）。
-   縦は台紙が送られ、横の素早い払いは隣のページへ（`LivePage`）。 */
-.home-shelf__live {
-  flex: 1 1 0;
-  min-height: 0;
-  margin: 0 10px;
-  overflow-y: auto;
-  overscroll-behavior: contain;
-  touch-action: pan-y;
-  /* 本のページの紙。台紙（壁）の下の余白も紙に見える（3D の本が透けない）。 */
-  padding: 10px;
-  border-radius: 14px;
-  background: #f7f2e6;
-  box-shadow: 0 10px 30px rgb(0 0 0 / 0.35);
-}
-.home-shelf__live .collage {
-  margin-block: 0;
-}
-/* 並べ替えの「完了」は、本の片ページでは下の「日記を書く」「前へ・次へ」の上に置く（重ならない）。 */
-.home-shelf__live .album-done {
-  bottom: calc(8.5rem + env(safe-area-inset-bottom));
 }
 .home-shelf__single-top {
   display: flex;

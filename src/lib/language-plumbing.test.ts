@@ -6633,7 +6633,7 @@ describe("R26（2026-09-30 の全体点検で見つけた不具合）", () => {
  * R27（オーナー指示 2026-09-30）: 日記の左ページ = ホームのアルバムをそのまま再現し、ホームと
  * 同じ操作。ひと言は単語の詳細・ホームのアルバム・日記のそれぞれから直せる。
  */
-describe("R27: 日記の左ページはホームのアルバムと同じ置き方・同じ操作", () => {
+describe("R27: 日記の左ページは元の紙のまま、置き方だけホームと同じ", () => {
   const layout = codeOnly(read("lib/album-day-layout.ts"));
   const home = codeOnly(read("routes/_authenticated/home.tsx"));
   const shelf = codeOnly(read("components/HomeShelf.tsx"));
@@ -6646,17 +6646,21 @@ describe("R27: 日記の左ページはホームのアルバムと同じ置き�
     expect(shelf).toMatch(
       /albumHeroUrl\(s, \{ surfaceRoles: roles, photoPref: pref, thumb: true \}\)/,
     );
-    // ホームは触った順で決めない（保存した並び `album_order` で決める）。
     expect(layout).toMatch(/const byOrder/);
   });
 
-  it("本の絵は置き方（大きさ・向き・重なり）と、写真の下の語・時刻・一言（3行）で描く", () => {
+  it("本の絵は置き方（大きさ・向き・重なり）で貼り、見た目は元の紙（白い台紙・マスキングテープ・手書きの一言3行）", () => {
     expect(tex).toMatch(/function paintPlacedPhotos\(/);
     expect(tex).toMatch(/s\.photos\.every\(\(p\) => p\.place\)/);
     expect(tex).toMatch(/clampLines\(ctx, p\.note, capW, 3\)/);
-    expect(tex).toMatch(/decorFor\(id, "paper"\)/);
-    // 1日に貼る写真の数を4枚に絞らない。
+    expect(tex).toMatch(/rgba\(214,190,140,0\.62\)/);
     expect(shelf).toMatch(/monthDays\(shown, b\.y, b\.m, 60\)/);
+  });
+
+  it("本の上にホームの操作画面を重ねない（本とページがずれる）", () => {
+    expect(shelf).not.toMatch(/renderDayPage|LivePage/);
+    expect(home).not.toMatch(/renderDayPage/);
+    expect(read("styles.css")).not.toMatch(/home-shelf__live/);
   });
 
   it("ホームで外した写真は本にも貼らない（棚の本の数は変えない）", () => {
@@ -6664,30 +6668,13 @@ describe("R27: 日記の左ページはホームのアルバムと同じ置き�
     expect(home).toMatch(/hiddenIds=\{albumHidden\.hidden\}/);
   });
 
-  it("左の片ページに、ホームと同じ部品（DayCollage）を重ねる。タップで単語の詳細、長押しで並べ替え", () => {
-    expect(home).toMatch(/renderDayPage=\{\(stickers\) => \(\s*<DayCollage/);
-    expect(home).toMatch(/onOpen=\{onOpen\}/);
-    expect(shelf).toMatch(/view === "left" && day && renderDayPage/);
-    expect(shelf).toMatch(/<LivePage onStep=\{stepSingle\}>/);
-    // 横に素早く払えば隣のページへ（並べ替え中は払いを見ない）。
-    expect(shelf).toMatch(/querySelector\("\.album-editing"\)/);
-  });
-
-  it("直した内容は見開きの絵にも出る（開いている本を描き直す）", () => {
+  it("直した置き方・一言は開いている本の絵にも出る（描き直す）", () => {
     expect(shelf).toMatch(/world\.current\?\.refreshDays\(\)/);
     expect(engine).toMatch(/repaintAlbum\(dayIndex\?: number\)/);
     expect(engine).toMatch(/refreshDays\(\): boolean/);
   });
 
-  it("単語の詳細が開いている間は、本の層をその下へ回す（詳細の上に居座らない）", () => {
-    expect(home).toMatch(/detailOpen=\{openId !== null\}/);
-    expect(shelf).toMatch(/data-under-detail/);
-    const css = read("styles.css");
-    expect(css).toMatch(/\.home-shelf__stage\[data-full\]\[data-under-detail\] \{\s*z-index: 47;/);
-    expect(css).toMatch(/\.home-shelf__single\[data-under-detail\] \{\s*z-index: 49;/);
-  });
-
-  it("ひと言: 自分の札だけ直せる（サーバ）。3か所が同じ部品を使う", () => {
+  it("ひと言: 自分の札だけ直せる（サーバ）。単語の詳細とホームのアルバムから。日記からは直せない", () => {
     const fns = codeOnly(read("lib/stickers.functions.ts"));
     const at = fns.indexOf("export const updateStickerCaption");
     expect(at).toBeGreaterThan(0);
@@ -6705,12 +6692,10 @@ describe("R27: 日記の左ページはホームのアルバムと同じ置き�
     expect(codeOnly(read("routes/_authenticated/dex.$stickerId.tsx"))).toMatch(
       /<CaptionLine stickerId=\{s\.id\}/,
     );
-    // ホームのアルバム（並べ替え中の鉛筆）と、それを使う日記の左ページ
+    // ホームのアルバム（並べ替え中の鉛筆）。日記（本）からは編集しない。
+    expect(shelf).not.toMatch(/CaptionEditDialog|updateStickerCaption/);
     expect(home).toMatch(/className="album-remove album-caption-edit"/);
     expect(home).toMatch(/<CaptionEditDialog target=\{captionTarget\}/);
-    // 本の片ページ（z-80）の上でも隠れない。
-    expect(dialog).toMatch(/overlayClassName="z-\[120\]"/);
-    expect(codeOnly(read("components/ui/dialog.tsx"))).toMatch(/overlayClassName\?: string/);
   });
 
   it("ひと言の文言は3言語ぶんそろっている", () => {
