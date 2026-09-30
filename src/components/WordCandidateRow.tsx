@@ -80,7 +80,7 @@ export function WordCandidateRow({
      * 並びは変えない — 「語 → 訳 → 読み」の今の形はそのまま。
      */
     <div className="lift flex items-center gap-2 rounded-2xl border border-border bg-card p-3 transition-colors hover:border-primary hover:bg-accent/40">
-      <button onClick={onPick} className="min-w-0 flex-1 text-left">
+      <button type="button" onClick={onPick} className="min-w-0 flex-1 text-left">
         {/**
          * **折り返す。横へ伸ばさない。**（オーナー報告 2026-09-22
          * 「候補の…解説が長い場合に横にスライドしないといけない場合が
