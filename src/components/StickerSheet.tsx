@@ -776,14 +776,14 @@ export function StickerSheet({ stickerId, onClose, openPhotoPicker, from, local 
           {s ? s.word.headword : "..."}
         </Term>
         <div className="flex items-center gap-2">
-          <button
+          <button type="button"
             onClick={() => setEditing((v) => !v)}
             aria-label={t("card.sections")}
             className={`lift-soft inline-flex h-11 w-11 items-center justify-center rounded-full border border-border ${editing ? "bg-primary text-primary-foreground" : "bg-card"}`}
           >
             <Settings2 className="h-4 w-4" />
           </button>
-          <button
+          <button type="button"
             onClick={onClose}
             aria-label={t("common.close")}
             className="lift-soft inline-flex h-11 w-11 items-center justify-center rounded-full border border-border bg-card"
@@ -1148,7 +1148,7 @@ export function StickerSheetBody({
               </div>
             )}
             {/* 写真の変更はこのアイコン or 写真の長押し(下部の大きなボタンは廃止) */}
-            <button
+            <button type="button"
               onClick={(e) => {
                 e.stopPropagation();
                 // 長押しには確認があるのに、常時見えているこちらだけ
@@ -1227,7 +1227,7 @@ export function StickerSheetBody({
           </div>
           <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1">
             {webCandidates.map((c) => (
-              <button
+              <button type="button"
                 key={c.url}
                 onClick={() => void swapWebImage(c)}
                 disabled={!!swapping}
@@ -1346,7 +1346,7 @@ export function StickerSheetBody({
         <div className="mt-3 rounded-2xl border border-destructive/30 bg-destructive/5 p-3 text-footnote">
           <p className="font-semibold text-destructive-ink">{t("card.enrichFailed")}</p>
           <p className="mt-1 break-words text-muted-foreground">{enrichError}</p>
-          <button
+          <button type="button"
             onClick={onEnrichRetry}
             className="press-in mt-2 inline-flex min-h-11 items-center gap-1.5 rounded-full border border-border bg-card px-4 py-2 font-medium"
           >
@@ -1389,14 +1389,14 @@ export function StickerSheetBody({
             のはおかしい(圏外で預かった写真を捨てる確認で同じ指摘を受けた)。
             武装しているときだけ出す。 */}
         {deleteArmed && busy === null && (
-          <button
+          <button type="button"
             onClick={onCancelDelete}
             className="flex min-h-11 items-center justify-center rounded-2xl border border-border bg-card px-4 py-3 text-footnote font-medium"
           >
             {t("home.pendingDiscardCancel")}
           </button>
         )}
-        <button
+        <button type="button"
           onClick={handleDelete}
           disabled={busy !== null}
           // **取り消せない操作。** ここは4つ直してある:
