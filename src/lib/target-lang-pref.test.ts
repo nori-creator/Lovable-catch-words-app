@@ -111,7 +111,6 @@ describe("撮る道に決め打ちが残っていない", () => {
    * 型でもビルドでも落ちない。**設定を変えた人にだけ起きる。**
    */
   const CAPTURE_PATH = [
-    "src/components/InputCatchSheet.tsx",
     "src/components/ScanCatchSheet.tsx",
     "src/routes/_authenticated/scan.tsx",
     "src/routes/_authenticated/capture.tsx",

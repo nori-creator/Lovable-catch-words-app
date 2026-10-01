@@ -31,7 +31,6 @@ import { groupBySpan, type AlbumSpan } from "@/lib/album-span";
 import type { StickerWithWord } from "@/lib/stickers.functions";
 import type { PendingCapture } from "@/lib/offline-queue";
 import { tStatic } from "@/lib/i18n";
-import { StoryInk, type StoryItem } from "@/components/StoryInk";
 import { photo as samplePhoto } from "./peel-sticker";
 import { parseWallpaper, wallClass } from "@/lib/wallpaper";
 import { WallpaperPicker } from "@/components/WallpaperPicker";
@@ -384,52 +383,6 @@ export function HomeTapScene() {
  * 透明な紙を重ね、ペン・ラベル・丸・四角・矢印を6色で描ける。保存はしない。
  * 最初の絵が分かるよう、見本の書き込みを3つ置いておく（1つ戻す・全部消すで消せる）。
  */
-/**
- * **アルバムに書き込む — ストーリー風**（試作、オーナー指示 2026-09-27）。
- * 写真・手書き・文字を、1本指で動かし、2本指で大きさと傾きを変える。
- * 「手書き」は大きな書く欄で書いてから貼る。動かすと下にごみ箱が出る。
- */
-export function HomeInkScene() {
-  const initial: StoryItem[] = [
-    {
-      id: "p1",
-      kind: "photo",
-      src: samplePhoto,
-      caption: "珍珠奶茶",
-      x: 0.3,
-      y: 0.32,
-      w: 0.46,
-      rot: -5,
-      z: 1,
-    },
-    {
-      id: "p2",
-      kind: "photo",
-      src: samplePhoto,
-      caption: "夜市",
-      x: 0.7,
-      y: 0.62,
-      w: 0.42,
-      rot: 4,
-      z: 2,
-    },
-    {
-      id: "t1",
-      kind: "text",
-      text: "初めての夜市!",
-      font: "signature",
-      color: "#ff375f",
-      bg: "soft",
-      x: 0.62,
-      y: 0.16,
-      w: 0.5,
-      rot: -4,
-      z: 3,
-    },
-  ];
-  return <StoryInk initial={initial} />;
-}
-
 /**
  * **節目の日の記念アルバム**（オーナー指示 2026-09-27、`lib/milestone-album.ts`）。
  * 上: 節目の日にホームの上に出る入口。下: 押して開いた1枚（`?open=1` で開いた所から）。

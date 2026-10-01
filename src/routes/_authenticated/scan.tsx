@@ -46,7 +46,6 @@ import { generateCard, type GeneratedCard } from "@/lib/ai.functions";
 import { logAppEvent } from "@/lib/metrics.functions";
 import { geocodeLocation } from "@/lib/geocode.functions";
 import { ScanCatchSheet } from "@/components/ScanCatchSheet";
-import { InputCatchSheet } from "@/components/InputCatchSheet";
 import { ScanEffect } from "@/components/ScanEffect";
 import { Sound, unlockAudio } from "@/lib/sound-engine";
 import { haptic } from "@/lib/haptics";
@@ -266,8 +265,6 @@ function ScanPage() {
   const [lookupMs, setLookupMs] = useState<number | null>(null);
   const [tapToAudioMs, setTapToAudioMs] = useState<number | null>(null);
   const [catchOpen, setCatchOpen] = useState<{ headword: string; item: DetectedItem } | null>(null);
-  const [inputCatchOpen, setInputCatchOpen] = useState<"text" | "voice" | null>(null);
-  const [inputCatchText, setInputCatchText] = useState("");
   const [scanLoc, setScanLoc] = useState<{
     lat: number | null;
     lng: number | null;
@@ -1133,18 +1130,6 @@ function ScanPage() {
             return entry && !entry.has_photo ? { sticker_id: entry.sticker_id } : null;
           })()}
           onClose={() => setCatchOpen(null)}
-        />
-      )}
-
-      {inputCatchOpen && (
-        <InputCatchSheet
-          initialMode={inputCatchOpen}
-          initialText={inputCatchText}
-          autoLookup={!!inputCatchText}
-          onClose={() => {
-            setInputCatchOpen(null);
-            setInputCatchText("");
-          }}
         />
       )}
 

@@ -223,14 +223,9 @@ const MODES = [
   ["failed-named", "", false, { scene: "load-failed", variant: "named" }],
   ...crossThemes("chunks", { scene: "chunks" }),
   ...crossThemes("curve", { scene: "curve" }),
-  ...crossThemes("detail-ai", { scene: "scan-detail" }),
-  ...crossThemes("detail-verified", { scene: "scan-detail", variant: "verified" }),
   // **出来上がった側**。今まで骨組みしか撮っていなかったので、
   // このシートの中身(解説そのもの)は一度も機械の目に映っていなかった。
-  ...crossThemes("detail-ready", { scene: "scan-detail", variant: "ready" }),
   // 生成に失敗した面。
-  ["detail-failed", "", false, { scene: "scan-detail", variant: "failed" }],
-  ["detail-failed-dark", 'class="dark"', false, { scene: "scan-detail", variant: "failed" }],
   // 復習 — **アプリの中心なのに、中身がルートに直書きで一度も見ていなかった**。
   ...crossThemes("review-memory", { scene: "review-memory" }), // 記憶の一覧。**オーナー報告 2026-09-16 の画面**（段と % の逆転）。
   ...crossThemes("review-memory-list", { scene: "review-memory-list" }),
@@ -256,7 +251,6 @@ const MODES = [
   // 出すが記録は失念なので、**その断りが「正解！」に埋もれていないか**を絵で見る。
   ["review-say-retried", "", false, { scene: "review-say-result", variant: "retried" }],
   ...crossThemes("review-mode-tabs", { scene: "review-mode-tabs" }),
-  ...crossThemes("retake-suggestion", { scene: "retake-suggestion" }),
   // **既定は畳んだ形**(オーナー指摘「バーが大きすぎる。レベルとバンドだけ
   // 表示して、タップでバーを出して」)。畳んだ絵と開いた絵の**両方**を撮る —
   // 片方しか撮らないと、片方は一度も見ていないことになる。
@@ -395,13 +389,8 @@ const MODES = [
   // 文字の欄の隣にボタンが立っていること・指が届く大きさかを見る。
   ...crossThemes("cap-card-voice", { scene: "capture-card", variant: "voice" }),
   // 語を選ぶ札。**打ち込んだ語の側は場面が1つも無かった。**
-  ...crossThemes("word-candidate", { scene: "word-candidate" }),
   // 打ち込みキャッチ。**2度「機能してない」と言われた画面**なのに、
   // ここまで場面が1つも無く、壊れた姿を機械が一度も見ていなかった。
-  ...crossThemes("input-catch", { scene: "input-catch" }),
-  ["input-catch-typed", "", false, { scene: "input-catch", variant: "typed" }],
-  ["input-catch-loading", "", false, { scene: "input-catch", variant: "loading" }],
-  ...crossThemes("input-catch-error", { scene: "input-catch", variant: "error" }),
   // 主役の写真を選ぶ面(要望 #17)。前は `window.confirm` の素の窓だった。
   ...crossThemes("hero-picker", { scene: "hero-picker" }),
   ["hero-picker-few", "", false, { scene: "hero-picker", variant: "few" }],
@@ -1688,7 +1677,7 @@ const MOTION_KEEP = ["spin"];
 // 読み込み中の骨組みが出なくなった。骨組みが無いのは意図した姿なので、
 // ここに残すと「場面が違う疑い」で永久に落ちる。脈打つ物が実際に居る
 // 3つの場面で、規則そのものは変わらず見ている。
-const MOTION_SCENES = ["scan-detail", "home-loading", "review-loading"];
+const MOTION_SCENES = ["home-loading", "review-loading"];
 let motionSeen = 0;
 for (const scene of MOTION_SCENES) {
   const page = await browser.newPage({

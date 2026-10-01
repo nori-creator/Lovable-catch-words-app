@@ -10,8 +10,6 @@
  */
 import { useState } from "react";
 import { Score, SCORE } from "@/lib/celebration-score";
-import { playTheme, type ThemeId } from "@/lib/celebration-themes";
-import { CelebrationBurst, type BurstKind } from "@/components/effects/CelebrationBurst";
 import { photo } from "./peel-sticker";
 import { setLevel, Sound, unlockAudio } from "@/lib/sound-engine";
 
@@ -101,65 +99,23 @@ if (typeof window !== "undefined") {
   (window as unknown as { __cwScore?: unknown }).__cwScore = { Score, SCORE, Sound, setLevel };
 }
 
-/** 別案の音（B〜D）。実物の演出と同じ間で、頂点・二度目の山・着地だけを差し替える。 */
-async function playAlt(id: Exclude<ThemeId, "orchestra">, on: (s: Step) => void) {
-  on("grip");
-  Sound.rewardGrip();
-  await wait(120);
-  on("build");
-  await wait(SCORE.build.hitMs);
-  on("hit");
-  playTheme(id, "hit");
-  await wait(SCORE.speechDelayMs);
-  on("speech");
-  Score.duck(true);
-  await speak();
-  Score.duck(false);
-  on("resolve");
-  playTheme(id, "resolve");
-  await wait(460);
-  on("transfer");
-  await wait(560);
-  on("land");
-  playTheme(id, "land");
-}
-
 const SOUNDS: Array<{ key: string; label: string; note: string }> = [
   { key: "a", label: "A 映画の山場", note: "今の音。金管の和音と打撃、最後にティンパニ" },
-  { key: "b", label: "B 軽快", note: "ゲームで何かを手に入れたような、明るく短い上り" },
-  { key: "c", label: "C 温かい", note: "木琴のような音で和音をやさしく置く" },
-  { key: "d", label: "D 静か", note: "鐘を1つだけ。人前でも使いやすい" },
   { key: "e", label: "E これまで", note: "比べる用（前の音）" },
 ];
-const BURSTS: Array<{ key: BurstKind | "none"; label: string }> = [
-  { key: "ring", label: "1 光の輪" },
-  { key: "confetti", label: "2 紙吹雪" },
-  { key: "stars", label: "3 星" },
-  { key: "none", label: "4 なし" },
-];
-
 export function CatchSoundScene({ q }: { q?: URLSearchParams }) {
   const [step, setStep] = useState<Step | null>(null);
   const [busy, setBusy] = useState(false);
   const [sound, setSound] = useState(q?.get("sound") ?? "a");
-  const [burst, setBurst] = useState<BurstKind | "none">(
-    (BURSTS.find((b) => b.key === q?.get("burst"))?.key ?? "ring") as BurstKind | "none",
-  );
-  const [shot, setShot] = useState(0);
   const run = async () => {
     if (busy) return;
     setBusy(true);
     setLevel("full");
     unlockAudio();
-    const on = (st: Step) => {
-      setStep(st);
-      if (st === "hit") setShot((n) => n + 1);
-    };
+    const on = (st: Step) => setStep(st);
     try {
-      if (sound === "a") await playNew(on);
-      else if (sound === "e") await playOld(on);
-      else
-        await playAlt(({ b: "pop", c: "warm", d: "chime" } as const)[sound as "b" | "c" | "d"], on);
+      if (sound === "e") await playOld(on);
+      else await playNew(on);
       await wait(900);
     } finally {
       setStep(null);
@@ -174,7 +130,7 @@ export function CatchSoundScene({ q }: { q?: URLSearchParams }) {
       <div>
         <h1 className="text-title font-bold">キャッチの祝福（音と絵）</h1>
         <p className="mt-1 text-footnote text-muted-foreground">
-          音と「はじけ」を選んで ▶
+          音を選んで ▶
           を押すと、実際の演出と同じ順・同じ間で鳴ります。音を出せる状態で聴いてください。
         </p>
       </div>
@@ -195,25 +151,10 @@ export function CatchSoundScene({ q }: { q?: URLSearchParams }) {
       <p className="text-caption text-muted-foreground">
         {SOUNDS.find((o) => o.key === sound)?.note}
       </p>
-      <div role="radiogroup" aria-label="はじけの案" className="flex flex-wrap gap-1.5">
-        {BURSTS.map((o) => (
-          <button
-            key={o.key}
-            type="button"
-            role="radio"
-            aria-checked={burst === o.key}
-            onClick={() => setBurst(o.key)}
-            className={pill(burst === o.key)}
-          >
-            {o.label}
-          </button>
-        ))}
-      </div>
       <div
         className="relative grid h-72 place-items-center overflow-hidden rounded-3xl"
         style={{ background: "linear-gradient(#0b2545, #0f172a)" }}
       >
-        {burst !== "none" && shot > 0 && <CelebrationBurst key={shot} kind={burst} />}
         <img
           src={photo}
           alt=""
