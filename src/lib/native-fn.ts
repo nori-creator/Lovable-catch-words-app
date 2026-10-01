@@ -24,6 +24,13 @@ const tts = () => import("./tts.functions");
 const reviews = () => import("./reviews.functions");
 const profile = () => import("./profile.functions");
 const explanation = () => import("./word-explanation.functions");
+const categories = () => import("./categories.functions");
+const album = () => import("./album-hidden.functions");
+const journal = () => import("./journal.functions");
+const stats = () => import("./stats.functions");
+const jev = () => import("./jev.functions");
+const wordbook = () => import("./wordbook.functions");
+const images = () => import("./images.functions");
 
 function from<M>(mod: () => Promise<M>, name: keyof M & string): Loader {
   return async () => (await mod())[name] as unknown as ServerFn;
@@ -44,6 +51,8 @@ export const NATIVE_FNS: Record<string, Loader> = {
   getScanContext: from(scan, "getScanContext"),
   markScanTap: from(scan, "markScanTap"),
   markScanCaught: from(scan, "markScanCaught"),
+  rankScanCandidates: from(jev, "rankScanCandidates"),
+  extractWordbook: from(wordbook, "extractWordbook"),
   // 保存・図鑑
   saveSticker: from(stickers, "saveSticker"),
   getSticker: from(stickers, "getSticker"),
@@ -56,6 +65,9 @@ export const NATIVE_FNS: Record<string, Loader> = {
   setStickerHeadword: from(stickers, "setStickerHeadword"),
   setStickerHeroRole: from(stickers, "setStickerHeroRole"),
   setStickerVoiceVideo: from(stickers, "setStickerVoiceVideo"),
+  // 写真の無い札の見出し・「ネットの画像」の節（画像は iOS が直に取りに行く）
+  searchImageCandidates: from(images, "searchImageCandidates"),
+  setStickerPlaceholder: from(stickers, "setStickerPlaceholder"),
   updateStickerCaption: from(stickers, "updateStickerCaption"),
   updateWordExtras: from(stickers, "updateWordExtras"),
   reportWordIssue: from(stickers, "reportWordIssue"),
@@ -75,7 +87,23 @@ export const NATIVE_FNS: Record<string, Loader> = {
   getReviewCapState: from(reviews, "getReviewCapState"),
   getStickerMemoryHistory: from(reviews, "getStickerMemoryHistory"),
   getUpcomingDueTimes: from(reviews, "getUpcomingDueTimes"),
+  // 棚（自分の棚・語の置き場所）
+  setStickerCategory: from(categories, "setStickerCategory"),
+  setStickersCategory: from(categories, "setStickersCategory"),
+  saveMyCategory: from(categories, "saveMyCategory"),
+  deleteMyCategory: from(categories, "deleteMyCategory"),
+  // ホームのアルバム（外す・戻す・並べ方）
+  listAlbumHidden: from(album, "listAlbumHidden"),
+  setAlbumHidden: from(album, "setAlbumHidden"),
+  saveAlbumLayout: from(stickers, "saveAlbumLayout"),
+  // 日記（添削・書き出しの質問・過去の日記・本人の文の保存）
+  listJournal: from(journal, "listJournal"),
+  correctMyJournal: from(journal, "correctMyJournal"),
+  getJournalPrompts: from(journal, "getJournalPrompts"),
+  saveMyDiary: from(journal, "saveMyDiary"),
+  listMyDiaryMonth: from(journal, "listMyDiaryMonth"),
   // 利用者
+  getMyStats: from(stats, "getMyStats"),
   getMyProfile: from(profile, "getMyProfile"),
   updateMyProfile: from(profile, "updateMyProfile"),
   deleteMyAccount: from(profile, "deleteMyAccount"),

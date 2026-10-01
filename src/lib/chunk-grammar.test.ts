@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { isSwappableSlot, swappedTranslation, tidyUsageParts } from "./chunk-grammar";
+import {
+  isSwappableSlot,
+  mergeCompounds,
+  swappedTranslation,
+  tidyUsageParts,
+} from "./chunk-grammar";
 import { chunkSpeechText } from "./extras";
 
 const alts = [{ text: "煮", ja: "煮る" }];
@@ -42,7 +47,8 @@ describe("tidyUsageParts（ネイティブが言う形に）", () => {
       { text: "超", pos: "Adv" },
       { text: "入味", pos: "Vs" },
     ];
-    expect(tidyUsageParts(has, "zh-TW")).toEqual(has);
+    // 語の並びは変えない（超 は入れ替えられる札になる — 下の C5 の試験）。
+    expect(tidyUsageParts(has, "zh-TW").map((p) => p.text)).toEqual(["滷味", "超", "入味"]);
     const merged = [
       { text: "滷味", pos: "N" },
       { text: "很入味", pos: "Vs" },
@@ -122,5 +128,77 @@ describe("swappedTranslation（語を入れ替えた型の訳。R20）", () => {
     expect(swappedTranslation("彼氏と喧嘩する", old, { 1: 0 })).toBe(
       "彼氏と喧嘩する（男朋友 → 女朋友: 彼女）",
     );
+  });
+});
+
+describe("チャンクの表示ルール C5/C7（2026-10-01「芒果冰は分けない」「程度も変更できるように」）", () => {
+  it("1語（芒果＋冰）は1つの四角にする", () => {
+    expect(
+      mergeCompounds(
+        [
+          { text: "芒果", pos: "N" },
+          { text: "冰", pos: "N" },
+        ],
+        "芒果",
+        "zh-TW",
+      ).map((p) => p.text),
+    ).toEqual(["芒果冰"]);
+    expect(
+      mergeCompounds(
+        [
+          { text: "吃", pos: "V" },
+          { text: "芒果", pos: "N" },
+          { text: "冰", pos: "N" },
+        ],
+        "芒果",
+        "zh-TW",
+      ).map((p) => p.text),
+    ).toEqual(["吃", "芒果冰"]);
+  });
+  it("英語は合わせない（語の継ぎ目が空白）", () => {
+    const en = [
+      { text: "mango", pos: "N" },
+      { text: "juice", pos: "N" },
+    ];
+    expect(mergeCompounds(en, "mango", "en")).toEqual(en);
+  });
+  it("補った 很 は入れ替えられる（超・非常・有點・蠻、読む人の言語の訳付き）", () => {
+    const out = tidyUsageParts(
+      [
+        { text: "芒果", pos: "N" },
+        { text: "甜", pos: "Vs" },
+      ],
+      "zh-TW",
+      { headword: "芒果", reader: "ja" },
+    );
+    expect(out.map((p) => p.text)).toEqual(["芒果", "很", "甜"]);
+    expect(isSwappableSlot(out[1], "zh-TW")).toBe(true);
+    expect(out[1].ja).toBe("とても");
+    expect(out[1].alts?.map((a) => a.text)).toEqual(["超", "非常", "有點", "蠻"]);
+    expect(out[1].alts?.[2].ja).toBe("ちょっと");
+    // 学ぶ語は入れ替えない（C2）。
+    expect(isSwappableSlot(out[0], "zh-TW")).toBe(false);
+    // 訳も入れ替わる（C12）。
+    const parts = out;
+    expect(swappedTranslation("マンゴーはとても甘い", parts, { 1: 2 })).toBe(
+      "マンゴーはちょっと甘い",
+    );
+  });
+  it("英語の読者には英語の訳", () => {
+    const out = tidyUsageParts(
+      [
+        { text: "芒果", pos: "N" },
+        { text: "甜", pos: "Vs" },
+      ],
+      "zh-TW",
+      { headword: "芒果", reader: "en" },
+    );
+    expect(out[1].ja).toBe("very");
+    expect(out[1].alts?.[0].ja).toBe("super");
+  });
+  it("程度以外の副詞・動詞・形容詞は点線にしない", () => {
+    const alts = [{ text: "x", ja: "" }];
+    expect(isSwappableSlot({ text: "也", pos: "Adv", slot: true, alts }, "zh-TW")).toBe(false);
+    expect(isSwappableSlot({ text: "甜", pos: "Vs", slot: true, alts }, "zh-TW")).toBe(false);
   });
 });

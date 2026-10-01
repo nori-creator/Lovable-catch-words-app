@@ -17,6 +17,7 @@ import {
   logUsage,
 } from "./ai-provider.server";
 import { normalizeDetection } from "./scan-detect-parse";
+import { targetProfile, type CoachPhrases } from "./target-profile";
 
 /**
  * Scan-First MVP §3.2 — one AI call combines object detection + OCR and returns
@@ -80,12 +81,18 @@ function parseJsonFromAiText(text: string): unknown {
   return JSON.parse(trimmed);
 }
 
-const PROMPT = `あなたは台湾華語(zh-TW / 繁体字 / 注音)の学習アプリの検出エンジンです。
+/**
+ * 検出の指示文。**言語で変わる所だけ**を学習言語の表(`coach`)から入れる
+ * (2026-10-01、日本語を足した日)。台湾華語の値で組むと、いままでの文と1文字も違わない。
+ */
+const scanPrompt = (
+  coach: CoachPhrases,
+) => `あなたは${coach.scanEngineLabel}の学習アプリの検出エンジンです。
 入力画像から、学習価値のある「モノ (kind=object)」と「写っている文字 (kind=text)」を検出してください。
 
 厳守ルール:
 - 出力は下記スキーマに厳密に従うJSONオブジェクトのみ。前置き・後書き・コードフェンス禁止。
-- 台湾教育部準拠の正式な繁体字を使用。大陸簡体字・大陸独自語彙は禁止(例: 出租车✗ → 計程車○)。
+- ${coach.scanScriptRule}
 - 学習者のレベルに合う語を優先(下の「レベル指示」に従う)。学習価値の低いもの(壁・空・地面など)は返さない。
 - kind=text は看板・メニュー・商品ラベルなど「写っている文字そのもの」。推測で足したり書き換えたりしない。
 - point は画像を 0〜1000 に正規化した座標 [x, y]。**必ずその物体の見えている塊の重心**に置く
@@ -105,7 +112,7 @@ const PROMPT = `あなたは台湾華語(zh-TW / 繁体字 / 注音)の学習ア
 - items は最大 6 個。**数より正確さ**: 座標に自信が持てるものだけを返す
   (曖昧な物を無理に足すより、確実な4個の方が良い)。大きく写っている・
   学習価値の高いものを優先。
-- 各項目に zhuyin(注音)・pinyin・meaning_ja(日本語訳)・pos(名詞/動詞など日本語)を必ず埋める。
+- ${coach.scanReadingRule}
 - **名詞だけを返す。** 動詞・形容詞・副詞・量詞は出さない。写真に写っている
   「物」の名前だけを挙げる。
 
@@ -114,10 +121,7 @@ const PROMPT = `あなたは台湾華語(zh-TW / 繁体字 / 注音)の学習ア
   "items": [
     {
       "kind": "object" | "text",
-      "headword": "繁体字",
-      "zhuyin": "ㄇㄤˊ ㄍㄨㄛˇ",
-      "pinyin": "mángguǒ",
-      "meaning_ja": "マンゴー",
+${coach.scanSample}
       "pos": "名詞",
       "point": [512, 340],
       "confidence": 0.93,
@@ -142,7 +146,9 @@ export const detectScan = createServerFn({ method: "POST" })
       : `data:image/jpeg;base64,${data.imageBase64}`;
 
     const t0 = Date.now();
-    const prompt = `${PROMPT}\n\nレベル指示: ${levelRule}\n${langRule}`;
+    const { getUserTargetLanguage } = await import("./ai-provider.server");
+    const coach = targetProfile(await getUserTargetLanguage(userId)).coach;
+    const prompt = `${scanPrompt(coach)}\n\nレベル指示: ${levelRule}\n${langRule}`;
     const ask = async (cfg: typeof ai) => {
       const r = await generateText({
         model: cfg.gateway(cfg.modelFast),
@@ -271,15 +277,18 @@ export const detectParts = createServerFn({ method: "POST" })
       ? data.imageBase64
       : `data:image/jpeg;base64,${data.imageBase64}`;
 
-    const prompt = `画像には「${data.parentHeadword}」が写っています。この物体を構成する**部分・要素**の名称を、台湾華語(繁体字/注音)で学習価値のあるものだけ最大6個抽出してください。
+    // 言語・字・例は学習言語の表から(`coach`)。台湾華語の値はいままでの文そのもの。
+    const { getUserTargetLanguage } = await import("./ai-provider.server");
+    const coach = targetProfile(await getUserTargetLanguage(context.userId)).coach;
+    const prompt = `画像には「${data.parentHeadword}」が写っています。この物体を構成する**部分・要素**の名称を、${coach.partsLanguage}で学習価値のあるものだけ最大6個抽出してください。
 - 全体名(${data.parentHeadword})は含めない
-- 部位・部品・素材・付随物のみ(例: 手→拇指/手掌/指甲/手腕)
+- 部位・部品・素材・付随物のみ(例: ${coach.partsExample})
 - point は切り取られた画像内での中心座標を 0〜1000 に正規化した [x, y]
-- 台湾教育部準拠の正式な繁体字。TOCFL 1〜3レベル優先
+- ${coach.partsRule}
 - 出力はJSONのみ、前置き/コードフェンス禁止
 
 出力スキーマ:
-{"items":[{"kind":"object","headword":"拇指","zhuyin":"ㄇㄨˇ ㄓˇ","pinyin":"mǔzhǐ","meaning_ja":"親指","pos":"名詞","point":[420,510],"confidence":0.9,"alternatives":[]}]}`;
+{"items":[{"kind":"object",${coach.partsSample},"pos":"名詞","point":[420,510],"confidence":0.9,"alternatives":[]}]}`;
 
     let text = "";
     try {

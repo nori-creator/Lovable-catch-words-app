@@ -42,7 +42,14 @@ export function resolveWordLanguage(
   // 保存されている言語で通るなら、それが正しい。**触らない。**
   if (isTargetHeadword(word, stored)) return stored;
 
-  const fits = TARGET_LANGUAGES.filter((l) => l !== stored && isTargetHeadword(word, l));
+  // **日本語へは付け替えない**(2026-10-01、日本語を学習言語に足した日)。
+  // 台湾華語の行にかなの語が入っているのは、たいてい母語の取りこぼし
+  // (「シャーペン」がそのまま見出しになった不具合)で、日本語を学んでいる証拠ではない。
+  // 漢字だけの語はどちらの規則でも通るので、日本語を候補に入れると
+  // 「決め手が無い」になり、いままで台湾華語に正していた語が正せなくなる。
+  const fits = TARGET_LANGUAGES.filter(
+    (l) => l !== stored && l !== "ja" && isTargetHeadword(word, l),
+  );
   // 決め手が1つのときだけ正す。2つ以上通るなら根拠にならない。
   return fits.length === 1 ? fits[0] : stored;
 }

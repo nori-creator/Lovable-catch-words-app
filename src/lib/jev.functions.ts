@@ -34,13 +34,20 @@ export const rankScanCandidates = createServerFn({ method: "POST" })
       })
       .parse(input),
   )
-  .handler(async ({ data }) => {
+  .handler(async ({ data, context }) => {
     if (!jevAvailable()) return { order: null, probs: null, doubtful: [] as number[] };
+    // 「台湾の言い方として疑わしいか」は台湾の標準語かを問う問い。日本語を学ぶ人の
+    // 候補に掛けると、かなの語がすべて「疑わしい」になって後ろへ回る(2026-10-01)。
+    // 掛けるかどうかは学習言語の表が決める(`taiwanTermCheck`)。
+    const { getUserTargetLanguage } = await import("./ai-provider.server");
+    const { targetProfile } = await import("./target-profile");
+    const checkTaiwan = targetProfile(await getUserTargetLanguage(context.userId)).capture
+      .taiwanTermCheck;
     const q = candidateQuestion(data.items.map((it) => ({ ...it, kind: it.kind ?? undefined })));
     const res = await askJev(q.state, q.questions, { timeoutMs: 2500 });
     const ranked = rankByWanted(data.items, res?.answers.wanted);
     // 台湾の言い方として**はっきり疑わしい**候補（画面は後ろへ回し「?」を付ける）。
-    const doubtful = doubtfulTaiwanTerms(data.items.length, res?.answers);
+    const doubtful = checkTaiwan ? doubtfulTaiwanTerms(data.items.length, res?.answers) : [];
     return ranked
       ? { order: ranked.order, probs: ranked.probs, doubtful }
       : { order: null, probs: null, doubtful };

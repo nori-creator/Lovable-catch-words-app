@@ -780,15 +780,19 @@ export async function pregenerateDistractors(
   headword: string,
   correctMeaning: string,
   categoryKey: string | null,
+  /** その語の学習言語。渡さない古い呼び出しは既定(台湾華語)のまま。 */
+  language?: string | null,
 ): Promise<void> {
   const ai = await getAiFor("review");
+  // 「◯◯の単語」の呼び方は言語の表から(日本語の語を「台湾華語の単語」と呼ばない)。
+  const quizWordLabel = targetProfile(language).coach.quizWordLabel;
   const accepted: string[] = [];
   let iter = 0;
   const MAX = 2;
 
   while (accepted.length < 3 && iter < MAX) {
     iter++;
-    const makerPrompt = `台湾華語の単語「${headword}」（意味: ${correctMeaning}${categoryKey ? `、カテゴリ: ${categoryKey}` : ""}）の4択クイズ用に、もっともらしいが間違っている意味を3つ作ってください。**正解「${correctMeaning}」と同じ言語で書く**(正解が英語なら英語、日本語なら日本語)。
+    const makerPrompt = `${quizWordLabel}「${headword}」（意味: ${correctMeaning}${categoryKey ? `、カテゴリ: ${categoryKey}` : ""}）の4択クイズ用に、もっともらしいが間違っている意味を3つ作ってください。**正解「${correctMeaning}」と同じ言語で書く**(正解が英語なら英語、日本語なら日本語)。
 - 正解「${correctMeaning}」と同義語/言い換えは禁止
 - 文字数は正解と同程度
 - 学習者が一瞬迷う難易度（同カテゴリの別物がベスト）
@@ -1480,23 +1484,26 @@ export const getSpeakingFeedback = createServerFn({ method: "POST" })
     // 母語ごとの干渉(語順・アスペクト・発音)を添削の観点に入れる。
     const l1 = await l1Rule(userId, "both");
     const levelGoal = await getUserLevelGoal(userId);
-    const prompt = `あなたは台湾華語(zh-TW)のネイティブ講師です。${langRule}学習者が自分の写真を見て「${w.headword}(${w.meaning_ja})」を使って一文話しました。以下を厳密なJSONで返してください。
+    // 講師の呼び名・字・品詞の記号は学習言語の表から(`target-profile.ts` の `coach`)。
+    // 台湾華語の値はいままでの文そのもの。
+    const coach = targetProfile(await getUserTargetLanguage(userId)).coach;
+    const prompt = `あなたは${coach.nativeTeacher}です。${langRule}学習者が自分の写真を見て「${w.headword}(${w.meaning_ja})」を使って一文話しました。以下を厳密なJSONで返してください。
 
 学習者の発話: 「${data.transcript}」
 ${levelRule}
 ${l1}
 ${data.hint_used ? "※学習者は単語を思い出せずヒントを見ました。\n" : ""}${row.caption ? `撮影時のメモ: 「${row.caption}」\n` : ""}${row.location_name ? `撮影場所: ${row.location_name}\n` : ""}${isPhrase ? "これはフレーズカードです。返答として自然か、トーンも見てください。\n" : ""}${branch ? `今回教える「型」: 「${branch.zh}」${branch.ja ? `(${branch.ja})` : ""} — chunk と chunk_note は必ずこの表現を使って組み立ててください。\n` : ""}
 要件:
-- corrected: 学習者の意図を尊重した自然な台湾華語の添削文(繁体字)。ほぼ正しければそのまま。
+- corrected: 学習者の意図を尊重した自然な${coach.languageName}の添削文(${coach.scriptName})。ほぼ正しければそのまま。
 - natural_score: 1〜5。5=ネイティブそのまま、3=通じるが不自然、1=通じない/対象語を使っていない。
 - used_target: 「${w.headword}」を(活用形含め)使っているか。
 - correction_note: 何をどう直したか、なぜ不自然だったかを${NL}で1〜2文。
-- chunk: ${branch ? `「${branch.zh}」を含む自然な一文` : "corrected"}を語順パーツに分解。posは S(主語)/V(動詞)/O(目的語)/M(修飾・量詞)/Adv(副詞)/C(接続)/Prep(介詞)/Ptc(助詞)。動詞や目的語が複数ある文(連動文・二重目的語)は V1,V2 / O1,O2 と番号で区別する。3〜8個程度。
+- chunk: ${branch ? `「${branch.zh}」を含む自然な一文` : "corrected"}を語順パーツに分解。posは ${coach.feedbackPos}。動詞や目的語が複数ある文(連動文・二重目的語)は V1,V2 / O1,O2 と番号で区別する。3〜8個程度。
 - chunk_note: この構文の使いどころを${NL}で1文。
-- word_order_rule: **なぜこの語順になるのか**、台湾華語の語順ルールを${NL}1〜2文で解説。**学習者の母語と違う点**があればそこを名指しで説明する(例:「中国語は S+時間+場所+V+O の順。学習者の母語と違い動詞が目的語の前に来る」「"用+道具+V" のように手段が動詞の前」など、この文に当てはまるルールを具体的に)。
-- native_note: モノの一般的な説明(「リップクリームは乾燥した時に使う」等)は**禁止**。書くのは(a)ネイティブが「${w.headword}」を実際に口にする典型的なタイミング・状況・その時の気持ち、(b)一緒によく使う動詞や量詞、定番チャンク(例:「擦護唇膏」「一條護唇膏」のように繁体字で)。${NL}2〜3文。
-- model_answer: この写真の状況で「${w.headword}」を使ったお手本(自然な台湾華語1文、繁体字、${levelGoal}以下の語彙)。
-- alt_answer: 別の言い方1つ(繁体字)。`;
+- word_order_rule: **なぜこの語順になるのか**、${coach.languageName}の語順ルールを${NL}1〜2文で解説。**学習者の母語と違う点**があればそこを名指しで説明する(例:${coach.wordOrderExamples}など、この文に当てはまるルールを具体的に)。
+- native_note: モノの一般的な説明(「リップクリームは乾燥した時に使う」等)は**禁止**。書くのは(a)ネイティブが「${w.headword}」を実際に口にする典型的なタイミング・状況・その時の気持ち、(b)${coach.collocationNote}。${NL}2〜3文。
+- model_answer: この写真の状況で「${w.headword}」を使ったお手本(自然な${coach.languageName}1文、${coach.scriptName}、${levelGoal}以下の語彙)。
+- alt_answer: 別の言い方1つ(${coach.scriptName})。`;
 
     const pro = await isProUser(userId);
     const feedback = await generateStructured({
@@ -1671,6 +1678,8 @@ export const getSpeakingScaffold = createServerFn({ method: "POST" })
       parseBranchPlan(row.branch_plan) ??
       buildBranchPlan(w.extras as Parameters<typeof buildBranchPlan>[0]);
     const pattern = resolveBranches(plan, 1).justUnlocked;
+    // 先生の呼び名・字・例・品詞の記号は学習言語の表から(`coach`)。
+    const coach = targetProfile(await getUserTargetLanguage(userId)).coach;
 
     // ## その人の思い出をプロンプトに渡す
     //
@@ -1692,11 +1701,11 @@ export const getSpeakingScaffold = createServerFn({ method: "POST" })
     const scaffold = await generateStructured({
       model: ai.gateway(ai.modelFast),
       schema: ScaffoldSchema,
-      prompt: `あなたは台湾華語(zh-TW)のMTC(國語教學中心)方式の先生です。${langRule}学習者に「${w.headword}(${w.meaning_ja})」を実際に使わせたい。${levelRule}
+      prompt: `あなたは${coach.scaffoldTeacher}です。${langRule}学習者に「${w.headword}(${w.meaning_ja})」を実際に使わせたい。${levelRule}
 ${pattern ? `今日の型:「${pattern.zh}」${pattern.ja ? `(${pattern.ja})` : ""}\n` : ""}
 ${memory ? `この学習者がこの言葉を拾ったときの記録 — ${memory}\n` : ""}
 次を厳密なJSONで返してください:
-- question_zh: 「${w.headword}」を使って答えたくなる自然な質問1つ(繁体字、レベル以下の語彙)。
+- question_zh: 「${w.headword}」を使って答えたくなる自然な質問1つ(${coach.scriptName}、レベル以下の語彙)。
 ${
   captionSeed
     ? `  **上の「一言」に書かれた気持ち・出来事を受けて聞く。** 学習者が自分で書いたことなので、
@@ -1713,15 +1722,13 @@ ${
   **重要: 答えの文をそのまま分解して渡してはいけない。** 並べるだけで答えが完成する組み合わせは禁止。
   完成文(「。」で終わる文)や、質問への答えそのものになるパーツは入れない — 学習者に考える余地を残す。
   - kind は次のどれか:
-    "chunk" =「${w.headword}」とよく一緒に使う動詞・量詞のコロケーション(例「喝一杯◯◯」)
-    "phrase" = スロット付きの型・言い回し(例「我要用◯◯…」)
-    "grammar" = 文法・語法のポイント(例「用+道具+動詞」)。
+    "chunk" =「${w.headword}」とよく一緒に使う${coach.scaffoldChunk}
+    "phrase" = スロット付きの型・言い回し${coach.scaffoldPhraseExample}
+    "grammar" = 文法・語法のポイント${coach.scaffoldGrammarExample}。
       **この学習者の母語で実際に崩れる所**を優先して選ぶ:
 ${l1Order}
-  - zh は繁体字。ja はその訳・使いどころを1行で(解説言語で)。
-  - chunks は zh を意味のかたまりに分けた配列 [{text, pos}]。pos は台湾の詞類表の
-    役割記号: S(主語) V(動詞) O(目的語) N(名詞) M(量詞・修飾) Adv(副詞)
-    Conj/Prep(接続・介詞) Ptc(助詞) Det(限定詞)。◯や…のスロットは pos を "" にする。
+  - zh は${coach.scriptName}。ja はその訳・使いどころを1行で(解説言語で)。
+  - chunks は zh を意味のかたまりに分けた配列 [{text, pos}]。${coach.scaffoldPosRule}◯や…のスロットは pos を "" にする。
     chunks の text を順に繋ぐと zh に一致すること。`,
     });
 

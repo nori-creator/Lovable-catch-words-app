@@ -13,6 +13,17 @@ describe("native-fn allowlist", () => {
       "synthesizeSpeech",
       "gradeReview",
       "deleteMyAccount",
+      "setStickerCategory",
+      "saveMyCategory",
+      "deleteMyCategory",
+      "correctMyJournal",
+      "getJournalPrompts",
+      "listJournal",
+      "getMyStats",
+      "extractWordbook",
+      "getReaderMeanings",
+      "searchImageCandidates",
+      "setStickerPlaceholder",
     ]) {
       expect(NATIVE_FNS[name]).toBeTypeOf("function");
     }

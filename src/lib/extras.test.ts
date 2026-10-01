@@ -8,6 +8,7 @@ import {
   usableCollocations,
   chunkSpeechText,
   refineUsageChunks,
+  chunkMentionsHeadword,
   MAX_CHUNKS,
 } from "./extras";
 
@@ -204,8 +205,9 @@ describe("chunkSpeechText", () => {
 });
 
 describe("refineUsageChunks", () => {
+  // 品詞は書かない（「帶＋雨傘」を名詞＋名詞にすると、1語として合わさる — C7）。
   const chunk = (...texts: string[]) => ({
-    parts: texts.map((text) => ({ text, pos: "N" })),
+    parts: texts.map((text) => ({ text, pos: "" })),
     ja: "",
   });
 
@@ -306,12 +308,36 @@ describe("refineUsageChunks", () => {
 
     it("台湾華語の型は今までどおり（**この直しで1つも変わらない**）", () => {
       const short = {
-        parts: ["帶", "雨傘"].map((text) => ({ text, pos: "N" })),
+        parts: [
+          { text: "帶", pos: "V" },
+          { text: "雨傘", pos: "N" },
+        ],
         ja: "",
       };
       expect(refineUsageChunks([short], [], "雨傘", "zh-TW")).toEqual([short]);
       expect(refineUsageChunks([short], [], "雨傘")).toEqual([short]);
     });
+  });
+
+  it("分けた1語（芒果＋冰）は型として出さない。札1つの古い型は残す（C7）", () => {
+    const split = {
+      parts: [
+        { text: "芒果", pos: "N" },
+        { text: "冰", pos: "N" },
+      ],
+      ja: "",
+    };
+    const real = {
+      parts: [
+        { text: "芒果", pos: "N" },
+        { text: "很", pos: "Adv" },
+        { text: "甜", pos: "Vs" },
+      ],
+      ja: "",
+    };
+    expect(refineUsageChunks([split, real], [], "芒果", "zh-TW")).toEqual([real]);
+    const old = { parts: [{ text: "切芒果", pos: "" }], ja: "" };
+    expect(refineUsageChunks([old], [], "芒果", "zh-TW")).toEqual([old]);
   });
 });
 
@@ -330,5 +356,41 @@ describe("chunkTranslation（チャンクの右は訳だけ。オーナー指示
   it("空は空", () => {
     expect(chunkTranslation("")).toBe("");
     expect(chunkTranslation(undefined)).toBe("");
+  });
+});
+
+/**
+ * オーナー報告 2026-10-01「チャンクに学ぶべき単語の芒果がない」。
+ * 型は「その語をどう使うか」なので、学ぶ語そのもの（活用形も可）が入っていない型は出さない。
+ */
+describe("chunkMentionsHeadword / refineUsageChunks drops chunks without the word", () => {
+  const c = (...texts: string[]) => ({ parts: texts.map((text) => ({ text, pos: "" })), ja: "" });
+
+  it("台湾華語: 「芒果」の型に「很+甜」だけは出さない", () => {
+    expect(chunkMentionsHeadword("很 甜", "芒果", "zh-TW")).toBe(false);
+    expect(chunkMentionsHeadword("芒果 冰", "芒果", "zh-TW")).toBe(true);
+    const kept = refineUsageChunks(
+      [c("很", "甜"), c("芒果", "冰"), c("吃", "芒果")],
+      [],
+      "芒果",
+      "zh-TW",
+    );
+    expect(kept.map((k) => k.parts.map((p) => p.text).join(""))).toEqual(["芒果冰", "吃芒果"]);
+  });
+
+  it("英語: 規則的な語形変化は同じ語、短い語は丸ごと一致だけ", () => {
+    expect(chunkMentionsHeadword("very sweet", "mango", "en")).toBe(false);
+    expect(chunkMentionsHeadword("ripe mangoes", "mango", "en")).toBe(true);
+    expect(chunkMentionsHeadword("making friends", "make", "en")).toBe(true);
+    expect(chunkMentionsHeadword("carried it home", "carry", "en")).toBe(true);
+    expect(chunkMentionsHeadword("look it up", "look up", "en")).toBe(true);
+    expect(chunkMentionsHeadword("mankind", "man", "en")).toBe(false);
+  });
+
+  it("日本語: 活用しても語幹があればよい", () => {
+    expect(chunkMentionsHeadword("傘をさす", "傘", "ja")).toBe(true);
+    expect(chunkMentionsHeadword("ご飯を食べた", "食べる", "ja")).toBe(true);
+    expect(chunkMentionsHeadword("高くない", "高い", "ja")).toBe(true);
+    expect(chunkMentionsHeadword("とても甘い", "マンゴー", "ja")).toBe(false);
   });
 });

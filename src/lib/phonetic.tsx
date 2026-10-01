@@ -179,6 +179,8 @@ const READING_LABEL_KEYS: Record<ReadingKind, string> = {
   pinyin: "settings.pinyin",
   "ipa-us": "settings.ipaUs",
   "ipa-uk": "settings.ipaUk",
+  kana: "settings.kana",
+  romaji: "settings.romaji",
 };
 
 function browserStore(): ReadingStore | null {

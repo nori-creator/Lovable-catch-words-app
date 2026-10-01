@@ -1,7 +1,7 @@
 import { createContext, useContext } from "react";
 import { ArrowLeft, RotateCcw, ListRestart, LogIn } from "lucide-react";
 import { TARGET_LANG_LABEL_KEYS, UI_LANGS, UI_LANG_LABEL_KEYS, useT } from "@/lib/i18n";
-import { TARGET_LANGUAGES } from "@/lib/target-lang";
+import { webTargetChoices } from "@/lib/target-lang";
 import { normalizeReminderPrefs } from "@/lib/review-reminder";
 import type { FirstCatch } from "@/lib/first-catch";
 import {
@@ -79,7 +79,8 @@ export function TutorialSettings({
             onChange={(v) =>
               onChange({ ...draft, targetLanguage: v as FirstCatch["targetLanguage"] })
             }
-            options={TARGET_LANGUAGES.map((code) => ({
+            // 日本語は iOS が先(Web の選択肢には出さない。`WEB_TARGET_CHOICES` の注)。
+            options={webTargetChoices(draft.targetLanguage).map((code) => ({
               value: code,
               label: t(TARGET_LANG_LABEL_KEYS[code as FirstCatch["targetLanguage"]]),
             }))}

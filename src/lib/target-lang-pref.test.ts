@@ -42,7 +42,8 @@ describe("憶えて読む", () => {
   });
 
   it("知らない値は既定に落とす(未知の言語で辞書を引きに行かない)", () => {
-    for (const bad of [null, undefined, "", "  ", "kl-GL", "ja", "zh-CN"]) {
+    // `"ja"` は 2026-10-01 から学習言語(iOS が先)なので、知らない値の例から外した。
+    for (const bad of [null, undefined, "", "  ", "kl-GL", "ko", "zh-CN"]) {
       store.clear();
       setTargetLang(bad);
       expect(getTargetLang(), String(bad)).toBe(DEFAULT_TARGET_LANGUAGE);

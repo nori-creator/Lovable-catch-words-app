@@ -72,6 +72,50 @@ describe("realUsageLinks", () => {
     }
   });
 
+  /**
+   * 日本語(2026-10-01)。**日本の人が実際に使う所**へ飛ぶこと。札ごとに見る
+   * (上の台湾・英語と同じ理由 — まとめて見ると片方から消しても通る)。
+   */
+  const JA_EXPECT: Record<string, string> = {
+    yt: "gl=JP",
+    ygl: "youglish.com/pronounce/%E5%82%98/japanese",
+    x: "x.com/search?q=%E5%82%98&lang=ja",
+    chiebukuro: "chiebukuro.yahoo.co.jp/search?p=%E5%82%98",
+    news: "cr=countryJP",
+    weblio: "weblio.jp/content/%E5%82%98",
+    kotobank: "kotobank.jp/search?q=%E5%82%98",
+    jisho: "jisho.org/search/%E5%82%98",
+  };
+
+  it("**日本語のカードは日本に絞る**(札ごとに見る)", () => {
+    const links = realUsageLinks("傘", "ja");
+    for (const [id, want] of Object.entries(JA_EXPECT)) {
+      const l = links.find((x) => x.id === id);
+      expect(l, `${id} の札が無い`).toBeDefined();
+      expect(l!.href.includes(want), `${id}: ${l!.href} に ${want}`).toBe(true);
+    }
+    const yt = links.find((l) => l.id === "yt")!.href;
+    expect(yt).toContain("hl=ja");
+    const news = links.find((l) => l.id === "news")!.href;
+    for (const p of ["hl=ja", "gl=JP", "lr=lang_ja"]) expect(news).toContain(p);
+  });
+
+  it("**日本語のカードに台湾・英語圏の行き先が1つも無い**", () => {
+    for (const l of realUsageLinks("傘", "ja")) {
+      for (const bad of [...TW_HOSTS, ...TW_PARAMS, "gl=US", "/english/", "merriam-webster"]) {
+        expect(l.href.includes(bad), `${l.id}: ${l.href} に ${bad}`).toBe(false);
+      }
+    }
+  });
+
+  it("**goo辞書は使わない**(2025年に終わった。飛んだ先が空になる)", () => {
+    for (const lang of TARGET_LANGUAGES) {
+      for (const l of realUsageLinks("傘", lang)) {
+        expect(l.href.includes("goo.ne.jp"), `${lang}/${l.id}: ${l.href}`).toBe(false);
+      }
+    }
+  });
+
   it("英語はアメリカ英語に寄せる(オーナー決定 2026-08-24)", () => {
     const all = realUsageLinks("umbrella", "en")
       .map((l) => l.href)
@@ -132,6 +176,7 @@ describe("realUsageLinks", () => {
   const COUNTRY_WORDS: Record<string, string[]> = {
     en: ["台湾", "台灣", "Taiwan"],
     "zh-TW": ["英語圏", "英語圈", "English-speaking", "American English", "アメリカ英語"],
+    ja: ["台湾", "台灣", "Taiwan", "英語圏", "英語圈", "English-speaking", "American English"],
   };
 
   it("**札の名前に、その言語と合わない国の名前が入っていない**", () => {

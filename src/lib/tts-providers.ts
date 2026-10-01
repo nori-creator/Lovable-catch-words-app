@@ -56,6 +56,8 @@ export const TTS_PROVIDERS: TtsProviderInfo[] = [
     voices: {
       "zh-TW": ["zh-TW-HsiaoChenNeural", "zh-TW-YunJheNeural", "zh-TW-HsiaoYuNeural"],
       en: ["en-US-AvaMultilingualNeural", "en-US-AndrewMultilingualNeural", "en-US-JennyNeural"],
+      // 日本語(2026-10-01)。Microsoft の一覧にある ja-JP の声。
+      ja: ["ja-JP-NanamiNeural", "ja-JP-KeitaNeural", "ja-JP-AoiNeural"],
     },
     note: "台湾華語（zh-TW）専用の声がある。",
   },
@@ -295,13 +297,23 @@ export function azureSsml(text: string, voice: string, speed: number): string {
   );
 }
 
+/**
+ * 読み上げの会社に渡す言語の名前。台湾華語・英語はいままでどおり
+ * (`zh` で始まれば中国語、それ以外は英語)。日本語だけ自分の名前を渡す —
+ * 前の2分岐のままだと、日本語の語を「英語として読め」と頼むことになる。
+ */
+function providerLanguage(language: string, zh: string, other: string, ja: string): string {
+  if (language.startsWith("zh")) return zh;
+  return language === "ja" ? ja : other;
+}
+
 /** ElevenLabs で言語を固定できるのは Turbo / Flash v2.5 だけ（他は付けると断られる）。 */
 export function elevenLabsBody(text: string, model: string, speed: number, language: string) {
   const enforce = model === "eleven_flash_v2_5" || model === "eleven_turbo_v2_5";
   return {
     text,
     model_id: model,
-    ...(enforce ? { language_code: language.startsWith("zh") ? "zh" : "en" } : {}),
+    ...(enforce ? { language_code: providerLanguage(language, "zh", "en", "ja") } : {}),
     voice_settings: { speed: Math.min(1.2, Math.max(0.7, speed)) },
   };
 }
@@ -317,7 +329,7 @@ export function minimaxBody(
     model,
     text,
     stream: false,
-    language_boost: language.startsWith("zh") ? "Chinese" : "English",
+    language_boost: providerLanguage(language, "Chinese", "English", "Japanese"),
     voice_setting: { voice_id: voice, speed, vol: 1, pitch: 0 },
     audio_setting: { sample_rate: 32000, bitrate: 128000, format: "mp3", channel: 1 },
     output_format: "hex",

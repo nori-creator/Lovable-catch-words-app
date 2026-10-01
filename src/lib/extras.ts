@@ -108,6 +108,37 @@ export const WordFormsSchema = z.object({
 });
 export type WordForms = z.infer<typeof WordFormsSchema>;
 
+// --- 日本語のカードだけの欄の形(2026-10-01) ----------------------------------
+// 生成(`generateCard`)と作り直し(`regenerateCardSection`)の両方がここを使う。
+// 片方に欄を足して片方に足し忘れると、作った物が保存で黙って落ちる(冒頭の注)。
+
+/**
+ * 語の中の漢字1字ずつ。`on` は音読み(カタカナ)、`kun` は訓読み(ひらがな)。
+ * 無い読みは空文字。**かなだけの語は空配列**(節ごと出さない)。
+ */
+export const KanjiBreakdownSchema = z.object({
+  kanji: z.string(),
+  meaning: z.string().catch(""),
+  on: z.string().catch(""),
+  kun: z.string().catch(""),
+});
+export type KanjiBreakdown = z.infer<typeof KanjiBreakdownSchema>;
+
+/** 活用の1行。`form` は形の名前(読む人の言語)、`text` はその形の日本語。 */
+export const ConjugationRowSchema = z.object({
+  form: z.string().catch(""),
+  text: z.string(),
+});
+export type ConjugationRow = z.infer<typeof ConjugationRowSchema>;
+
+/** 助数詞の1行。`word` は数つき(「一本」)、`reading` はその読み、`note` は使い分け。 */
+export const CounterSchema = z.object({
+  word: z.string(),
+  reading: z.string().catch(""),
+  note: z.string().catch(""),
+});
+export type Counter = z.infer<typeof CounterSchema>;
+
 export const ExtrasSchema = z.object({
   // --- 旧フィールド(古いカードの表示互換のため保持) ---------------------
   collocations: z.array(z.string()).catch([]),
@@ -351,6 +382,28 @@ export const ExtrasSchema = z.object({
    * 米/英の違い(elevator / lift)、その語にまつわる習慣など。
    */
   culture_note: z.string().catch(""),
+  // --- 日本語のカードだけの欄 ----------------------------------------------
+  // 台湾華語・英語のカードには出ない(`target-profile.ts` の `sections` が決める)。
+  /**
+   * 語の中の漢字1字ずつの意味と音訓。日本語の漢字は1字に読みが複数あり、
+   * 語ごとにどれを使うかが決まる(生活=せい / 生まれる=う / 生ビール=なま)。
+   */
+  kanji_breakdown: z.array(KanjiBreakdownSchema).catch([]),
+  /**
+   * 高低アクセント(東京式)の説明。型の名前(平板・頭高・中高・尾高)と、
+   * 高さの並び(例: は↘し)と、同じ音で型の違う語があればその対比。
+   */
+  pitch_accent: z.string().catch(""),
+  /** 活用(動詞・い形容詞・な形容詞)。**名詞は空配列**。 */
+  conjugation: z.array(ConjugationRowSchema).catch([]),
+  /** 敬語・丁寧さ(くだけた / 丁寧 / 尊敬・謙譲の言い換えと、使う相手)。 */
+  politeness: z.string().catch(""),
+  /** その名詞を数える助数詞。名詞でなければ空配列。 */
+  counters: z.array(CounterSchema).catch([]),
+  /** 語種(和語・漢語・外来語・混種語)と、それが硬さ・場面にどう効くか。 */
+  word_origin: z.string().catch(""),
+  /** 日本ならではの一言。台湾華語の `taiwan_note`・英語の `culture_note` にあたる欄。 */
+  japan_note: z.string().catch(""),
   /**
    * この解説を**どの言語で書いたか**("ja" / "en")。
    * 設定の表示言語を英語に変えたとき、日本語のまま残った古い解説を
@@ -459,6 +512,14 @@ export const MAX_CHUNK_CHARS = 8;
  */
 export const MAX_CHUNK_WORDS_EN = 4;
 export const MAX_CHUNK_CHARS_EN = 28;
+/**
+ * **日本語の型の長さの上限(文字数)。**
+ *
+ * 日本語は助詞を型の中に必ず入れる(「傘をさす」)うえ、カタカナ語が長い
+ * (「ハンバーガーを食べる」10字)。台湾華語の 8 を当てると、英語で起きた
+ * 「生成はされているのに全部落ちる」が日本語で起きる。指示文の「12文字以内」と揃える。
+ */
+export const MAX_CHUNK_CHARS_JA = 12;
 /** 型1つのパーツ数の上限。 */
 export const MAX_CHUNK_PARTS = 4;
 /** カードに並べる型の数の上限。 */
@@ -488,6 +549,54 @@ function countWords(text: string): number {
 }
 
 /**
+ * 型の中に学ぶ語が入っているか（iOS `LanguageRules.mentionsHeadword` と同じ判定）。
+ *
+ * - 台湾華語：見出し語の文字列がそのまま入っている
+ * - 日本語：見出し語、または送り仮名を除いた語幹（食べる→食べた、高い→高くない）
+ * - 英語：見出し語の各語が、そのままか規則的な語形変化で入っている
+ *   （mango→mangoes、make→making、carry→carried）。3文字以下の語は丸ごと一致だけ
+ *   （mankind は man の形ではない）
+ */
+export function chunkMentionsHeadword(
+  text: string,
+  headword: string,
+  language?: string | null,
+): boolean {
+  const core = (s: string) =>
+    s
+      .replace(/[（(【〔[][^）)】〕\]]*[）)】〕\]]/gu, "")
+      .replace(/[\s\p{P}'’‘\-‐–—・·.,、。]/gu, "");
+  const head = core(headword);
+  if (!head) return true;
+  const lang = normalizeTargetLanguage(language);
+  if (lang === "en") {
+    const words = text
+      .toLowerCase()
+      .split(/[^\p{L}']+/u)
+      .filter(Boolean);
+    const heads = headword
+      .toLowerCase()
+      .split(/[^\p{L}]+/u)
+      .filter(Boolean);
+    if (heads.length === 0) return true;
+    return heads.every((h) => {
+      let stem = h;
+      if (stem.length >= 4 && /[ey]$/.test(stem)) stem = stem.slice(0, -1);
+      return words.some((w) => w === h || (h.length >= 4 && w.startsWith(stem)));
+    });
+  }
+  const t = core(text);
+  if (t.includes(head)) return true;
+  if (lang === "ja") {
+    let stem = head;
+    if (/\p{Script=Han}/u.test(head)) stem = head.replace(/[\u3041-\u309F]+$/u, "");
+    else if ([...head].length >= 3) stem = [...head].slice(0, -1).join("");
+    return stem.length > 0 && t.includes(stem);
+  }
+  return false;
+}
+
+/**
  * 使い方の型を**厳選する**(オーナー指摘 2026-08-21)。
  *
  * > 「チャンク、型の精度が低い、適当になってる。ネイティブが最も高い確率で
@@ -497,7 +606,7 @@ function countWords(text: string): number {
  * プロンプトでも頼むが、**返ってきた物のほうを見て落とす**。この app は
  * 「書いてあることと返ってくる物は別」を何度も踏んでいる。
  *
- * 落とすのは6つ:
+ * 落とすのは7つ:
  * 0. **どの名詞にも付く汎用の組み合わせ**(`generic-chunks.ts`) —
  *    「買{語}」「喜歡{語}」はその語について何も教えていない
  *    (オーナー指示 2026-08-28 ③)
@@ -507,6 +616,11 @@ function countWords(text: string): number {
  * 3. **文になっている型**(句点・感嘆符・疑問符が入っている)
  * 4. 見出し語しか無い型(情報が0)
  * 5. 同じ文字列の重複
+ * 6. **学ぶ語が入っていない型**(オーナー報告 2026-10-01「チャンクに学ぶべき単語の芒果がない」)
+ *    — 「芒果」の型に「很+甜」だけが来た。型は「その語をどう使うか」なので、
+ *    語そのもの（日本語・英語は活用形も可）が入っていない物は型ではない
+ * 7. **1語を分けただけの型**(オーナー指示 2026-10-01「芒果冰のようにひとかたまりとして普段
+ *    扱われるものはチャンクを分けなくていい」) — 芒果＋冰 は 芒果冰 という1語
  *
  * そのうえで**先頭5つ**に切る。生成側は「使用頻度の高い順」に並べるので、
  * 切るのは後ろから。
@@ -524,6 +638,7 @@ export function refineUsageChunks(
   const head = headword.trim();
   const seen = new Set<string>();
   const isEnglish = normalizeTargetLanguage(language) === "en";
+  const maxChars = chunkCharLimit(language);
   return withoutGenericChunks(
     withoutMeasureWords(chunks, measureWords, headword),
     headword,
@@ -541,11 +656,16 @@ export function refineUsageChunks(
         // 英語は**語の数**で測る（文字数だと `put on socks` すら落ちる）。
         if (countWords(text) > MAX_CHUNK_WORDS_EN) return false;
         if (text.length > MAX_CHUNK_CHARS_EN) return false;
-      } else if (text.length > MAX_CHUNK_CHARS) {
+      } else if (text.length > maxChars) {
         return false;
       }
       // 見出し語だけの型は、その語を見れば分かることしか言っていない。
       if (text === head) return false;
+      // 分けた1語（芒果＋冰 → 芒果冰）は使い方ではない（チャンクの表示ルール C7）。
+      // もともと札1つで保存された古い型は落とさない（合わせて1つになった物だけ）。
+      if (parts.length >= 2 && tidyUsageParts(parts, language, { headword: head }).length < 2)
+        return false;
+      if (!chunkMentionsHeadword(chunkText(c, " "), head, language)) return false;
       if (seen.has(text)) return false;
       seen.add(text);
       return true;
@@ -595,6 +715,11 @@ export function withoutMeasureWords(
   });
 }
 
+/** 文字数で測る言語(台湾華語・日本語)の型の上限。 */
+function chunkCharLimit(language: string | null | undefined): number {
+  return normalizeTargetLanguage(language) === "ja" ? MAX_CHUNK_CHARS_JA : MAX_CHUNK_CHARS;
+}
+
 /**
  * 文末の約物。**これが入っていたら型ではなく文**(オーナー指摘 2026-08-27 ②)。
  *
@@ -620,6 +745,7 @@ export function usableCollocations(
   language?: string | null,
 ): string[] {
   const isEnglish = normalizeTargetLanguage(language) === "en";
+  const maxChars = chunkCharLimit(language);
   const seen = new Set<string>();
   const out: string[] = [];
   for (const raw of collocations ?? []) {
@@ -628,7 +754,7 @@ export function usableCollocations(
     if (SENTENCE_END.test(text)) continue;
     if (isEnglish) {
       if (countWords(text) > MAX_CHUNK_WORDS_EN || text.length > MAX_CHUNK_CHARS_EN) continue;
-    } else if (text.length > MAX_CHUNK_CHARS) {
+    } else if (text.length > maxChars) {
       continue;
     }
     seen.add(text);

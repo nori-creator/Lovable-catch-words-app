@@ -28,6 +28,14 @@ export const OPTIONAL_EXTRA_KEYS: Partial<Record<SectionId, readonly string[]>> 
   culture_note: ["culture_note"],
   etymology: ["etymology", "etymology_relatives", "radicals"],
   mnemonic: ["mnemonic"],
+  // 日本語のカードの節(2026-10-01)。既定では見えない物もあるので、見えない節は頼まない。
+  kanji_breakdown: ["kanji_breakdown"],
+  pitch_accent: ["pitch_accent"],
+  conjugation: ["conjugation"],
+  politeness: ["politeness"],
+  counters: ["counters"],
+  word_origin: ["word_origin"],
+  japan_note: ["japan_note"],
 };
 
 /** その節の欄を書かせるか。`sections` が無ければ（古い呼び出し）全部書かせる。 */

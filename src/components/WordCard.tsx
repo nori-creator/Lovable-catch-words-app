@@ -74,7 +74,7 @@ import {
   type SectionId,
 } from "@/lib/card-sections";
 import { CARD_PREF_EVENT, CARD_PREF_KEY, readCardPrefs, type CardPrefs } from "@/lib/card-prefs";
-import { DEFAULT_TARGET_LANGUAGE, TARGET_LANGUAGES } from "@/lib/target-lang";
+import { DEFAULT_TARGET_LANGUAGE, WEB_TARGET_CHOICES } from "@/lib/target-lang";
 import {
   LONG_PRESS_MS,
   LONG_PRESS_SLOP_PX,
@@ -143,7 +143,9 @@ export type WordCardData = {
  */
 const ALL_SECTIONS: { id: SectionId }[] = (() => {
   const base = [...sectionsFor(DEFAULT_TARGET_LANGUAGE)];
-  for (const other of TARGET_LANGUAGES) {
+  // **Web で選べる言語だけ**を畳む(2026-10-01)。日本語の節(漢字の内訳など)は
+  // iOS 版が先に描くので、Web の並べ替えの一覧にはまだ出さない。
+  for (const other of WEB_TARGET_CHOICES) {
     const list = sectionsFor(other);
     let at = -1;
     for (const id of list) {
