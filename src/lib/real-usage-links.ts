@@ -51,6 +51,80 @@ export function realUsageLinks(
   const q = encodeURIComponent(headword);
   const lang = normalizeTargetLanguage(targetLanguage);
 
+  if (lang === "ja") {
+    // 日本語(2026-10-01)。**日本の人が実際に使う所**へ飛ばす。台湾・英語圏と
+    // 同じ役の札を、日本で同じ役をしている場所に置き換える:
+    //   動画 → YouTube(日本に絞る) / 発音 → YouGlish の日本語 /
+    //   短文 → X(日本でいちばん短文が流れている所) / 普通の人の文 → Yahoo!知恵袋 /
+    //   検索 → 日本の日本語の頁に絞った Google / 辞書 → Weblio・コトバンク・Jisho。
+    // goo辞書は 2025年に終わったので使わない(飛んだ先が空になる)。
+    return [
+      {
+        id: "yt",
+        emoji: "\u{1F3AC}",
+        labelKey: "card.ytLabel",
+        hintKey: "card.ytHintJa",
+        href: `https://www.youtube.com/results?search_query=${q}&sp=EgIQAQ%253D%253D&gl=JP&hl=ja`,
+      },
+      {
+        id: "ygl",
+        emoji: "\u{1F5E3}\u{FE0F}",
+        labelKey: "card.yglLabel",
+        hintKey: "card.yglHintJa",
+        href: `https://youglish.com/pronounce/${q}/japanese`,
+      },
+      {
+        id: "x",
+        emoji: "\u{1F4AC}",
+        // Dcard / Reddit にあたる所。日本ではいま短文がいちばん流れている。
+        labelKey: "card.xLabel",
+        hintKey: "card.xHint",
+        href: `https://x.com/search?q=${q}&lang=ja`,
+      },
+      {
+        id: "chiebukuro",
+        emoji: "\u{1F64B}",
+        // 普通の人が質問と答えを書く場所。「この言い方は失礼?」のような、
+        // 辞書に載らない使い分けの話がそのまま読める。
+        labelKey: "card.chiebukuroLabel",
+        hintKey: "card.chiebukuroHint",
+        href: `https://chiebukuro.yahoo.co.jp/search?p=${q}`,
+      },
+      {
+        id: "news",
+        emoji: "\u{1F4F0}",
+        // **名前も日本版にする**(英語で踏んだ「名前を使い回して台湾と出る」の再発を防ぐ)。
+        labelKey: "card.newsLabelJa",
+        hintKey: "card.newsHintJa",
+        href: `https://www.google.com/search?q=${q}&hl=ja&gl=JP&cr=countryJP&lr=lang_ja`,
+      },
+      {
+        id: "weblio",
+        emoji: "\u{1F4D6}",
+        // 国語辞典・類語・用例をまとめて引ける、日本で広く使われている辞書。
+        labelKey: "card.weblioLabel",
+        hintKey: "card.weblioHint",
+        href: `https://www.weblio.jp/content/${q}`,
+      },
+      {
+        id: "kotobank",
+        emoji: "\u{1F4DA}",
+        // 複数の辞書・事典(デジタル大辞泉・日本大百科全書など)を横に並べて読める。
+        labelKey: "card.kotobankLabel",
+        hintKey: "card.kotobankHint",
+        href: `https://kotobank.jp/search?q=${q}`,
+      },
+      {
+        id: "jisho",
+        emoji: "\u{1F524}",
+        // 学習者向け。英語の語釈・漢字の音訓・JLPT の目安が1つの頁に出る。
+        labelKey: "card.jishoLabel",
+        hintKey: "card.jishoHint",
+        href: `https://jisho.org/search/${q}`,
+      },
+    ];
+  }
+
   if (lang === "en") {
     return [
       {

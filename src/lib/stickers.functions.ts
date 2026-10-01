@@ -827,6 +827,8 @@ export async function upsertWord(
       word.headword,
       word.meaning_ja,
       categoryKey,
+      // 学習言語を渡す(誤答の指示文で「◯◯の単語」と呼ぶため。2026-10-01)。
+      language,
     ).catch(() => {});
   } else if (word.extras && hasExtrasContent(word.extras)) {
     // Update extras for an existing word when the AI generated rich ones.

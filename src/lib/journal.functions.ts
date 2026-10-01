@@ -15,7 +15,9 @@ import {
   l1Rule,
   isProUser,
   logUsage,
+  getUserTargetLanguage,
 } from "./ai-provider.server";
+import { targetProfile } from "./target-profile";
 
 export type NativePhrase = { zh: string; ja: string; note: string };
 
@@ -152,18 +154,21 @@ export const correctMyJournal = createServerFn({ method: "POST" })
     const NL = explanationLanguageName(await getExplanationLanguage(userId));
     // 日記の間違い方も母語で決まる(SOVの語順、冠詞、動詞活用…)。
     const l1 = await l1Rule(userId, "grammar");
+    // 添削者の言語・字・ネイティブの呼び名は学習言語の表から(`coach`)。
+    // 台湾華語の値はいままでの文そのもの。
+    const coach = targetProfile(await getUserTargetLanguage(userId)).coach;
     const corrected = await generateStructured({
       model: ai.gateway(richModel),
       schema: Schema,
       prompt:
-        `あなたは台湾華語(繁體字)のネイティブ作文添削者。学習者が今日の日記を書いてくれました。\n` +
+        `あなたは${coach.journalLanguage}のネイティブ作文添削者。学習者が今日の日記を書いてくれました。\n` +
         `${langRule}\n${levelRule}\n${l1}\n` +
         `今日のキャプチャ参考:\n${describeCaptures(stickers)}\n\n` +
         `学習者の文章:\n"""\n${data.draft}\n"""\n\n` +
         `次を出力:\n` +
-        `- correction: 自然な台湾華語(繁體字)に直した完全版。意図はできるだけ尊重。\n` +
+        `- correction: 自然な${coach.journalLanguage}に直した完全版。意図はできるだけ尊重。\n` +
         `- feedback_ja: どこをなぜ直したかに加え、この日記で使った(または使うべきだった)文型・語順の「型」を${NL}で3〜5項目、優しく解説。\n` +
-        `- native_phrases: 学習者が言いたかった気持ちを、台湾のネイティブが実際の会話で使う自然なフレーズ・チャンクで2〜3個。各要素は zh(繁體字フレーズ)、ja(訳・${NL})、note(いつ・どんな気持ちで使うか、よく一緒に使う語)。`,
+        `- native_phrases: 学習者が言いたかった気持ちを、${coach.journalNatives}が実際の会話で使う自然なフレーズ・チャンクで2〜3個。各要素は zh(${coach.journalScript}フレーズ)、ja(訳・${NL})、note(いつ・どんな気持ちで使うか、よく一緒に使う語)。`,
     });
 
     const baseRow = {
@@ -337,6 +342,7 @@ export const getJournalPrompts = createServerFn({ method: "GET" })
     // 解説が日本語で作られる。`ai-provider.server.ts` の注と同じ話）。
     const NL = explanationLanguageName(await getExplanationLanguage(userId));
     const l1 = await l1Rule(userId, "grammar");
+    const coach = targetProfile(await getUserTargetLanguage(userId)).coach;
 
     // 参照を **番号で** 返させる。見出し語で返させると、同じ語を2回撮った日に
     // どちらの1枚か決まらない。番号なら1対1で戻せる。
@@ -372,7 +378,7 @@ export const getJournalPrompts = createServerFn({ method: "GET" })
       model: ai.gateway(ai.modelRich),
       schema: Schema,
       prompt:
-        `あなたは台湾華語(繁體字)の先生。学習者がこれから今日の日記を書きます。\n` +
+        `あなたは${coach.journalLanguage}の先生。学習者がこれから今日の日記を書きます。\n` +
         `白紙から書くのは難しいので、**書き出しのきっかけになる質問**を作ってください。\n` +
         `${langRule}\n${levelRule}\n${l1}\n\n` +
         `今日この人が撮ったもの:\n${list}\n\n` +
@@ -380,8 +386,8 @@ export const getJournalPrompts = createServerFn({ method: "GET" })
         `- prompts: 質問を3つ。**必ず上の撮影のどれかに結びつける**(capture にその番号)。\n` +
         `  一般論の質問(「今日は何をしましたか」)は禁止。その人の**気持ち・思い出・` +
         `そのとき考えたこと**を引き出す質問にする。一言が書いてあるものは、その気持ちを深める。\n` +
-        `  question_zh は学習者のレベルで読める短い繁體字の質問。question_ja はその訳(${NL})。\n` +
-        `- patterns: その質問に答えるときに使える文型を2〜3個。zh は「我今天在…」のような` +
+        `  question_zh は学習者のレベルで読める短い${coach.journalScript}の質問。question_ja はその訳(${NL})。\n` +
+        `- patterns: その質問に答えるときに使える文型を2〜3個。zh は${coach.journalOpener}のような` +
         `**書き出しの形**(穴埋めできる形)、ja はどんなときに使うかの一言(${NL})。`,
     });
 

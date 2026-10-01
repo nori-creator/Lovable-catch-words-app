@@ -261,6 +261,14 @@ describe("missingSections", () => {
         stress: { syllables: ["um", "brel", "la"], primary: 1 },
         phrasal_verbs: [{ phrase: "put up", meaning: "さす", example: "" }],
         culture_note: "英では brolly",
+        // 日本語のカードの節も埋める(2026-10-01)。理由は英語と同じ。
+        kanji_breakdown: [{ kanji: "傘", meaning: "umbrella", on: "サン", kun: "かさ" }],
+        pitch_accent: "頭高型(か↘さ)",
+        conjugation: [{ form: "dictionary", text: "さす" }],
+        politeness: "neutral",
+        counters: [{ word: "一本", reading: "いっぽん", note: "long objects" }],
+        word_origin: "和語",
+        japan_note: "コンビニのビニール傘",
       }),
     });
     expect(missingSections([...SECTION_IDS], full)).toEqual([]);

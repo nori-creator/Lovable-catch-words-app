@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   EN_PROFILE,
+  JA_PROFILE,
   ZH_TW_PROFILE,
   defaultReading,
   hasSection,
@@ -207,7 +208,11 @@ describe("いまの画面と食い違っていない", () => {
   });
 
   it("**`SECTION_IDS` に、どちらからも参照されない項目が無い**(死んだ節を作らない)", () => {
-    const used = new Set([...ZH_TW_PROFILE.sections, ...EN_PROFILE.sections]);
+    const used = new Set([
+      ...ZH_TW_PROFILE.sections,
+      ...EN_PROFILE.sections,
+      ...JA_PROFILE.sections,
+    ]);
     for (const id of SECTION_IDS) expect([...used], id).toContain(id);
   });
 });

@@ -115,6 +115,36 @@ export const CEFR_SCALE: LevelScale = {
 };
 
 /**
+ * 日本語: 日本語能力試験(JLPT)。2026-10-01 に日本語を学習言語に足したとき入れた。
+ *
+ * ## 5級しか無いのに6段に載せる
+ * JLPT は N5(易)〜N1(難)の**5段**で、TOCFL / CEFR の6段と数が合わない。
+ * 段の絵・級の読み替え(`restoreLevel`)・生成の指示は全部「6段」を前提に
+ * しているので、目盛りの形のほうを変えると、その全部を直すことになる。
+ *
+ * そこで **N5→1段 … N1→5段**と易しい順に並べ、6段目を「N1+」
+ * (N1 を超える語 — 論説・専門書・文学で出る語)にした。CEFR の C2 が
+ * 「母語話者に近い」段なのと同じ位置づけで、**作り話の級ではない**ことを
+ * 名前に `+` を付けて見せる。
+ *
+ * ## 数字の向きが逆
+ * JLPT は**数字が小さいほど難しい**。保存の形を `JLPT-N5` にしても、
+ * `parseLevelStep` が数字だけを拾うと N5 が5段目(上級)になる。
+ * だから `parseLevelStep` に `N` 付きの綴りを先に読む道を足してある。
+ */
+export const JLPT_SCALE: LevelScale = {
+  id: "JLPT",
+  labels: ["N5", "N4", "N3", "N2", "N1", "N1+"],
+  toStored: (i) => `JLPT-${JLPT_SCALE.labels[i - 1]}`,
+  // `N` が付かず数字が 6段の外。**級外として読み返せる**(CEFR-0 と同じ形)。
+  outStored: "JLPT-0",
+  levelInBandKey: "jlpt.levelInBand",
+  outKey: "jlpt.out",
+  // 慣習どおり `JLPT N3`。`Level` は付けない。
+  optionLabel: (label) => `JLPT ${label}`,
+};
+
+/**
  * 保存されている値から段を読む。
  *
  * TOCFL は数字を拾う。CEFR は `A1`〜`C2` の綴りを拾う。
@@ -131,6 +161,15 @@ export function parseLevelStep(raw: string | number | null | undefined): LevelSt
   if (raw == null) return null;
   const s = String(raw).trim();
   if (!s) return null;
+  // **JLPT の綴りをいちばん先に見る。** `JLPT-N5` の数字だけを拾うと
+  // 5段目(上級)になる — JLPT は数字が小さいほど難しい。`N1+` は
+  // 6段目(N1 を超える語)。TOCFL / CEFR の保存形に `N`+数字は無いので、
+  // ここを先に置いても既存の値の読み方は1つも変わらない。
+  const jlpt = s.toUpperCase().match(/(?:^|[^A-Z])N([1-5])(\+?)(?![0-9])/);
+  if (jlpt) {
+    if (jlpt[1] === "1" && jlpt[2] === "+") return 6;
+    return (6 - Number(jlpt[1])) as LevelIndex;
+  }
   // CEFR の綴りを先に見る。"A1" は数字も持っているので、数字から先に
   // 読むと 1 級と取り違える。
   const cefr = s.toUpperCase().match(/\b([ABC])([12])\b/);

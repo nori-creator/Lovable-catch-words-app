@@ -11,6 +11,7 @@ import { ChevronDown } from "lucide-react";
 import { chunkStyle, chunkLegendFor } from "@/lib/pos";
 import { usePrefetchSpeech, usePronounce } from "@/lib/use-pronounce";
 import { normalizeTargetLanguage } from "@/lib/target-lang";
+import { useUiLang } from "@/lib/i18n";
 import { Term } from "@/components/Term";
 import { PronounceButton } from "@/components/PronounceButton";
 import type { ChunkPart } from "@/lib/extras";
@@ -96,7 +97,7 @@ export function ChunkPills({
         const target = isFixed(c.text);
         // 点線は**入れ替えられる具体物**（名詞・量詞で、ほかの語が在る所）だけ
         // （R17「加熱が点線になってる。点線は…入れ替え可能な具体的なもの」）。
-        const slotLike = isSwappableSlot(c) && !target;
+        const slotLike = isSwappableSlot(c, lang) && !target;
         const swappable = !!onSlot && slotLike;
         const body = swappable ? (
           <>
@@ -218,8 +219,13 @@ export function ChunkLine({
   onSpeak?: (text: string) => void;
 }) {
   const pronounce = usePronounce(lang ?? undefined);
-  // ネイティブが言う形に正してから描く（「滷味＋入味」→「滷味＋很＋入味」、`chunk-grammar.ts`）。
-  const parts = useMemo(() => tidyUsageParts(rawParts, lang), [rawParts, lang]);
+  const reader = useUiLang();
+  // ネイティブが言う形に正してから描く（「滷味＋入味」→「滷味＋很＋入味」、1語は1つの四角、
+  // 程度の語は入れ替えられる札 — `chunk-grammar.ts`、チャンクの表示ルール C5/C7/C8）。
+  const parts = useMemo(
+    () => tidyUsageParts(rawParts, lang, { headword, reader }),
+    [rawParts, lang, headword, reader],
+  );
   /**
    * **入れ替える所の語を選ぶ**（オーナー指示 2026-09-27「汎用部分（人・もの）は
    * タップすると、ネイティブ頻出の具体的単語が出る（跟+男朋友+吵架 → 女朋友・

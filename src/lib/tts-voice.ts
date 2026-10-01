@@ -62,6 +62,15 @@ const VOICES: Record<string, TtsVoice> = {
       "Speak naturally in American English (en-US) with a warm, friendly tone. " +
       "Use a standard General American accent at a clear, unhurried pace.",
   },
+  // 日本語(2026-10-01)。東京の標準語のアクセントで読む — 高低アクセントの節と
+  // 同じ型で聞こえないと、カードの説明と音が食い違う。
+  ja: {
+    googleLanguageCode: "ja-JP",
+    googleVoice: "ja-JP-Wavenet-B",
+    instructions:
+      "Speak naturally in standard Japanese (ja-JP) with a warm, friendly tone. " +
+      "Use the standard Tokyo pitch accent at a clear, unhurried pace.",
+  },
 };
 
 /**

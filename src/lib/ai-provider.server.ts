@@ -681,8 +681,15 @@ export async function l1Rule(
   userId: string,
   kind: import("./l1").L1RuleKind = "both",
 ): Promise<string> {
-  const [info, { formatL1Rule }] = await Promise.all([getLearnerL1(userId), import("./l1")]);
-  return formatL1Rule(info, kind);
+  const [info, { formatL1Rule, hasL1ContentFor }, target] = await Promise.all([
+    getLearnerL1(userId),
+    import("./l1"),
+    getUserTargetLanguage(userId),
+  ]);
+  // **母語ごとの干渉の本文を持つ学習言語(日本語)のときだけ**学習言語を渡す。
+  // 台湾華語は既定のまま、英語はまだ英語用の本文が無いので今回は触らない
+  // (渡すと見出しだけ英語向けになり、本文は華語のつまずきのまま、という形になる)。
+  return formatL1Rule(info, kind, hasL1ContentFor(target) ? target : undefined);
 }
 
 /**
@@ -707,16 +714,25 @@ export async function explanationLanguageRule(
   userId: string,
   targetLanguage?: string | null,
 ): Promise<string> {
-  const [lang, { targetProfile }] = await Promise.all([
+  // **呼ぶ側が学習言語を渡さないときは、その人の学習言語を読む**(2026-10-01)。
+  // 前は既定(台湾華語)に落ちていたので、日本語を学ぶ人に「台湾華語の見出し語は
+  // そのまま」と言うことになっていた。呼ぶ所が多いので、ここで1回読む。
+  const [lang, { targetProfile }, stored] = await Promise.all([
     getExplanationLanguage(userId),
     import("./target-profile"),
+    targetLanguage === undefined ? getUserTargetLanguage(userId) : Promise.resolve(targetLanguage),
   ]);
-  const target = targetProfile(targetLanguage).promptName;
+  const profile = targetProfile(stored);
+  const target = profile.promptName;
   if (lang === "en") {
     return (
       `**Write every explanation, meaning, translation and note in English.** ` +
       `Only the ${target} headwords, example sentences and readings stay in that language. ` +
-      `Do not write any Japanese.`
+      // 日本語を学ぶ人に「日本語を書くな」とは言えない(見出し語も例文も日本語)。
+      // 言うのは**解説を日本語で書くな**ということ。
+      (profile.scriptLang === "ja"
+        ? `Do not write any explanation in Japanese.`
+        : `Do not write any Japanese.`)
     );
   }
   const name = explanationLanguageName(lang);
@@ -747,6 +763,9 @@ export async function levelInstruction(userId: string): Promise<string> {
   const AUTHORITY: Record<string, string> = {
     TOCFL: "台湾教育部の語彙表・TOCFL公式語彙表",
     CEFR: "CEFR-J Wordlist(投野由紀夫研究室)",
+    // JLPT は2010年から公式の語彙表を出していない。旧出題基準と、それに沿った
+    // 一般の語彙リストを挙げる(無い物を「公式の表」と呼ばない)。
+    JLPT: "日本語能力試験(JLPT)の旧出題基準の語彙表とそれに沿った級別語彙リスト",
   };
   return levelRuleText(
     profile.levels,

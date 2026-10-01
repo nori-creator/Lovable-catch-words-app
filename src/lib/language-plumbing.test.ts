@@ -4009,7 +4009,7 @@ describe("N. 下のタブ帯と、札を開く動き", () => {
     expect(pills).toMatch(/className="chunk-plus"/);
     expect(pills).toMatch(/chunk-slot/);
     // 学ぶ語は入れ替えさせない（R14）。
-    expect(pills).toMatch(/const slotLike = isSwappableSlot\(c\) && !target;/);
+    expect(pills).toMatch(/const slotLike = isSwappableSlot\(c, lang\) && !target;/);
     const css = read("styles.css");
     const boxes = css.slice(css.indexOf(".chunk-set--boxes {"));
     const block = boxes.slice(0, boxes.indexOf("}"));

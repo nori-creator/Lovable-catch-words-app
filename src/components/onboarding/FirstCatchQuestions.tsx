@@ -11,7 +11,7 @@ import {
   Ellipsis,
 } from "lucide-react";
 import { UI_LANGS, UI_LANG_LABEL_KEYS, TARGET_LANG_LABEL_KEYS, useT } from "@/lib/i18n";
-import { TARGET_LANGUAGES } from "@/lib/target-lang";
+import { WEB_TARGET_CHOICES } from "@/lib/target-lang";
 import { FIRST_CATCH_GOALS, FIRST_CATCH_INTERESTS, type FirstCatch } from "@/lib/first-catch";
 import type { ReactNode } from "react";
 import { AlbumPrint } from "@/components/AlbumPrint";
@@ -88,7 +88,7 @@ export function FirstCatchQuestions({
         </div>
         {step < 2 && (
           <div className="first-choices" role="radiogroup" aria-label={t(`first.${title}`)}>
-            {(step === 0 ? UI_LANGS : TARGET_LANGUAGES).map((value) => {
+            {(step === 0 ? UI_LANGS : WEB_TARGET_CHOICES).map((value) => {
               const checked = (step === 0 ? draft.uiLanguage : draft.targetLanguage) === value;
               const label = t(
                 step === 0

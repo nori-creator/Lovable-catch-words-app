@@ -44,6 +44,9 @@ export const LIGHT_WORDS: Record<string, readonly string[]> = {
   // get / take / make / bring は句動詞やコロケーションの核になるので入れない
   // (`take a photo` `get a haircut` は落としてはいけない型)。
   en: ["buy", "sell", "have", "has", "want", "wants", "like", "likes", "love", "hate", "need"],
+  // 日本語(2026-10-01)。「買う」「好き」だけを足した型はその語について何も教えない。
+  // 「使う」「持つ」は入れない — 「傘を持つ」「箸を使う」は相手の決まった型になり得る。
+  ja: ["買う", "売る", "ある", "ない", "欲しい", "好き", "嫌い", "大好き", "いる", "要る"],
 };
 
 /**
@@ -98,6 +101,26 @@ export const FRAME_WORDS: Record<string, readonly string[]> = {
     "it",
     "to",
     "of",
+  ],
+  // 日本語の骨組み(助詞・人称・指示語・です/だ)。どの型にも付きうる。
+  ja: [
+    "を",
+    "が",
+    "は",
+    "に",
+    "で",
+    "の",
+    "も",
+    "と",
+    "へ",
+    "私",
+    "僕",
+    "あなた",
+    "この",
+    "その",
+    "あの",
+    "です",
+    "だ",
   ],
 };
 

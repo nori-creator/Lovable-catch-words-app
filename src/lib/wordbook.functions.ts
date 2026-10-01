@@ -3,7 +3,13 @@ import { internalFailure } from "./safe-error";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { generateText } from "ai";
 import { z } from "zod";
-import { assertWithinDailyCap, getAiFor, logUsage } from "./ai-provider.server";
+import {
+  assertWithinDailyCap,
+  getAiFor,
+  getUserTargetLanguage,
+  logUsage,
+} from "./ai-provider.server";
+import { targetProfile, type WordbookPhrases } from "./target-profile";
 import { nextSrs } from "./srs";
 import {
   cleanWordbookEntries,
@@ -56,20 +62,26 @@ const ExtractSchema = z.object({
     .catch([]),
 });
 
-const EXTRACT_PROMPT = `あなたは台湾華語(zh-TW / 繁体字 / 注音)の学習アプリの、単語帳読み取りエンジンです。
+/**
+ * 読み取りの指示文。**学習言語に付いていく**(オーナー方針 2026-10-01)。
+ * 前は台湾華語に決め打ちで、英語・日本語の単語帳を撮っても繁体字に直そうとしていた。
+ * 言語で変わる所だけを `target-profile.ts` の `wordbook` から入れる。
+ */
+const extractPrompt = (
+  wb: WordbookPhrases,
+) => `あなたは${wb.engineLabel}の学習アプリの、単語帳読み取りエンジンです。
 入力画像は**単語帳・教科書の語彙ページ・自作の単語リスト**です。そこに並んでいる語を読み取ってください。
 
 厳守ルール:
 - 出力は下記の JSON オブジェクト1つだけ。前置き・後書き・コードフェンス禁止。
 - **写っている語だけを返す。足さない。** 関連語や思いついた語を混ぜない。
-- 台湾教育部準拠の繁体字で返す。簡体字で書かれていれば繁体字に直す。
-- 注音・拼音・意味が**その頁に書かれていればそれを写す**。書かれていなければ、
-  その語の正しい読みと意味を補ってよい(読みと意味は補ってよい唯一の項目)。
+- ${wb.scriptLine}
+- ${wb.readingLine}
 - ページ番号・単元番号・記号だけの行、欧文だけの見出しは語ではないので返さない。
 - 語は**ページに並んでいる順**で返す。
 - 多くても${MAX_ENTRIES_PER_PHOTO}語まで。
 
-{"title":"単元名や級(読めなければ空文字)","entries":[{"headword":"繁体字","reading_zhuyin":"注音","pinyin":"拼音","meaning_ja":"意味"}]}`;
+{"title":"単元名や級(読めなければ空文字)","entries":[{${wb.sample},"meaning_ja":"意味"}]}`;
 
 export type WordbookDraft = {
   title: string;
@@ -87,6 +99,11 @@ export const extractWordbook = createServerFn({ method: "POST" })
     const { supabase, userId } = context;
     await assertWithinDailyCap(userId, "wordbook");
     const ai = await getAiFor("scan");
+    // 意味は**読む人の言語**で（iOS の言語検査 2026-10-01: 表示言語が英語・台湾華語でも
+    // 単語帳の意味だけ日本語で返り、画面に言語が混ざっていた）。頁の意味が別の言語なら訳す。
+    const { explanationLanguageRule } = await import("./ai-provider.server");
+    const target = await getUserTargetLanguage(userId);
+    const langRule = await explanationLanguageRule(userId, target);
     const image = data.imageBase64.startsWith("data:")
       ? data.imageBase64
       : `data:image/jpeg;base64,${data.imageBase64}`;
@@ -99,7 +116,12 @@ export const extractWordbook = createServerFn({ method: "POST" })
           {
             role: "user",
             content: [
-              { type: "text", text: EXTRACT_PROMPT },
+              {
+                type: "text",
+                text:
+                  `${extractPrompt(targetProfile(target).wordbook)}\n\n${langRule}\n` +
+                  "meaning_ja の欄には、上の言語で書いた意味を入れる(頁の意味が別の言語なら訳す)。",
+              },
               { type: "image", image },
             ],
           },
@@ -123,7 +145,7 @@ export const extractWordbook = createServerFn({ method: "POST" })
     }
 
     await logUsage(supabase, userId, "wordbook");
-    const entries = cleanWordbookEntries(parsed.entries);
+    const entries = cleanWordbookEntries(parsed.entries, undefined, target);
     if (entries.length === 0) {
       throw new Error(
         "この写真からは単語を読み取れませんでした。明るい所で、まっすぐ撮ってみてください。",
@@ -153,7 +175,12 @@ export const createWordbook = createServerFn({ method: "POST" })
   .inputValidator((input: unknown) => CreateInput.parse(input))
   .handler(async ({ context, data }): Promise<{ wordbook_id: string; added: number }> => {
     const { supabase, userId } = context;
-    const entries = cleanWordbookEntries(data.entries);
+    // 読み取りと同じ規則で整える(学習言語の見出し語の規則)。
+    const entries = cleanWordbookEntries(
+      data.entries,
+      undefined,
+      await getUserTargetLanguage(userId),
+    );
     if (entries.length === 0) throw new Error("入れる語がありません");
 
     const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Taipei" }).format(new Date());
