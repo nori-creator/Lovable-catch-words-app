@@ -30,6 +30,7 @@ const journal = () => import("./journal.functions");
 const stats = () => import("./stats.functions");
 const jev = () => import("./jev.functions");
 const wordbook = () => import("./wordbook.functions");
+const images = () => import("./images.functions");
 
 function from<M>(mod: () => Promise<M>, name: keyof M & string): Loader {
   return async () => (await mod())[name] as unknown as ServerFn;
@@ -64,6 +65,9 @@ export const NATIVE_FNS: Record<string, Loader> = {
   setStickerHeadword: from(stickers, "setStickerHeadword"),
   setStickerHeroRole: from(stickers, "setStickerHeroRole"),
   setStickerVoiceVideo: from(stickers, "setStickerVoiceVideo"),
+  // 写真の無い札の見出し・「ネットの画像」の節（画像は iOS が直に取りに行く）
+  searchImageCandidates: from(images, "searchImageCandidates"),
+  setStickerPlaceholder: from(stickers, "setStickerPlaceholder"),
   updateStickerCaption: from(stickers, "updateStickerCaption"),
   updateWordExtras: from(stickers, "updateWordExtras"),
   reportWordIssue: from(stickers, "reportWordIssue"),

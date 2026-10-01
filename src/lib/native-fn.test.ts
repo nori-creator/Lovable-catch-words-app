@@ -22,6 +22,8 @@ describe("native-fn allowlist", () => {
       "getMyStats",
       "extractWordbook",
       "getReaderMeanings",
+      "searchImageCandidates",
+      "setStickerPlaceholder",
     ]) {
       expect(NATIVE_FNS[name]).toBeTypeOf("function");
     }

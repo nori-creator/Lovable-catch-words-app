@@ -138,9 +138,11 @@ describe("探す言葉の作り方が散らばっていない", () => {
    * 見なくてよい場所。
    * - `images.functions.ts` … サーバ側の入口(言葉を作る側ではない)
    * - `ImagePicker.tsx`     … 探す言葉を **呼ぶ側から受け取る** 部品
+   * - `native-fn.ts`        … iOS 版への入口の一覧(名前を載せるだけ。言葉は
+   *                           iOS の `WebImages.query` が同じ規則で作る)
    * - `*.test.ts(x)`        … 試験は値そのものを書く
    */
-  const ALLOWED = /(images\.functions\.ts|ImagePicker\.tsx|\.test\.tsx?)$/;
+  const ALLOWED = /(images\.functions\.ts|ImagePicker\.tsx|native-fn\.ts|\.test\.tsx?)$/;
 
   function walk(dir: string): string[] {
     const out: string[] = [];
