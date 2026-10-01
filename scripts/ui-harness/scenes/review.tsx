@@ -26,7 +26,6 @@ import {
 } from "@/routes/_authenticated/review";
 import type { DueReviewCard } from "@/lib/reviews.functions";
 import { MiniRetentionGraph } from "@/components/MiniRetentionGraph";
-import { RetakeSuggestion } from "@/components/RetakeSuggestion";
 
 /** 4択の上に出る写真。縦長（実物のキャッチ写真はだいたい縦）。 */
 const PHOTO =
@@ -354,48 +353,6 @@ export function ReviewModeTabsScene({ q }: { q: URLSearchParams }) {
     <section className="mb-4">
       <ReviewHeader answered={3} total={12} progress={25} mode={mode} onMode={() => {}} />
     </section>
-  );
-}
-
-/**
- * 「もう一度撮ってみる?」の提案。
- *
- * 出る条件は `src/lib/retake.ts` が持つので、ここでは**出る値**と
- * **出ない値**を並べて、条件を満たさない札に空の枠が残らないことも見る
- * (下の1件は何も描かれないのが正しい)。
- */
-export function RetakeSuggestionScene() {
-  return (
-    <div>
-      <RetakeSuggestion
-        headword="雨傘"
-        reviewCount={7}
-        lapses={5}
-        intervalDays={1}
-        retention={22}
-        photoCount={1}
-        onRetake={() => {}}
-      />
-      <RetakeSuggestion
-        headword="珍珠奶茶"
-        reviewCount={6}
-        lapses={1}
-        intervalDays={2}
-        retention={38}
-        photoCount={2}
-        onRetake={() => {}}
-      />
-      {/* ここは何も出ないのが正解 — よく覚えている語。 */}
-      <RetakeSuggestion
-        headword="捷運"
-        reviewCount={9}
-        lapses={0}
-        intervalDays={40}
-        retention={92}
-        photoCount={1}
-        onRetake={() => {}}
-      />
-    </div>
   );
 }
 

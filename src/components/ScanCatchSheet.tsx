@@ -1,7 +1,6 @@
 import { PeelSticker } from "@/components/PeelSticker";
 import { ZhuyinWord, useZhuyinUnits } from "@/components/ZhuyinWord";
 import { useReadableError } from "@/lib/errors";
-import { cutoutAtCatch, getCatchSpeed } from "@/lib/catch-speed";
 import { useEffect, useRef, useState } from "react";
 import { useTargetLang } from "@/lib/target-lang-pref";
 import { Reading, useReadingText } from "@/lib/phonetic";
@@ -19,7 +18,7 @@ import { prependSticker, type StickerListCache } from "@/lib/optimistic-sticker"
 import { markScanCaught } from "@/lib/scan.functions";
 import { attachPhotoToSticker } from "@/lib/ghost.functions";
 import { recordEncounter } from "@/lib/encounters.functions";
-import { downscaleDataUrl, makeThumbBlob, thumbPath, removeBackgroundSmart } from "@/lib/cutout";
+import { downscaleDataUrl, makeThumbBlob, thumbPath } from "@/lib/image-resize";
 import { putCachedImage } from "@/lib/image-cache";
 import { usePronounce } from "@/lib/use-pronounce";
 import type { GeneratedCard } from "@/lib/ai.functions";
@@ -74,8 +73,8 @@ async function cropAround(dataUrl: string, point: [number, number]): Promise<str
 
 /**
  * §5 catch flow driven from a scan chip.
- * 1. crop the tap region and run @imgly/background-removal in-browser (no API cost)
- * 2. show cutout + verified details + optional selfie/caption (§5.1)
+ * 1. crop the tap region (no API cost)
+ * 2. show the photo sticker + verified details + optional selfie/caption (§5.1)
  * 3. on 保存: upload → reuse prefetched card (no additional AI call) → fly to 図鑑
  */
 export function ScanCatchSheet({
@@ -123,8 +122,6 @@ export function ScanCatchSheet({
   const attachFn = useServerFn(attachPhotoToSticker);
   const encounterFn = useServerFn(recordEncounter);
   const [phase, setPhase] = useState<"prep" | "ready" | "landing" | "done">("prep");
-  // Reveal the cutout when ready; saving the photo never waits for it.
-  const [cutoutUrl, setCutoutUrl] = useState<string | null>(null);
   const [objectDataUrl, setObjectDataUrl] = useState<string | null>(null);
   const [selfieDataUrl, setSelfieDataUrl] = useState<string | null>(null);
   const [caption, setCaption] = useState("");
@@ -159,11 +156,7 @@ export function ScanCatchSheet({
     };
   }, []);
 
-  // Show the photo and enable saving the instant we have a crop — the
-  // background cutout is a best-effort *visual upgrade*, never a gate on the
-  // catch. (Previously the sheet spun "分析中" until background removal finished,
-  // and the save button + doSave both required the cutout, so a slow/absent
-  // remove.bg model left the word impossible to file.)
+  // Show the photo and enable saving the instant we have a crop.
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -173,15 +166,6 @@ export function ScanCatchSheet({
         setObjectDataUrl(cropped);
         setPhase("ready"); // ready as soon as the photo exists
         if (typeof navigator !== "undefined" && "vibrate" in navigator) navigator.vibrate(12);
-        if (cutoutAtCatch(getCatchSpeed())) {
-          void removeBackgroundSmart(cropped)
-            .then((cut) => {
-              if (!cancelled) setCutoutUrl(cut);
-            })
-            .catch(() => {
-              /* Keep the original photo usable. */
-            });
-        }
       } catch (e) {
         console.warn("crop failed", e);
         if (cancelled) return;
@@ -242,7 +226,7 @@ export function ScanCatchSheet({
   }
 
   async function doSave() {
-    if (!objectDataUrl || saving) return; // cutout is optional — never block on it
+    if (!objectDataUrl || saving) return;
     pronounceRef.current.prepare();
     // Webの自動ダウンロードは、押した直後でなければブラウザに止められる。
 
@@ -304,14 +288,12 @@ export function ScanCatchSheet({
         return path;
       }
       // Only the original object photo is required. A transient failure on the
-      // (optional) cutout or selfie must not abort filing the catch — degrade to
+      // (optional) selfie must not abort filing the catch — degrade to
       // null instead, matching capture.tsx.
-      const [object_path, cutout_path, selfie_path] = await Promise.all([
+      // 背景の切り抜きは 2026-10-01 に消した（ずっと止めてあった）。保存は元の写真だけ。
+      const cutout_path: string | null = null;
+      const [object_path, selfie_path] = await Promise.all([
         upload(objectDataUrl, "object"),
-        upload(cutoutUrl, "cutout").catch((e: unknown) => {
-          reportBackgroundFailure("photo_upload", e, { kind: "cutout" });
-          return null;
-        }),
         upload(selfieDataUrl, "selfie").catch((e: unknown) => {
           reportBackgroundFailure("photo_upload", e, { kind: "selfie" });
           return null;
@@ -424,7 +406,7 @@ export function ScanCatchSheet({
             // 再会の回数。**初めて捕まえた札は 0**（1 にすると「×1」の札が付く）。
             encounter_count: 0,
             object_url: objectDataUrl,
-            cutout_url: cutoutUrl,
+            cutout_url: null,
             selfie_url: selfieDataUrl,
             object_thumb_url: null,
             cutout_thumb_url: null,
@@ -558,11 +540,10 @@ export function ScanCatchSheet({
           ref={cutoutBoxRef}
           className="mx-auto mt-2 grid aspect-square w-64 max-w-full place-items-center drop-shadow-[0_20px_40px_rgba(0,0,0,0.55)]"
         >
-          {(cutoutUrl ?? objectDataUrl) ? (
+          {objectDataUrl ? (
             <div className={`h-full w-full ${phase === "landing" ? "opacity-0" : ""}`}>
               <PeelSticker
                 photoUrl={objectDataUrl}
-                cutoutUrl={cutoutUrl}
                 label={headword}
                 actionLabel={t("capture.addToDex")}
                 hint={t("capture.peelHint")}
@@ -711,7 +692,7 @@ export function ScanCatchSheet({
       {phase === "landing" && (
         <CatchLandingOverlay
           ref={flyRef}
-          image={cutoutUrl ?? objectDataUrl}
+          image={objectDataUrl}
           headword={headword}
           lang={targetLanguage}
           reading={landingReading}

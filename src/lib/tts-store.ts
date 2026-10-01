@@ -1,4 +1,5 @@
 import { TTS_VOICE_DEFAULT } from "./tts-cache";
+import { optionalStoreOpener } from "./idb-store";
 
 /**
  * **発音を端末の中に貯める。**
@@ -33,24 +34,7 @@ import { TTS_VOICE_DEFAULT } from "./tts-cache";
 const DB_NAME = "catchwords-tts-cache";
 const STORE = "audio";
 
-let dbPromise: Promise<IDBDatabase | null> | null = null;
-
-function openDb(): Promise<IDBDatabase | null> {
-  if (typeof indexedDB === "undefined") return Promise.resolve(null);
-  if (!dbPromise) {
-    dbPromise = new Promise((resolve) => {
-      const req = indexedDB.open(DB_NAME, 1);
-      req.onupgradeneeded = () => {
-        if (!req.result.objectStoreNames.contains(STORE)) {
-          req.result.createObjectStore(STORE);
-        }
-      };
-      req.onsuccess = () => resolve(req.result);
-      req.onerror = () => resolve(null); // 私用モードなど — 貯めるのは任意
-    });
-  }
-  return dbPromise;
-}
+const openDb = optionalStoreOpener(DB_NAME, STORE);
 
 /**
  * 端末の中での鍵。**純粋な関数**にしておく（試験から呼べる）。

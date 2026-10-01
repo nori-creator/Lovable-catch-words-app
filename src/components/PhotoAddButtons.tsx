@@ -1,5 +1,4 @@
-import { CUTOUT_ENABLED } from "@/lib/cutout-feature";
-import { Camera, Loader2, Scissors } from "lucide-react";
+import { Camera } from "lucide-react";
 import { useT } from "@/lib/i18n";
 
 /**
@@ -8,6 +7,8 @@ import { useT } from "@/lib/i18n";
  * オーナー指示 2026-08-26:
  * > 「もし切り抜きをしていない場合は切り抜くというボタンを、自撮りして
  * >  ない場合は自撮りをするボタンを表示して。」
+ *
+ * 背景の切り抜きは 2026-10-01 に消した（ずっと止めてあった）。残るのは自撮りだけ。
  *
  * ## 出す条件はここが持つ
  * 「切り抜きが無い」「自撮りが無い」の判定を呼ぶ側それぞれに書くと、
@@ -30,49 +31,22 @@ import { useT } from "@/lib/i18n";
  * 通信も状態も持たない。検査の雛形から本物の見た目をそのまま撮れる。
  */
 export function PhotoAddButtons({
-  objectUrl,
-  cutoutUrl,
   selfieUrl,
   busy,
-  onCutout,
   onSelfie,
   className = "",
 }: {
-  /** 元の写真。**無ければ切り抜けない**（切り抜く元が無い）。 */
-  objectUrl?: string | null;
-  cutoutUrl?: string | null;
   selfieUrl?: string | null;
   busy: boolean;
-  onCutout: () => void;
   onSelfie: (file: File) => void;
   className?: string;
 }) {
   const t = useT();
-  /**
-   * **元の写真が在るなら、いつでも切り抜ける**(オーナー報告 2026-09-13
-   * 「まだ切り抜いてない写真が切り抜きの画像として表示されてる」)。
-   *
-   * これまでに保存された札には、切り抜きが間に合わなかったときの
-   * **元の写真がそのまま切り抜きとして入っている**ものがある(保存側は
-   * 直したが、すでに在る行は直らない)。「切り抜きが在る」と見なして
-   * ボタンを隠すと、その札は二度と切り抜けない。
-   */
-  const canCutout = CUTOUT_ENABLED && !!objectUrl;
   const canSelfie = !selfieUrl;
-  if (!canCutout && !canSelfie) return null;
+  if (!canSelfie) return null;
 
   return (
     <div className={`flex flex-col gap-2 ${className}`}>
-      {canCutout && (
-        <button
-          onClick={onCutout}
-          disabled={busy}
-          className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-2xl bg-primary/12 text-body font-semibold text-primary-ink disabled:opacity-60"
-        >
-          {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Scissors className="h-4 w-4" />}
-          {busy ? t("photo.cuttingOut") : cutoutUrl ? t("photo.cutoutRedo") : t("photo.cutoutNow")}
-        </button>
-      )}
       {canSelfie && (
         <label
           className={`inline-flex min-h-11 w-full cursor-pointer items-center justify-center gap-2 rounded-2xl bg-primary/12 text-body font-semibold text-primary-ink ${

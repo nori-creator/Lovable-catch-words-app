@@ -69,7 +69,6 @@ export function HeroPhotoPicker({
   current,
   onPick,
   onReplaceFile,
-  onCutoutNow,
   onSelfieFile,
   onClose,
   saving,
@@ -87,12 +86,6 @@ export function HeroPhotoPicker({
    * 置かない（この面の最初の決めごと「押せない選択肢を並べない」）。
    */
   onReplaceFile?: () => void;
-  /**
-   * 「いま切り抜く」(要望 #18 の後半)。
-   * **切り抜きがまだ無い札のときだけ**渡される。既に在る札に出しても、
-   * 押しても同じ絵が出来るだけで、待たせるぶん損をする。
-   */
-  onCutoutNow?: () => void;
   /**
    * 「いま自撮りを撮る」。**自撮りがまだ無い札のときだけ**渡される。
    *
@@ -199,14 +192,10 @@ export function HeroPhotoPicker({
 
       {/* 無い絵は「作る」ボタンにする。**出す条件は `PhotoAddButtons` が持つ** —
           画面ごとに書くと条件がずれる（図鑑の詳細にはボタンそのものが
-          無かった）。速さを選んだ人はキャッチの瞬間に切り抜いていないので、
-          ここから掛け直せないと「速さを選ぶ = 二度と切り抜けない」になる。 */}
+          無かった）。 */}
       <PhotoAddButtons
-        objectUrl={sources.object_url ?? sources.object_thumb_url}
-        cutoutUrl={validCutout}
         selfieUrl={sources.selfie_url}
         busy={saving}
-        onCutout={() => onCutoutNow?.()}
         onSelfie={(f) => onSelfieFile?.(f)}
       />
 

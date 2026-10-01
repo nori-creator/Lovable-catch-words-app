@@ -23,17 +23,12 @@ import { Route as Char91DotmcpChar93ListToolsRouteImport } from './routes/[.mcp]
 import { Route as Char91DotwellKnownChar93OauthProtectedResourceRouteImport } from './routes/[.well-known]/oauth-protected-resource'
 import { Route as AuthenticatedCaptureRouteImport } from './routes/_authenticated/capture'
 import { Route as AuthenticatedDexRouteImport } from './routes/_authenticated/dex'
-import { Route as AuthenticatedDiscoverRouteImport } from './routes/_authenticated/discover'
-import { Route as AuthenticatedFeedRouteImport } from './routes/_authenticated/feed'
 import { Route as AuthenticatedHomeRouteImport } from './routes/_authenticated/home'
-import { Route as AuthenticatedJournalRouteImport } from './routes/_authenticated/journal'
 import { Route as AuthenticatedMapRouteImport } from './routes/_authenticated/map'
-import { Route as AuthenticatedNotificationsRouteImport } from './routes/_authenticated/notifications'
 import { Route as AuthenticatedOnboardingRouteImport } from './routes/_authenticated/onboarding'
 import { Route as AuthenticatedReviewRouteImport } from './routes/_authenticated/review'
 import { Route as AuthenticatedScanRouteImport } from './routes/_authenticated/scan'
 import { Route as AuthenticatedSettingsRouteImport } from './routes/_authenticated/settings'
-import { Route as AuthenticatedWordbooksRouteImport } from './routes/_authenticated/wordbooks'
 import { Route as ApiNativeAiRouteImport } from './routes/api.native-ai'
 import { Route as ApiNativeFnRouteImport } from './routes/api.native-fn'
 import { Route as ApiObject3dModelRouteImport } from './routes/api.object3d-model'
@@ -44,8 +39,6 @@ import { Route as AuthenticatedAdminDictionaryRouteImport } from './routes/_auth
 import { Route as AuthenticatedAdminMetricsRouteImport } from './routes/_authenticated/admin.metrics'
 import { Route as AuthenticatedAdminUsersRouteImport } from './routes/_authenticated/admin.users'
 import { Route as AuthenticatedDexStickerIdRouteImport } from './routes/_authenticated/dex.$stickerId'
-import { Route as AuthenticatedPostPostIdRouteImport } from './routes/_authenticated/post.$postId'
-import { Route as AuthenticatedUUserIdRouteImport } from './routes/_authenticated/u.$userId'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -118,24 +111,9 @@ const AuthenticatedDexRoute = AuthenticatedDexRouteImport.update({
   path: '/dex',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
-const AuthenticatedDiscoverRoute = AuthenticatedDiscoverRouteImport.update({
-  id: '/discover',
-  path: '/discover',
-  getParentRoute: () => AuthenticatedRouteRoute,
-} as any)
-const AuthenticatedFeedRoute = AuthenticatedFeedRouteImport.update({
-  id: '/feed',
-  path: '/feed',
-  getParentRoute: () => AuthenticatedRouteRoute,
-} as any)
 const AuthenticatedHomeRoute = AuthenticatedHomeRouteImport.update({
   id: '/home',
   path: '/home',
-  getParentRoute: () => AuthenticatedRouteRoute,
-} as any)
-const AuthenticatedJournalRoute = AuthenticatedJournalRouteImport.update({
-  id: '/journal',
-  path: '/journal',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
 const AuthenticatedMapRoute = AuthenticatedMapRouteImport.update({
@@ -143,12 +121,6 @@ const AuthenticatedMapRoute = AuthenticatedMapRouteImport.update({
   path: '/map',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
-const AuthenticatedNotificationsRoute =
-  AuthenticatedNotificationsRouteImport.update({
-    id: '/notifications',
-    path: '/notifications',
-    getParentRoute: () => AuthenticatedRouteRoute,
-  } as any)
 const AuthenticatedOnboardingRoute = AuthenticatedOnboardingRouteImport.update({
   id: '/onboarding',
   path: '/onboarding',
@@ -167,11 +139,6 @@ const AuthenticatedScanRoute = AuthenticatedScanRouteImport.update({
 const AuthenticatedSettingsRoute = AuthenticatedSettingsRouteImport.update({
   id: '/settings',
   path: '/settings',
-  getParentRoute: () => AuthenticatedRouteRoute,
-} as any)
-const AuthenticatedWordbooksRoute = AuthenticatedWordbooksRouteImport.update({
-  id: '/wordbooks',
-  path: '/wordbooks',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
 const ApiNativeAiRoute = ApiNativeAiRouteImport.update({
@@ -228,16 +195,6 @@ const AuthenticatedDexStickerIdRoute =
     path: '/$stickerId',
     getParentRoute: () => AuthenticatedDexRoute,
   } as any)
-const AuthenticatedPostPostIdRoute = AuthenticatedPostPostIdRouteImport.update({
-  id: '/post/$postId',
-  path: '/post/$postId',
-  getParentRoute: () => AuthenticatedRouteRoute,
-} as any)
-const AuthenticatedUUserIdRoute = AuthenticatedUUserIdRouteImport.update({
-  id: '/u/$userId',
-  path: '/u/$userId',
-  getParentRoute: () => AuthenticatedRouteRoute,
-} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -253,17 +210,12 @@ export interface FileRoutesByFullPath {
   '/.well-known/oauth-protected-resource': typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
   '/capture': typeof AuthenticatedCaptureRoute
   '/dex': typeof AuthenticatedDexRouteWithChildren
-  '/discover': typeof AuthenticatedDiscoverRoute
-  '/feed': typeof AuthenticatedFeedRoute
   '/home': typeof AuthenticatedHomeRoute
-  '/journal': typeof AuthenticatedJournalRoute
   '/map': typeof AuthenticatedMapRoute
-  '/notifications': typeof AuthenticatedNotificationsRoute
   '/onboarding': typeof AuthenticatedOnboardingRoute
   '/review': typeof AuthenticatedReviewRoute
   '/scan': typeof AuthenticatedScanRoute
   '/settings': typeof AuthenticatedSettingsRoute
-  '/wordbooks': typeof AuthenticatedWordbooksRoute
   '/api/native-ai': typeof ApiNativeAiRoute
   '/api/native-fn': typeof ApiNativeFnRoute
   '/api/object3d-model': typeof ApiObject3dModelRoute
@@ -274,8 +226,6 @@ export interface FileRoutesByFullPath {
   '/admin/metrics': typeof AuthenticatedAdminMetricsRoute
   '/admin/users': typeof AuthenticatedAdminUsersRoute
   '/dex/$stickerId': typeof AuthenticatedDexStickerIdRoute
-  '/post/$postId': typeof AuthenticatedPostPostIdRoute
-  '/u/$userId': typeof AuthenticatedUUserIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -291,17 +241,12 @@ export interface FileRoutesByTo {
   '/.well-known/oauth-protected-resource': typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
   '/capture': typeof AuthenticatedCaptureRoute
   '/dex': typeof AuthenticatedDexRouteWithChildren
-  '/discover': typeof AuthenticatedDiscoverRoute
-  '/feed': typeof AuthenticatedFeedRoute
   '/home': typeof AuthenticatedHomeRoute
-  '/journal': typeof AuthenticatedJournalRoute
   '/map': typeof AuthenticatedMapRoute
-  '/notifications': typeof AuthenticatedNotificationsRoute
   '/onboarding': typeof AuthenticatedOnboardingRoute
   '/review': typeof AuthenticatedReviewRoute
   '/scan': typeof AuthenticatedScanRoute
   '/settings': typeof AuthenticatedSettingsRoute
-  '/wordbooks': typeof AuthenticatedWordbooksRoute
   '/api/native-ai': typeof ApiNativeAiRoute
   '/api/native-fn': typeof ApiNativeFnRoute
   '/api/object3d-model': typeof ApiObject3dModelRoute
@@ -312,8 +257,6 @@ export interface FileRoutesByTo {
   '/admin/metrics': typeof AuthenticatedAdminMetricsRoute
   '/admin/users': typeof AuthenticatedAdminUsersRoute
   '/dex/$stickerId': typeof AuthenticatedDexStickerIdRoute
-  '/post/$postId': typeof AuthenticatedPostPostIdRoute
-  '/u/$userId': typeof AuthenticatedUUserIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -331,17 +274,12 @@ export interface FileRoutesById {
   '/.well-known/oauth-protected-resource': typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
   '/_authenticated/capture': typeof AuthenticatedCaptureRoute
   '/_authenticated/dex': typeof AuthenticatedDexRouteWithChildren
-  '/_authenticated/discover': typeof AuthenticatedDiscoverRoute
-  '/_authenticated/feed': typeof AuthenticatedFeedRoute
   '/_authenticated/home': typeof AuthenticatedHomeRoute
-  '/_authenticated/journal': typeof AuthenticatedJournalRoute
   '/_authenticated/map': typeof AuthenticatedMapRoute
-  '/_authenticated/notifications': typeof AuthenticatedNotificationsRoute
   '/_authenticated/onboarding': typeof AuthenticatedOnboardingRoute
   '/_authenticated/review': typeof AuthenticatedReviewRoute
   '/_authenticated/scan': typeof AuthenticatedScanRoute
   '/_authenticated/settings': typeof AuthenticatedSettingsRoute
-  '/_authenticated/wordbooks': typeof AuthenticatedWordbooksRoute
   '/api/native-ai': typeof ApiNativeAiRoute
   '/api/native-fn': typeof ApiNativeFnRoute
   '/api/object3d-model': typeof ApiObject3dModelRoute
@@ -352,8 +290,6 @@ export interface FileRoutesById {
   '/_authenticated/admin/metrics': typeof AuthenticatedAdminMetricsRoute
   '/_authenticated/admin/users': typeof AuthenticatedAdminUsersRoute
   '/_authenticated/dex/$stickerId': typeof AuthenticatedDexStickerIdRoute
-  '/_authenticated/post/$postId': typeof AuthenticatedPostPostIdRoute
-  '/_authenticated/u/$userId': typeof AuthenticatedUUserIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -371,17 +307,12 @@ export interface FileRouteTypes {
     | '/.well-known/oauth-protected-resource'
     | '/capture'
     | '/dex'
-    | '/discover'
-    | '/feed'
     | '/home'
-    | '/journal'
     | '/map'
-    | '/notifications'
     | '/onboarding'
     | '/review'
     | '/scan'
     | '/settings'
-    | '/wordbooks'
     | '/api/native-ai'
     | '/api/native-fn'
     | '/api/object3d-model'
@@ -392,8 +323,6 @@ export interface FileRouteTypes {
     | '/admin/metrics'
     | '/admin/users'
     | '/dex/$stickerId'
-    | '/post/$postId'
-    | '/u/$userId'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -409,17 +338,12 @@ export interface FileRouteTypes {
     | '/.well-known/oauth-protected-resource'
     | '/capture'
     | '/dex'
-    | '/discover'
-    | '/feed'
     | '/home'
-    | '/journal'
     | '/map'
-    | '/notifications'
     | '/onboarding'
     | '/review'
     | '/scan'
     | '/settings'
-    | '/wordbooks'
     | '/api/native-ai'
     | '/api/native-fn'
     | '/api/object3d-model'
@@ -430,8 +354,6 @@ export interface FileRouteTypes {
     | '/admin/metrics'
     | '/admin/users'
     | '/dex/$stickerId'
-    | '/post/$postId'
-    | '/u/$userId'
   id:
     | '__root__'
     | '/'
@@ -448,17 +370,12 @@ export interface FileRouteTypes {
     | '/.well-known/oauth-protected-resource'
     | '/_authenticated/capture'
     | '/_authenticated/dex'
-    | '/_authenticated/discover'
-    | '/_authenticated/feed'
     | '/_authenticated/home'
-    | '/_authenticated/journal'
     | '/_authenticated/map'
-    | '/_authenticated/notifications'
     | '/_authenticated/onboarding'
     | '/_authenticated/review'
     | '/_authenticated/scan'
     | '/_authenticated/settings'
-    | '/_authenticated/wordbooks'
     | '/api/native-ai'
     | '/api/native-fn'
     | '/api/object3d-model'
@@ -469,8 +386,6 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/metrics'
     | '/_authenticated/admin/users'
     | '/_authenticated/dex/$stickerId'
-    | '/_authenticated/post/$postId'
-    | '/_authenticated/u/$userId'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -594,20 +509,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedDexRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
-    '/_authenticated/discover': {
-      id: '/_authenticated/discover'
-      path: '/discover'
-      fullPath: '/discover'
-      preLoaderRoute: typeof AuthenticatedDiscoverRouteImport
-      parentRoute: typeof AuthenticatedRouteRoute
-    }
-    '/_authenticated/feed': {
-      id: '/_authenticated/feed'
-      path: '/feed'
-      fullPath: '/feed'
-      preLoaderRoute: typeof AuthenticatedFeedRouteImport
-      parentRoute: typeof AuthenticatedRouteRoute
-    }
     '/_authenticated/home': {
       id: '/_authenticated/home'
       path: '/home'
@@ -615,25 +516,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedHomeRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
-    '/_authenticated/journal': {
-      id: '/_authenticated/journal'
-      path: '/journal'
-      fullPath: '/journal'
-      preLoaderRoute: typeof AuthenticatedJournalRouteImport
-      parentRoute: typeof AuthenticatedRouteRoute
-    }
     '/_authenticated/map': {
       id: '/_authenticated/map'
       path: '/map'
       fullPath: '/map'
       preLoaderRoute: typeof AuthenticatedMapRouteImport
-      parentRoute: typeof AuthenticatedRouteRoute
-    }
-    '/_authenticated/notifications': {
-      id: '/_authenticated/notifications'
-      path: '/notifications'
-      fullPath: '/notifications'
-      preLoaderRoute: typeof AuthenticatedNotificationsRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/onboarding': {
@@ -662,13 +549,6 @@ declare module '@tanstack/react-router' {
       path: '/settings'
       fullPath: '/settings'
       preLoaderRoute: typeof AuthenticatedSettingsRouteImport
-      parentRoute: typeof AuthenticatedRouteRoute
-    }
-    '/_authenticated/wordbooks': {
-      id: '/_authenticated/wordbooks'
-      path: '/wordbooks'
-      fullPath: '/wordbooks'
-      preLoaderRoute: typeof AuthenticatedWordbooksRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/api/native-ai': {
@@ -741,20 +621,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedDexStickerIdRouteImport
       parentRoute: typeof AuthenticatedDexRoute
     }
-    '/_authenticated/post/$postId': {
-      id: '/_authenticated/post/$postId'
-      path: '/post/$postId'
-      fullPath: '/post/$postId'
-      preLoaderRoute: typeof AuthenticatedPostPostIdRouteImport
-      parentRoute: typeof AuthenticatedRouteRoute
-    }
-    '/_authenticated/u/$userId': {
-      id: '/_authenticated/u/$userId'
-      path: '/u/$userId'
-      fullPath: '/u/$userId'
-      preLoaderRoute: typeof AuthenticatedUUserIdRouteImport
-      parentRoute: typeof AuthenticatedRouteRoute
-    }
   }
 }
 
@@ -772,43 +638,29 @@ const AuthenticatedDexRouteWithChildren =
 interface AuthenticatedRouteRouteChildren {
   AuthenticatedCaptureRoute: typeof AuthenticatedCaptureRoute
   AuthenticatedDexRoute: typeof AuthenticatedDexRouteWithChildren
-  AuthenticatedDiscoverRoute: typeof AuthenticatedDiscoverRoute
-  AuthenticatedFeedRoute: typeof AuthenticatedFeedRoute
   AuthenticatedHomeRoute: typeof AuthenticatedHomeRoute
-  AuthenticatedJournalRoute: typeof AuthenticatedJournalRoute
   AuthenticatedMapRoute: typeof AuthenticatedMapRoute
-  AuthenticatedNotificationsRoute: typeof AuthenticatedNotificationsRoute
   AuthenticatedOnboardingRoute: typeof AuthenticatedOnboardingRoute
   AuthenticatedReviewRoute: typeof AuthenticatedReviewRoute
   AuthenticatedScanRoute: typeof AuthenticatedScanRoute
   AuthenticatedSettingsRoute: typeof AuthenticatedSettingsRoute
-  AuthenticatedWordbooksRoute: typeof AuthenticatedWordbooksRoute
   AuthenticatedAdminDictionaryRoute: typeof AuthenticatedAdminDictionaryRoute
   AuthenticatedAdminMetricsRoute: typeof AuthenticatedAdminMetricsRoute
   AuthenticatedAdminUsersRoute: typeof AuthenticatedAdminUsersRoute
-  AuthenticatedPostPostIdRoute: typeof AuthenticatedPostPostIdRoute
-  AuthenticatedUUserIdRoute: typeof AuthenticatedUUserIdRoute
 }
 
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedCaptureRoute: AuthenticatedCaptureRoute,
   AuthenticatedDexRoute: AuthenticatedDexRouteWithChildren,
-  AuthenticatedDiscoverRoute: AuthenticatedDiscoverRoute,
-  AuthenticatedFeedRoute: AuthenticatedFeedRoute,
   AuthenticatedHomeRoute: AuthenticatedHomeRoute,
-  AuthenticatedJournalRoute: AuthenticatedJournalRoute,
   AuthenticatedMapRoute: AuthenticatedMapRoute,
-  AuthenticatedNotificationsRoute: AuthenticatedNotificationsRoute,
   AuthenticatedOnboardingRoute: AuthenticatedOnboardingRoute,
   AuthenticatedReviewRoute: AuthenticatedReviewRoute,
   AuthenticatedScanRoute: AuthenticatedScanRoute,
   AuthenticatedSettingsRoute: AuthenticatedSettingsRoute,
-  AuthenticatedWordbooksRoute: AuthenticatedWordbooksRoute,
   AuthenticatedAdminDictionaryRoute: AuthenticatedAdminDictionaryRoute,
   AuthenticatedAdminMetricsRoute: AuthenticatedAdminMetricsRoute,
   AuthenticatedAdminUsersRoute: AuthenticatedAdminUsersRoute,
-  AuthenticatedPostPostIdRoute: AuthenticatedPostPostIdRoute,
-  AuthenticatedUUserIdRoute: AuthenticatedUUserIdRoute,
 }
 
 const AuthenticatedRouteRouteWithChildren =

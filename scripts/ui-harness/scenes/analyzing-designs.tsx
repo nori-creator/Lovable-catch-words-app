@@ -1,11 +1,5 @@
 import { useEffect, useState, type ReactElement } from "react";
 import { ScanAnalyzing_v0cutout } from "@/components/effects/scan-analyzing/v0_cutout";
-import {
-  ScanAnalyzing_v9trace,
-  ScanAnalyzing_v10glyphs,
-  ScanAnalyzing_v11lens,
-  ScanAnalyzing_v12steps,
-} from "@/components/effects/scan-analyzing/v9_proposals";
 import { ScanAnalyzing_v13depth } from "@/components/effects/scan-analyzing/v13_depth";
 import { photo } from "./peel-sticker";
 
@@ -21,11 +15,8 @@ const VARIANTS: Array<{
   label: string;
   C: (p: { stage: Stage; cutout?: boolean }) => ReactElement;
 }> = [
-  { key: "a", label: "A 今の形", C: ScanAnalyzing_v0cutout },
-  { key: "b", label: "B 輪郭をなぞる", C: ScanAnalyzing_v9trace },
-  { key: "c", label: "C 文字が浮かぶ", C: ScanAnalyzing_v10glyphs },
-  { key: "d", label: "D レンズ", C: ScanAnalyzing_v11lens },
-  { key: "e", label: "E 3つの段", C: ScanAnalyzing_v12steps },
+  // B〜E の案は 2026-10-01 に消した（本番は F、3D が使えない端末は A）。
+  { key: "a", label: "A 3D が使えない端末の形", C: ScanAnalyzing_v0cutout },
   { key: "f", label: "F 立体で測る(3D・本番の既定)", C: ScanAnalyzing_v13depth },
 ];
 const STAGES: Stage[] = ["sensing", "reading", "matching"];

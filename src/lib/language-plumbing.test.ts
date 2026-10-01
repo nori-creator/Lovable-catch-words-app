@@ -65,7 +65,7 @@ describe("A. 学習言語がアプリ全体に届く", () => {
 });
 
 describe("B. 撮った札の級・品詞を決め打たない", () => {
-  const captureSheets = ["components/InputCatchSheet.tsx", "components/ScanCatchSheet.tsx"];
+  const captureSheets = ["components/ScanCatchSheet.tsx"];
 
   it.each(captureSheets)("%s に台湾華語の級が直接書かれていない", (file) => {
     // 注釈の中で「昔こう書いていた」と説明するのは許す。
@@ -302,7 +302,7 @@ describe("候補を選んだ直後は「訳と発音」だけ", () => {
   it("撮る道のカードは全部 `minimal` を渡している", () => {
     // `ScanDetailSheet` だけ渡していなかった。1箇所抜けると、
     // その画面だけ昔のままになる(この作業場で繰り返している形)。
-    for (const file of ["routes/_authenticated/capture.tsx", "components/ScanDetailSheet.tsx"]) {
+    for (const file of ["routes/_authenticated/capture.tsx"]) {
       const src = codeOnly(read(file));
       const idx = src.indexOf("<WordCard");
       expect(idx, file).toBeGreaterThan(-1);
@@ -856,10 +856,6 @@ describe("第4段: アルバムと単語詳細で、絵を別々に選ぶ", () =
     // 無かった。渡すのは絵の在りかだけ。
     const btns = codeOnly(read("components/PhotoAddButtons.tsx"));
     expect(btns).toMatch(/const canSelfie = !selfieUrl;/);
-    // main（2026-09-19）で切り抜きが機能ごと止まった（`CUTOUT_ENABLED`）。
-    // 止めた事実はそのまま認めつつ、**元の写真が無ければ切り抜かない**
-    // という条件が消えていないことは見続ける。
-    expect(btns).toMatch(/const canCutout = CUTOUT_ENABLED && !!objectUrl;/);
     // **両方の詳細から出る。** 片方だけ直る事故がこの報告の中身。
     for (const rel of [
       "components/HeroPhotoPicker.tsx",
@@ -1059,7 +1055,7 @@ describe("第6段: 級は CEFR-J だけが決める／辞書だけでカード�
 
   it("キャッチが**当てずっぽうの級を書かない**", () => {
     // 前は級が分からないとき `toStored(2)` =「A2」を書いていた。
-    for (const rel of ["components/ScanCatchSheet.tsx", "components/InputCatchSheet.tsx"]) {
+    for (const rel of ["components/ScanCatchSheet.tsx"]) {
       const src = codeOnly(read(rel));
       expect(src, rel).not.toMatch(/levels\.toStored\(2\)/);
       expect(src, rel).toMatch(/levels\.outStored/);
@@ -1084,7 +1080,7 @@ describe("第6段: 級は CEFR-J だけが決める／辞書だけでカード�
   it("辞書を**学習言語で**引く(英語を学ぶ人に台湾華語の行を出さない)", () => {
     // 前はどの呼び出しも `language` を渡しておらず、既定の台湾華語を
     // 引いていた。
-    for (const rel of ["routes/_authenticated/scan.tsx", "components/InputCatchSheet.tsx"]) {
+    for (const rel of ["routes/_authenticated/scan.tsx"]) {
       const src = codeOnly(read(rel));
       const calls = src.match(/lookupFn\(\{[\s\S]*?\}\)/g) ?? [];
       expect(calls.length, rel).toBeGreaterThan(0);
@@ -1109,8 +1105,10 @@ describe("発音のラグ: 端末に貯める／出来てからボタンを出�
     //  ・画面を閉じると消える
     //  ・押した瞬間に mp3 のダウンロードが始まる
     // の2つで毎回待たされていた。
+    // 開く手は写真と共通（`idb-store.ts`、2026-10-01 に寄せた）。
     const store = codeOnly(read("lib/tts-store.ts"));
-    expect(store).toMatch(/indexedDB\.open/);
+    expect(store).toMatch(/optionalStoreOpener\(DB_NAME, STORE\)/);
+    expect(codeOnly(read("lib/idb-store.ts"))).toMatch(/indexedDB\.open/);
     const hook = codeOnly(read("lib/use-pronounce.tsx"));
     expect(hook).toMatch(/putCachedAudio\(key, blob\)/);
     expect(hook).toMatch(/getCachedAudio\(key\)/);
@@ -1154,11 +1152,7 @@ describe("発音のラグ: 端末に貯める／出来てからボタンを出�
     // 図鑑に同じ名前の部品が別に住んでいた(この作業場の持病)。
     const dex = codeOnly(read("routes/_authenticated/dex.tsx"));
     expect(dex).not.toMatch(/function PronounceButton\(/);
-    for (const rel of [
-      "routes/_authenticated/dex.tsx",
-      "components/WordCandidateRow.tsx",
-      "components/WordCard.tsx",
-    ]) {
+    for (const rel of ["routes/_authenticated/dex.tsx", "components/WordCard.tsx"]) {
       expect(codeOnly(read(rel)), rel).toMatch(/<PronounceButton/);
     }
   });
@@ -1166,8 +1160,6 @@ describe("発音のラグ: 端末に貯める／出来てからボタンを出�
   it("**語の言語で鍵を分ける**(同じ綴りが両方の言語に在る)", () => {
     const store = codeOnly(read("lib/tts-store.ts"));
     expect(store).toMatch(/\$\{language\}\|\$\{voice\}\|\$\{text\.trim\(\)\}/);
-    const row = codeOnly(read("components/WordCandidateRow.tsx"));
-    expect(row).toMatch(/language=\{language\}/);
   });
 });
 
@@ -1288,15 +1280,6 @@ describe("鳴らす道は1本だけ", () => {
     const src = codeOnly(read("routes/_authenticated/review.tsx"));
     expect(src).toMatch(/const pronounceLang = card\.language \?\? undefined;/);
     expect(src).not.toMatch(/usePronounce\(\)/);
-  });
-
-  it("単語帳も同じ部品・同じ言語", () => {
-    const card = codeOnly(read("components/WordbookReviewCard.tsx"));
-    expect(card).toMatch(/<PronounceButton/);
-    expect(card).not.toMatch(/onSpeak/);
-    const page = codeOnly(read("routes/_authenticated/wordbooks.tsx"));
-    expect(page).toMatch(/language=\{targetLanguage\}/);
-    expect(page).not.toMatch(/usePronounce\(\)/);
   });
 });
 
@@ -1504,9 +1487,7 @@ describe("2026-08-26: 注音・拼音を英語のカードに出さない", () =
    * 注音と拼音を素で並べていた。
    */
   const READ_SITES = [
-    "components/WordCandidateRow.tsx",
     "components/ScanCatchSheet.tsx",
-    "components/InputCatchSheet.tsx",
     "routes/_authenticated/capture.tsx",
     "routes/_authenticated/review.tsx",
   ];
@@ -1558,7 +1539,6 @@ describe("2026-08-26: 学習言語の語を、その言語の字で組む", () =
 
   it("**学習言語の語が入る所は `Term` を通る**", () => {
     for (const rel of [
-      "components/WordCandidateRow.tsx",
       "components/WordCard.tsx",
       "components/ScanCatchSheet.tsx",
       "components/CatchLanding.tsx",
@@ -1567,12 +1547,6 @@ describe("2026-08-26: 学習言語の語を、その言語の字で組む", () =
     ]) {
       expect(codeOnly(read(rel)), rel).toMatch(/<Term\b/);
     }
-  });
-
-  it("`Zh` は**必ず繁体字が入る所**にだけ残す", () => {
-    // 候補の行から `Zh` が消えていること(そこは学習言語の語)。
-    const row = codeOnly(read("components/WordCandidateRow.tsx"));
-    expect(row).not.toMatch(/<Zh\b/);
   });
 });
 
@@ -1740,8 +1714,8 @@ describe("2026-08-26（7件目）: 文字検索・言語の切り替え・記憶
   it("**学習言語を切り替えたら一覧を読み直す**", () => {
     const src = codeOnly(read("lib/use-language-prefs.ts"));
     expect(src).toMatch(/export function useRefreshOnTargetLanguage\(\)/);
-    // 図鑑・アルバム・復習・記憶・単語帳が入っていること。
-    for (const key of ["stickers", "reviews-due", "memory-overview", "wordbooks"]) {
+    // 図鑑・アルバム・復習・記憶が入っていること（単語帳は 2026-10-01 に消した）。
+    for (const key of ["stickers", "reviews-due", "memory-overview"]) {
       expect(src, key).toContain(`"${key}"`);
     }
     // 呼ばれていること（作っただけ、を防ぐ）。
@@ -1841,7 +1815,6 @@ describe("2026-08-26（7件目）: 文字検索・言語の切り替え・記憶
 describe("読み上げは必ず「何語か」を連れて歩く", () => {
   const CALLERS = [
     "components/ScanCatchSheet.tsx",
-    "components/InputCatchSheet.tsx",
     "components/WordCard.tsx",
     "routes/_authenticated/capture.tsx",
     "routes/_authenticated/scan.tsx",
@@ -2316,8 +2289,6 @@ describe("独自ドメインへ移れる形になっているか", () => {
     "routes/terms.tsx",
     "routes/privacy.tsx",
     "routes/sitemap[.]xml.ts",
-    "routes/_authenticated/u.$userId.tsx",
-    "routes/_authenticated/post.$postId.tsx",
   ];
 
   it("**画面のコードにドメインを直接書かない**（移った日に取り残しが出る）", () => {
@@ -2756,19 +2727,6 @@ describe("小さいボタンの当たり判定", () => {
 });
 
 describe("キャッチの報酬演出", () => {
-  // 以下3つは `v5_physics.ts` への門。**この版はいま動く経路に繋がっていない**
-  // (2026-09-13 の合流で Lovable の `v5_reward` を採った)。それでも門は残す —
-  // 繋ぎ直す日に、この性質が崩れていないことを確かめられる。
-  it("**演出はばねで動かす**（CSS transition では速度が幕ごとに0に戻る）", () => {
-    const v5 = codeOnly(read("components/effects/catch-landing/v5_physics.ts"));
-    expect(v5).toMatch(/createSpring/);
-    // **飛行の部分だけを見る。** 最初はファイル全体を見ていて、隣のセルを
-    // 90ms 小突く transition に当たって落ちた。あれは飛行ではないので、
-    // 落とすべきではなかった（門が広すぎると、正しいコードを直させる）。
-    const flight = v5.slice(0, v5.indexOf("export function rippleNeighbors"));
-    expect(flight).not.toMatch(/style\.transition\s*=\s*["`]transform/);
-  });
-
   /**
    * **押した画面をそのまま残す**（オーナー指示 2026-09-13 / 直した日 同日）。
    *
@@ -2824,11 +2782,6 @@ describe("キャッチの報酬演出", () => {
     expect(reward).toMatch(/getDestinationId\?\.\(\) \?\? destinationId/);
   });
 
-  it("**音と単語は拡大率のフレーム判定で出す**（時間で待つと回ごとにずれる）", () => {
-    const v5 = codeOnly(read("components/effects/catch-landing/v5_physics.ts"));
-    expect(v5).toMatch(/shouldSpeak\(s, target\.scale\)/);
-  });
-
   it("図鑑に追加のボタンが**画像のすぐ下**に在る（解説カードより前）", () => {
     // オーナー指示①(2026-09-13)。前は解説カードと一言の欄の下、画面の底に
     // あったので、いちばんやる操作のために毎回スクロールさせていた。
@@ -2841,18 +2794,9 @@ describe("キャッチの報酬演出", () => {
     expect(cta).toBeLessThan(wordCard); // 解説カードより前 = 画像側に在る
   });
 
-  it("動きを減らす人にも**単語と読みは出す**（移動を省くのは動きだけ）", () => {
-    const v5 = codeOnly(read("components/effects/catch-landing/v5_physics.ts"));
-    const branch = v5.slice(v5.indexOf("reducedMotion ||"), v5.indexOf("const vw ="));
-    expect(branch).toMatch(/speakLine/);
-    expect(branch).toMatch(/opacity = "1"/);
-  });
-
   /**
-   * ここから下は**いま動いている** `v5_reward.ts` への門。
-   *
-   * 上の3つが見ている `v5_physics.ts` は経路に繋がっていないので、
-   * あちらが全部緑でも実機は守られない。動く側にも門を置く。
+   * ここから下は**いま動いている** `v5_reward.ts` への門（使っていなかった
+   * `v5_physics.ts` は 2026-10-01 に消した）。
    *
    * ## 何を止めるか
    * この演出は、図鑑へ渡すあいだだけ3つの物を**借りる**:
@@ -3020,12 +2964,7 @@ describe("キャッチの報酬演出", () => {
    * 複製している**ので(本物の `StickerSheet` を描いていない)、本物を直しても
    * あの絵は変わらない。動きなので、そもそも静止画には映らない。
    */
-  const SHEETS = [
-    "components/ScanDetailSheet.tsx",
-    "components/InputCatchSheet.tsx",
-    "components/StickerSheet.tsx",
-    "components/ScanCatchSheet.tsx",
-  ];
+  const SHEETS = ["components/StickerSheet.tsx", "components/ScanCatchSheet.tsx"];
 
   it("**4本すべてが**下へ引いて閉じられる（掴む余地がある）", () => {
     for (const f of SHEETS) {
@@ -3083,7 +3022,7 @@ describe("キャッチの報酬演出", () => {
    *  直した後は 0面になる。)
    */
   it("`backdrop-filter` は接頭辞つきを先に書く（逆だと標準側が消える）", () => {
-    for (const file of ["styles.css", "pack-styles.css"]) {
+    for (const file of ["styles.css"]) {
       const css = read(file);
       const lines = css.split("\n");
       const wrong: string[] = [];
@@ -3115,14 +3054,10 @@ describe("キャッチの報酬演出", () => {
   it("地が背景色のガラスは、段のクラスで持つ（値を散らさない）", () => {
     const files = [
       "components/AppShell.tsx",
-      "components/ScanDetailSheet.tsx",
-      "components/InputCatchSheet.tsx",
       "components/StickerSheet.tsx",
       "components/DexShelf.tsx",
       "components/SectionsPanel.tsx",
       "routes/_authenticated/scan.tsx",
-      "routes/_authenticated/feed.tsx",
-      "routes/_authenticated/post.$postId.tsx",
     ];
     const stray: string[] = [];
     for (const f of files) {
@@ -3318,7 +3253,7 @@ describe("動きを見せるかの答えは、`<html data-motion>` ひとつ", (
   });
 
   it("CSS の「動きを減らす」も、端末直結の `@media` では書かない", () => {
-    for (const css of ["styles.css", "pack-styles.css"]) {
+    for (const css of ["styles.css"]) {
       // 注のなかの引用は数えない（`@custom-variant` の説明で、Tailwind の
       // 既定がどう展開されるかを書いてある）。規則として書かれた物だけ見る。
       const s = read(css)
@@ -3837,20 +3772,6 @@ describe("N. 下のタブ帯と、札を開く動き", () => {
   });
 
   /**
-   * **切り抜きの模型を、画面が出るより先に取りに行かない。**
-   * ONNX の実行時は測って 762KB（`ort.bundle` と `ort.webgpu.bundle` で
-   * 381KB ずつ）。開いた瞬間のいちばん細い回線を、カメラの映像と奪い合う。
-   */
-  it("切り抜きの模型は、暇になってから温める", () => {
-    const cap = codeOnly(read("routes/_authenticated/capture.tsx"));
-    const at = cap.indexOf("preloadCutout()");
-    expect(at).toBeGreaterThan(0);
-    // 素の `useEffect(() => { preloadCutout(); }, [])` に戻っていないこと。
-    expect(cap).not.toMatch(/useEffect\(\(\) => \{\s*preloadCutout\(\);\s*\}, \[\]\)/);
-    expect(cap).toMatch(/requestIdleCallback/);
-  });
-
-  /**
    * **ホームのアルバムは、上からポンと貼られる。**（オーナー指示 2026-09-15
    * 「壁紙ではなくアルバムが上からポンと貼られるようなアニメーションに」）
    */
@@ -4028,11 +3949,7 @@ describe("N. 下のタブ帯と、札を開く動き", () => {
     expect(btn).toMatch(/const skin = `speak-button/);
     expect(btn).not.toMatch(/bg-secondary text-primary/);
     expect(btn).not.toMatch(/bg-primary\/12/);
-    for (const f of [
-      "components/JournalScaffold.tsx",
-      "components/InputCatchSheet.tsx",
-      "routes/_authenticated/scan.tsx",
-    ]) {
+    for (const f of ["routes/_authenticated/scan.tsx"]) {
       expect(codeOnly(read(f))).toMatch(/speak-button/);
     }
     const rv = codeOnly(read("routes/_authenticated/review.tsx"));
@@ -4042,10 +3959,7 @@ describe("N. 下のタブ帯と、札を開く動き", () => {
 
   /** 「AIが分析中」の下の小さな文は消す（オーナー指示 2026-09-15）。 */
   it("分析中の画面に、添え書きを置かない", () => {
-    for (const f of [
-      "components/effects/scan-analyzing/v0_cutout.tsx",
-      "components/effects/scan-analyzing/v6_minimal.tsx",
-    ]) {
+    for (const f of ["components/effects/scan-analyzing/v0_cutout.tsx"]) {
       expect(codeOnly(read(f))).not.toMatch(/scan\.justAMoment/);
     }
   });
@@ -4417,13 +4331,8 @@ describe("N. 下のタブ帯と、札を開く動き", () => {
    * **機能が1つ黙って無くなる**ところだった。部品にして撮り方の「検索」へ
    * 移した。欄を消しただけで機能が減るのは、直したい形ではない。
    */
-  it("声で調べる部品は残す。ただし「検索」の欄にはマイクを置かず、写真で調べる釦を置く", () => {
-    const hook = codeOnly(read("lib/use-voice-input.ts"));
-    expect(hook).toMatch(/export function useVoiceInput/);
-    // 使えない端末に、押しても何も起きない釦を置かないための問い合わせ。
-    expect(hook).toMatch(/export function voiceInputAvailable/);
-    // 画面を離れたら必ず止める（マイクが開いたままにならない）。
-    expect(hook).toMatch(/useEffect\(\(\) => \(\) => recRef\.current\?\.stop\(\), \[\]\)/);
+  // 声で調べる部品（use-voice-input）はどこにも繋がっていなかったので 2026-10-01 に消した。
+  it("「検索」の欄にはマイクを置かず、写真で調べる釦も置かない", () => {
     // 2026-09-27「検索モードのマイクを消して、カメラロールから画像で検索するボタンを追加して」。
     const cap = codeOnly(read("routes/_authenticated/capture.tsx"));
     expect(cap).not.toMatch(/useVoiceInput\(\{/);
@@ -4845,8 +4754,6 @@ describe("ホームは今日の誌面", () => {
     expect(home).not.toMatch(/<DayJournalPage/);
     expect(home).not.toMatch(/listJournal/);
     expect(home).not.toMatch(/journals\?\.get\(/);
-    // 日記そのものは消していない（書く画面と読む部品は残る）。
-    expect(read("components/DayJournalPage.tsx")).toMatch(/export function DayJournalPage\(/);
   });
 
   it("**字だけの札も、押せる大きさ**（§11 の 44px）", () => {
@@ -4909,7 +4816,7 @@ describe("ホームは今日の誌面", () => {
     expect(home).toMatch(/\{heading && <div className="album-date">\{heading\}<\/div>\}/);
     const diary = home.slice(
       home.indexOf("export function DiaryDate("),
-      home.indexOf("export function JournalLink("),
+      home.indexOf("export function PastDays("),
     );
     // 手書きの書体・明朝・波線（svg）は使わない。
     expect(diary).not.toMatch(/handwritten/);
@@ -5138,15 +5045,6 @@ describe("狭い画面と指と声", () => {
     expect(box.slice(0, 300)).toMatch(/tabIndex=\{-1\}/);
     expect(box.slice(0, 300)).toMatch(/aria-hidden="true"/);
   });
-
-  it("**打つ欄の名前を placeholder 頼りにしない**", () => {
-    // placeholder は打ち始めた瞬間に消える。消えた後も何の欄か分かるように。
-    const sheet = codeOnly(read("components/InputCatchSheet.tsx"));
-    expect(sheet).toMatch(/aria-label=\{t\("sheet\.inputPlaceholder"\)\}/);
-    expect(sheet).toMatch(
-      /aria-label=\{isPhrase \? t\("input\.scene"\) : t\("input\.sceneWord"\)\}/,
-    );
-  });
 });
 
 /**
@@ -5293,14 +5191,6 @@ describe("日本語の検索・候補の行・項目の並べ替え", () => {
     expect(body).toMatch(/c\.headword && isTargetHeadword\(c\.headword, data\.targetLanguage\)/);
   });
 
-  it("**候補の行は横に伸びない**（折り返す）", () => {
-    // 見出し語が `shrink-0` だと、句をキャッチしたときに語＋訳が行の幅を
-    // 越えて中身が横にはみ出す（実測 320px で 47px）。
-    const row = codeOnly(read("components/WordCandidateRow.tsx"));
-    expect(row).toMatch(/className="flex flex-wrap items-baseline/);
-    expect(row).not.toMatch(/className="shrink-0 text-title/);
-  });
-
   it("**指で掴む所は `touch-action: none`**（掴んだ瞬間に巻き取られない）", () => {
     // `touch-action` は「指が降りた要素」の値が使われる。親の `<ul>` に
     // 当てても、指が降りるのは行と取っ手なので効かない。始まった巻き取りは
@@ -5443,7 +5333,7 @@ describe("画像の右上の記憶の印", () => {
     const dex = codeOnly(read("routes/_authenticated/dex.tsx"));
     const grid = dex.slice(
       dex.indexOf("export function DexAlbumGrid("),
-      dex.indexOf("export function PackGallery("),
+      dex.indexOf("/** The same compact list used in the app and first-run Dex. */"),
     );
     expect(grid).toMatch(/const fetched = useMemoryBadges\(memory === undefined\);/);
     expect(grid).toMatch(
@@ -5458,7 +5348,7 @@ describe("画像の右上の記憶の印", () => {
     const dex = codeOnly(read("routes/_authenticated/dex.tsx"));
     const grid = dex.slice(
       dex.indexOf("export function DexAlbumGrid("),
-      dex.indexOf("export function PackGallery("),
+      dex.indexOf("/** The same compact list used in the app and first-run Dex. */"),
     );
     expect(grid).not.toMatch(/absolute (left|right)-1\.5 top-1\.5[^"]*amber/);
   });
@@ -5604,7 +5494,7 @@ describe("スキャンの後の下の段（オーナー指摘 2026-09-22）", ()
   });
 
   it("**「AIが分析中」は下のバーより上**・**印の札は枠の内側へ寄せる**（オーナー報告 2026-09-23）", () => {
-    for (const f of ["v0_cutout", "v6_minimal"]) {
+    for (const f of ["v0_cutout"]) {
       expect(read(`components/effects/scan-analyzing/${f}.tsx`)).toMatch(
         /pb-\[calc\(7\.5rem\+env\(safe-area-inset-bottom\)\)\]/,
       );
@@ -5669,7 +5559,6 @@ describe("単語の詳細は既定で8項目（オーナー指示 2026-09-23）"
     for (const f of [
       "routes/_authenticated/capture.tsx",
       "routes/_authenticated/scan.tsx",
-      "components/InputCatchSheet.tsx",
       "components/StickerSheet.tsx",
     ]) {
       expect([f, /sections: cardSectionsNow\(\)/.test(codeOnly(read(f)))]).toEqual([f, true]);

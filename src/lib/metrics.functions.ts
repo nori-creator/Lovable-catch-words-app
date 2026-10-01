@@ -1,9 +1,10 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { z } from "zod";
+import { taipeiDay } from "./taipei-day";
 
 function dayKey(iso: string): string {
-  return new Date(iso).toLocaleDateString("en-CA", { timeZone: "Asia/Taipei" });
+  return taipeiDay(iso);
 }
 
 /**
@@ -201,7 +202,7 @@ export const getAdminDashboard = createServerFn({ method: "GET" })
       d1Eligible += 1;
       const next = new Date(`${first}T12:00:00+08:00`);
       next.setDate(next.getDate() + 1);
-      if (daysSet.has(next.toLocaleDateString("en-CA", { timeZone: "Asia/Taipei" }))) d1Yes += 1;
+      if (daysSet.has(taipeiDay(next))) d1Yes += 1;
     }
 
     return {

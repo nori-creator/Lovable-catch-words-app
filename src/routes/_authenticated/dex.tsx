@@ -36,7 +36,6 @@ import { Input } from "@/components/ui/input";
 import { useT, TARGET_LANG_LABEL_KEYS } from "@/lib/i18n";
 import { formatCount } from "@/lib/count";
 import { normalizeTargetLanguage } from "@/lib/target-lang";
-import { useUiLayout, type LayoutId } from "@/lib/ui-pack";
 import { Zh } from "@/components/Zh";
 import { ZhuyinWord, useZhuyinUnits } from "@/components/ZhuyinWord";
 import { neutralReadings, useReadingText } from "@/lib/phonetic";
@@ -480,7 +479,6 @@ export function DexSurface({
   shelves?: React.ComponentProps<typeof DexShelf>["userShelves"];
 }) {
   const t = useT();
-  const layout = useUiLayout();
   const userCatKeys = useMemo(() => new Set(shelves.map((c) => c.key)), [shelves]);
   const displayOf = (key: string) => categoryDisplay(key, shelves, (k) => t(`cat.${k}`));
   const groups = useMemo(() => {
@@ -658,16 +656,7 @@ export function DexSurface({
                 <span className="text-footnote text-muted-foreground">{items.length}</span>
               </div>
 
-              {view === "gallery" && layout !== "album" ? (
-                // 見た目パックが選ばれているときだけ、別の並べ方で描く。
-                // 中身(実際に撮った写真)は同じで、見せ方だけが変わる。
-                <PackGallery
-                  items={items}
-                  justCaught={justCaught}
-                  onOpen={setOpenId}
-                  layout={layout}
-                />
-              ) : view === "gallery" ? (
+              {view === "gallery" ? (
                 // 試作品(Capture&Converse)のアルバム: 写真がタイルいっぱいに
                 // 表示される3列グリッド+下端のグラデーションに単語名。
                 <DexAlbumGrid
@@ -817,20 +806,9 @@ async function photoPinIcon(url: string): Promise<string | null> {
 }
 
 /**
- * 見た目パックが選ばれているときの図鑑の並べ方。
- *
- * **現行(album)ではこの関数は呼ばれない。** 上の分岐で既存のJSXを
- * そのまま通しているので、現行デザインは一切通らない経路になっている。
- *
- * 中身は実際に撮った写真のまま。見せ方(並べ方・枠・文字の置き方)だけを
- * pack-styles.css 側の .pk-* が塗り替える。
- */
-/**
  * 写真のアルバム(3列)。**図鑑を開いた人がまず見るのはこれ。**
  *
- * 既定のパックは `origin` で、その `layout` は `album`。上の分岐は
- * `layout !== "album"` のときだけ `PackGallery` を使うので、**既定では
- * こちらが描かれる**。`export` は雛形の検査(`scripts/ui-harness`)から
+ * 図鑑の写真の並べ方はこれ1つ（見た目パックの別の並べ方は 2026-10-01 に消した）。`export` は雛形の検査(`scripts/ui-harness`)から
  * 本物を描くため — ルートに直書きのままでは、この画面だけ一度も
  * 絵に映らない(実際、性能の道具も絵の検査も、無効にした棚の方を
  * 見ていた: `src/lib/features.ts` の `DEX_SHELF_ENABLED` は false)。
@@ -959,71 +937,6 @@ export function DexAlbumGrid({
                 <span className="pointer-events-none absolute inset-0 slam-flash rounded-2xl" />
               )}
             </div>
-          </button>
-        );
-      })}
-    </div>
-  );
-}
-
-/**
- * 写真の一覧(パック別の見え方)。**既定では描かれない** —
- * 既定のパック `origin` は `layout: "album"` なので、上の分岐は
- * `DexAlbumGrid` の方へ行く。ここが出るのは設定でパックを変えた人だけ。
- * `export` は雛形の検査から本物を描くため。
- */
-export function PackGallery({
-  items,
-  justCaught,
-  onOpen,
-  layout,
-}: {
-  items: StickerWithWord[];
-  justCaught?: string;
-  onOpen: (id: string) => void;
-  layout: LayoutId;
-}) {
-  const t = useT();
-  return (
-    <div className="pk-collection" data-layout={layout}>
-      {items.map((s) => {
-        // 小さく並ぶ所なので縮小版を先に使う。
-        const photo = stickerPhotoUrl(s, { prefer: s.hero_role, thumb: true });
-        return (
-          <button
-            key={s.id}
-            id={`dex-cell-${s.id}`}
-            data-dex-item={s.id}
-            onClick={() => onOpen(s.id)}
-            className={`pk-tile text-left ${s.id === justCaught ? "ring-2 ring-amber-400" : ""}`}
-          >
-            <span className="pk-tile-media">
-              {photo ? (
-                <CachedImg
-                  src={photo}
-                  alt={t("common.photoOf", { word: s.word.headword })}
-                  loading="lazy"
-                  decoding="async"
-                />
-              ) : (
-                // 写真がまだ無いときは単語そのものを見せる(段ボール絵は使わない)。
-                <span lang="zh-Hant" className="pk-tile-emoji">
-                  {s.word.headword.slice(0, 2)}
-                </span>
-              )}
-            </span>
-            <span className="pk-tile-body">
-              <span lang="zh-Hant" className="pk-tile-word">
-                {s.word.headword}
-              </span>
-              <span className="pk-tile-sub">
-                {s.word.meaning_ja ? (
-                  <ReaderMeaning text={s.word.meaning_ja} wordId={s.word_id} />
-                ) : (
-                  <Zh>{neutralizeMeasureGe(s.word.headword, s.word.reading_zhuyin)}</Zh>
-                )}
-              </span>
-            </span>
           </button>
         );
       })}

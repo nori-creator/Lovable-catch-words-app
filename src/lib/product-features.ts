@@ -10,7 +10,6 @@
  * 設定の「復習の形」の欄）を止める。だから戻すのも全部まとめて。
  */
 export const REVIEW_PRACTICE_ENABLED: boolean = true;
-export const WORDBOOKS_ENABLED: boolean = false;
 
 /**
  * 復習の**形を選ぶ欄**（AIが選ぶ／話す／4択）を出すか。

@@ -223,14 +223,9 @@ const MODES = [
   ["failed-named", "", false, { scene: "load-failed", variant: "named" }],
   ...crossThemes("chunks", { scene: "chunks" }),
   ...crossThemes("curve", { scene: "curve" }),
-  ...crossThemes("detail-ai", { scene: "scan-detail" }),
-  ...crossThemes("detail-verified", { scene: "scan-detail", variant: "verified" }),
   // **出来上がった側**。今まで骨組みしか撮っていなかったので、
   // このシートの中身(解説そのもの)は一度も機械の目に映っていなかった。
-  ...crossThemes("detail-ready", { scene: "scan-detail", variant: "ready" }),
   // 生成に失敗した面。
-  ["detail-failed", "", false, { scene: "scan-detail", variant: "failed" }],
-  ["detail-failed-dark", 'class="dark"', false, { scene: "scan-detail", variant: "failed" }],
   // 復習 — **アプリの中心なのに、中身がルートに直書きで一度も見ていなかった**。
   ...crossThemes("review-memory", { scene: "review-memory" }), // 記憶の一覧。**オーナー報告 2026-09-16 の画面**（段と % の逆転）。
   ...crossThemes("review-memory-list", { scene: "review-memory-list" }),
@@ -256,7 +251,6 @@ const MODES = [
   // 出すが記録は失念なので、**その断りが「正解！」に埋もれていないか**を絵で見る。
   ["review-say-retried", "", false, { scene: "review-say-result", variant: "retried" }],
   ...crossThemes("review-mode-tabs", { scene: "review-mode-tabs" }),
-  ...crossThemes("retake-suggestion", { scene: "retake-suggestion" }),
   // **既定は畳んだ形**(オーナー指摘「バーが大きすぎる。レベルとバンドだけ
   // 表示して、タップでバーを出して」)。畳んだ絵と開いた絵の**両方**を撮る —
   // 片方しか撮らないと、片方は一度も見ていないことになる。
@@ -314,22 +308,6 @@ const MODES = [
   ...crossThemes("home-loading", { scene: "home-loading" }),
   ...crossThemes("review-loading", { scene: "review-loading" }),
   ...crossThemes("home-past", { scene: "home-past" }),
-  ...crossThemes("home-writing", { scene: "home-writing" }),
-  ...crossThemes("wordbook-shelf", { scene: "wordbook-shelf" }),
-  // 冊数が増えたときの棚。**横にあふれないか・題が読めるか**は絵で見る。
-  ["wordbook-shelf-many", "", false, { scene: "wordbook-shelf", many: "1" }],
-  ["wordbook-shelf-many-dark", 'class="dark"', false, { scene: "wordbook-shelf", many: "1" }],
-  ...crossThemes("wordbook-quiz", { scene: "wordbook-quiz" }),
-  // 答え合わせのあと(正解を押した / 間違いを押した)。色の付き方を見る。
-  ...crossThemes("wordbook-quiz-right", {
-    scene: "wordbook-quiz",
-    click: "ul li:nth-child(2) button",
-  }),
-  ...crossThemes("wordbook-quiz-wrong", {
-    scene: "wordbook-quiz",
-    click: "ul li:nth-child(1) button",
-  }),
-  ["wordbook-quiz-nomeaning", "", false, { scene: "wordbook-quiz-nomeaning" }],
   // 台紙は4種類ある。選べるようにしたものは全部見る — 紙以外の3種は
   // 見出し語(濃い墨色の直書き)を載せる面なので、暗い側も含めて見る。
   ["home-frame", "", false, { scene: "home", bg: "frame" }],
@@ -410,18 +388,9 @@ const MODES = [
   // 声で吹き込んだ一言が録れた後(オーナー指示 2026-08-26)。
   // 文字の欄の隣にボタンが立っていること・指が届く大きさかを見る。
   ...crossThemes("cap-card-voice", { scene: "capture-card", variant: "voice" }),
-  // 日記の添削の結果。**学習の中心機能のひとつ**なのに未検査だった。
-  ...crossThemes("journal-result", { scene: "journal-result" }),
-  // 書く前の足場(要望 #88)。**白紙を渡していないか**を絵で見る。
-  ...crossThemes("journal-scaffold", { scene: "journal-scaffold" }),
   // 語を選ぶ札。**打ち込んだ語の側は場面が1つも無かった。**
-  ...crossThemes("word-candidate", { scene: "word-candidate" }),
   // 打ち込みキャッチ。**2度「機能してない」と言われた画面**なのに、
   // ここまで場面が1つも無く、壊れた姿を機械が一度も見ていなかった。
-  ...crossThemes("input-catch", { scene: "input-catch" }),
-  ["input-catch-typed", "", false, { scene: "input-catch", variant: "typed" }],
-  ["input-catch-loading", "", false, { scene: "input-catch", variant: "loading" }],
-  ...crossThemes("input-catch-error", { scene: "input-catch", variant: "error" }),
   // 主役の写真を選ぶ面(要望 #17)。前は `window.confirm` の素の窓だった。
   ...crossThemes("hero-picker", { scene: "hero-picker" }),
   ["hero-picker-few", "", false, { scene: "hero-picker", variant: "few" }],
@@ -430,7 +399,6 @@ const MODES = [
   // **アルバムの見え方を触っている面**(オーナー指示 2026-08-25)。
   // 「設定に従う」が消えて、どの画面に効くのかが見出しの下に出る。
   ["hero-picker-album", "", false, { scene: "hero-picker", variant: "album" }],
-  ["journal-result-compact", "", false, { scene: "journal-result", variant: "compact" }],
   ["sheet-selfie", "", false, { scene: "sticker-sheet", variant: "selfie" }],
   ["sheet-armed", "", false, { scene: "sticker-sheet", variant: "armed" }],
   ["sheet-armed-dark", 'class="dark"', false, { scene: "sticker-sheet", variant: "armed" }],
@@ -490,17 +458,6 @@ const MODES = [
   // `TabIndicator` の門と、ブラウザでの実測で見る。
   ...crossThemes("tabbar", { scene: "tabbar" }),
   ...crossThemes("gallery", { scene: "gallery" }),
-  // 設定でパックを変えた人の見え方(`PackGallery`)。既定では出ない。
-  // **`data-ui-pack` を `<html>` に付ける。** `pack-styles.css` のセレクタは
-  // ほぼ全部その下にあり、付けずに撮ると下地の規則しか当たらない絵になる
-  // (それを「実物が壊れている」と読み違えた)。`sticker` の layout は `grid`。
-  ["gallery-pack", 'data-ui-pack="sticker"', false, { scene: "gallery", layout: "grid" }],
-  [
-    "gallery-pack-dark",
-    'data-ui-pack="sticker" class="dark"',
-    false,
-    { scene: "gallery", layout: "grid" },
-  ],
   ...crossThemes("dex-empty", { scene: "dex-empty" }),
   // 学習言語を変えて空になったとき。**集めた物が消えたように見えない**か。
   ...crossThemes("dex-empty-other-lang", { scene: "dex-empty", variant: "other-lang" }),
@@ -1105,16 +1062,7 @@ for (const [name, htmlAttrs, wantsContrast, scene] of MODES) {
         // ので段として働かず、書くときの選択肢だけが増える。
         // `styles.css` の `--text-*` に6段へ畳んだので、そこに無い大きさは落とす。
         // 表を増やすなら、増やす理由を先に書くこと。
-        //
-        // **見た目パックの中は見ない。** 16 個のパックは「別のアプリに
-        // 見える」ことが目的で、**自前の文字の階調を持っている**
-        // (`pack-styles.css` は px 直書き)。本体の6段で採点すると、
-        // パックを1つ足すたびに設計どおりの字が何十件も落ちる。
-        // 偽の警報を出す門は必ず無視されるようになるので、ここは外す。
-        // 色のコントラストはパックの中でも見る — あれは design ではなく、
-        // 読めるかどうかの話なので、どの見た目でも譲れない。
-        const inPack = el.closest("[data-ui-pack]") || document.documentElement.dataset.uiPack;
-        if (!inPack && !SCALE.has(Math.round(px * 100) / 100)) {
+        if (!SCALE.has(Math.round(px * 100) / 100)) {
           offScale.push(`階調に無い大きさ ${px}px — "${own.slice(0, 16)}"`);
         }
         // **中央揃えの本文が何行も続かないこと。**
@@ -1709,7 +1657,7 @@ const MOTION_KEEP = ["spin"];
 // 読み込み中の骨組みが出なくなった。骨組みが無いのは意図した姿なので、
 // ここに残すと「場面が違う疑い」で永久に落ちる。脈打つ物が実際に居る
 // 3つの場面で、規則そのものは変わらず見ている。
-const MOTION_SCENES = ["scan-detail", "home-loading", "review-loading"];
+const MOTION_SCENES = ["home-loading", "review-loading"];
 let motionSeen = 0;
 for (const scene of MOTION_SCENES) {
   const page = await browser.newPage({

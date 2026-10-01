@@ -2,9 +2,9 @@ import { useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { attachStickerCutout, attachStickerSelfie } from "@/lib/stickers.functions";
+import { attachStickerSelfie } from "@/lib/stickers.functions";
 import { putCachedImage } from "@/lib/image-cache";
-import { downscaleDataUrl } from "@/lib/cutout";
+import { downscaleDataUrl } from "@/lib/image-resize";
 
 /**
  * **その札に切り抜き／自撮りを足す。**
@@ -31,8 +31,6 @@ import { downscaleDataUrl } from "@/lib/cutout";
 export type PhotoAttach = {
   /** いま上げている最中か。ボタンを止めるのに使う。 */
   busy: boolean;
-  /** いま切り抜く（元の写真がある札だけ）。 */
-  cutoutNow: (objectUrl: string) => Promise<void>;
   /** いま自撮りを足す。 */
   selfieNow: (file: File) => Promise<void>;
 };
@@ -66,7 +64,6 @@ export function usePhotoAttach(
   opts?: { onDone?: () => void; onError?: (e: unknown) => void },
 ): PhotoAttach {
   const qc = useQueryClient();
-  const attachCutoutFn = useServerFn(attachStickerCutout);
   const attachSelfieFn = useServerFn(attachStickerSelfie);
   const [busy, setBusy] = useState(false);
 
@@ -74,28 +71,6 @@ export function usePhotoAttach(
     if (!stickerId) return;
     await qc.invalidateQueries({ queryKey: ["sticker", stickerId] });
     void qc.invalidateQueries({ queryKey: ["stickers"] });
-  }
-
-  async function cutoutNow(objectUrl: string) {
-    if (!stickerId || !objectUrl || busy) return;
-    setBusy(true);
-    try {
-      const { removeBackgroundSmart } = await import("@/lib/cutout");
-      // 署名URLから読み直す。**元の写真を差し替えない** — 足すのは切り抜きだけ。
-      const dataUrl = await toDataUrl(await (await fetch(objectUrl)).blob());
-      const cut = await removeBackgroundSmart(dataUrl);
-      if (!cut) throw new Error("cutout failed");
-      const path = await upload(await (await fetch(cut)).blob(), "cutout.png");
-      await attachCutoutFn({ data: { sticker_id: stickerId, cutout_path: path } });
-      await refresh();
-      opts?.onDone?.();
-    } catch (e) {
-      // **黙って飲まない。** 待ったのに何も起きないのがいちばん困る。
-      console.warn("cutout failed", e);
-      opts?.onError?.(e);
-    } finally {
-      setBusy(false);
-    }
   }
 
   async function selfieNow(file: File) {
@@ -116,5 +91,5 @@ export function usePhotoAttach(
     }
   }
 
-  return { busy, cutoutNow, selfieNow };
+  return { busy, selfieNow };
 }

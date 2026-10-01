@@ -6,7 +6,7 @@ import { searchImageCandidates, fetchImageAsDataUrl } from "@/lib/images.functio
 import { setStickerPlaceholder } from "@/lib/stickers.functions";
 import { supabase } from "@/integrations/supabase/client";
 import { putCachedImage } from "@/lib/image-cache";
-import { downscaleDataUrl } from "@/lib/cutout";
+import { downscaleDataUrl } from "@/lib/image-resize";
 import { toImageDataUrl } from "@/lib/sticker-upload";
 import { heroSearchQuery, needsWebHero, shouldOfferWebCandidates } from "@/lib/hero-image";
 import type { PhotoSources } from "@/lib/sticker-photo";

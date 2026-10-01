@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { CUTOUT_ENABLED } from "./cutout-feature";
-import { DEX_SHELF_ENABLED, JOURNAL_ENABLED, SOCIAL_ENABLED } from "./features";
+import fs from "node:fs";
+import { DEX_SHELF_ENABLED } from "./features";
 
 /**
  * Product guardrails for the Web MVP.
@@ -10,13 +10,24 @@ import { DEX_SHELF_ENABLED, JOURNAL_ENABLED, SOCIAL_ENABLED } from "./features";
  * “helpfully” turn these on or delete their pipelines.
  */
 describe("Web MVP feature guardrails", () => {
-  it("keeps browser background cutout off the Catch critical path", () => {
-    expect(CUTOUT_ENABLED).toBe(false);
+  // Owner decision 2026-10-01: the long-paused background cutout was deleted as code.
+  // Existing saved cutout images (cutout_image_url) still display.
+  it("browser background cutout stays deleted", () => {
+    expect(fs.existsSync("src/lib/cutout.ts")).toBe(false);
+    const pkg = JSON.parse(fs.readFileSync("package.json", "utf8"));
+    expect(pkg.dependencies?.["@imgly/background-removal"]).toBeUndefined();
   });
 
-  it("keeps deferred social, journal and shelf surfaces hidden", () => {
-    expect(SOCIAL_ENABLED).toBe(false);
-    expect(JOURNAL_ENABLED).toBe(false);
+  it("keeps the deferred shelf surface hidden", () => {
     expect(DEX_SHELF_ENABLED).toBe(false);
+  });
+
+  // Owner decision 2026-10-01: social, the AI-corrected /journal page and wordbooks were
+  // deleted as code (their DB tables and saved rows stay). Do not bring the routes back
+  // by accident.
+  it("deleted social / journal / wordbooks routes stay deleted", () => {
+    for (const r of ["feed", "discover", "notifications", "journal", "wordbooks"]) {
+      expect(fs.existsSync(`src/routes/_authenticated/${r}.tsx`)).toBe(false);
+    }
   });
 });
