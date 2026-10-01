@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { markSegments, needsRedInk, splitDiary, takeFinishedSentences, toSummary } from "./red-pen";
+import {
+  diffAdded,
+  markSegments,
+  needsRedInk,
+  splitDiary,
+  takeFinishedSentences,
+  toSummary,
+} from "./red-pen";
 
 /** 日記の赤ペン（2026-10-01）。文の切り方を間違えると、書いている途中の文に赤が入る。 */
 describe("takeFinishedSentences — 書き終わった文だけを上げる", () => {
@@ -93,5 +100,35 @@ describe("toSummary — 残したまとめを読む", () => {
       example: "e",
     });
     expect(s?.learn[1].kind).toBe("chunk");
+  });
+});
+
+describe("diffAdded — 直した文の、新しく入った所", () => {
+  it("中文は1字ずつ比べ、足した所だけ印を付ける", () => {
+    expect(diffAdded("我吃很多的雞排，很好吃。", "我吃了很多雞排，真的很好吃。")).toEqual(
+      [
+        { text: "我吃", added: false },
+        { text: "了", added: true },
+        { text: "很多", added: false },
+        { text: "雞排，", added: false },
+        { text: "真的", added: true },
+        { text: "很好吃。", added: false },
+      ].reduce<Array<{ text: string; added: boolean }>>((acc, s) => {
+        const last = acc[acc.length - 1];
+        if (last && last.added === s.added) last.text += s.text;
+        else acc.push({ ...s });
+        return acc;
+      }, []),
+    );
+  });
+
+  it("英語は1語ずつ（語の途中で切らない）", () => {
+    const out = diffAdded("I go to home yesterday.", "I went home yesterday.");
+    expect(out.filter((s) => s.added).map((s) => s.text.trim())).toEqual(["went"]);
+    expect(out.map((s) => s.text).join("")).toBe("I went home yesterday.");
+  });
+
+  it("全部違う（母語で書いた）文は全部に印", () => {
+    expect(diffAdded("明日も行きたい。", "明天還想再去。").some((s) => s.added)).toBe(true);
   });
 });

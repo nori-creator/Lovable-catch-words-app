@@ -164,6 +164,7 @@ export function DiaryRedPenScene({ q }: { q: URLSearchParams }) {
               : { status: "ready", summary: REDPEN_SUMMARY }
           }
           font="hand"
+          original={REDPEN_DIARY}
           onClose={() => setSummary("none")}
           onRetry={() => {}}
         />

@@ -824,6 +824,11 @@ export function HomeShelf({
             <RedPenSummarySheet
               state={review.state}
               font={font}
+              original={
+                days.find(
+                  (x) => `${monthKey(x.y, x.m)}-${String(x.d).padStart(2, "0")}` === review.date,
+                )?.diary
+              }
               onClose={() => setReview((r) => (r ? { ...r, open: false } : r))}
               onRetry={() => {
                 const d = days.find(

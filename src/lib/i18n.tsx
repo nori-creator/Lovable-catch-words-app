@@ -3451,6 +3451,11 @@ export const DICT: Record<string, Record<UiLang, string>> = {
   "redpen.kind.chunk": { ja: "フレーズ・チャンク", en: "Phrases", "zh-TW": "片語與語塊" },
   "redpen.kind.word": { ja: "単語", en: "Words", "zh-TW": "單字" },
   "redpen.kind.grammar": { ja: "文法", en: "Grammar", "zh-TW": "文法" },
+  "redpen.why": { ja: "理由", en: "Why", "zh-TW": "原因" },
+  "redpen.point": { ja: "ポイント", en: "Tip", "zh-TW": "重點" },
+  "redpen.legend.wrong": { ja: "間違い", en: "Mistake", "zh-TW": "錯誤" },
+  "redpen.legend.right": { ja: "直した形", en: "Correct form", "zh-TW": "正確說法" },
+  "redpen.example": { ja: "例文", en: "Example", "zh-TW": "例句" },
   "shelf.home.saveFailed": {
     ja: "日記を保存できませんでした",
     en: "Couldn't save the diary",

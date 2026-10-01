@@ -215,3 +215,53 @@ export function toSummary(row: unknown): RedPenSummary | null {
     learn,
   };
 }
+
+/**
+ * **直した文のうち、変わった所**（2026-10-01「赤だけだと見にくい」— 直した形の中で
+ * 新しく入った所だけに緑の蛍光ペンを引く）。漢字・かなは1字、欧文は1語を単位に、
+ * 元の文と直した文の共通部分（最長共通部分列）を取り、直した文に残った物を「足した所」とする。
+ * 長すぎる文は比べない（全部を「変わっていない」として返す — 線が無いだけで、文は読める）。
+ */
+export function diffAdded(
+  original: string,
+  corrected: string,
+  limit = 600,
+): Array<{ text: string; added: boolean }> {
+  const tok = (s: string) => s.match(/[A-Za-z0-9'’-]+|\s+|[^\sA-Za-z0-9'’-]/gu) ?? [];
+  const a = tok(original);
+  const b = tok(corrected);
+  if (!b.length) return [];
+  if (a.length > limit || b.length > limit) return [{ text: corrected, added: false }];
+  // dp[i][j] = a[i..] と b[j..] の最長共通部分列の長さ
+  const dp: number[][] = Array.from({ length: a.length + 1 }, () =>
+    new Array<number>(b.length + 1).fill(0),
+  );
+  for (let i = a.length - 1; i >= 0; i--) {
+    for (let j = b.length - 1; j >= 0; j--) {
+      dp[i][j] = a[i] === b[j] ? dp[i + 1][j + 1] + 1 : Math.max(dp[i + 1][j], dp[i][j + 1]);
+    }
+  }
+  const out: Array<{ text: string; added: boolean }> = [];
+  const push = (text: string, added: boolean) => {
+    // 空白だけの違いには線を引かない（見た目が変わらない）。
+    const flag = added && !!text.trim();
+    const last = out[out.length - 1];
+    if (last && last.added === flag) last.text += text;
+    else out.push({ text, added: flag });
+  };
+  let i = 0;
+  let j = 0;
+  while (j < b.length) {
+    if (i < a.length && a[i] === b[j]) {
+      push(b[j], false);
+      i++;
+      j++;
+    } else if (i < a.length && dp[i + 1][j] >= dp[i][j + 1]) {
+      i++;
+    } else {
+      push(b[j], true);
+      j++;
+    }
+  }
+  return out;
+}
