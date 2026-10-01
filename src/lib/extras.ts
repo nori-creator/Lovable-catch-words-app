@@ -557,7 +557,11 @@ function countWords(text: string): number {
  *   （mango→mangoes、make→making、carry→carried）。3文字以下の語は丸ごと一致だけ
  *   （mankind は man の形ではない）
  */
-export function chunkMentionsHeadword(text: string, headword: string, language?: string | null): boolean {
+export function chunkMentionsHeadword(
+  text: string,
+  headword: string,
+  language?: string | null,
+): boolean {
   const core = (s: string) =>
     s
       .replace(/[（(【〔[][^）)】〕\]]*[）)】〕\]]/gu, "")
@@ -566,8 +570,14 @@ export function chunkMentionsHeadword(text: string, headword: string, language?:
   if (!head) return true;
   const lang = normalizeTargetLanguage(language);
   if (lang === "en") {
-    const words = text.toLowerCase().split(/[^\p{L}']+/u).filter(Boolean);
-    const heads = headword.toLowerCase().split(/[^\p{L}]+/u).filter(Boolean);
+    const words = text
+      .toLowerCase()
+      .split(/[^\p{L}']+/u)
+      .filter(Boolean);
+    const heads = headword
+      .toLowerCase()
+      .split(/[^\p{L}]+/u)
+      .filter(Boolean);
     if (heads.length === 0) return true;
     return heads.every((h) => {
       let stem = h;
@@ -596,7 +606,7 @@ export function chunkMentionsHeadword(text: string, headword: string, language?:
  * プロンプトでも頼むが、**返ってきた物のほうを見て落とす**。この app は
  * 「書いてあることと返ってくる物は別」を何度も踏んでいる。
  *
- * 落とすのは6つ:
+ * 落とすのは7つ:
  * 0. **どの名詞にも付く汎用の組み合わせ**(`generic-chunks.ts`) —
  *    「買{語}」「喜歡{語}」はその語について何も教えていない
  *    (オーナー指示 2026-08-28 ③)
@@ -609,6 +619,8 @@ export function chunkMentionsHeadword(text: string, headword: string, language?:
  * 6. **学ぶ語が入っていない型**(オーナー報告 2026-10-01「チャンクに学ぶべき単語の芒果がない」)
  *    — 「芒果」の型に「很+甜」だけが来た。型は「その語をどう使うか」なので、
  *    語そのもの（日本語・英語は活用形も可）が入っていない物は型ではない
+ * 7. **1語を分けただけの型**(オーナー指示 2026-10-01「芒果冰のようにひとかたまりとして普段
+ *    扱われるものはチャンクを分けなくていい」) — 芒果＋冰 は 芒果冰 という1語
  *
  * そのうえで**先頭5つ**に切る。生成側は「使用頻度の高い順」に並べるので、
  * 切るのは後ろから。
@@ -649,6 +661,10 @@ export function refineUsageChunks(
       }
       // 見出し語だけの型は、その語を見れば分かることしか言っていない。
       if (text === head) return false;
+      // 分けた1語（芒果＋冰 → 芒果冰）は使い方ではない（チャンクの表示ルール C7）。
+      // もともと札1つで保存された古い型は落とさない（合わせて1つになった物だけ）。
+      if (parts.length >= 2 && tidyUsageParts(parts, language, { headword: head }).length < 2)
+        return false;
       if (!chunkMentionsHeadword(chunkText(c, " "), head, language)) return false;
       if (seen.has(text)) return false;
       seen.add(text);

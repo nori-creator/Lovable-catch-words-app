@@ -205,8 +205,9 @@ describe("chunkSpeechText", () => {
 });
 
 describe("refineUsageChunks", () => {
+  // 品詞は書かない（「帶＋雨傘」を名詞＋名詞にすると、1語として合わさる — C7）。
   const chunk = (...texts: string[]) => ({
-    parts: texts.map((text) => ({ text, pos: "N" })),
+    parts: texts.map((text) => ({ text, pos: "" })),
     ja: "",
   });
 
@@ -307,12 +308,36 @@ describe("refineUsageChunks", () => {
 
     it("台湾華語の型は今までどおり（**この直しで1つも変わらない**）", () => {
       const short = {
-        parts: ["帶", "雨傘"].map((text) => ({ text, pos: "N" })),
+        parts: [
+          { text: "帶", pos: "V" },
+          { text: "雨傘", pos: "N" },
+        ],
         ja: "",
       };
       expect(refineUsageChunks([short], [], "雨傘", "zh-TW")).toEqual([short]);
       expect(refineUsageChunks([short], [], "雨傘")).toEqual([short]);
     });
+  });
+
+  it("分けた1語（芒果＋冰）は型として出さない。札1つの古い型は残す（C7）", () => {
+    const split = {
+      parts: [
+        { text: "芒果", pos: "N" },
+        { text: "冰", pos: "N" },
+      ],
+      ja: "",
+    };
+    const real = {
+      parts: [
+        { text: "芒果", pos: "N" },
+        { text: "很", pos: "Adv" },
+        { text: "甜", pos: "Vs" },
+      ],
+      ja: "",
+    };
+    expect(refineUsageChunks([split, real], [], "芒果", "zh-TW")).toEqual([real]);
+    const old = { parts: [{ text: "切芒果", pos: "" }], ja: "" };
+    expect(refineUsageChunks([old], [], "芒果", "zh-TW")).toEqual([old]);
   });
 });
 
@@ -344,7 +369,12 @@ describe("chunkMentionsHeadword / refineUsageChunks drops chunks without the wor
   it("台湾華語: 「芒果」の型に「很+甜」だけは出さない", () => {
     expect(chunkMentionsHeadword("很 甜", "芒果", "zh-TW")).toBe(false);
     expect(chunkMentionsHeadword("芒果 冰", "芒果", "zh-TW")).toBe(true);
-    const kept = refineUsageChunks([c("很", "甜"), c("芒果", "冰"), c("吃", "芒果")], [], "芒果", "zh-TW");
+    const kept = refineUsageChunks(
+      [c("很", "甜"), c("芒果", "冰"), c("吃", "芒果")],
+      [],
+      "芒果",
+      "zh-TW",
+    );
     expect(kept.map((k) => k.parts.map((p) => p.text).join(""))).toEqual(["芒果冰", "吃芒果"]);
   });
 
