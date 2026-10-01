@@ -31,6 +31,19 @@ describe("単語の解説: 見えている物を差し替えない・端末に�
     expect(keepShownFields(null, fresh)).toBe(fresh);
   });
 
+  it("解説（note）が1つも無い関連語は残さず、新しく作った物で埋める（2026-09-30 保溫瓶）", () => {
+    const shown: Record<string, unknown> = {
+      related_words: [{ word: "真空", kind: "rel", note: "" }],
+    };
+    const freshRel = [{ word: "真空", kind: "rel", note: "真空断熱の構造" }];
+    expect(keepShownFields(shown, { related_words: freshRel }).related_words).toEqual(freshRel);
+    // 解説の在る関連語はそのまま残す（開いている途中で差し替えない）。
+    const withNote = [{ word: "水壺", kind: "syn", note: "水筒全般" }];
+    expect(
+      keepShownFields({ related_words: withNote }, { related_words: freshRel }).related_words,
+    ).toEqual(withNote);
+  });
+
   it("端末に覚えた解説を、同じ語・同じ言語・同じ母語の鍵で読み戻す", () => {
     const mem = new Map<string, string>();
     vi.stubGlobal("localStorage", {
