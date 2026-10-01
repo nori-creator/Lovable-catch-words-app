@@ -1274,7 +1274,6 @@ export const DICT: Record<string, Record<UiLang, string>> = {
   "cap.regProper": { ja: "固有名詞", en: "Proper noun", "zh-TW": "專有名詞" },
   "cap.regCasual": { ja: "砕けた言い方", en: "Casual", "zh-TW": "口語說法" },
   "cap.inPhoto": { ja: "写っている物", en: "In the photo", "zh-TW": "照片裡的東西" },
-  "cap.photoCutout": { ja: "切り抜いた写真", en: "Cut-out photo", "zh-TW": "去背後的照片" },
   "cap.selfie": { ja: "自撮り", en: "Selfie", "zh-TW": "自拍" },
   "cap.wordPlaceholder": { ja: "例: 椅子", en: "e.g. 椅子", "zh-TW": "例：椅子" },
   "cap.reencBefore": { ja: "この言葉、", en: "You caught this word ", "zh-TW": "這個字，你在" },
@@ -3771,14 +3770,6 @@ export const DICT: Record<string, Record<UiLang, string>> = {
   "photo.roleCutout": { ja: "切り抜き", en: "Cut-out", "zh-TW": "去背圖" },
   "photo.roleSelfie": { ja: "自撮り", en: "Selfie", "zh-TW": "自拍" },
   "photo.rolePlaceholder": { ja: "ネット画像", en: "Web image", "zh-TW": "網路圖片" },
-  "photo.cutoutNow": { ja: "いま切り抜く", en: "Cut it out now", "zh-TW": "現在去背" },
-  "photo.cutoutRedo": { ja: "切り抜き直す", en: "Cut it out again", "zh-TW": "重新去背" },
-  "photo.cuttingOut": { ja: "切り抜いています…", en: "Cutting out…", "zh-TW": "去背中…" },
-  "photo.cutoutFailed": {
-    ja: "切り抜けませんでした。もう一度お試しください。",
-    en: "Couldn't cut it out. Please try again.",
-    "zh-TW": "無法去背，請再試一次。",
-  },
   "cap.networkTimeout": {
     ja: "通信に時間がかかっています。写真は端末に保存しました。",
     en: "The connection is taking too long. Your photo is saved on this device.",
@@ -3794,7 +3785,6 @@ export const DICT: Record<string, Record<UiLang, string>> = {
     en: "The database hasn't been migrated for this setting yet (please contact the admin).",
     "zh-TW": "這台裝置的資料庫還不支援新的設定（請聯絡管理者）。",
   },
-  "settings.catchSpeed": { ja: "キャッチのしかた", en: "How a catch works", "zh-TW": "捕捉的方式" },
   "settings.speedDetail": { ja: "切り抜き", en: "Cut-out", "zh-TW": "去背" },
   "settings.speedFast": { ja: "ファスト", en: "Fast", "zh-TW": "快速" },
   "set.catchSpeedMetrics": {
@@ -3845,7 +3835,6 @@ export const DICT: Record<string, Record<UiLang, string>> = {
   "dex.timelineBack": { ja: "カレンダーに戻る", en: "Back to calendar", "zh-TW": "返回行事曆" },
   "dex.timelineTitle": { ja: "この日の記録", en: "This day's captures", "zh-TW": "這一天的紀錄" },
   "settings.photoObject": { ja: "元の写真", en: "Photo", "zh-TW": "原本的照片" },
-  "settings.photoCutout": { ja: "切り抜き", en: "Cut-out", "zh-TW": "去背圖" },
   "settings.photoSelfie": { ja: "自撮り", en: "Selfie", "zh-TW": "自拍" },
   // **絵文字は付けない**(オーナー指示 2026-08-28 ⑥)。3つ並ぶ札で、
   // 選ばれているかどうかは地の色が言っている。絵は同じ仕事を二重に

@@ -53,7 +53,7 @@ import {
   type ExplanationRow,
 } from "@/lib/word-explanation";
 import { readerL1 } from "@/lib/reader-language";
-import { downscaleDataUrl } from "@/lib/cutout";
+import { downscaleDataUrl } from "@/lib/image-resize";
 import { toImageDataUrl } from "@/lib/sticker-upload";
 import { listStickerPhotos, type StickerPhoto } from "@/lib/encounters.functions";
 import { StickerPhotoHistory } from "@/components/StickerPhotoHistory";
@@ -917,7 +917,6 @@ export function StickerSheet({ stickerId, onClose, openPhotoPicker, from, local 
               setPickerSurface(null);
               fileInputRef.current?.click();
             }}
-            onCutoutNow={s.object_url ? () => void photoAttach.cutoutNow(s.object_url!) : undefined}
             onSelfieFile={(f) => void photoAttach.selfieNow(f)}
             onClose={() => closePicker()}
           />

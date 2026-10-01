@@ -856,10 +856,6 @@ describe("第4段: アルバムと単語詳細で、絵を別々に選ぶ", () =
     // 無かった。渡すのは絵の在りかだけ。
     const btns = codeOnly(read("components/PhotoAddButtons.tsx"));
     expect(btns).toMatch(/const canSelfie = !selfieUrl;/);
-    // main（2026-09-19）で切り抜きが機能ごと止まった（`CUTOUT_ENABLED`）。
-    // 止めた事実はそのまま認めつつ、**元の写真が無ければ切り抜かない**
-    // という条件が消えていないことは見続ける。
-    expect(btns).toMatch(/const canCutout = CUTOUT_ENABLED && !!objectUrl;/);
     // **両方の詳細から出る。** 片方だけ直る事故がこの報告の中身。
     for (const rel of [
       "components/HeroPhotoPicker.tsx",
@@ -3024,7 +3020,7 @@ describe("キャッチの報酬演出", () => {
    *  直した後は 0面になる。)
    */
   it("`backdrop-filter` は接頭辞つきを先に書く（逆だと標準側が消える）", () => {
-    for (const file of ["styles.css", "pack-styles.css"]) {
+    for (const file of ["styles.css"]) {
       const css = read(file);
       const lines = css.split("\n");
       const wrong: string[] = [];
@@ -3255,7 +3251,7 @@ describe("動きを見せるかの答えは、`<html data-motion>` ひとつ", (
   });
 
   it("CSS の「動きを減らす」も、端末直結の `@media` では書かない", () => {
-    for (const css of ["styles.css", "pack-styles.css"]) {
+    for (const css of ["styles.css"]) {
       // 注のなかの引用は数えない（`@custom-variant` の説明で、Tailwind の
       // 既定がどう展開されるかを書いてある）。規則として書かれた物だけ見る。
       const s = read(css)
@@ -3771,20 +3767,6 @@ describe("N. 下のタブ帯と、札を開く動き", () => {
     // いま見ている画面より先に取りに行かない。
     expect(warm).toMatch(/requestIdleCallback/);
     expect(codeOnly(read("components/AppShell.tsx"))).toMatch(/useWarmCamera\(\)/);
-  });
-
-  /**
-   * **切り抜きの模型を、画面が出るより先に取りに行かない。**
-   * ONNX の実行時は測って 762KB（`ort.bundle` と `ort.webgpu.bundle` で
-   * 381KB ずつ）。開いた瞬間のいちばん細い回線を、カメラの映像と奪い合う。
-   */
-  it("切り抜きの模型は、暇になってから温める", () => {
-    const cap = codeOnly(read("routes/_authenticated/capture.tsx"));
-    const at = cap.indexOf("preloadCutout()");
-    expect(at).toBeGreaterThan(0);
-    // 素の `useEffect(() => { preloadCutout(); }, [])` に戻っていないこと。
-    expect(cap).not.toMatch(/useEffect\(\(\) => \{\s*preloadCutout\(\);\s*\}, \[\]\)/);
-    expect(cap).toMatch(/requestIdleCallback/);
   });
 
   /**
@@ -5349,7 +5331,7 @@ describe("画像の右上の記憶の印", () => {
     const dex = codeOnly(read("routes/_authenticated/dex.tsx"));
     const grid = dex.slice(
       dex.indexOf("export function DexAlbumGrid("),
-      dex.indexOf("export function PackGallery("),
+      dex.indexOf("/** The same compact list used in the app and first-run Dex. */"),
     );
     expect(grid).toMatch(/const fetched = useMemoryBadges\(memory === undefined\);/);
     expect(grid).toMatch(
@@ -5364,7 +5346,7 @@ describe("画像の右上の記憶の印", () => {
     const dex = codeOnly(read("routes/_authenticated/dex.tsx"));
     const grid = dex.slice(
       dex.indexOf("export function DexAlbumGrid("),
-      dex.indexOf("export function PackGallery("),
+      dex.indexOf("/** The same compact list used in the app and first-run Dex. */"),
     );
     expect(grid).not.toMatch(/absolute (left|right)-1\.5 top-1\.5[^"]*amber/);
   });

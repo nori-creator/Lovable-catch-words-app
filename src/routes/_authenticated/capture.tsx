@@ -4,7 +4,6 @@ import { useReadableError } from "@/lib/errors";
 import { cardSectionsNow } from "@/lib/card-prefs";
 import { takeScanHandoff } from "@/lib/scan-handoff";
 import { containRect, residualZoom, viewfinderCrop } from "@/lib/capture-framing";
-import { useCutoutClipped } from "@/lib/cutout-clip";
 import { PeelSticker } from "@/components/PeelSticker";
 import { reportSaveFailure } from "@/lib/save-failure";
 import { reportBackgroundFailure } from "@/lib/background-failure";
@@ -58,8 +57,8 @@ import {
   removePendingCapture,
   updatePendingCapture,
 } from "@/lib/offline-queue";
-import { makeThumbBlob, preloadCutout, removeBackgroundSmart, thumbPath } from "@/lib/cutout";
-import { cutoutAtCatch, recordCatchTiming, useCatchSpeed } from "@/lib/catch-speed";
+import { makeThumbBlob, thumbPath } from "@/lib/image-resize";
+import { recordCatchTiming, useCatchSpeed } from "@/lib/catch-speed";
 import { putCachedImage } from "@/lib/image-cache";
 import { setCameraScreenOpen } from "@/lib/camera-launch";
 import {
@@ -279,14 +278,8 @@ function CapturePage() {
   // 文字で調べる道も**この画面のまま**通る(オーナー指示 2026-08-26)。
   const [step, setStep] = useState<Step>("object");
   const [objectImg, setObjectImg] = useState<string | null>(null);
-  const [cutoutImg, setCutoutImg] = useState<string | null>(null);
   /** 速さのつまみ(要望 #18)。既定は「切り抜きモード」。 */
   const catchSpeed = useCatchSpeed();
-  /**
-   * 走っている切り抜き。**カードを出す時刻とは切り離す。**
-   * 切り抜きモードで待つのは「図鑑に入れる直前」だけ。
-   */
-  const cutoutPromiseRef = useRef<Promise<string | null> | null>(null);
   const [selfieImg, setSelfieImg] = useState<string | null>(null);
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
   const [selectedHead, setSelectedHead] = useState<string>("");
@@ -427,36 +420,6 @@ function CapturePage() {
   useEffect(() => {
     setCameraScreenOpen(true);
     return () => setCameraScreenOpen(false);
-  }, []);
-
-  /**
-   * 切り抜きの模型を、構えている間に温めておく(roadmap B2)。
-   *
-   * **ただし、画面が出るより先に走らせない。**（オーナー報告 2026-09-15
-   * 「カメラが開くまで5秒ぐらいラグがある」）
-   *
-   * ここは描かれた直後に無条件で走っていた。温めるのは
-   * `@imgly/background-removal` ＝ ONNX の実行時 **762KB**（測定: `ort.bundle`
-   * と `ort.webgpu.bundle` で 381KB ずつ）と、その先の模型の重み。
-   * 開いた瞬間のいちばん細い回線と、いちばん忙しい本線（カメラの映像を
-   * 出すこと）に、それを横から被せていた。
-   *
-   * 暇になってから始める。撮るまでには十分間に合う（構えて言葉を見つける
-   * までに数秒はかかる）し、間に合わなくても切り抜きが少し遅れるだけで、
-   * **カメラが出ないより害が小さい**。
-   */
-  useEffect(() => {
-    const ric = (
-      window as Window & {
-        requestIdleCallback?: (cb: () => void, o?: { timeout: number }) => number;
-      }
-    ).requestIdleCallback;
-    if (typeof ric === "function") {
-      ric(() => preloadCutout(), { timeout: 4000 });
-      return;
-    }
-    const t = window.setTimeout(() => preloadCutout(), 1500);
-    return () => window.clearTimeout(t);
   }, []);
 
   // 着いたらすぐ**外**カメラを開く(派生キャッチとオフライン復元のときは除く)。
@@ -881,25 +844,8 @@ function CapturePage() {
     }
     const startedAt = Date.now();
 
-    // タップした瞬間に切り抜きを始める。失敗しても写真のまま進める
-    // (切り抜きは見た目の格上げであって、キャッチの条件ではない)。
-    //
-    // ## **カードは、どちらのモードでも待たせずに出す**(オーナー指摘 2026-08-20)
-    // 「モードにかかわらず、最速で図鑑に追加できるようにする」。
-    // ここは切り抜きが終わるまでカードを出さない作りで、意味も発音も
-    // 候補から既に入っているのに**背景を消す処理のために画面が止まって**
-    // いた。切り抜きモードで変わるのは「図鑑に入れる前に切り抜くかどうか」
-    // であって、**カードを見せる時刻ではない**。
-    // だから待つのは保存の直前(`save`)だけにする。
-    const wantCutout = cutoutAtCatch(catchSpeed);
-    const cutoutPromise: Promise<string | null> =
-      photo && wantCutout
-        ? removeBackgroundSmart(photo).catch((e) => {
-            console.warn("background removal failed, using original", e);
-            return null;
-          })
-        : Promise.resolve(null);
-    cutoutPromiseRef.current = cutoutPromise;
+    // **カードは待たせずに出す**(オーナー指摘 2026-08-20)。
+    // 背景の切り抜きは 2026-10-01 に消した（ずっと止めてあった）。保存は元の写真だけ。
 
     // Already caught this word? Then this is a re-encounter — the best review
     // moment there is — not a duplicate sticker.
@@ -912,10 +858,8 @@ function CapturePage() {
         setReenc(owned);
         setReencResult(null);
         setStep("reencounter");
-        // **写真をここで捨てない。** 切り抜きの完了を待って、そのまま
-        // その単語の写真として足す。待つのは画面を出したあとなので、
-        // 学習者は演出を見ている間に終わる。
-        reencPromiseRef.current = cutoutPromise.then((cut) => recordReencounter(owned, photo, cut));
+        // **写真をここで捨てない。** そのままその単語の写真として足す。
+        reencPromiseRef.current = recordReencounter(owned, photo);
         return;
       }
     } catch {
@@ -956,20 +900,14 @@ function CapturePage() {
         setCard(c);
         adoptResolvedHead(c);
       }
-      // **カードは待たずに出す。** 切り抜きが間に合えば、あとから絵が
-      // 差し替わる(「ポン」と現れる返事はそのまま残る)。
       if (runTokenRef.current !== token) return;
-      setCutoutImg(photo);
       setStep("card");
-      void cutoutPromise.then((cut) => {
-        if (cut && runTokenRef.current === token) setCutoutImg(cut);
-      });
       // 要望 #73「切り抜きあり/なしの時間を計測して比較」。
       // 端末に貯めて設定の開発者欄で見る(理由は `lib/catch-speed.ts`)。
       recordCatchTiming({
         ms: Date.now() - startedAt,
         speed: catchSpeed,
-        cutout: wantCutout,
+        cutout: false,
       });
     } catch (e) {
       console.error(e);
@@ -1035,27 +973,10 @@ function CapturePage() {
       return path;
     }
 
-    // **切り抜きモードでは、図鑑に入れる前に切り抜きが揃っていること**
-    // (オーナー指摘 2026-08-20)。カードは待たずに出しているので、
-    // 間に合っていなければここで待つ。速いモードでは即座に null が返る。
-    //
-    // **`?? cutoutImg` に落としてはいけない**(オーナー報告 2026-09-13
-    // 「まだ切り抜いてない写真が切り抜きの画像として表示されてる」)。
-    // `cutoutImg` は「絵が届くまでのあいだ元の写真を見せておく」ための
-    // 表示用の値で、切り抜きが出来なかったときもそのまま元の写真が入って
-    // いる。それを保存すると、切り抜いていない札に**切り抜きが在る**こと
-    // になり、長押しの一覧に元の写真が「切り抜き」として並び、
-    // 「切り抜く」ボタンも出なくなっていた。保存は本物だけ。
-    const cutForSave = await cutoutPromiseRef.current;
-
-    // 3枚のアップロードは並列。切り抜きは任意なので、失敗しても保存は続ける
-    // (以前は cutout の失敗で全体が例外になり、登録が長引いていた)。
-    const [object_path, cutout_path, selfie_path] = await Promise.all([
+    // 写真のアップロードは並列。自撮りは任意なので、失敗しても保存は続ける。
+    const cutout_path: string | null = null;
+    const [object_path, selfie_path] = await Promise.all([
       upload(objectImg, "object"),
-      upload(cutForSave, "cutout").catch((e: unknown) => {
-        reportBackgroundFailure("photo_upload", e, { kind: "cutout" });
-        return null;
-      }),
       upload(selfieImg, "selfie").catch((e: unknown) => {
         reportBackgroundFailure("photo_upload", e, { kind: "selfie" });
         return null;
@@ -1136,7 +1057,7 @@ function CapturePage() {
         // アップロード前の手元の絵。署名付き URL を待たずに出せて、
         // 読み直しが届いて本物に替わっても同じ絵なので見た目は変わらない。
         object_url: objectImg,
-        cutout_url: cutForSave,
+        cutout_url: null,
         selfie_url: selfieImg,
         object_thumb_url: null,
         cutout_thumb_url: null,
@@ -1191,7 +1112,7 @@ function CapturePage() {
   async function handleSave() {
     if (!card || !selectedHead || saving) return;
     pronounce.prepare();
-    const hero = cutoutImg ?? objectImg;
+    const hero = objectImg;
     // 文字で入れた語には写真が無い。**飛ぶ物が無いのだから飛ばさない。**
     // ここだけは従来どおり、待つ面を出す(そこには単語しか出ない)。
     if (!hero) {
@@ -1285,7 +1206,6 @@ function CapturePage() {
     setMode("photo");
     setStep("object");
     setObjectImg(null);
-    setCutoutImg(null);
     setSelfieImg(null);
     setSuggestions([]);
     setSelectedHead("");
@@ -1334,11 +1254,7 @@ function CapturePage() {
    * 代わりに、**今回撮った写真をその単語に足す**。今まではここで写真を
    * 捨てていた。復習の間隔は動かさない(`recalled: null`)。
    */
-  async function recordReencounter(
-    owned: OwnedWord,
-    objectImg: string | null,
-    cutoutImg: string | null,
-  ): Promise<boolean> {
+  async function recordReencounter(owned: OwnedWord, objectImg: string | null): Promise<boolean> {
     if (reencSubmittingRef.current) return false;
     setReencFailed(false);
     reencSubmittingRef.current = true;
@@ -1350,14 +1266,9 @@ function CapturePage() {
       const ts = Date.now();
       // 写真の保存に失敗しても、再会の記録そのものは残す —
       // 「撮ったのに何も起きなかった」が一番困る。
-      const [image_path, cutout_path] = userId
-        ? await Promise.all([
-            uploadStickerImage({ userId, dataUrl: objectImg, kind: "encounter", ts }),
-            uploadStickerImage({ userId, dataUrl: cutoutImg, kind: "encounter-cutout", ts }).catch(
-              () => null,
-            ),
-          ])
-        : [null, null];
+      const image_path = userId
+        ? await uploadStickerImage({ userId, dataUrl: objectImg, kind: "encounter", ts })
+        : null;
 
       if (objectImg && !image_path) throw new Error("Photo upload failed");
       const res = await encounterFn({
@@ -1368,14 +1279,13 @@ function CapturePage() {
           lng: here.lng,
           location_name: here.name,
           image_path,
-          cutout_path,
         },
       });
       setReencResult({
         recalled: null,
         encounter_count: res.encounter_count,
         next_due_at: res.next_due_at,
-        photo_saved: !!(image_path || cutout_path),
+        photo_saved: !!image_path,
       });
       // 再会も「その写真の役目が終わった」時点。預けた分を消しておかないと
       // ホームの「解析待ちの写真」が残り続ける。
@@ -1512,7 +1422,6 @@ function CapturePage() {
         <CaptureCardPanel
           card={card}
           selectedHead={selectedHead}
-          cutoutImg={cutoutImg}
           objectImg={objectImg}
           selfieImg={selfieImg}
           flipped={flipped}
@@ -1533,7 +1442,7 @@ function CapturePage() {
 
       {step === "saving" && (
         <CaptureSavingPanel
-          image={cutoutImg ?? objectImg}
+          image={objectImg}
           headword={selectedHead}
           landing={landing}
           heroBoxRef={heroBoxRef}
@@ -1548,7 +1457,7 @@ function CapturePage() {
           landing={landing}
           onPeel={landReencounter}
           failed={reencFailed}
-          onRetry={() => void recordReencounter(reenc, objectImg, null)}
+          onRetry={() => void recordReencounter(reenc, objectImg)}
           reencResult={reencResult}
           dateLocale={dateLocale}
           onAgain={reset}
@@ -1577,7 +1486,7 @@ function CapturePage() {
       {landing && (
         <CatchLandingOverlay
           ref={flyRef}
-          image={cutoutImg ?? objectImg}
+          image={objectImg}
           headword={selectedHead}
           lang={targetLanguage}
           reading={landingReading}
@@ -1733,7 +1642,6 @@ export function ReencounterPanel({
             >
               <PeelSticker
                 photoUrl={image}
-                cutoutUrl={null}
                 label={reenc.headword}
                 actionLabel={t("capture.addToDex")}
                 hint={t("capture.peelHint")}
@@ -1983,7 +1891,6 @@ export function OfflineSavedPanel({
 export function CaptureCardPanel({
   card,
   selectedHead,
-  cutoutImg,
   objectImg,
   selfieImg,
   flipped,
@@ -2001,7 +1908,6 @@ export function CaptureCardPanel({
 }: {
   card: CardData;
   selectedHead: string;
-  cutoutImg: string | null;
   objectImg: string | null;
   /** 裏面。自撮りが無ければ「まだ無い」と描く。 */
   selfieImg: string | null;
@@ -2031,8 +1937,6 @@ export function CaptureCardPanel({
   saving?: boolean;
 }) {
   const t = useT();
-  /** 物が写真の縁で切れていたら、剥がす前に知らせる（`useCutoutClipped`）。 */
-  const clipped = useCutoutClipped(cutoutImg && cutoutImg !== objectImg ? cutoutImg : null);
   return (
     <div className="space-y-4">
       <div className="perspective-[1200px]" onClick={() => setFlipped((f) => !f)}>
@@ -2045,7 +1949,6 @@ export function CaptureCardPanel({
             <div className="grid h-full place-items-center">
               <PeelSticker
                 photoUrl={objectImg}
-                cutoutUrl={cutoutImg && cutoutImg !== objectImg ? cutoutImg : null}
                 label={selectedHead}
                 actionLabel={t("capture.addToDex")}
                 hint={t("capture.peelHint")}
@@ -2065,14 +1968,6 @@ export function CaptureCardPanel({
           </div>
         </div>
       </div>
-      {clipped && !saving && !landing && (
-        <div role="status" className="capture-clip-warning">
-          <p>{t("capture.clipped")}</p>
-          <Button variant="outline" size="sm" onClick={onRedo}>
-            {t("capture.retake")}
-          </Button>
-        </div>
-      )}
       <div className="flex gap-2">
         <Button variant="outline" onClick={onRedo} disabled={saving} className="flex-1">
           {t("capture.redo")}

@@ -1,8 +1,9 @@
-import { CUTOUT_ENABLED } from "@/lib/cutout-feature";
 import { useEffect, useState } from "react";
 
 /**
  * キャッチの速さと丁寧さのつまみ(要望 #18・#20・#76)。
+ *
+ * 2026-10-01: 背景の切り抜きは機能ごと消した。以下は当時の経緯。
  *
  * > 「速度モードと詳細モード ①キャッチ時に切り抜きするしない
  * >  (後から詳細画面でも切り抜ける)」
@@ -71,11 +72,6 @@ export function useCatchSpeed(): CatchSpeed {
     };
   }, []);
   return v;
-}
-
-/** キャッチの瞬間に切り抜くか。 */
-export function cutoutAtCatch(speed: CatchSpeed | string | null | undefined): boolean {
-  return CUTOUT_ENABLED && normalizeCatchSpeed(speed) === "detail";
 }
 
 // ---------------------------------------------------------------------------

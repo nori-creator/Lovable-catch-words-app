@@ -592,7 +592,6 @@ export function FirstCatchFlow({
             card={draft.card!}
             selectedHead={sticker.word.headword}
             objectImg={draft.photo}
-            cutoutImg={null}
             selfieImg={null}
             flipped={flipped}
             setFlipped={setFlipped}

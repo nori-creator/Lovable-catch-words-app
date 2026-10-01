@@ -134,13 +134,6 @@ import {
   RegisterMeterScene,
 } from "./scenes/pieces";
 import "@/styles.css";
-// **見た目パックのCSSも読む。** 実物(`src/routes/__root.tsx`)は両方読んで
-// いるのに、雛形は `styles.css` だけだった。つまり16パック(約3000行)は
-// **一度も絵に映っていない**。`PackGallery` を描いても下地の規則しか
-// 当たらず、無スタイルの絵を「実物が壊れている」と読み違える。
-// 規則はほぼ全部 `[data-ui-pack]` の下にあるので、属性を付けない
-// 既定(origin)の場面には影響しない。
-import "@/pack-styles.css";
 
 // 値を `| undefined` にしておく。**`Record<string, T>` は「どの鍵でも在る」と
 // 言う型**なので、知らない名前を弾く下のガードが型の上では死んで見え、

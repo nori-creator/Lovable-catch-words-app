@@ -458,17 +458,6 @@ const MODES = [
   // `TabIndicator` の門と、ブラウザでの実測で見る。
   ...crossThemes("tabbar", { scene: "tabbar" }),
   ...crossThemes("gallery", { scene: "gallery" }),
-  // 設定でパックを変えた人の見え方(`PackGallery`)。既定では出ない。
-  // **`data-ui-pack` を `<html>` に付ける。** `pack-styles.css` のセレクタは
-  // ほぼ全部その下にあり、付けずに撮ると下地の規則しか当たらない絵になる
-  // (それを「実物が壊れている」と読み違えた)。`sticker` の layout は `grid`。
-  ["gallery-pack", 'data-ui-pack="sticker"', false, { scene: "gallery", layout: "grid" }],
-  [
-    "gallery-pack-dark",
-    'data-ui-pack="sticker" class="dark"',
-    false,
-    { scene: "gallery", layout: "grid" },
-  ],
   ...crossThemes("dex-empty", { scene: "dex-empty" }),
   // 学習言語を変えて空になったとき。**集めた物が消えたように見えない**か。
   ...crossThemes("dex-empty-other-lang", { scene: "dex-empty", variant: "other-lang" }),
@@ -1073,16 +1062,7 @@ for (const [name, htmlAttrs, wantsContrast, scene] of MODES) {
         // ので段として働かず、書くときの選択肢だけが増える。
         // `styles.css` の `--text-*` に6段へ畳んだので、そこに無い大きさは落とす。
         // 表を増やすなら、増やす理由を先に書くこと。
-        //
-        // **見た目パックの中は見ない。** 16 個のパックは「別のアプリに
-        // 見える」ことが目的で、**自前の文字の階調を持っている**
-        // (`pack-styles.css` は px 直書き)。本体の6段で採点すると、
-        // パックを1つ足すたびに設計どおりの字が何十件も落ちる。
-        // 偽の警報を出す門は必ず無視されるようになるので、ここは外す。
-        // 色のコントラストはパックの中でも見る — あれは design ではなく、
-        // 読めるかどうかの話なので、どの見た目でも譲れない。
-        const inPack = el.closest("[data-ui-pack]") || document.documentElement.dataset.uiPack;
-        if (!inPack && !SCALE.has(Math.round(px * 100) / 100)) {
+        if (!SCALE.has(Math.round(px * 100) / 100)) {
           offScale.push(`階調に無い大きさ ${px}px — "${own.slice(0, 16)}"`);
         }
         // **中央揃えの本文が何行も続かないこと。**

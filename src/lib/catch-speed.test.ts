@@ -1,17 +1,7 @@
 import { describe, it, expect } from "vitest";
-import {
-  cutoutAtCatch,
-  normalizeCatchSpeed,
-  summarizeCatchTimings,
-  type CatchTiming,
-} from "./catch-speed";
+import { normalizeCatchSpeed, summarizeCatchTimings, type CatchTiming } from "./catch-speed";
 
-describe("normalizeCatchSpeed / cutoutAtCatch", () => {
-  it("停止中は保存済みモードにかかわらず切り抜かない", () => {
-    expect(cutoutAtCatch("fast")).toBe(false);
-    expect(cutoutAtCatch("detail")).toBe(false);
-  });
-
+describe("normalizeCatchSpeed", () => {
   /**
    * **既定は「今まで通り」でなければならない。**
    * 保存が壊れていた回に黙って見た目が落ちるのは、いちばん困る形。
@@ -20,7 +10,6 @@ describe("normalizeCatchSpeed / cutoutAtCatch", () => {
     "知らない値 %p は detail(今まで通り)に落ちる",
     (bad) => {
       expect(normalizeCatchSpeed(bad)).toBe("detail");
-      expect(cutoutAtCatch(bad as never)).toBe(false);
     },
   );
 });

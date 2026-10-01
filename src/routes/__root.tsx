@@ -13,9 +13,6 @@ import { initPwa } from "@/lib/pwa";
 import { initChunkRecovery, isChunkLoadError, reloadOnceForChunkError } from "@/lib/chunk-reload";
 
 import appCss from "../styles.css?url";
-// 見た目パック。すべてのセレクタが [data-ui-pack] の下にあるので、
-// 現行(origin)では属性が付かず1つも当たらない = 現行デザインは不変。
-import packCss from "../pack-styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 import { supabase } from "@/integrations/supabase/client";
 import { Toaster } from "@/components/ui/sonner";
@@ -24,7 +21,6 @@ import { DEFAULT_MOTION, MOTION_ATTR, MOTION_STORAGE_KEY } from "@/lib/motion-pr
 import { MotionProvider } from "@/components/motion-provider";
 import { REVIEW_CACHE_USER_KEY } from "@/lib/review-cache";
 import { initUiTheme } from "@/lib/ui-theme";
-import { initUiPack } from "@/lib/ui-pack";
 import { htmlLangOf, UI_LANG_STORAGE_KEY, UI_LANGS, useT } from "@/lib/i18n";
 
 function NotFoundComponent() {
@@ -160,7 +156,6 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     ],
     links: [
       { rel: "stylesheet", href: appCss },
-      { rel: "stylesheet", href: packCss },
       // 繁體中文の手書き（芫荽）。字の切り分けごとに `unicode-range` が付いているので、
       // 読むのは CSS だけで、字の本体はその字が画面に出た時にだけ取る。
       { rel: "stylesheet", href: "/fonts/iansui/iansui.css" },
@@ -267,7 +262,6 @@ function RootComponent() {
   // 開発者が選んだUIテーマ(CSS変数)と見た目パックを最初の描画直後に適用する。
   useEffect(() => {
     initUiTheme();
-    initUiPack();
     // スマホにアプリとして入れる準備（インストールの合図・サービスワーカー。`lib/pwa.ts`）。
     initPwa();
     initChunkRecovery();

@@ -1,5 +1,4 @@
 import { describe, expect, it } from "vitest";
-import { CUTOUT_ENABLED } from "./cutout-feature";
 import fs from "node:fs";
 import { DEX_SHELF_ENABLED } from "./features";
 
@@ -11,8 +10,12 @@ import { DEX_SHELF_ENABLED } from "./features";
  * “helpfully” turn these on or delete their pipelines.
  */
 describe("Web MVP feature guardrails", () => {
-  it("keeps browser background cutout off the Catch critical path", () => {
-    expect(CUTOUT_ENABLED).toBe(false);
+  // Owner decision 2026-10-01: the long-paused background cutout was deleted as code.
+  // Existing saved cutout images (cutout_image_url) still display.
+  it("browser background cutout stays deleted", () => {
+    expect(fs.existsSync("src/lib/cutout.ts")).toBe(false);
+    const pkg = JSON.parse(fs.readFileSync("package.json", "utf8"));
+    expect(pkg.dependencies?.["@imgly/background-removal"]).toBeUndefined();
   });
 
   it("keeps the deferred shelf surface hidden", () => {

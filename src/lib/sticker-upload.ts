@@ -9,7 +9,7 @@
  * 呼べる場所に出す。
  */
 import { supabase } from "@/integrations/supabase/client";
-import { makeThumbBlob, thumbPath } from "@/lib/cutout";
+import { makeThumbBlob, thumbPath } from "@/lib/image-resize";
 import { putCachedImage } from "@/lib/image-cache";
 import { reportBackgroundFailure } from "@/lib/background-failure";
 

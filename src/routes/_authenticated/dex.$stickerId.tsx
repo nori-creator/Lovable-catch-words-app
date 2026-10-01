@@ -445,7 +445,6 @@ export function StickerDetailHero({
             current={s.hero_role ?? null}
             saving={savingHero || photoAttach.busy}
             onPick={(role) => void pickHeroRole(role)}
-            onCutoutNow={s.object_url ? () => void photoAttach.cutoutNow(s.object_url!) : undefined}
             onSelfieFile={(f) => void photoAttach.selfieNow(f)}
             onClose={() => setPickerOpen(false)}
           />
@@ -455,11 +454,8 @@ export function StickerDetailHero({
       {/* 無い絵は「作る」ボタンにする。**出す条件は部品が持つ**ので、
           両方そろっている札では何も出ない。 */}
       <PhotoAddButtons
-        objectUrl={s.object_url}
-        cutoutUrl={s.cutout_url}
         selfieUrl={s.selfie_url}
         busy={photoAttach.busy}
-        onCutout={() => void photoAttach.cutoutNow(s.object_url!)}
         onSelfie={(f) => void photoAttach.selfieNow(f)}
         className="mb-4"
       />
