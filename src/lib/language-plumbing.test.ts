@@ -1105,8 +1105,10 @@ describe("発音のラグ: 端末に貯める／出来てからボタンを出�
     //  ・画面を閉じると消える
     //  ・押した瞬間に mp3 のダウンロードが始まる
     // の2つで毎回待たされていた。
+    // 開く手は写真と共通（`idb-store.ts`、2026-10-01 に寄せた）。
     const store = codeOnly(read("lib/tts-store.ts"));
-    expect(store).toMatch(/indexedDB\.open/);
+    expect(store).toMatch(/optionalStoreOpener\(DB_NAME, STORE\)/);
+    expect(codeOnly(read("lib/idb-store.ts"))).toMatch(/indexedDB\.open/);
     const hook = codeOnly(read("lib/use-pronounce.tsx"));
     expect(hook).toMatch(/putCachedAudio\(key, blob\)/);
     expect(hook).toMatch(/getCachedAudio\(key\)/);

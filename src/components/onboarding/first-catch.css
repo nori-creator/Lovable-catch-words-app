@@ -1434,16 +1434,6 @@ html[data-motion="reduce"] .tour-coach {
     transform: scale(1);
   }
 }
-@keyframes first-photo-reveal {
-  from {
-    opacity: 0;
-    scale: 0.97;
-  }
-  to {
-    opacity: 1;
-    scale: 1;
-  }
-}
 html[data-motion="reduce"] .first-run *,
 html[data-motion="reduce"] .first-run *::before,
 html[data-motion="reduce"] .first-run *::after {

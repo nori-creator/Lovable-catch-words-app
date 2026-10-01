@@ -707,8 +707,6 @@ export const DICT: Record<string, Record<UiLang, string>> = {
   },
   // --- 単語帳の取り込み(src/lib/wordbook.ts) ---
   // --- TOCFL の段々(src/lib/tocfl.ts) ---
-  "tocfl.title": { ja: "TOCFL", en: "TOCFL", "zh-TW": "TOCFL" },
-  "tocfl.level": { ja: "{n}級", en: "Level {n}", "zh-TW": "{n}級" },
   "tocfl.levelInBand": {
     ja: "{n}級（Band {band}）",
     en: "Level {n} · Band {band}",
@@ -744,23 +742,6 @@ export const DICT: Record<string, Record<UiLang, string>> = {
   // **取り込みではない。** 許可を取っていないので、見に行く先だけを出す。
   // --- 英語のコーパス(第4段) -----------------------------------------------
   // --- もう一度撮る提案(src/lib/retake.ts) ---
-  "retake.title": {
-    ja: "、もう一度撮ってみる？",
-    en: " — shoot it again?",
-    "zh-TW": "，要不要再拍一次？",
-  },
-  "retake.lapsing": {
-    ja: "{n}回出しましたが、まだつまずいています。同じ物をもう一度撮ると、新しい写真・場所・一言が手がかりになります。",
-    en: "You've seen it {n} times and it still slips. Catching the same thing again gives you a fresh photo, place and note to hang the memory on.",
-    "zh-TW":
-      "已經出過 {n} 次，但還是卡住。再拍一次同樣的東西，新的照片、地點和感想都會變成想起來的線索。",
-  },
-  "retake.stuck": {
-    ja: "{n}回出しましたが、間隔が伸びていません。もう一度撮って、思い出す手がかりを増やしませんか。",
-    en: "Seen {n} times, but the interval isn't growing. Catch it again to give yourself another way in.",
-    "zh-TW": "已經出過 {n} 次，但間隔沒有拉長。再拍一次，多給自己一個想起來的入口。",
-  },
-  "retake.cta": { ja: "撮りに行く", en: "Go catch it", "zh-TW": "去拍" },
   "retake.hint": {
     ja: "「{w}」をもう一度撮ってみましょう",
     en: "Catch “{w}” again",
@@ -775,11 +756,6 @@ export const DICT: Record<string, Record<UiLang, string>> = {
    * **％の意味を書いておく。** 語に出す数は1つだけ — いま思い出せる確率
    * （オーナー指示 2026-09-23「単語の数値は1つに統一したい」）。
    */
-  "rv.strengthNote": {
-    ja: "％は「いま思い出せる確率」。下へ行くほど覚えている語です。",
-    en: "% is the chance you can recall the word right now. Words further down are the ones you remember best.",
-    "zh-TW": "％是「現在想得起來的機率」。越往下的字記得越清楚。",
-  },
   "rv.tapForCurve": {
     ja: "タップで単語ごとの忘却曲線と「いつ忘れるか」の予測が見られます",
     en: "Tap to see each word's forgetting curve and when you're predicted to forget it",
@@ -876,9 +852,6 @@ export const DICT: Record<string, Record<UiLang, string>> = {
   "dex.closeTimeline": { ja: "タイムラインを閉じる", en: "Close timeline", "zh-TW": "關閉時間軸" },
   "dex.prevDay": { ja: "前の撮った日", en: "Previous day", "zh-TW": "上一個拍攝日" },
   "dex.nextDay": { ja: "次の撮った日", en: "Next day", "zh-TW": "下一個拍攝日" },
-  "dex.dayPhotos": { ja: "枚", en: "photos", "zh-TW": "張" },
-  "dex.dayPlaces": { ja: "か所", en: "places", "zh-TW": "個地點" },
-  "dex.dayHours": { ja: "時間帯", en: "hours", "zh-TW": "時段" },
   "dex.cards": { ja: "カード", en: "Cards", "zh-TW": "卡片" },
   "dex.calendarEmpty": {
     ja: "まだ写真がありません。撮るとその日のマスに入ります。",
@@ -1173,21 +1146,6 @@ export const DICT: Record<string, Record<UiLang, string>> = {
   },
   "card.nextDue": { ja: "次回 {date}", en: "next {date}", "zh-TW": "下次 {date}" },
   // --- 図鑑 ---
-  "dex.desc": {
-    ja: "あなたがキャッチした言葉だけの図鑑。撮ったものから自動でカテゴリーが生まれます。",
-    en: "A dex of only the words you caught. Categories appear on their own from what you shoot.",
-    "zh-TW": "只收錄你捕捉到的字的圖鑑。分類會依你拍的東西自動長出來。",
-  },
-  "dex.playPron": {
-    ja: "「{word}」の発音を再生",
-    en: 'Play the pronunciation of "{word}"',
-    "zh-TW": "播放「{word}」的發音",
-  },
-  "dex.seeOnMap": {
-    ja: "「{word}」の場所を地図で見る",
-    en: 'See where "{word}" was caught on the map',
-    "zh-TW": "在地圖上看「{word}」的地點",
-  },
   // --- 品詞グループ ---
   "pos.noun": { ja: "📛 名詞", en: "📛 Nouns", "zh-TW": "📛 名詞" },
   "pos.verb": { ja: "🏃 動詞", en: "🏃 Verbs", "zh-TW": "🏃 動詞" },
@@ -1268,10 +1226,7 @@ export const DICT: Record<string, Record<UiLang, string>> = {
   "err.whatWordCard": { ja: "この単語のカード", en: "this word's card", "zh-TW": "這個單字的字卡" },
   "err.whatHome": { ja: "今日のページ", en: "today's page", "zh-TW": "今天的頁面" },
   "err.whatDex": { ja: "図鑑", en: "your dex", "zh-TW": "圖鑑" },
-  "err.whatMap": { ja: "地図", en: "the map", "zh-TW": "地圖" },
-  "err.whatJournal": { ja: "日記", en: "your journal", "zh-TW": "日記" },
   "err.whatSettings": { ja: "設定", en: "your settings", "zh-TW": "設定" },
-  "err.whatFeed": { ja: "みんなの投稿", en: "the feed", "zh-TW": "大家的貼文" },
   "err.whatReview": { ja: "今日の復習", en: "today's review", "zh-TW": "今天的複習" },
   "err.retrying": { ja: "再試行中…", en: "Retrying…", "zh-TW": "重試中…" },
   "err.retryingTitle": {
@@ -1537,15 +1492,8 @@ export const DICT: Record<string, Record<UiLang, string>> = {
   "auth.or": { ja: "または", en: "or", "zh-TW": "或" },
   "auth.google": { ja: "Googleで続ける", en: "Continue with Google", "zh-TW": "用 Google 繼續" },
   "auth.apple": { ja: "Appleで続ける", en: "Continue with Apple", "zh-TW": "用 Apple 繼續" },
-  "auth.agreeBefore": {
-    ja: "続行すると、",
-    en: "By continuing you agree to the ",
-    "zh-TW": "繼續即表示你同意",
-  },
   "auth.terms": { ja: "利用規約", en: "Terms of Service", "zh-TW": "使用條款" },
-  "auth.agreeMid": { ja: "と", en: " and ", "zh-TW": "與" },
   "auth.privacy": { ja: "プライバシーポリシー", en: "Privacy Policy", "zh-TW": "隱私權政策" },
-  "auth.agreeAfter": { ja: "に同意したものとみなします。", en: ".", "zh-TW": "。" },
   "auth.confirmSent": {
     ja: "確認メールを送りました。受信トレイをご確認ください。",
     en: "Confirmation email sent — please check your inbox.",
@@ -1680,46 +1628,6 @@ export const DICT: Record<string, Record<UiLang, string>> = {
     en: "That didn't work. Please try again",
     "zh-TW": "沒有成功，請再試一次",
   },
-  "ob.title": {
-    ja: "かざして、タップしてみて",
-    en: "Point it, then tap",
-    "zh-TW": "舉起來，點一下看看",
-  },
-  "ob.line1": {
-    ja: "街で見たものにカメラをかざすと、",
-    en: "Aim your camera at something on the street and",
-    "zh-TW": "把相機對準在街上看到的東西，",
-  },
-  "ob.line2before": {
-    ja: "その単語と発音が",
-    en: "you'll see the word and how to say it ",
-    "zh-TW": "那個字和發音就會",
-  },
-  "ob.line2strong": { ja: "瞬間的に", en: "instantly", "zh-TW": "瞬間" },
-  "ob.line2after": { ja: "分かります。", en: ".", "zh-TW": "出現。" },
-  "ob.f1": {
-    ja: "かざす = 調べる（無制限）",
-    en: "Point = look it up (unlimited)",
-    "zh-TW": "舉起來 = 查詢（無限次）",
-  },
-  "ob.f2": {
-    ja: "タップ = 発音が聞こえる",
-    en: "Tap = hear it spoken",
-    "zh-TW": "點一下 = 聽到發音",
-  },
-  "ob.f3": {
-    ja: "撮る = 自分の図鑑に残る",
-    en: "Shoot = keep it in your dex",
-    "zh-TW": "拍下來 = 留在自己的圖鑑",
-  },
-  "ob.start": { ja: "スキャンをはじめる", en: "Start scanning", "zh-TW": "開始掃描" },
-  "ob.privacy": {
-    ja: "カメラは「見たものの単語を教えるため」だけに使います",
-    en: "The camera is only used to tell you the word for what you see",
-    "zh-TW": "相機只會用在「告訴你看到的東西怎麼說」這件事上",
-  },
-  "ob.learner": { ja: "学習者", en: "Learner", "zh-TW": "學習者" },
-  "ob.startFailed": { ja: "開始に失敗しました", en: "Could not get started", "zh-TW": "無法開始" },
   "rp.title": { ja: "パスワード再設定", en: "Reset password", "zh-TW": "重設密碼" },
   "auth.forgot": {
     ja: "パスワードを忘れた方",
@@ -1843,7 +1751,6 @@ export const DICT: Record<string, Record<UiLang, string>> = {
     en: "{count} words in {n} days. {photos} moments in one page",
     "zh-TW": "{n} 天收集了 {count} 個單字，精選 {photos} 張回憶",
   },
-  "memorial.open": { ja: "開く", en: "Open", "zh-TW": "打開" },
   // 記念アルバムを開く瞬間の演出（`MemorialReveal`、2026-09-28）。
   "memorial.kicker": { ja: "おめでとう", en: "Congratulations", "zh-TW": "恭喜" },
   "memorial.daysUnit": { ja: "日", en: "days", "zh-TW": "天" },
@@ -1983,59 +1890,15 @@ export const DICT: Record<string, Record<UiLang, string>> = {
     en: "Selfie of the person who caught it",
     "zh-TW": "拍攝者的自拍",
   },
-  "detail.more": { ja: "詳しく", en: "details", "zh-TW": "看詳細" },
-  "detail.preparing": {
-    ja: "詳しい解説を準備中…",
-    en: "Preparing the full explanation…",
-    "zh-TW": "正在準備詳細解說…",
-  },
   // 出所は**人の言葉で**。以前は「✓ 検証済み辞書 + AI詳細 · 点 0.92」で、
   // 0.92 はモデルの confidence(内部の数値)がそのまま漏れていた。
   // 学習者にとって意味が無く、「点」が何の点かも示していない(独立監査)。
-  "detail.verified": {
-    ja: "辞書で確認済み",
-    en: "Checked against the dictionary",
-    "zh-TW": "已用辭典確認",
-  },
-  "detail.aiOnly": {
-    ja: "AIが作成（誤りがあるかもしれません）",
-    en: "Written by AI — may contain mistakes",
-    "zh-TW": "AI 產生（可能有錯）",
-  },
-  "err.generateFailed": { ja: "生成に失敗しました", en: "Could not generate", "zh-TW": "產生失敗" },
   // --- ワードツリー・画像選択 ---
-  "tree.title": { ja: "ワードツリー", en: "Word tree", "zh-TW": "單字樹" },
   "tree.branches": {
     ja: "枝 {done}/{total} 本 · 復習ごとに1本育つ",
     en: "{done} of {total} branches · one grows per review",
     "zh-TW": "樹枝 {done}/{total} 根 · 每複習一次長一根",
   },
-  "tree.locked": {
-    ja: "あと{n}本 · 復習で解禁",
-    en: "{n} more · unlocked by reviewing",
-    "zh-TW": "還差 {n} 根 · 複習就解鎖",
-  },
-  "tree.tapHint": {
-    ja: "枝をタップすると、その言葉を新しい木としてキャッチできます",
-    en: "Tap a branch to catch that word as a new tree",
-    "zh-TW": "點樹枝，就能把那個字當成新的樹來捕捉",
-  },
-  "tree.collocation": { ja: "つながり", en: "Goes with", "zh-TW": "搭配" },
-  "tree.example": { ja: "例文", en: "Example", "zh-TW": "例句" },
-  "tree.synonym": { ja: "類義", en: "Similar", "zh-TW": "近義" },
-  "tree.antonym": { ja: "反義", en: "Opposite", "zh-TW": "反義" },
-  "img.searchFor": {
-    ja: "「{q}」の画像を探す",
-    en: 'Find images for "{q}"',
-    "zh-TW": "搜尋「{q}」的圖片",
-  },
-  "img.ownPhoto": { ja: "自分の写真", en: "My photo", "zh-TW": "自己的照片" },
-  "img.notFound": {
-    ja: "画像が見つかりませんでした。別のキーワードで試すか、自分の写真をアップロードしてください。",
-    en: "No images found. Try another keyword, or upload your own photo.",
-    "zh-TW": "找不到圖片。換個關鍵字試試，或上傳自己的照片。",
-  },
-  "img.candidate": { ja: "候補", en: "Candidate", "zh-TW": "候選" },
   // --- 忘却曲線 ---
   "curve.empty": {
     ja: "まだ復習データがありません。復習すると忘却曲線がここに表示されます。",
@@ -2097,7 +1960,6 @@ export const DICT: Record<string, Record<UiLang, string>> = {
   "nav.review": { ja: "復習", en: "Review", "zh-TW": "複習" },
   "nav.settings": { ja: "設定", en: "Settings", "zh-TW": "設定" },
   // --- page titles ---
-  "title.home": { ja: "ホーム", en: "Home", "zh-TW": "首頁" },
   "title.dex": { ja: "図鑑", en: "Dex", "zh-TW": "圖鑑" },
   "title.review": { ja: "復習", en: "Review", "zh-TW": "複習" },
   "title.settings": { ja: "設定", en: "Settings", "zh-TW": "設定" },
@@ -2110,15 +1972,11 @@ export const DICT: Record<string, Record<UiLang, string>> = {
   "review.choice": { ja: "4択", en: "Quiz", "zh-TW": "四選一" },
   // --- dex ---
   "dex.yours": { ja: "あなたの図鑑", en: "Your dex", "zh-TW": "你的圖鑑" },
-  "dex.found": { ja: "見つけた", en: "Found", "zh-TW": "找到了" },
-  "dex.caught": { ja: "捕まえた", en: "Caught", "zh-TW": "捕捉到了" },
   "dex.search": {
     ja: "単語・読み・意味で検索",
     en: "Search word / reading / meaning",
     "zh-TW": "用單字、讀音、意思搜尋",
   },
-  "dex.category": { ja: "カテゴリ", en: "Category", "zh-TW": "分類" },
-  "dex.pos": { ja: "品詞", en: "Part of speech", "zh-TW": "詞性" },
   // --- settings ---
   "settings.profile": { ja: "プロフィール", en: "Profile", "zh-TW": "個人檔案" },
   "settings.displayName": { ja: "表示名", en: "Display name", "zh-TW": "顯示名稱" },
@@ -2357,9 +2215,6 @@ export const DICT: Record<string, Record<UiLang, string>> = {
   "scan.nextCandidate": { ja: "次の候補", en: "Next candidate", "zh-TW": "下一個候選" },
   "scan.analyzing": { ja: "AIが分析中…", en: "AI is analyzing…", "zh-TW": "AI 分析中…" },
   // AI 分析中の案 E（3つの段）。見る → 読む → 選ぶ。
-  "analyze.stepLook": { ja: "見る", en: "Look", "zh-TW": "看" },
-  "analyze.stepRead": { ja: "読む", en: "Read", "zh-TW": "讀" },
-  "analyze.stepPick": { ja: "選ぶ", en: "Pick", "zh-TW": "選" },
   "scan.zoom": { ja: "ズーム", en: "Zoom", "zh-TW": "縮放" },
   "scan.flipCamera": {
     ja: "カメラを前後で切り替える",
@@ -2369,11 +2224,6 @@ export const DICT: Record<string, Record<UiLang, string>> = {
   "scan.listening": { ja: "聞き取り中…", en: "Listening…", "zh-TW": "聆聽中…" },
   "scan.speakNow": { ja: "話しかけてください", en: "Speak now", "zh-TW": "請開始說話" },
   // --- review extras ---
-  "review.modeSaveFailed": {
-    ja: "出題形式の変更を保存できませんでした。通信を確かめてもう一度お試しください。",
-    en: "Couldn't save the review mode. Check your connection and try again.",
-    "zh-TW": "無法儲存出題形式的變更。請確認網路後再試一次。",
-  },
   // 端末では効いているが、他の端末へ持っていく控えが取れなかったとき。
   // **失敗ではないので赤くしない。**
   "review.modeLocalOnly": {
@@ -2422,12 +2272,6 @@ export const DICT: Record<string, Record<UiLang, string>> = {
     en: "That's today's batch",
     "zh-TW": "今天的份結束了",
   },
-  "review.cappedHint": {
-    ja: "1日 {n} 枚に設定しています。まだ復習したい語は残っていますが、明日また出します。もっとやりたいときは設定で枚数を増やせます。",
-    en: "You've set a limit of {n} a day. There are more waiting — they'll come back tomorrow. Raise the limit in Settings if you want more now.",
-    "zh-TW":
-      "你設定成一天 {n} 張。還有想複習的字，但明天會再出。想多做一點的話，可以在設定裡調高張數。",
-  },
   "review.cappedCta": { ja: "設定で枚数を変える", en: "Change the limit", "zh-TW": "到設定改張數" },
   // 10枚の束を出し切っただけのとき。**「今日は終わり」と言ってはいけない** —
   // 上限を無制限にした人にも10枚ごとに出て、設定が効いていないように見えていた。
@@ -2472,7 +2316,6 @@ export const DICT: Record<string, Record<UiLang, string>> = {
   "review.again": { ja: "もう少し続ける", en: "Keep going", "zh-TW": "再多做一點" },
   "review.toDex": { ja: "図鑑を見る", en: "Open the shelf", "zh-TW": "看圖鑑" },
   "review.quizTag": { ja: "4択クイズ", en: "Multiple choice", "zh-TW": "四選一測驗" },
-  "review.whichIs": { ja: "はどれ？", en: "— which one?", "zh-TW": "是哪一個？" },
   "review.correct": { ja: "正解！", en: "Correct!", "zh-TW": "答對了！" },
   // 言い直して当てた回。**言えたのは事実なので「正解」と出す**が、
   // 記録は失念（オーナー指示 2026-08-27 ⑦）。明日また出る理由を
@@ -2487,8 +2330,6 @@ export const DICT: Record<string, Record<UiLang, string>> = {
   "review.openInDex": { ja: "図鑑で見る", en: "Open in Dex", "zh-TW": "在圖鑑查看" },
   "review.speakTag": { ja: "はなす", en: "Speak", "zh-TW": "開口說" },
   "review.roleplayTag": { ja: "ロールプレイ", en: "Role-play", "zh-TW": "角色扮演" },
-  "review.hint": { ja: "ヒント", en: "Hint", "zh-TW": "提示" },
-  "review.hintUsed": { ja: "ヒント使用", en: "Hint used", "zh-TW": "用了提示" },
   "review.skip": { ja: "スキップ", en: "Skip", "zh-TW": "跳過" },
   "review.submit": { ja: "送信してフィードバック", en: "Get feedback", "zh-TW": "送出並取得回饋" },
   "review.grading": { ja: "AIが添削中…", en: "AI is reviewing…", "zh-TW": "AI 批改中…" },
@@ -2675,16 +2516,6 @@ export const DICT: Record<string, Record<UiLang, string>> = {
   },
   "card.enrichRetry": { ja: "もう一度ためす", en: "Try again", "zh-TW": "再試一次" },
   // --- home ---
-  "home.emptyTitle": {
-    ja: "きょうのページはまだ白紙です。",
-    en: "Today's page is still blank.",
-    "zh-TW": "今天的頁面還是一片空白。",
-  },
-  "home.emptyHint": {
-    ja: "街の看板やメニューにカメラをかざすと、最初の一枚がここに貼られます。",
-    en: "Point your camera at a sign or menu and your first photo lands here.",
-    "zh-TW": "把相機對準街上的招牌或菜單，第一張就會貼在這裡。",
-  },
   "install.title": {
     ja: "アプリとしてスマホに入れる",
     en: "Install as an app",
@@ -2763,23 +2594,9 @@ export const DICT: Record<string, Record<UiLang, string>> = {
     en: "Catch your word No. {n}!",
     "zh-TW": "來記錄第 {n} 個單字吧！",
   },
-  "home.journal": { ja: "今日の日記を書く", en: "Write today's journal", "zh-TW": "寫今天的日記" },
   // 見開きの右ページ(ホームでその場で書く)。
-  "home.writeToday": {
-    ja: "今日の日記を書く",
-    en: "Write today's journal",
-    "zh-TW": "寫今天的日記",
-  },
-  "home.pastJournals": { ja: "これまでの日記", en: "Past journals", "zh-TW": "以前的日記" },
   // これまでのページの束ね方(src/lib/album-span.ts)。
-  "home.spanAria": { ja: "ページの束ね方", en: "How pages are grouped", "zh-TW": "頁面的彙整方式" },
-  "home.span.day": { ja: "日", en: "Day", "zh-TW": "日" },
-  "home.span.week": { ja: "週", en: "Week", "zh-TW": "週" },
-  "home.span.month": { ja: "月", en: "Month", "zh-TW": "月" },
-  "home.spanCount": { ja: "{n}枚", en: "{n} photos", "zh-TW": "{n} 張" },
   // 日本語の画面に英語の飾り文字を置かない(日付の見出しと同じ理由)。
-  "home.dayJournal": { ja: "この日の日記", en: "That day's diary", "zh-TW": "這天的日記" },
-  "home.dayJournalUsed": { ja: "使った言葉", en: "Words used", "zh-TW": "用到的字" },
   "home.pastPages": { ja: "これまでのページ", en: "Past Pages", "zh-TW": "以前的頁面" },
   // 雑誌の表紙(オーナー指示 2026-09-17「ホームのデザインを雑誌や
   // ホームアルバム風にしたい」「一番上には今日の日付を書いて」)。
@@ -2797,13 +2614,6 @@ export const DICT: Record<string, Record<UiLang, string>> = {
     en: "{n} words, around {place}.",
     "zh-TW": "在{place}，遇到了 {n} 個字。",
   },
-  "home.todayTagline": {
-    ja: "きょう出会った言葉を、撮った時刻の順に。",
-    en: "Today's words, in the order you caught them.",
-    "zh-TW": "今天遇到的字，依拍下的時間排列。",
-  },
-  "home.memories": { ja: "枚の思い出", en: "memories caught", "zh-TW": "張回憶" },
-  "home.noPhotoYet": { ja: "写真はまだありません", en: "No photo yet", "zh-TW": "還沒有照片" },
   "home.background": { ja: "ホームの壁紙", en: "Home wallpaper", "zh-TW": "首頁桌布" },
   // --- common ---
   "common.close": { ja: "閉じる", en: "Close", "zh-TW": "關閉" },
@@ -2832,34 +2642,12 @@ export const DICT: Record<string, Record<UiLang, string>> = {
   "common.loading": { ja: "読み込み中", en: "Loading", "zh-TW": "載入中" },
   // 規約・プライバシーの繁體中文版はまだ無い（法的な文なので機械訳しない）。
   // アルバムに書き込む（試作、`AlbumInk`）。
-  "ink.write": { ja: "手書き", en: "Draw", "zh-TW": "手寫" },
-  "ink.expand": { ja: "広げる", en: "Extend", "zh-TW": "加長" },
-  "ink.undo": { ja: "1つ戻す", en: "Undo", "zh-TW": "復原" },
-  "ink.tool": { ja: "書く道具", en: "Brush", "zh-TW": "畫筆" },
-  "ink.pen": { ja: "ペン", en: "Pen", "zh-TW": "筆" },
-  "ink.marker": { ja: "マーカー", en: "Marker", "zh-TW": "螢光筆" },
-  "ink.neon": { ja: "ネオン", en: "Neon", "zh-TW": "霓虹" },
-  "ink.eraser": { ja: "消しゴム", en: "Eraser", "zh-TW": "橡皮擦" },
-  "ink.size": { ja: "太さ", en: "Size", "zh-TW": "粗細" },
-  "ink.done": { ja: "完了", en: "Done", "zh-TW": "完成" },
-  "ink.trash": { ja: "ここに運ぶと消えます", en: "Drop here to delete", "zh-TW": "拖到這裡刪除" },
-  "ink.padHint": {
-    ja: "大きく書いてください。「完了」で紙に貼れます",
-    en: "Write big. Tap Done to stick it on the page",
-    "zh-TW": "寫大一點，按「完成」就能貼到頁面上",
-  },
-  "ink.textPlaceholder": { ja: "文字を入力", en: "Type something", "zh-TW": "輸入文字" },
-  "ink.fontModern": { ja: "モダン", en: "Modern", "zh-TW": "現代" },
-  "ink.fontClassic": { ja: "クラシック", en: "Classic", "zh-TW": "經典" },
-  "ink.fontSignature": { ja: "サイン", en: "Signature", "zh-TW": "簽名" },
-  "ink.fontType": { ja: "タイプ", en: "Typewriter", "zh-TW": "打字機" },
   // 日記の字体（`diary-fonts.ts`。2026-09-28「本物の手書きのような字体…選べて」）
   "diary.fontHand": { ja: "手書き", en: "Handwritten", "zh-TW": "手寫" },
   "diary.fontPencil": { ja: "えんぴつ", en: "Pencil", "zh-TW": "鉛筆" },
   "diary.fontCasual": { ja: "ゆるい", en: "Casual", "zh-TW": "隨手寫" },
   "diary.fontBrush": { ja: "楷書", en: "Brush", "zh-TW": "楷書" },
   "diary.fontPlain": { ja: "ふつう", en: "Plain", "zh-TW": "一般" },
-  "ink.bg": { ja: "文字の地", en: "Text background", "zh-TW": "文字底色" },
   "legal.onlyJaEn": {
     ja: "この文書は日本語版と英語版のみです。",
     en: "This document is available in Japanese and English only.",
@@ -3011,58 +2799,6 @@ export const DICT: Record<string, Record<UiLang, string>> = {
   },
   "card.photoSpot": { ja: "撮影地", en: "Where it was caught", "zh-TW": "拍攝地" },
   // --- input catch ---
-  "input.title": { ja: "入力キャッチ", en: "Type / speak a word", "zh-TW": "輸入捕捉" },
-  "input.lead": {
-    ja: "授業で習った・聞こえた・動画で見た言葉を、写真がなくても図鑑に。",
-    en: "Add a word you heard in class or saw in a video — no photo needed.",
-    "zh-TW": "課堂上學到的、聽到的、影片裡看到的字，就算沒有照片也能收進圖鑑。",
-  },
-  "input.listening": {
-    ja: "聞き取り中… 聞こえたフレーズを自分の声で復唱しよう",
-    en: "Listening… repeat the phrase you heard",
-    "zh-TW": "聆聽中… 用自己的聲音把聽到的句子唸一次",
-  },
-  "input.micHint": {
-    ja: "マイクで復唱するか、下の欄で認識結果を直せます",
-    en: "Speak, or fix the text below",
-    "zh-TW": "可以用麥克風跟著唸，或在下面的欄位修正辨識結果",
-  },
-  "input.textHint": {
-    ja: "中文でも日本語でもOK（日本語は自動で中文に変換されます）",
-    en: "Type in Mandarin or your own language — we'll convert it",
-    "zh-TW": "中文或你的母語都可以（會自動轉成中文）",
-  },
-  "input.scene": {
-    ja: "シーン: どこで・誰が・何と言った？（任意）",
-    en: "Scene: where / who / what was said (optional)",
-    "zh-TW": "場景：在哪裡、誰、說了什麼？（選填）",
-  },
-  "input.lookup": {
-    ja: "調べてカードにする",
-    en: "Look up & make a card",
-    "zh-TW": "查詢並做成字卡",
-  },
-  "input.looking": {
-    ja: "辞書とAIが調べています…",
-    en: "Checking the dictionary and AI…",
-    "zh-TW": "辭典和 AI 正在查…",
-  },
-  "input.sceneWord": {
-    ja: "どんな場面で見た？（例: トイレに置いてあった）",
-    en: "Where did you see it? (e.g. it was in the bathroom)",
-    "zh-TW": "在什麼場合看到的？（例：放在廁所裡）",
-  },
-  "input.chooseTitle": {
-    ja: "どれのことですか？",
-    en: "Which one do you mean?",
-    "zh-TW": "是指哪一個呢？",
-  },
-  "input.chooseHint": {
-    ja: "「{q}」は中文ではいくつかの語に分かれます。",
-    en: "\u201c{q}\u201d maps to several different Mandarin words.",
-    "zh-TW": "「{q}」在中文裡會分成好幾個字。",
-  },
-  "input.chooseBack": { ja: "書き直す", en: "Edit what I typed", "zh-TW": "重寫" },
   /**
    * **学習言語の名前を差し込む**（オーナー報告 2026-08-26
    * 「学習言語英語…検索に台湾華語を入力してもエラーが起きて、英単語が
@@ -3077,41 +2813,6 @@ export const DICT: Record<string, Record<UiLang, string>> = {
     ja: "{lang}の単語が見つかりませんでした。別の言い方で調べてみてください。",
     en: "Couldn't find a {lang} word for that. Try describing it differently.",
     "zh-TW": "找不到{lang}的單字。請換個說法查查看。",
-  },
-  "input.attach": {
-    ja: "画像を添付（任意）",
-    en: "Attach an image (optional)",
-    "zh-TW": "附加圖片（選填）",
-  },
-  "input.attachChange": {
-    ja: "タップで自分の画像に変更",
-    en: "Tap to use your own photo",
-    "zh-TW": "點一下換成自己的圖片",
-  },
-  "input.autoImage": {
-    ja: "画像はネット検索から自動で入ります。下の候補タップでワンタッチ変更",
-    en: "An image is added automatically from the web — tap a thumbnail to swap",
-    "zh-TW": "圖片會自動從網路搜尋帶入。點下面的候選就能一鍵更換",
-  },
-  "input.noImageOk": {
-    ja: "画像なしでもOK。あとから詳細画面で選び直せます",
-    en: "No image is fine — you can pick one later from the card",
-    "zh-TW": "沒有圖片也可以，之後在詳細畫面還能重選。",
-  },
-  "input.aiImageLoading": {
-    ja: "この単語の画像を生成しています…",
-    en: "Creating an image for this word…",
-    "zh-TW": "正在為這個詞生成圖片…",
-  },
-  "input.aiImageSaved": {
-    ja: "AI画像は単語の詳細と復習に保存されます",
-    en: "AI image for the word · saved to the card and review",
-    "zh-TW": "AI 圖片會保存到單詞詳情與複習",
-  },
-  "input.aiImageFailed": {
-    ja: "画像を生成できませんでした。単語は保存できます。",
-    en: "Image unavailable. The word can still be saved.",
-    "zh-TW": "無法生成圖片，但仍可保存單詞。",
   },
   "dex.movedTo": {
     ja: "「{word}」を{cat}へ移しました",
@@ -3197,15 +2898,6 @@ export const DICT: Record<string, Record<UiLang, string>> = {
     en: "Couldn't move it. Please try again.",
     "zh-TW": "無法移動，請再試一次。",
   },
-  "input.save": { ja: "図鑑に入れる", en: "Add to the dex", "zh-TW": "收進圖鑑" },
-  "input.saveHint": {
-    ja: "実物に出会ってスキャンすると金色に光り、撮影で図鑑が完成します。",
-    en: "Scan the real thing later and this card turns gold.",
-    "zh-TW": "遇到實物掃描時會發出金光，拍下來圖鑑就完成了。",
-  },
-  "input.verified": { ja: "✓ 検証済み", en: "✓ Verified", "zh-TW": "✓ 已驗證" },
-  "input.aiGenerated": { ja: "AI生成", en: "AI-generated", "zh-TW": "AI 生成" },
-  "input.replies": { ja: "返し方の例", en: "How to reply", "zh-TW": "回話的例子" },
   // --- dex view labels ---
   "dex.gallery": { ja: "ギャラリー表示", en: "Gallery view", "zh-TW": "圖片檢視" },
   "dex.list": { ja: "リスト表示", en: "List view", "zh-TW": "清單檢視" },
@@ -3221,20 +2913,6 @@ export const DICT: Record<string, Record<UiLang, string>> = {
   // **点だけを信じさせない** — 人が増えれば幅は狭くなる。
   // 一言は**音声だけ**(オーナー指示 2026-08-26)。列の名前は
   // `voice_video_url` のままだが、中身も文言も「録音」になった。
-  "voice.title": { ja: "一言の録音", en: "Voice note", "zh-TW": "一句話錄音" },
-  "voice.hint": {
-    ja: "この語に出会ったときの気持ちを、15秒までの声で残せます。",
-    en: "Record up to 15 seconds about how it felt to meet this word.",
-    "zh-TW": "可以用最長 15 秒的聲音，留下遇到這個字時的心情。",
-  },
-  "voice.playHint": {
-    ja: "上の日付の隣の再生ボタンで聞けます。",
-    en: "Play it from the button next to the date above.",
-    "zh-TW": "可以用上面日期旁邊的播放鍵聽。",
-  },
-  "voice.record": { ja: "一言を録る", en: "Record a note", "zh-TW": "錄一句話" },
-  "voice.retake": { ja: "録り直す", en: "Record again", "zh-TW": "重錄" },
-  "voice.recording": { ja: "録音中", en: "Recording", "zh-TW": "錄音中" },
   "voice.play": { ja: "一言を聞く", en: "Play the voice note", "zh-TW": "播放一句話" },
   // キャッチの最中に声で吹き込む(オーナー指示 2026-08-26)。
   "voice.speak": { ja: "声で一言を残す", en: "Say your note out loud", "zh-TW": "用聲音留一句話" },
@@ -3247,19 +2925,6 @@ export const DICT: Record<string, Record<UiLang, string>> = {
   },
   "voice.pause": { ja: "一言を止める", en: "Pause the voice note", "zh-TW": "暫停一句話" },
   "voice.stop": { ja: "止める（あと{n}秒）", en: "Stop ({n}s left)", "zh-TW": "停止（剩 {n} 秒）" },
-  "voice.delete": { ja: "この録音を消す", en: "Delete this recording", "zh-TW": "刪除這段錄音" },
-  "voice.confirmDelete": {
-    ja: "この一言の録音を消しますか？元に戻せません。",
-    en: "Delete this voice note? This can't be undone.",
-    "zh-TW": "要刪除這段一句話錄音嗎？無法復原。",
-  },
-  "voice.saved": { ja: "一言を残しました", en: "Voice note saved", "zh-TW": "已留下一句話" },
-  "voice.saveFailed": { ja: "保存できませんでした", en: "Couldn't save that", "zh-TW": "無法儲存" },
-  "voice.tooBig": {
-    ja: "録音が大きすぎます",
-    en: "That recording is too large",
-    "zh-TW": "錄音太大了",
-  },
   "voice.noMic": {
     ja: "マイクを使えませんでした",
     en: "Couldn't use the microphone",
@@ -3276,30 +2941,6 @@ export const DICT: Record<string, Record<UiLang, string>> = {
     "zh-TW": "儲存的地方還沒準備好（等待轉移）",
   },
   // ホームの本棚と見開き(オーナー指摘 2026-08-21 ⑬⑭)。
-  "home.shelfAria": { ja: "アルバムの本棚", en: "Album shelf", "zh-TW": "相簿的書架" },
-  "home.bookDay": { ja: "日ごと", en: "By day", "zh-TW": "每天" },
-  "home.bookWeek": { ja: "週ごと", en: "By week", "zh-TW": "每週" },
-  "home.bookMonth": { ja: "月ごと", en: "By month", "zh-TW": "每月" },
-  "home.openBook": {
-    ja: "{name}のアルバムを開く",
-    en: "Open the {name} album",
-    "zh-TW": "打開{name}的相簿",
-  },
-  "home.spreadEmpty": {
-    ja: "まだ前のページがありません",
-    en: "No earlier pages yet",
-    "zh-TW": "還沒有前一頁",
-  },
-  "home.noJournalThatDay": {
-    ja: "この日の日記はありません",
-    en: "No journal for that day",
-    "zh-TW": "這天沒有日記",
-  },
-  "home.olderSpread": { ja: "前へ", en: "Older", "zh-TW": "上一頁" },
-  "home.newerSpread": { ja: "次へ", en: "Newer", "zh-TW": "下一頁" },
-  "home.prevPage": { ja: "前のページ", en: "Previous page", "zh-TW": "上一頁" },
-  "home.nextPage": { ja: "次のページ", en: "Next page", "zh-TW": "下一頁" },
-  "home.backToSpread": { ja: "見開きに戻る", en: "Back to the spread", "zh-TW": "回到跨頁" },
   "dex.filterCategory": { ja: "カテゴリー", en: "Category", "zh-TW": "分類" },
   "dex.filterDay": { ja: "日付", en: "Date", "zh-TW": "日期" },
   "dex.filterOpen": { ja: "{name}を選ぶ", en: "Choose {name}", "zh-TW": "選擇{name}" },
@@ -3343,23 +2984,6 @@ export const DICT: Record<string, Record<UiLang, string>> = {
     en: "Change target language",
     "zh-TW": "更改學習語言",
   },
-  "dex.placesTitle": { ja: "キャッチした場所", en: "Where you caught them", "zh-TW": "捕捉的地點" },
-  "dex.placesHint": {
-    ja: "写真をタップで地図がその場所へズーム。地図上の丸い写真をタップで単語の詳細へ。",
-    en: "Tap a photo to zoom the map there. Tap a round photo on the map to open the word.",
-    "zh-TW": "點照片，地圖就會拉到那個地點。點地圖上的圓形照片，就會進到單字詳細。",
-  },
-  "dex.withLocation": {
-    ja: "場所付きの単語",
-    en: "Words with a location",
-    "zh-TW": "有地點的單字",
-  },
-  "dex.mapUnavailable": {
-    ja: "地図の連携が完了していません。",
-    en: "Maps are not configured yet.",
-    "zh-TW": "地圖的串接還沒完成。",
-  },
-  "dex.items": { ja: "件", en: "spots", "zh-TW": "筆" },
   // --- settings (admin) ---
   "settings.devOnly": {
     ja: "開発者専用（あなたにしか表示されません）",
@@ -4353,11 +3977,6 @@ export const DICT: Record<string, Record<UiLang, string>> = {
     ja: "Google マップで開く →",
     en: "Open in Google Maps →",
     "zh-TW": "用 Google 地圖打開 →",
-  },
-  "review.videoTip": {
-    ja: "設定で「録画」をONにすると、話した時の自撮り動画も残せます",
-    en: "Turn on “Record video” in Settings to keep a selfie clip of your speaking",
-    "zh-TW": "在設定裡打開「錄影」，就能留下說話時的自拍影片",
   },
 };
 

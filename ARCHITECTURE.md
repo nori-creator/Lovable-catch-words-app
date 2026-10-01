@@ -153,4 +153,22 @@ Changes to shared presentation components therefore affect the app and tutorial 
 
 `src/lib/album-day-layout.ts` decides where every photo of a day sits (`settleDayAlbum` → `frameRatio` + `settledById`; `layoutDayAlbum` for the whole day). Both the home `DayCollage` (DOM) and the 3D diary book's left page (`shelf3d/textures.ts` → `paintPlacedPhotos`, painted in the book's own paper style) use it, and `albumHeroUrl` picks the picture. Do not add a second layout path, and do not overlay DOM on the book (`HomeShelf` renders no album UI; it only repaints textures via `refreshDays`). `CaptionEditDialog` is the note editor used by word detail and the home album.
 
-Dead-code policy used in R26: delete only files with zero references (code, tests, harness, docs) — done: WordTreeView, AuthProviderButtons, ImagePicker, ai-gateway.server, first-catch-sample, words.functions, catch-landing v1–v4. Kept on purpose: shadcn `ui/*` primitives, `DayJournalPage`, `use-voice-input`, `admob`, `quests.functions`, `catch-landing/v5_physics` (tests gate a future re-connection), `src/server.ts` (SSR entry; knip false positive). Unused npm dependencies are listed for the owner, not removed (lockfile/Lovable sync).
+Dead-code policy used in R26: delete only files with zero references (code, tests, harness, docs) — done: WordTreeView, AuthProviderButtons, ImagePicker, ai-gateway.server, first-catch-sample, words.functions, catch-landing v1–v4. Kept on purpose: shadcn `ui/*` primitives, `DayJournalPage`, `use-voice-input`, `admob`, `quests.functions`, `catch-landing/v5_physics` (tests gate a future re-connection), `src/server.ts` (SSR entry; knip false positive). Unused npm dependencies are listed for the owner, not removed (lockfile/Lovable sync). The "kept on purpose" list was superseded by the 2026-10-01 cleanup below.
+
+## Large cleanup (2026-10-01, owner-approved)
+
+The owner chose, item by item, what to delete. Deleted as code (DB tables, columns and saved rows are **kept**):
+
+- Hidden features: social (`/feed`, `/discover`, `/notifications`, `/post/*`, `/u/*`), the old `/journal` page and the `/wordbooks` screens. `product-guardrails.test.ts` keeps those routes deleted.
+- Old variants: scan-analyzing effects v1–v12 (`ScanEffect` always renders `v13depth`, which falls back to `v0cutout`), `catch-landing/v5_physics`, `catch-choreography`, `InputCatchSheet` / `WordCandidateRow` / `use-voice-input`.
+- Harness-only parts (HoloSticker, PageCurlBook, StoryInk, 3D gallery, ModelPicker, …), 40 unused shadcn `ui/*` primitives and their 32 npm packages.
+- Look packs (`pack-styles.css`, `ui-pack.ts`, `PackGallery`), the paused background cutout (`cutout*.ts`, `@imgly/background-removal`, the cutout buttons/settings, `cutoutAllowance`), `quests.functions.ts`, `admob.ts`.
+- About 180 CSS selectors and 18 keyframes that nothing referenced (checked against code, including template-built class names).
+
+Kept on purpose:
+
+- Every `/api/native-*` endpoint and the server functions behind it — including `journal.functions.ts` (`listJournal`, `correctMyJournal`, `getJournalPrompts`, `saveMyDiary`, `listMyDiaryMonth`), `wordbook.functions.ts` (`extractWordbook` and the rest) and `attachStickerCutout`. Before deleting a server function, check `src/lib/native-fn.ts`.
+- Display of already-saved cutout images (`cutout_image_url`, the `"cutout"` hero role and photo preference) and admin stats for past `removebg` usage.
+- The DexShelf bookshelf view (hidden behind `DEX_SHELF_ENABLED`).
+
+Small merges: image resize/thumb helpers now live in `image-resize.ts`; the optional IndexedDB opener shared by the photo and audio caches is `idb-store.ts`; the Taipei calendar day is `taipei-day.ts`. Similar-looking helpers that differ on purpose were left alone (photo downscalers differ in EXIF stripping / orientation handling; the CJK script regexes differ in which marks they accept).
