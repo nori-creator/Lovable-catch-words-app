@@ -37,3 +37,7 @@ dist-ssr
 
 # 実物確認の結果（docs/real-app-check.md）
 e2e-report/
+
+# 秘密の値は .env に入れない（.env は Lovable / Netlify の組み立て用で、公開してよい値だけ。
+# `src/lib/env-public.test.ts` が確かめる）。手元だけの値は .env.local などへ。
+.env.*.local

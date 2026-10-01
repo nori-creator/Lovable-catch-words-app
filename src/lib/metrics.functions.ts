@@ -32,6 +32,11 @@ const APP_EVENTS = [
   "save_failed_catch",
   "save_failed_reencounter",
   "save_failed_first_transfer",
+  // 裏の処理の失敗（`background-failure.ts`。記録は 2026-10-01 から）。
+  "bg_failed_tts",
+  "bg_failed_photo_upload",
+  "bg_failed_thumb_upload",
+  "bg_failed_review_grade",
 ] as const;
 export type AppEventKind = (typeof APP_EVENTS)[number];
 

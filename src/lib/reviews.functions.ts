@@ -11,6 +11,7 @@ import { z } from "zod";
 // 計算だけを取り出して試すことができない。
 import { nextSrs, retentionNow, modeFor, stabilityOf, LAPSE_SCORE } from "@/lib/srs";
 import { pickInterval } from "@/lib/jev-tasks";
+import { isAlreadyGraded } from "@/lib/review-grade-guard";
 import {
   buildRetentionSeries,
   type RetentionCard,
@@ -939,11 +940,29 @@ export const gradeReview = createServerFn({ method: "POST" })
     const { supabase, userId } = context;
     const { data: row, error } = await supabase
       .from("reviews")
-      .select("id, sticker_id, ease, interval_days, repetitions, blur_seen, last_reviewed_at")
+      .select(
+        "id, sticker_id, ease, interval_days, repetitions, blur_seen, last_reviewed_at, due_at, last_score",
+      )
       .eq("id", data.review_id)
       .eq("user_id", userId)
       .single();
     if (error) throw new Error(error.message);
+
+    /**
+     * **同じ答えが2回届いても、1回分しか進めない**（2026-10-01）。
+     * 復習に出す札は期限が来た物だけ（`getDueReviews` の `due_at <= 今`）。採点すると
+     * 期限が先へ動くので、期限がまだ先の札への採点は「もう採点済み」— 通信のやり直し・
+     * 二重送信・別の端末で先に済ませた札。進めずに今の状態を返す。
+     */
+    const nowMs = Date.now();
+    if (isAlreadyGraded(row.due_at, nowMs)) {
+      return {
+        score: row.last_score ?? 0,
+        next_due_at: row.due_at as string,
+        interval_days: row.interval_days,
+        duplicate: true,
+      };
+    }
 
     // Score: correct=5 base; blur penalty -1; slow (>8s) -1; wrong=1.
     // Speaking mode sends `result` (or hint_used): success=5 / hint=2 (lapse,
@@ -971,43 +990,44 @@ export const gradeReview = createServerFn({ method: "POST" })
     );
 
     /**
-     * **次の復習の日は Jev が決める。**（オーナー指示 2026-09-23「jevに
-     * すぐに切り替えて」— それまでは影で記録するだけだった）
+     * **次の復習の日を誰が決めるか**（`jevIntervalMode`）。
      *
-     * SM-2 の日数を基準にして、Jev の日数を柵の中に収める（`pickInterval`）:
-     * 思い出せなかった語は明日のまま、Jev の答えが無ければ SM-2 のまま、
-     * Jev の日数は SM-2 の半分〜2倍まで。ease と連続回数は SM-2 のまま
-     * （次の SM-2 の基準になるので）。
+     * 既定は SM-2（オーナー判断 2026-10-01「影の実行に戻す」）。Jev の答えは記録だけ
+     * （採点の後に聞くので、採点は Jev を待たない）。`live` のときだけ、SM-2 の日数を
+     * 基準にして Jev の日数を柵の中に収める（`pickInterval`: 思い出せなかった語は明日の
+     * まま、Jev の答えが無ければ SM-2 のまま、SM-2 の半分〜2倍まで）。
      */
     const lastMs = row.last_reviewed_at ? new Date(row.last_reviewed_at).getTime() : null;
-    const now = Date.now();
+    const now = nowMs;
     const daysSince = lastMs == null ? null : Math.round(((now - lastMs) / 86400_000) * 10) / 10;
     const recalled = score >= LAPSE_SCORE;
-    const { jevScheduleDays, logScheduleDecision, recordRecallShadow } =
+    const { jevIntervalMode, jevScheduleDays, logScheduleDecision, recordRecallShadow } =
       await import("./jev-tasks.server");
+    const mode = await jevIntervalMode();
+    const scheduleArgs = {
+      userId,
+      stickerId: row.sticker_id,
+      state: {
+        headword: "",
+        daysSinceLastReview: daysSince,
+        intervalDaysBefore: row.interval_days,
+        ease: row.ease,
+        repetitionsBefore: row.repetitions,
+        recalled,
+        score,
+        responseSeconds: data.response_ms > 0 ? Math.round(data.response_ms / 100) / 10 : null,
+      },
+    };
     const jev =
-      score >= LAPSE_SCORE
-        ? await jevScheduleDays(supabase as never, {
-            userId,
-            stickerId: row.sticker_id,
-            state: {
-              headword: "",
-              daysSinceLastReview: daysSince,
-              intervalDaysBefore: row.interval_days,
-              ease: row.ease,
-              repetitionsBefore: row.repetitions,
-              recalled,
-              score,
-              responseSeconds:
-                data.response_ms > 0 ? Math.round(data.response_ms / 100) / 10 : null,
-            },
-          })
+      mode === "live" && score >= LAPSE_SCORE
+        ? await jevScheduleDays(supabase as never, scheduleArgs)
         : null;
     const picked = pickInterval(srs.interval_days, jev?.days ?? null, score, LAPSE_SCORE);
     const next = { ...srs, interval_days: picked.days };
     const dueAt = new Date(now + next.interval_days * 86400 * 1000).toISOString();
 
-    const { error: upErr } = await supabase
+    // 読んだ時の期限のままの時だけ書く（同時に2回届いた時、後の方は0行になる）。
+    const updateQuery = supabase
       .from("reviews")
       .update({
         ease: next.ease,
@@ -1020,10 +1040,26 @@ export const gradeReview = createServerFn({ method: "POST" })
       })
       .eq("id", data.review_id)
       .eq("user_id", userId);
+    const { data: updated, error: upErr } = await (
+      row.due_at ? updateQuery.eq("due_at", row.due_at) : updateQuery.is("due_at", null)
+    ).select("id");
     if (upErr) throw new Error(upErr.message);
+    if (!updated || updated.length === 0) {
+      // 同じ答えが同時に2回届き、先の方がもう書いた。こちらは何も進めない。
+      return {
+        score,
+        next_due_at: dueAt,
+        interval_days: next.interval_days,
+        duplicate: true,
+      };
+    }
 
-    // Append to review_history for the forgetting-curve visualization.
-    await supabase.from("review_history").insert({
+    /**
+     * 忘却曲線の記録。**落ちたら黙らない**（2026-10-01）— 前は失敗を見ていなかったので、
+     * 曲線と「今日やった枚数」が静かに欠けていた。1回だけやり直し、それでも駄目なら
+     * サーバの記録に残す（採点そのものは済んでいるので、利用者は止めない）。
+     */
+    const historyRow = {
       user_id: userId,
       review_id: data.review_id,
       sticker_id: row.sticker_id,
@@ -1034,7 +1070,16 @@ export const gradeReview = createServerFn({ method: "POST" })
       interval_days_after: next.interval_days,
       ease_after: next.ease,
       repetitions_after: next.repetitions,
-    });
+    };
+    let { error: histErr } = await supabase.from("review_history").insert(historyRow);
+    if (histErr) ({ error: histErr } = await supabase.from("review_history").insert(historyRow));
+    if (histErr) {
+      console.error("[reviews] review_history insert failed", {
+        userId,
+        reviewId: data.review_id,
+        message: histErr.message,
+      });
+    }
 
     /**
      * **記録**（待たない — 復習の返事を遅らせない）。
@@ -1052,6 +1097,22 @@ export const gradeReview = createServerFn({ method: "POST" })
         jevDays: jev.days,
         srsDays: srs.interval_days,
         usedDays: next.interval_days,
+        mode,
+      });
+    } else if (mode === "shadow" && score >= LAPSE_SCORE) {
+      // 影の実行: 採点の後で Jev に聞き、答えを記録するだけ（予定は SM-2 のまま）。
+      void jevScheduleDays(supabase as never, scheduleArgs).then((shadow) => {
+        if (!shadow) return;
+        return logScheduleDecision(supabase as never, {
+          userId,
+          stickerId: row.sticker_id,
+          model: shadow.model,
+          confidence: shadow.confidence,
+          jevDays: shadow.days,
+          srsDays: srs.interval_days,
+          usedDays: next.interval_days,
+          mode,
+        });
       });
     }
     {
@@ -1071,7 +1132,13 @@ export const gradeReview = createServerFn({ method: "POST" })
       });
     }
 
-    return { score, next_due_at: dueAt, interval_days: next.interval_days };
+    return {
+      score,
+      next_due_at: dueAt,
+      interval_days: next.interval_days,
+      duplicate: false,
+      history_saved: !histErr,
+    };
   });
 
 // --- Forgetting curve data ---------------------------------------------------

@@ -6,11 +6,13 @@ import {
   entryOpinion,
   exampleQuestion,
   intervalDaysFrom,
+  parseJevIntervalMode,
   recallQuestion,
   scheduleQuestion,
   speakingQuestion,
   type EntryFields,
   type EntryOpinion,
+  type JevIntervalMode,
   type RecallState,
   type ScheduleState,
 } from "./jev-tasks";
@@ -24,6 +26,31 @@ type Db = {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   from: (t: string) => any;
 };
+
+let modeCache: { at: number; value: JevIntervalMode } = { at: 0, value: "shadow" };
+
+/**
+ * 次の復習の日を誰が決めるか（`parseJevIntervalMode` の注）。60秒だけ覚えておく
+ * （採点のたびに設定を読みに行かない）。読めなければ `shadow`。
+ */
+export async function jevIntervalMode(): Promise<JevIntervalMode> {
+  const now = Date.now();
+  if (now - modeCache.at < 60_000) return modeCache.value;
+  let value: JevIntervalMode = "shadow";
+  try {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data } = await (supabaseAdmin as unknown as Db)
+      .from("app_config")
+      .select("value")
+      .eq("key", "jev_interval")
+      .maybeSingle();
+    value = parseJevIntervalMode((data as { value?: unknown } | null)?.value ?? null);
+  } catch (e) {
+    console.warn("[jev] interval mode unreadable, using shadow:", (e as Error)?.message ?? e);
+  }
+  modeCache = { at: now, value };
+  return value;
+}
 
 /** 本人の札の語を引く（Jev に語そのものの難しさも見せるため）。 */
 async function headwordOf(
@@ -90,6 +117,8 @@ export async function logScheduleDecision(
     jevDays: number;
     srsDays: number;
     usedDays: number;
+    /** その時どちらが決めたか（影の実行なら使った日数は SM-2 のもの）。 */
+    mode: JevIntervalMode;
   },
 ): Promise<void> {
   try {
@@ -101,7 +130,12 @@ export async function logScheduleDecision(
       // 間隔は確率ではないので、Jev の自信を入れ、日数は meta に置く。
       predicted: args.confidence,
       outcome: null,
-      meta: { jev_days: args.jevDays, srs_days: args.srsDays, used_days: args.usedDays },
+      meta: {
+        jev_days: args.jevDays,
+        srs_days: args.srsDays,
+        used_days: args.usedDays,
+        mode: args.mode,
+      },
     });
   } catch (e) {
     console.warn("[jev] schedule log skipped:", (e as Error)?.message ?? e);

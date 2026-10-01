@@ -2,7 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { z } from "zod";
 import { assertWithinDailyCap, isProUser, logUsage } from "./ai-provider.server";
-import { MAX_REWARDED_PER_DAY, cutoutAllowance, startOfTokyoDay } from "./plan-limits";
+import { MAX_REWARDED_PER_DAY, cutoutAllowance, startOfAppDay } from "./plan-limits";
 
 /** 今日（日本時間）の切り抜きの残り。表が読めなければ null（止めない）。 */
 async function cutoutAllowanceFor(userId: string) {
@@ -10,7 +10,7 @@ async function cutoutAllowanceFor(userId: string) {
     if (await isProUser(userId))
       return cutoutAllowance({ isPro: true, usedToday: 0, rewardedToday: 0 });
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const since = startOfTokyoDay(new Date()).toISOString();
+    const since = startOfAppDay(new Date()).toISOString();
     const count = async (kind: string) => {
       const r = await supabaseAdmin
         .from("usage_events")
@@ -58,7 +58,7 @@ export const claimRewardedCutout = createServerFn({ method: "POST" })
   .handler(async ({ context }) => {
     const { supabase, userId } = context;
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const since = startOfTokyoDay(new Date()).toISOString();
+    const since = startOfAppDay(new Date()).toISOString();
     const r = await supabaseAdmin
       .from("usage_events")
       .select("id", { count: "exact", head: true })

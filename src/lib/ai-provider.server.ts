@@ -803,9 +803,13 @@ type UsageClient = {
  */
 export async function logUsage(supabase: unknown, userId: string, kind: string): Promise<void> {
   try {
-    await (supabase as UsageClient).from("usage_events").insert({ user_id: userId, kind });
-  } catch {
-    /* noop */
+    const res = (await (supabase as UsageClient)
+      .from("usage_events")
+      .insert({ user_id: userId, kind })) as { error?: { message?: string } | null } | undefined;
+    // 利用の記録が落ちると、日次上限と管理画面の数が静かに少なくなる。サーバの記録には残す。
+    if (res?.error) console.warn("[usage] log failed", { kind, message: res.error.message });
+  } catch (e) {
+    console.warn("[usage] log failed", { kind, message: (e as Error)?.message ?? e });
   }
 }
 
@@ -845,8 +849,11 @@ export async function assertWithinDailyCap(userId: string, kind: string): Promis
       .eq("kind", kind)
       .gte("created_at", since);
     if (!res.error) count = res.count;
-  } catch {
+    else console.warn("[usage] cap check failed", { kind, message: res.error.message });
+  } catch (e) {
     // Fail open: a broken meter must never block scanning (§2 保存の摩擦を増やさない).
+    // ただし数えられなかったことはサーバの記録に残す（上限が効いていない間を見つけるため）。
+    console.warn("[usage] cap check failed", { kind, message: (e as Error)?.message ?? e });
   }
   if (count != null && count >= limit) {
     throw new Error(

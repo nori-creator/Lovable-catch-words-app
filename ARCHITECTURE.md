@@ -63,7 +63,9 @@ Separate:
    Store enough event data to re-evaluate algorithms later without rewriting history.
    Experimental models should initially run shadow predictions, not control production schedules.
 
-**Owner override (2026-09-23, "jevにすぐに切り替えて"):** Jev now sets the next review interval in `gradeReview`, without a prior shadow-calibration period. Guardrails that must stay:
+**Owner decision (2026-10-01, back to shadow):** SM-2 sets the next review interval again. After grading, `gradeReview` asks Jev in the background and only logs its interval (`model_shadow_predictions`, `meta.mode = "shadow"`); grading never waits for Jev. The switch is `app_config.jev_interval = {"mode":"live"}` (read by `jevIntervalMode`, unknown/unreadable = shadow). Going live again requires the calibration evaluation below. When live, the 2026-09-23 guardrails apply:
+
+**Owner override (2026-09-23, "jevにすぐに切り替えて", superseded 2026-10-01 by the shadow default above):** Jev sets the next review interval in `gradeReview`, without a prior shadow-calibration period. Guardrails that must stay:
 
 - A failed/hinted review (score < `LAPSE_SCORE`) always stays on SM-2 (tomorrow); Jev is not asked.
 - If Jev is unavailable, times out (2.5 s) or returns an invalid shape, SM-2 is used.
@@ -73,8 +75,8 @@ Separate:
 
 **Jev usage map (owner request 2026-09-23, "速さと正確性を両立させて"):** Jev is a fast, text-only judge. Use it to _check, rank and decide_, never to _write_ learner-facing content (LLMs write; Jev verifies). Every Jev call must have a timeout and a non-Jev fallback, and must not add latency to the first thing the user sees.
 
-- Live: review interval (guardrails above); scan candidate ranking + Taiwan-standard-term check in the same single call, made after the dots are shown (doubtful items are demoted and marked low-confidence, never deleted); second opinion before writing a reported correction to a shared word; category only when generation fell back to "other".
-- Shadow (logged only, until calibrated): recall prediction, speaking judgement, example-sentence naturalness. Next candidate for going live: repair examples Jev rates clearly unnatural (<0.2) in a background job after the word is saved, applied only with the correction judge's approval.
+- Live: scan candidate ranking + Taiwan-standard-term check in the same single call, made after the dots are shown (doubtful items are demoted and marked low-confidence, never deleted); second opinion before writing a reported correction to a shared word; category only when generation fell back to "other".
+- Shadow (logged only, until calibrated): review interval (switchable, see above), recall prediction, speaking judgement, example-sentence naturalness. Next candidate for going live: repair examples Jev rates clearly unnatural (<0.2) in a background job after the word is saved, applied only with the correction judge's approval.
 
 **Displayed number (owner decision 2026-09-23, "単語の数値は1つに統一したい"):** every surface (photo badge, review list, forgetting-curve y-axis and colors, modal chip) shows one number: the estimated probability of recalling the word now (`memoryOf` → `memoryPercent(retention)`), matching PRODUCT.md. How long a word lasts is expressed as the next review date, never as a second percentage. The stability-weighted `maturityLevel` is internal and only chooses the review question format.
 
@@ -104,6 +106,25 @@ Fonts: display text keeps `font-display: block`; the diary input field uses gene
 Do not load an entire growing personal collection when a screen only needs a subset.
 Use date-scoped home queries, pagination/infinite scrolling, thumbnails, map clustering and indexes as appropriate.
 Track AI/TTS cost per operation and aggregate per active user without exposing unnecessary personal content.
+
+## Review grading safety (2026-10-01)
+
+- `gradeReview` is idempotent: a review whose `due_at` is already in the future (more than 1 minute ahead) was already graded, so it returns the current state with `duplicate: true` (`isAlreadyGraded`). The update is a compare-and-set on the `due_at` that was read, so two simultaneous submissions advance the review once.
+- A failed `review_history` insert is retried once and then logged; the response says `history_saved: false`.
+
+## DB migrations: one place to read
+
+Every database change must be readable from `supabase/migrations/`. Lovable also writes `drizzle/migrations/`; anything added there must be mirrored into a `supabase/migrations/` file that names the drizzle file (`src/lib/migrations-mirror.test.ts` enforces it). Production policy changes are applied only with owner approval.
+
+Shared `words` rows are written only by the server (service role). Browser `UPDATE`/`DELETE` were revoked on 2026-10-01 (`20261001100000_words_server_only_update.sql`, applied). Browser `INSERT` is closed by `docs/pending-migrations/20261001100200_words_server_only_insert.sql`, **to be applied only after the version where `upsertWord` inserts with the service role is published** (kept out of `supabase/migrations/` so it cannot run early; move it there once applied).
+
+## Failures must be visible
+
+A background failure that the UI deliberately survives (TTS falling back to the device voice, optional photo uploads, review grading) still reports through `reportBackgroundFailure` (`src/lib/background-failure.ts`) or `reportSaveFailure`, which count in the admin per-user screen and Lovable error reporting. Do not add new silent `catch {}` / `.catch(() => {})` on user data paths.
+
+## Day boundaries
+
+User-facing "today" counts use Taiwan time (`Asia/Taipei`; `startOfAppDay` for plan limits). AI abuse caps (`assertWithinDailyCap`) are a rolling 24 hours on purpose, and their message says so.
 
 ## AI-assisted fixes
 

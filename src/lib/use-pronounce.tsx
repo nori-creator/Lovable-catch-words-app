@@ -1,3 +1,4 @@
+import { reportBackgroundFailure } from "@/lib/background-failure";
 import { useCallback, useEffect, useMemo, useRef, useSyncExternalStore } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { getTtsVoiceTags, synthesizeSpeech } from "@/lib/tts.functions";
@@ -86,6 +87,7 @@ async function download(
     if (!url && fetcher) url = (await fetcher(text)).audio_url ?? null;
     if (!url) {
       setSpeechState(key, "failed");
+      if (fetcher) reportBackgroundFailure("tts", new Error("no audio_url"), { text });
       return null;
     }
     // **音そのものを取る。** ここを省くと「準備できた」と言った直後に
@@ -96,9 +98,10 @@ async function download(
     void putCachedAudio(key, blob);
     void decodeSpeech(key, blob);
     return markSpeechReady(key, blob);
-  } catch {
-    // 端末の声に落ちる道が残っているので、ここで画面を壊さない。
+  } catch (e) {
+    // 端末の声に落ちる道が残っているので、ここで画面を壊さない。ただし記録には残す。
     setSpeechState(key, "failed");
+    reportBackgroundFailure("tts", e, { text });
     return null;
   } finally {
     inflight.delete(key);
