@@ -3,7 +3,7 @@ import { unlockAudio } from "@/lib/sound-engine";
 import { useEffect, useRef, useState } from "react";
 import { PeelSticker } from "@/components/PeelSticker";
 
-// Deterministic alpha fixture, no external image, AI call or authentication.
+// Deterministic photo fixture, no external image, AI call or authentication.
 const cup = `<defs><linearGradient id="tea" x2=".8" y2="1"><stop stop-color="#eed4ad"/><stop offset=".55" stop-color="#c88c56"/><stop offset="1" stop-color="#a96d3c"/></linearGradient><linearGradient id="glass"><stop stop-color="#fff" stop-opacity=".8"/><stop offset=".2" stop-color="#fff" stop-opacity=".05"/><stop offset=".7" stop-color="#fff" stop-opacity=".05"/><stop offset="1" stop-color="#fff" stop-opacity=".6"/></linearGradient></defs><g transform="rotate(-9 160 160)"><path d="M174 22h13l-11 80h-13z" fill="#b76247"/><path d="M91 89h142l-19 187q-52 19-103 0z" fill="url(#tea)" stroke="#e8c6a0" stroke-width="3"/><ellipse cx="162" cy="91" rx="74" ry="16" fill="#e8d3b6"/><ellipse cx="162" cy="87" rx="69" ry="10" fill="#eaddc9"/><g fill="#3d2521">${[
   [126, 250],
   [150, 258],
@@ -24,14 +24,12 @@ const cup = `<defs><linearGradient id="tea" x2=".8" y2="1"><stop stop-color="#ee
   )}</g><path d="M96 102h132l-17 170q-48 18-97 0z" fill="url(#glass)"/><rect x="119" y="139" width="84" height="60" rx="4" fill="#f8f3e5"/><text x="161" y="163" text-anchor="middle" font-size="10" font-family="sans-serif" fill="#574634" letter-spacing="2">TAIPEI</text><text x="161" y="184" text-anchor="middle" font-size="16" font-family="serif" fill="#574634">tea time</text></g>`;
 const svg = (body: string) =>
   `data:image/svg+xml;charset=utf-8,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="320" height="320" viewBox="0 0 320 320">${body}</svg>`)}`;
-export const cutout = svg(cup);
 export const photo = svg(
   `<rect width="320" height="320" fill="#a9b2a2"/><rect y="175" width="320" height="145" fill="#c8b394"/><path d="M0 195L320 215M0 265L320 285" stroke="#af9a7d" stroke-width="3"/><rect x="12" y="12" width="85" height="148" fill="#55664e"/><rect x="109" y="12" width="199" height="148" fill="#d9ded1"/>${cup}`,
 );
 
 export function PeelStickerScene() {
   const [round, setRound] = useState(0);
-  const [ready, setReady] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
 
@@ -39,11 +37,6 @@ export function PeelStickerScene() {
   const source = useRef<HTMLDivElement>(null);
   const fly = useRef<HTMLImageElement>(null);
   const busy = useRef(false);
-  useEffect(() => {
-    setReady(false);
-    const t = setTimeout(() => setReady(true), 500);
-    return () => clearTimeout(t);
-  }, [round]);
   useEffect(() => {
     const previous = document.documentElement.dataset.motion;
     document.documentElement.dataset.motion = reduced ? "reduce" : "full";
@@ -205,7 +198,6 @@ export function PeelStickerScene() {
               <PeelSticker
                 key={round}
                 photoUrl={photo}
-                cutoutUrl={ready ? cutout : null}
                 label="珍珠奶茶"
                 hint="好きな方向にはがしてキャッチ"
                 actionLabel="図鑑へ追加"

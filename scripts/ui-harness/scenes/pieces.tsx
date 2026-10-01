@@ -13,7 +13,6 @@ import { RegisterMeter } from "@/components/WordCard";
 import { SceneBubbles } from "@/components/SceneBubbles";
 import { ForgettingCurveChart } from "@/components/ForgettingCurveChart";
 import { LoadFailed } from "@/components/LoadFailed";
-import { ScanDetailSheet } from "@/components/ScanDetailSheet";
 import { DexEmptyState, DexNoMatch } from "@/routes/_authenticated/dex";
 import { DexHeader } from "@/routes/_authenticated/dex";
 import type { DexFilter } from "@/lib/dex-filter";
@@ -403,50 +402,6 @@ const FAILED: Promise<GeneratedCard> = Promise.reject(new Error("AIの生成に�
 // 誰も受け取らないと node/ブラウザが「未処理の拒否」として騒ぐ。
 // シートの中で必ず受け取るが、渡る前に一度なだめておく。
 FAILED.catch(() => {});
-
-export function ScanDetailScene({ q }: { q: URLSearchParams }) {
-  const variant = q.get("variant");
-  const verified = variant === "verified";
-  return (
-    <ScanDetailSheet
-      headword="珍珠奶茶"
-      item={{
-        id: "d1",
-        kind: "object",
-        headword: "珍珠奶茶",
-        zhuyin: "ㄓㄣ ㄓㄨ ㄋㄞˇ ㄔㄚˊ",
-        pinyin: "zhēn zhū nǎi chá",
-        meaning_ja: "タピオカミルクティー",
-        pos: "名詞",
-        point: [0.5, 0.5],
-        confidence: 0.92,
-        alternatives: ["奶茶", "飲料"],
-      }}
-      dict={
-        verified
-          ? {
-              headword: "珍珠奶茶",
-              zhuyin: "ㄓㄣ ㄓㄨ ㄋㄞˇ ㄔㄚˊ",
-              pinyin: "zhēn zhū nǎi chá",
-              meaning_ja: "タピオカミルクティー",
-              pos: "名詞",
-              tocfl_level: 2,
-              level_step: 2,
-              audio_path: null,
-              audio_url: null,
-              source: "verified",
-              entry_type: "word",
-            }
-          : undefined
-      }
-      // 生成中・出来上がり・失敗の3面。**今まで生成中しか撮っていなかった**
-      // ので、このシートの中身(解説そのもの)は一度も機械の目に映って
-      // いなかった。待っている骨組みだけを見て「合格」と言っていた。
-      cardPromise={variant === "ready" ? READY : variant === "failed" ? FAILED : PENDING}
-      onClose={() => {}}
-    />
-  );
-}
 
 /**
  * 一言を**聞く**ボタン(オーナー指示 2026-08-26「再生ボタンは真ん中、

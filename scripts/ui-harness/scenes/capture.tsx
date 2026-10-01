@@ -335,18 +335,8 @@ export function CaptureObjectScene({ q }: { q: URLSearchParams }) {
 
 /**
  * 生成が終わったカードの面。**撮るたびに必ず通る。**
- * 表(切り抜き)と裏(自撮り)の両方を撮る。自撮りが無い回も見る。
+ * 表(写真)と裏(自撮り)の両方を撮る。自撮りが無い回も見る。
  */
-/**
- * 物が写真の下と右で切れている切り抜き（透明な地に、縁まで続く茶色の杯）。
- * `variant=clipped` で「シールでも切れます」の知らせを見る（2026-09-27）。
- */
-const CLIPPED_CUTOUT =
-  "data:image/svg+xml;utf8," +
-  encodeURIComponent(
-    `<svg xmlns="http://www.w3.org/2000/svg" width="400" height="400"><path d="M150 60 L400 90 L400 400 L190 400 Z" fill="#b07a4a"/><ellipse cx="275" cy="75" rx="130" ry="26" fill="#e8d5b5"/></svg>`,
-  );
-
 export function CaptureCardScene({ q }: { q: URLSearchParams }) {
   const v = q.get("variant");
   const [flipped, setFlipped] = useState(v === "back" || v === "noselfie");
@@ -371,7 +361,6 @@ export function CaptureCardScene({ q }: { q: URLSearchParams }) {
         } as never
       }
       selectedHead="珍珠奶茶"
-      cutoutImg={v === "clipped" ? CLIPPED_CUTOUT : shot(400, 400, "#b07a4a")}
       objectImg={shot(400, 400, "#8a7f6a")}
       selfieImg={v === "noselfie" ? null : shot(400, 400, "#4a90d9")}
       flipped={flipped}

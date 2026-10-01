@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { countStreak } from "@/lib/streak";
+import { taipeiDay } from "./taipei-day";
 
 export type UserStats = {
   xp: number;
@@ -19,7 +20,7 @@ export type UserStats = {
 };
 
 function taipeiDateString(d: Date): string {
-  return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Taipei" }).format(d);
+  return taipeiDay(d);
 }
 
 export const getMyStats = createServerFn({ method: "GET" })

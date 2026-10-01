@@ -5,7 +5,6 @@ import {
   setSelfieCaptureEnabled,
 } from "@/lib/product-features";
 import { useReadableError } from "@/lib/errors";
-import { CUTOUT_ENABLED } from "@/lib/cutout-feature";
 import { useMotion } from "@/components/motion-provider";
 import { parseMotionChoice } from "@/lib/motion-pref";
 import { createFileRoute, Link, useNavigate, useRouter } from "@tanstack/react-router";
@@ -64,11 +63,8 @@ import { normalizeReviewMode, type ReviewModePref } from "@/lib/review-format";
 import { getPhotoPref, setPhotoPref, type PhotoPref } from "@/lib/photo-pref";
 import {
   clearCatchTimings,
-  getCatchSpeed,
   readCatchTimings,
-  setCatchSpeed,
   summarizeCatchTimings,
-  type CatchSpeed,
   type CatchTimingSummary,
 } from "@/lib/catch-speed";
 import { pickL1 } from "@/lib/l1";
@@ -94,7 +90,7 @@ import {
 import { loadReminderPrefs } from "@/components/ReviewReminderWatcher";
 import { Capacitor } from "@capacitor/core";
 import { WallpaperPicker } from "@/components/WallpaperPicker";
-import { downscaleDataUrl } from "@/lib/cutout";
+import { downscaleDataUrl } from "@/lib/image-resize";
 import { supabase } from "@/integrations/supabase/client";
 import { LogOut, Loader2, Plus, Trash2, User, X } from "lucide-react";
 import { tStatic } from "@/lib/i18n";
@@ -387,13 +383,11 @@ function SettingsPage() {
   const [strictness, setStrictness] = useState<"easy" | "normal" | "strict">("normal");
   const [reviewMode, setReviewMode] = useState<ReviewModePref>("speaking");
   const [photoPref, setPhotoPrefState] = useState<PhotoPref>("auto");
-  /** 出す札。**切り抜きが止まっている間は2つ**（升の数もここから数える）。 */
+  /** 出す札（升の数もここから数える）。切り抜きは 2026-10-01 に消した。 */
   const photoPrefOptions = [
     { value: "object" as const, label: t("settings.photoObject") },
-    ...(CUTOUT_ENABLED ? [{ value: "cutout" as const, label: t("settings.photoCutout") }] : []),
     { value: "selfie" as const, label: t("settings.photoSelfie") },
   ];
-  const [catchSpeed, setCatchSpeedState] = useState<CatchSpeed>("detail");
   const [reviewLimit, setReviewLimit] = useState<number>(20);
   const [reviewFocus, setReviewFocus] = useState<"all" | "weak" | "new">("all");
   const [selfieMode, setSelfieMode] = useState(selfieCaptureEnabled);
@@ -418,7 +412,6 @@ function SettingsPage() {
   // (`localStorage` はサーバ側では読めないので、描いた後に一度だけ)。
   useEffect(() => {
     setPhotoPrefState(getPhotoPref());
-    setCatchSpeedState(getCatchSpeed());
     /**
      * **選んだ値を、プロフィールを待たずに画面へ戻す**(オーナー報告
      * 2026-08-26、3度目「一度保存しても、ほかのページ移ってから設定の
@@ -847,24 +840,6 @@ function SettingsPage() {
               }}
               options={photoPrefOptions}
             />
-            {/* 要望 #18「キャッチ時に切り抜きするしない」。
-                **既定は今まで通り「丁寧」** — 速さのために見た目を落とすかは
-                人が決めることで、黙って切り替えるものではない。 */}
-            {CUTOUT_ENABLED && (
-              <ChoiceRow
-                cols={2}
-                label={t("settings.catchSpeed")}
-                value={catchSpeed}
-                onChange={(v) => {
-                  setCatchSpeedState(v);
-                  setCatchSpeed(v);
-                }}
-                options={[
-                  { value: "detail", label: t("settings.speedDetail") },
-                  { value: "fast", label: t("settings.speedFast") },
-                ]}
-              />
-            )}
             {/* **発音判定の厳しさの欄は消した**(オーナー指示 2026-08-26)。
                 列(`pronunciation_strictness`)は残す — 既に選んである人の
                 値を保存のたびに書き戻して、消さないため。 */}

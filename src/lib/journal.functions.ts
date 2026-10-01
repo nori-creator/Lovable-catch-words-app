@@ -18,6 +18,7 @@ import {
   getUserTargetLanguage,
 } from "./ai-provider.server";
 import { targetProfile } from "./target-profile";
+import { taipeiDay } from "./taipei-day";
 
 export type NativePhrase = { zh: string; ja: string; note: string };
 
@@ -90,8 +91,7 @@ type SupabaseLike = {
 };
 
 async function getTodaysCaptures(supabase: SupabaseLike, userId: string) {
-  const fmt = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Taipei" });
-  const today = fmt.format(new Date());
+  const today = taipeiDay();
   const start = new Date(`${today}T00:00:00+08:00`).toISOString();
   const { data, error } = await supabase
     .from("stickers")
@@ -228,7 +228,7 @@ export const saveMyDiary = createServerFn({ method: "POST" })
   .inputValidator((input: unknown) => DiaryInput.parse(input))
   .handler(async ({ context, data }) => {
     const { supabase, userId } = context;
-    const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Taipei" }).format(new Date());
+    const today = taipeiDay();
     if (data.date > today) throw new Error("未来の日の日記は書けません");
     const text = data.text.trim();
     const { data: row, error } = await supabase

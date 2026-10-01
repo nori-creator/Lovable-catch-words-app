@@ -45,7 +45,6 @@ export function HeroPickerScene({ q }: { q: URLSearchParams }) {
       saving={false}
       onPick={() => {}}
       onReplaceFile={() => {}}
-      onCutoutNow={variant === "cutout" ? () => {} : undefined}
       onSelfieFile={few ? () => {} : undefined}
       onClose={() => {}}
     />

@@ -31,10 +31,7 @@ import { GalleryScene } from "./scenes/gallery";
 import { TabBarScene } from "./scenes/tabbar";
 import { OnboardingScene } from "./scenes/onboarding";
 import { StickerSheetScene } from "./scenes/sticker-sheet";
-import { JournalResultScene, JournalScaffoldScene } from "./scenes/journal";
-import { WordCandidateScene } from "./scenes/word-candidate";
 import { CandidatePickerScene } from "./scenes/candidate-picker";
-import { InputCatchScene } from "./scenes/input-catch";
 import { ImageSettingsScene } from "./scenes/image-settings";
 import { HeroPickerScene } from "./scenes/hero-picker";
 import { CameraStripScene } from "./scenes/camera-strip";
@@ -52,10 +49,7 @@ import { CategorySheetScene } from "./scenes/category-sheet";
 import { CategoryMembersScene } from "./scenes/category-members";
 import { PlaceNotifyDesignsScene } from "./scenes/place-notify-designs";
 import { RegenMagicScene } from "./scenes/regen-magic";
-import { CandidateDesignsScene } from "./scenes/candidate-designs";
 import { AnalyzingDesignsScene } from "./scenes/analyzing-designs";
-import { PageFlipScene } from "./scenes/page-flip";
-import { AlbumShelfScene } from "./scenes/album-shelf";
 import { Shelf3DScene } from "./scenes/shelf-3d";
 import { ThreeFxScene } from "./scenes/three-fx";
 import { Object3DScene } from "./scenes/object-3d";
@@ -63,12 +57,10 @@ import { DiaryPencilScene } from "./scenes/diary-pencil";
 import { MotionCompareScene } from "./scenes/motion-compare";
 import { LaunchIntroScene } from "./scenes/launch-intro";
 import { VoiceFaceScene } from "./scenes/voice-face";
-import { StickerHoloScene } from "./scenes/sticker-holo";
 import { CinemaFxScene } from "./scenes/cinema-fx";
 import { PromoFilmScene } from "./scenes/promo-film";
 import { ScanPickDesignsScene } from "./scenes/scan-pick-designs";
 import { NotifyBarDesignsScene } from "./scenes/notify-bar-designs";
-import { WidgetDesignsScene } from "./scenes/widget-designs";
 import { AdminUsersScene } from "./scenes/admin-users";
 import { MonetizationDesignsScene } from "./scenes/monetization-designs";
 import { FxLabScene } from "./scenes/fx-lab";
@@ -81,18 +73,11 @@ import { DexCardsScene } from "./scenes/dex-cards";
 import { DexDragScene } from "./scenes/dex-drag";
 import { TtsVoicesScene } from "./scenes/tts-voices";
 import { CatchSoundScene } from "./scenes/catch-sound";
-import { AiModelsScene } from "./scenes/ai-models";
 import { DexMapScene } from "./scenes/dex-map";
 import { ScanCameraScene, ScanChipScene, ScanDotsScene, ScanNothingScene } from "./scenes/scan";
-import {
-  WordbookShelfScene,
-  WordbookQuizScene,
-  WordbookQuizNoMeaningScene,
-} from "./scenes/wordbook";
 import { AuthScene, ResetPasswordScene } from "./scenes/auth";
 import {
   HomeAlbumScene,
-  HomeInkScene,
   HomeMemorialScene,
   HomeEmptyScene,
   HomeLoadingScene,
@@ -101,7 +86,6 @@ import {
   HomeScene,
   WallpaperPickerScene,
   HomeTapScene,
-  HomeWritingScene,
 } from "./scenes/home";
 import {
   SettingsPolishScene,
@@ -128,7 +112,6 @@ import {
   ReviewExplainScene,
   ReviewLoadingScene,
   ReviewModeTabsScene,
-  RetakeSuggestionScene,
   ReviewSayResultScene,
   ReviewSayScene,
   ReviewMemoryScene,
@@ -140,7 +123,6 @@ import {
   ChunksScene,
   CurveScene,
   LoadFailedScene,
-  ScanDetailScene,
   TokensScene,
   DexEmptyScene,
   DexNoMatchScene,
@@ -152,13 +134,6 @@ import {
   RegisterMeterScene,
 } from "./scenes/pieces";
 import "@/styles.css";
-// **見た目パックのCSSも読む。** 実物(`src/routes/__root.tsx`)は両方読んで
-// いるのに、雛形は `styles.css` だけだった。つまり16パック(約3000行)は
-// **一度も絵に映っていない**。`PackGallery` を描いても下地の規則しか
-// 当たらず、無スタイルの絵を「実物が壊れている」と読み違える。
-// 規則はほぼ全部 `[data-ui-pack]` の下にあるので、属性を付けない
-// 既定(origin)の場面には影響しない。
-import "@/pack-styles.css";
 
 // 値を `| undefined` にしておく。**`Record<string, T>` は「どの鍵でも在る」と
 // 言う型**なので、知らない名前を弾く下のガードが型の上では死んで見え、
@@ -181,16 +156,11 @@ const SCENES: Record<string, ((p: { q: URLSearchParams }) => ReactNode) | undefi
   "home-shelf": HomeShelfScene,
   "install-app": InstallAppScene,
   "home-album": HomeAlbumScene,
-  "home-ink": HomeInkScene,
   "home-memorial": HomeMemorialScene,
   "home-tap": HomeTapScene,
   "home-empty": HomeEmptyScene,
   "home-loading": HomeLoadingScene,
   "home-past": HomePastScene,
-  "home-writing": HomeWritingScene,
-  "wordbook-shelf": WordbookShelfScene,
-  "wordbook-quiz": WordbookQuizScene,
-  "wordbook-quiz-nomeaning": WordbookQuizNoMeaningScene,
   "home-pending": HomePendingScene,
   "settings-polish": SettingsPolishScene,
   "settings-choices": SettingsChoicesScene,
@@ -205,10 +175,7 @@ const SCENES: Record<string, ((p: { q: URLSearchParams }) => ReactNode) | undefi
   "category-sheet": CategorySheetScene,
   "category-members": CategoryMembersScene,
   "place-notify-designs": PlaceNotifyDesignsScene,
-  "candidate-designs": CandidateDesignsScene,
   "analyzing-designs": AnalyzingDesignsScene,
-  "page-flip": PageFlipScene,
-  "album-shelf": AlbumShelfScene,
   "shelf-3d": Shelf3DScene,
   "three-fx": ThreeFxScene,
   "object-3d": Object3DScene,
@@ -216,12 +183,10 @@ const SCENES: Record<string, ((p: { q: URLSearchParams }) => ReactNode) | undefi
   "motion-compare": MotionCompareScene,
   "launch-intro": LaunchIntroScene,
   "voice-face": VoiceFaceScene,
-  "sticker-holo": StickerHoloScene,
   "cinema-fx": CinemaFxScene,
   "promo-film": PromoFilmScene,
   "scan-pick-designs": ScanPickDesignsScene,
   "notify-bar-designs": NotifyBarDesignsScene,
-  "widget-designs": WidgetDesignsScene,
   "admin-users": AdminUsersScene,
   "monetization-designs": MonetizationDesignsScene,
   "fx-lab": FxLabScene,
@@ -237,7 +202,6 @@ const SCENES: Record<string, ((p: { q: URLSearchParams }) => ReactNode) | undefi
   "dex-calendar": DexCalendarScene,
   "dex-cards": DexCardsScene,
   "dex-drag": DexDragScene,
-  "ai-models": AiModelsScene,
   "tts-voices": TtsVoicesScene,
   "catch-sound": CatchSoundScene,
   "dex-map": DexMapScene,
@@ -251,11 +215,7 @@ const SCENES: Record<string, ((p: { q: URLSearchParams }) => ReactNode) | undefi
   "scan-camera": ScanCameraScene,
   "scan-bottom": ScanBottomScene,
   "camera-strip": CameraStripScene,
-  "journal-result": JournalResultScene,
-  "journal-scaffold": JournalScaffoldScene,
-  "word-candidate": WordCandidateScene,
   "candidate-picker": CandidatePickerScene,
-  "input-catch": InputCatchScene,
   "image-settings": ImageSettingsScene,
   "hero-picker": HeroPickerScene,
   "reward-catch": RewardCatchScene,
@@ -274,7 +234,6 @@ const SCENES: Record<string, ((p: { q: URLSearchParams }) => ReactNode) | undefi
   "register-meter": RegisterMeterScene,
   chunks: ChunksScene,
   curve: CurveScene,
-  "scan-detail": ScanDetailScene,
   tokens: TokensScene,
   "review-memory": ReviewMemoryScene,
   "review-memory-list": ReviewMemoryListScene,
@@ -287,7 +246,6 @@ const SCENES: Record<string, ((p: { q: URLSearchParams }) => ReactNode) | undefi
   "review-say": ReviewSayScene,
   "review-say-result": ReviewSayResultScene,
   "review-mode-tabs": ReviewModeTabsScene,
-  "retake-suggestion": RetakeSuggestionScene,
 };
 
 /**

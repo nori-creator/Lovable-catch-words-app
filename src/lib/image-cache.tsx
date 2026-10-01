@@ -12,28 +12,12 @@
  * Usage: <CachedImg> below, or putCachedImage(path, blob) right after upload.
  */
 import { useEffect, useRef, useState } from "react";
+import { optionalStoreOpener } from "./idb-store";
 
 const DB_NAME = "catchwords-img-cache";
 const STORE = "images";
 
-let dbPromise: Promise<IDBDatabase | null> | null = null;
-
-function openDb(): Promise<IDBDatabase | null> {
-  if (typeof indexedDB === "undefined") return Promise.resolve(null);
-  if (!dbPromise) {
-    dbPromise = new Promise((resolve) => {
-      const req = indexedDB.open(DB_NAME, 1);
-      req.onupgradeneeded = () => {
-        if (!req.result.objectStoreNames.contains(STORE)) {
-          req.result.createObjectStore(STORE);
-        }
-      };
-      req.onsuccess = () => resolve(req.result);
-      req.onerror = () => resolve(null); // private mode etc. — cache is optional
-    });
-  }
-  return dbPromise;
-}
+const openDb = optionalStoreOpener(DB_NAME, STORE);
 
 export async function getCachedImage(path: string): Promise<Blob | null> {
   const db = await openDb();

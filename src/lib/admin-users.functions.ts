@@ -10,6 +10,7 @@ import {
   sessionMinutes,
   streaks,
 } from "@/lib/admin-user-stats";
+import { taipeiDay } from "./taipei-day";
 
 /**
  * **開発者だけ: 利用者ごとの詳しい情報**（オーナー指示 2026-09-27）。
@@ -34,8 +35,7 @@ async function requireAdmin(context: { supabase: unknown; userId: string }) {
   if (!data) throw new Error("Forbidden: admin role required");
 }
 
-const dayKey = (iso: string) =>
-  new Date(iso).toLocaleDateString("en-CA", { timeZone: "Asia/Taipei" });
+const dayKey = (iso: string) => taipeiDay(iso);
 
 export type AdminUserRow = {
   id: string;

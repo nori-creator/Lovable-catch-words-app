@@ -18,6 +18,7 @@ import {
   MAX_ENTRIES_PER_PHOTO,
   type WordbookEntryDraft,
 } from "./wordbook";
+import { taipeiDay } from "./taipei-day";
 
 /**
  * 単語帳の取り込みと、単語帳だけを回す復習(オーナー指摘 2026-08-20)。
@@ -183,7 +184,7 @@ export const createWordbook = createServerFn({ method: "POST" })
     );
     if (entries.length === 0) throw new Error("入れる語がありません");
 
-    const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Taipei" }).format(new Date());
+    const today = taipeiDay();
     const { data: book, error: bookErr } = await supabase
       .from("wordbooks")
       .insert({ user_id: userId, title: wordbookTitle(data.title, today) })

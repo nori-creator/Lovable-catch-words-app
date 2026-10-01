@@ -1,10 +1,6 @@
 import { reportBackgroundFailure } from "@/lib/background-failure";
 import { useReadableError } from "@/lib/errors";
-import {
-  REVIEW_MODE_CHOICE_ENABLED,
-  REVIEW_PRACTICE_ENABLED,
-  WORDBOOKS_ENABLED,
-} from "@/lib/product-features";
+import { REVIEW_MODE_CHOICE_ENABLED, REVIEW_PRACTICE_ENABLED } from "@/lib/product-features";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { batchKey, readMark, writeMark, EMPTY_MARK } from "@/lib/review-session";
@@ -87,7 +83,6 @@ import { batchEndKind, type ReviewBatchState } from "@/lib/review-batch";
 import {
   Eye,
   Sparkles,
-  BookMarked,
   CheckCircle2,
   Check,
   X,
@@ -2740,16 +2735,6 @@ export function ReviewHeader({
             <span className="text-footnote text-muted-foreground">
               {formatCount(answered)} / {formatCount(total)}
             </span>
-          )}
-          {WORDBOOKS_ENABLED && (
-            <Link
-              to="/wordbooks"
-              aria-label={t("wb.openShelf")}
-              title={t("wb.openShelf")}
-              className="lift-soft grid h-11 w-11 shrink-0 place-items-center rounded-full border border-border bg-card text-primary-ink"
-            >
-              <BookMarked className="h-5 w-5" aria-hidden />
-            </Link>
           )}
           {/* いま選ばれている形を**名前で**出す。印だけにすると、
               押すまで何が選ばれているのか分からない。

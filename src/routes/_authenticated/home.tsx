@@ -59,7 +59,7 @@ import {
   wasMemorialDismissed,
 } from "@/lib/milestone-album";
 import { scheduleMilestoneNotification } from "@/lib/milestone-schedule";
-import { BookText, Camera, Check, EyeOff, Pencil, Trash2, Undo2, WifiOff, X } from "lucide-react";
+import { Camera, Check, EyeOff, Pencil, Trash2, Undo2, WifiOff, X } from "lucide-react";
 import { homeBlankMessage, streakEndingYesterday } from "@/lib/home-blank";
 import { baseStickerId, isEncounterAlbumId, mergeAlbumEncounters } from "@/lib/album-encounters";
 import { useAlbumHidden } from "@/lib/album-hidden";
@@ -358,7 +358,7 @@ function HomePage() {
   /*
    * **ホームに日記は出さない**（オーナー指示 2026-09-22「ホームの日記は
    * 消して」）。前はここで日記を読み、過去の日の写真の向かいに挟んでいた。
-   * 日記そのもの（`/journal` と `DayJournalPage`）は消していない。
+   * 日記はホームの本棚の本に書く（`HomeShelf`）。AI 添削つきの `/journal` は 2026-10-01 に消した。
    */
   return (
     <AppShell>
@@ -683,44 +683,6 @@ export function DiaryDate({
         </span>
       </Tag>
       {tagline && <p className="diary-date__note">{tagline}</p>}
-    </div>
-  );
-}
-
-/** 日記への唯一の入口。 */
-/**
- * 日記への入口。
- *
- * `onWrite` を渡すと**その場でページをめくる**(オーナー指摘: アルバムの
- * 写真と日記が別の機能に分離していた)。渡さない場所では今までどおり
- * 日記の画面へのリンクとして働く — 過去の日記を読む道を塞がない。
- */
-export function JournalLink({ onWrite }: { onWrite?: () => void }) {
-  const t = useT();
-  const cls =
-    "press-in inline-flex min-h-11 items-center gap-2 rounded-full border border-border bg-card px-5 py-2.5 text-body font-semibold shadow-sm";
-  return (
-    <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
-      {onWrite ? (
-        <>
-          <button onClick={onWrite} className={cls}>
-            <BookText className="h-4 w-4 text-primary" />
-            {t("home.writeToday")}
-          </button>
-          {/* 過去の日記を読む道は残す。書く場所が変わっただけ。 */}
-          <Link
-            to="/journal"
-            className="min-h-11 px-3 text-footnote font-semibold text-primary-ink"
-          >
-            {t("home.pastJournals")}
-          </Link>
-        </>
-      ) : (
-        <Link to="/journal" className={cls}>
-          <BookText className="h-4 w-4 text-primary" />
-          {t("home.journal")}
-        </Link>
-      )}
     </div>
   );
 }

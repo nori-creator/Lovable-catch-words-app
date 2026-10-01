@@ -1,5 +1,4 @@
 import { REVIEW_MODE_CHOICE_ENABLED, REVIEW_PRACTICE_ENABLED } from "@/lib/product-features";
-import { CUTOUT_ENABLED } from "@/lib/cutout-feature";
 /**
  * 設定画面の場面。**ルートに書かれている本物の部品を、本物の文言で描く。**
  *
@@ -52,7 +51,6 @@ import { useState } from "react";
 export function SettingsChoicesScene() {
   const [mode, setMode] = useState("hybrid");
   const [photo, setPhoto] = useState("object");
-  const [speed, setSpeed] = useState("detail");
   const [strict, setStrict] = useState("normal");
   const [limit, setLimit] = useState(20);
   const [focus, setFocus] = useState("all");
@@ -86,23 +84,9 @@ export function SettingsChoicesScene() {
           onChange={setPhoto}
           options={[
             { value: "object", label: t("settings.photoObject") },
-            ...(CUTOUT_ENABLED ? [{ value: "cutout", label: t("settings.photoCutout") }] : []),
             { value: "selfie", label: t("settings.photoSelfie") },
           ]}
         />
-        {/* 要望 #18 の速さのつまみ。 */}
-        {CUTOUT_ENABLED && (
-          <ChoiceRow
-            cols={2}
-            label={t("settings.catchSpeed")}
-            value={speed}
-            onChange={setSpeed}
-            options={[
-              { value: "detail", label: t("settings.speedDetail") },
-              { value: "fast", label: t("settings.speedFast") },
-            ]}
-          />
-        )}
         <ChoiceRow
           cols={3}
           label={t("settings.strictness")}

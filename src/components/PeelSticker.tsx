@@ -1,4 +1,3 @@
-import { CUTOUT_ENABLED } from "@/lib/cutout-feature";
 import { peelGeometry } from "@/lib/peel-geometry";
 import { useEffect, useId, useRef, useState, type PointerEvent } from "react";
 import { usePrefersReducedMotion } from "@/hooks/use-reduced-motion";
@@ -7,7 +6,6 @@ import "./peel-sticker.css";
 
 type Props = {
   photoUrl: string | null;
-  cutoutUrl: string | null;
   label: string;
   actionLabel: string;
   hint: string;
@@ -15,11 +13,10 @@ type Props = {
   onPeel: () => void;
 };
 
-/** Provider-independent alpha silhouette. The peeled half reflects across
+/** The photo as a rounded sticker. The peeled half reflects across
  * the drag direction; the back uses the same mask rather than a rectangular fake fold. */
 export function PeelSticker({
   photoUrl,
-  cutoutUrl,
   label,
   actionLabel,
   hint,
@@ -42,8 +39,7 @@ export function PeelSticker({
     angle: number | null;
   } | null>(null);
   const frame = useRef(0);
-  const artwork = CUTOUT_ENABLED && cutoutUrl ? cutoutUrl : photoUrl;
-  const isPhoto = !(CUTOUT_ENABLED && cutoutUrl);
+  const artwork = photoUrl;
   const ready = !!artwork && loaded === artwork;
   const url = (name: string) => `url(#${id}-${name})`;
   useEffect(() => {
@@ -156,7 +152,7 @@ export function PeelSticker({
     <div
       className="cw-peel"
       data-ready={ready}
-      data-photo={isPhoto}
+      data-photo={true}
       data-held={held}
       data-reduced={reduced}
       data-committed={committed}
@@ -196,26 +192,6 @@ export function PeelSticker({
                 <clipPath id={`${id}-photo-round`}>
                   <rect x="20" y="20" width="280" height="280" rx="22" />
                 </clipPath>
-                <filter
-                  id={`${id}-paper`}
-                  x="-30%"
-                  y="-30%"
-                  width="160%"
-                  height="160%"
-                  colorInterpolationFilters="sRGB"
-                >
-                  <feMorphology in="SourceAlpha" operator="dilate" radius="5" result="rim" />
-                  <feFlood floodColor="white" />
-                  <feComposite in2="rim" operator="in" result="white" />
-                  <feMerge>
-                    <feMergeNode in="white" />
-                    <feMergeNode in="SourceGraphic" />
-                  </feMerge>
-                </filter>
-                <filter id={`${id}-silhouette`} x="-30%" y="-30%" width="160%" height="160%">
-                  <feMorphology in="SourceAlpha" operator="dilate" radius="5" />
-                  <feColorMatrix type="matrix" values="0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 1 0" />
-                </filter>
                 <mask
                   id={`${id}-alpha`}
                   maskUnits="userSpaceOnUse"
@@ -224,20 +200,7 @@ export function PeelSticker({
                   width="360"
                   height="360"
                 >
-                  {isPhoto ? (
-                    <rect x="20" y="20" width="280" height="280" rx="22" fill="white" />
-                  ) : (
-                    <image
-                      href={artwork!}
-                      x="20"
-                      y="20"
-                      width="280"
-                      height="280"
-                      filter={isPhoto ? undefined : url("silhouette")}
-                      clipPath={isPhoto ? url("photo-round") : undefined}
-                      preserveAspectRatio={isPhoto ? "xMidYMid slice" : "xMidYMid meet"}
-                    />
-                  )}
+                  <rect x="20" y="20" width="280" height="280" rx="22" fill="white" />
                 </mask>
                 <clipPath id={`${id}-front`}>
                   <polygon points={fold.front} />
@@ -282,9 +245,8 @@ export function PeelSticker({
                     y="20"
                     width="280"
                     height="280"
-                    filter={isPhoto ? undefined : url("paper")}
-                    clipPath={isPhoto ? url("photo-round") : undefined}
-                    preserveAspectRatio={isPhoto ? "xMidYMid slice" : "xMidYMid meet"}
+                    clipPath={url("photo-round")}
+                    preserveAspectRatio="xMidYMid slice"
                   />
                   <g mask={url("alpha")}>
                     <rect
