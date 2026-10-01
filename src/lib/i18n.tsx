@@ -690,6 +690,46 @@ export const DICT: Record<string, Record<UiLang, string>> = {
     en: "Sign in — CatchWords",
     "zh-TW": "登入 — CatchWords",
   },
+  "page.nativeAuth": {
+    ja: "アプリにログイン — CatchWords",
+    en: "Sign in to the app — CatchWords",
+    "zh-TW": "登入 App — CatchWords",
+  },
+  "native.returning": {
+    ja: "アプリに戻っています…",
+    en: "Returning to the app…",
+    "zh-TW": "正在返回 App…",
+  },
+  "native.openApp": {
+    ja: "アプリに戻る",
+    en: "Return to the app",
+    "zh-TW": "返回 App",
+  },
+  "native.starting": {
+    ja: "ログイン画面を開いています…",
+    en: "Opening the sign-in page…",
+    "zh-TW": "正在開啟登入頁面…",
+  },
+  "native.failed": {
+    ja: "ログインを確認できませんでした。もう一度お試しください。",
+    en: "We couldn't confirm your sign-in. Please try again.",
+    "zh-TW": "無法確認登入。請再試一次。",
+  },
+  "native.retryGoogle": {
+    ja: "Googleでやり直す",
+    en: "Try again with Google",
+    "zh-TW": "以 Google 重試",
+  },
+  "native.retryApple": {
+    ja: "Appleでやり直す",
+    en: "Try again with Apple",
+    "zh-TW": "以 Apple 重試",
+  },
+  "native.badLink": {
+    ja: "このリンクは使えません。iPhoneアプリのログイン画面からやり直してください。",
+    en: "This link can't be used. Please start again from the iPhone app's sign-in screen.",
+    "zh-TW": "此連結無法使用。請從 iPhone App 的登入畫面重新開始。",
+  },
   "page.reset": {
     ja: "パスワード再設定 — CatchWords",
     en: "Reset password — CatchWords",
