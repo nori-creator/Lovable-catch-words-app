@@ -29,6 +29,7 @@ const album = () => import("./album-hidden.functions");
 const journal = () => import("./journal.functions");
 const stats = () => import("./stats.functions");
 const jev = () => import("./jev.functions");
+const wordbook = () => import("./wordbook.functions");
 
 function from<M>(mod: () => Promise<M>, name: keyof M & string): Loader {
   return async () => (await mod())[name] as unknown as ServerFn;
@@ -50,6 +51,7 @@ export const NATIVE_FNS: Record<string, Loader> = {
   markScanTap: from(scan, "markScanTap"),
   markScanCaught: from(scan, "markScanCaught"),
   rankScanCandidates: from(jev, "rankScanCandidates"),
+  extractWordbook: from(wordbook, "extractWordbook"),
   // 保存・図鑑
   saveSticker: from(stickers, "saveSticker"),
   getSticker: from(stickers, "getSticker"),

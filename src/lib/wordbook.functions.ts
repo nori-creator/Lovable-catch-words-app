@@ -87,6 +87,10 @@ export const extractWordbook = createServerFn({ method: "POST" })
     const { supabase, userId } = context;
     await assertWithinDailyCap(userId, "wordbook");
     const ai = await getAiFor("scan");
+    // 意味は**読む人の言語**で（iOS の言語検査 2026-10-01: 表示言語が英語・台湾華語でも
+    // 単語帳の意味だけ日本語で返り、画面に言語が混ざっていた）。頁の意味が別の言語なら訳す。
+    const { explanationLanguageRule } = await import("./ai-provider.server");
+    const langRule = await explanationLanguageRule(userId);
     const image = data.imageBase64.startsWith("data:")
       ? data.imageBase64
       : `data:image/jpeg;base64,${data.imageBase64}`;
@@ -99,7 +103,12 @@ export const extractWordbook = createServerFn({ method: "POST" })
           {
             role: "user",
             content: [
-              { type: "text", text: EXTRACT_PROMPT },
+              {
+                type: "text",
+                text:
+                  `${EXTRACT_PROMPT}\n\n${langRule}\n` +
+                  "meaning_ja の欄には、上の言語で書いた意味を入れる(頁の意味が別の言語なら訳す)。",
+              },
               { type: "image", image },
             ],
           },

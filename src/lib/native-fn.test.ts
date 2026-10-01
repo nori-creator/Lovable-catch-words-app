@@ -20,6 +20,8 @@ describe("native-fn allowlist", () => {
       "getJournalPrompts",
       "listJournal",
       "getMyStats",
+      "extractWordbook",
+      "getReaderMeanings",
     ]) {
       expect(NATIVE_FNS[name]).toBeTypeOf("function");
     }
