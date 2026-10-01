@@ -308,6 +308,8 @@ const MODES = [
   ["reset-password", "", false, { scene: "reset-password" }],
   ["reset-password-sent", "", false, { scene: "reset-password", state: "sent" }],
   ["reset-password-update", "", false, { scene: "reset-password", state: "update" }],
+  ["diary-redpen", "", false, { scene: "diary-redpen" }],
+  ["diary-redpen-summary", "", false, { scene: "diary-redpen", state: "summary" }],
   ...crossThemes("home-album", { scene: "home-album" }),
   ...crossThemes("home-empty", { scene: "home-empty" }),
   // 読み込み中の面。**起動するたびに必ず通る**のに一度も撮っていなかった。
@@ -576,6 +578,7 @@ const FOCUS_MIN_RATIO = 3;
  * 片方だけ足すと、実物どおりに撮った場面が落ちる(実際そうなった)。
  */
 const BARE_SCENES = new Set([
+  "diary-redpen",
   "first-catch",
   // 迎える面は自前で画面いっぱい（上の帯も下のタブ帯も無い）。
   "auth",

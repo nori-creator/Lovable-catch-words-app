@@ -822,6 +822,8 @@ const DAILY_CAPS: Record<string, number> = {
   speaking_feedback: 200,
   tts: 500,
   correction: 100,
+  // 日記の赤ペン（1文書くたびに1回）。暴走止め — 1日に600文は人の書く量ではない。
+  diary_line: 600,
   journal_prompt: 60,
   card: 200,
   wordbook: 60, // 1枚の写真で最大60語。取り込みは1日に何度もやる物ではない

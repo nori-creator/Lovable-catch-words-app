@@ -5049,13 +5049,13 @@ describe("ホームは今日の誌面", () => {
     );
     // 2026-09-24「過去のものが多すぎで画面で確認できないから、過去のものは全て
     // 削除して」: 帯には**今回の依頼の面だけ**。
-    // 2026-09-30「パスワード忘れた時にリセットできるようにして」の回。先頭はログイン。
-    expect(list.slice(0, list.indexOf("},"))).toMatch(/scene: "auth&email=1"/);
+    // 2026-10-01「日記を書いたら AI が赤ペン先生のように添削」の回。先頭は書いている途中の赤ペン。
+    expect(list.slice(0, list.indexOf("},"))).toMatch(/scene: "diary-redpen"/);
     // 前の回（単語の詳細の注音・チュートリアルの4択）の面は残さない。
     expect(list).not.toMatch(/scene: "word-card"/);
     expect(list).not.toMatch(/scene: "first-catch&step=review"/);
     // 前の回（R26/R27）の面は残さない。
-    expect(list).not.toMatch(/scene: "home-shelf"/);
+    // （本棚 `home-shelf` は 2026-10-01 の赤ペンで日記の書き方が変わったので、もう一度並べる。）
     expect(list).not.toMatch(/scene: "dex-map"/);
     expect(list).not.toMatch(/scene: "dex-cards&swap=1&n=12"/);
     expect(list).not.toMatch(/scene: "review-choice"/);
@@ -6122,10 +6122,14 @@ describe("本棚の本を開くと、1日＝1見開き（左＝その日のア�
     expect(engine).toMatch(/if \(this\.events\.onPageTap\) this\.events\.onPageTap\(side\);/);
   });
 
-  it("打った日記は AI を通さずそのまま保存（添削の列には触らない）", () => {
+  it("打った日記は AI を通さずそのまま保存（文が変わった時だけ、前の文の添削・まとめを外す）", () => {
     expect(journal).toMatch(/export const saveMyDiary = createServerFn\(\{ method: "POST" \}\)/);
     expect(journal).toMatch(
-      /\{ user_id: userId, entry_date: data\.date, user_draft: text \|\| null \}/,
+      /\{ user_id: userId, entry_date: data\.date, user_draft: text \|\| null, \.\.\.stale \}/,
+    );
+    // 2026-10-01 赤ペン: 別の文に付けた模範解答・覚える物を、その日のまとめとして出さない。
+    expect(journal).toMatch(
+      /const stale = changed\s*\?\s*\{ correction: null, feedback_ja: null, body_zh: null, body_ja: null, native_phrases: null \}/,
     );
   });
 });
@@ -6560,7 +6564,11 @@ describe("R25（2026-09-30: ベータテストの指摘・最初の画面の4枚
 
   it("日記を打つ欄は、字を待たずに描く別名の書体（font-display: swap）を使う", () => {
     const shelf = codeOnly(read("components/HomeShelf.tsx"));
-    expect(shelf).toMatch(/fontFamily: diaryInputFamily\(font\)/);
+    // 書く欄は `DiaryRedPen.tsx`（2026-10-01 赤ペン）。本棚が別名の書体を渡し、欄がそれで描く。
+    expect(shelf).toMatch(/inputFontFamily=\{diaryInputFamily\(font\)\}/);
+    expect(codeOnly(read("components/DiaryRedPen.tsx"))).toMatch(
+      /style=\{\{ fontFamily: inputFontFamily \}\}/,
+    );
     expect(shelf).toMatch(/ensureDiaryInputFontCss\(font\)/);
     const alias = fs.readFileSync(
       path.join(root, "../public/fonts/diary/input/zen-kurenaido.css"),

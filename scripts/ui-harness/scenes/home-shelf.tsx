@@ -9,6 +9,7 @@
  */
 import { HomeShelf } from "@/components/HomeShelf";
 import { FIXTURES, HomePastScene, HomeScene, makeSticker } from "./home";
+import { fakeRedPen, fakeSummary } from "./diary-redpen";
 
 const PHOTOS = [
   "/first-catch-cafe.webp",
@@ -77,6 +78,10 @@ export function HomeShelfScene({ q }: { q: URLSearchParams }) {
             }));
           },
           save: async () => {},
+          // 日記の赤ペン（2026-10-01）。AI の代わりに見本の答え（`diary-redpen.tsx`）。
+          redPen: (sentence) => fakeRedPen(sentence),
+          summarize: () => fakeSummary(),
+          summary: async () => null,
         }}
       />
       <HomeScene q={q} />

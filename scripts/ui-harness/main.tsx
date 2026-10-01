@@ -90,6 +90,7 @@ import {
   WordbookQuizNoMeaningScene,
 } from "./scenes/wordbook";
 import { AuthScene, ResetPasswordScene } from "./scenes/auth";
+import { DiaryRedPenScene } from "./scenes/diary-redpen";
 import {
   HomeAlbumScene,
   HomeInkScene,
@@ -177,6 +178,7 @@ const SCENES: Record<string, ((p: { q: URLSearchParams }) => ReactNode) | undefi
   "chunk-designs": ChunkDesignsScene,
   auth: AuthScene,
   "reset-password": ResetPasswordScene,
+  "diary-redpen": DiaryRedPenScene,
   home: HomeScene,
   "home-shelf": HomeShelfScene,
   "install-app": InstallAppScene,
@@ -364,6 +366,8 @@ function Frame({ children, immersive = false }: { children: ReactNode; immersive
 const IMMERSIVE = new Set(["dex-cards", "dex-drag"]);
 
 const BARE = new Set([
+  // 日記の赤ペンは本の上に重なる全画面の面（本番の `.home-shelf__sheet`）。
+  "diary-redpen",
   "first-catch",
   "auth",
   "reset-password",
@@ -400,16 +404,18 @@ const q = new URLSearchParams(location.search);
  * 「これを見てください」と差し出すことになる。
  */
 const REVIEW_SCENES: Array<{ scene: string; label: string }> = [
-  // 2026-09-30「パスワード忘れた時にパスワードリセットできるようにして」。
-  { scene: "auth&email=1", label: "ログイン: パスワード欄の下に「パスワードを忘れた方」" },
+  // 2026-10-01「日記を書いたら AI が赤ペン先生のように添削してくれる機能をつける」。
   {
-    scene: "reset-password",
-    label: "再設定: メールアドレスを入れて送る（ログインで打った物を引き継ぐ）",
+    scene: "diary-redpen",
+    label: "日記の赤ペン: 1文書くたびに、そのすぐ下に赤で直し（。を打つと次の文へ）",
   },
-  { scene: "reset-password&state=sent", label: "再設定: 送った後（画面に残る案内・もう一度送る）" },
   {
-    scene: "reset-password&state=update",
-    label: "再設定: メールのリンクから戻って新しいパスワード",
+    scene: "diary-redpen&state=summary",
+    label: "日記の赤ペン: 書き終わった後のまとめ（言いたかったこと・模範解答・今日覚える物）",
+  },
+  {
+    scene: "home-shelf",
+    label: "本棚の本を開いて日記を書く（実際の流れ。書き終えると鉛筆の後にまとめ）",
   },
 ];
 

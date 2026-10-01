@@ -226,10 +226,25 @@ export const saveMyDiary = createServerFn({ method: "POST" })
     const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Taipei" }).format(new Date());
     if (data.date > today) throw new Error("未来の日の日記は書けません");
     const text = data.text.trim();
+    /**
+     * **書き直したら、前の文に付けた添削・まとめを外す**（2026-10-01 赤ペン）。
+     * 残すと、別の文に付けた模範解答・覚える物が「この日のまとめ」として出る。消した日は
+     * 本の右ページが古い添削（`listMyDiaryMonth` の控え）に戻っていた。
+     */
+    const { data: prev } = await supabase
+      .from("journal_entries")
+      .select("user_draft")
+      .eq("user_id", userId)
+      .eq("entry_date", data.date)
+      .maybeSingle();
+    const changed = ((prev as { user_draft?: string | null } | null)?.user_draft ?? "") !== text;
+    const stale = changed
+      ? { correction: null, feedback_ja: null, body_zh: null, body_ja: null, native_phrases: null }
+      : {};
     const { data: row, error } = await supabase
       .from("journal_entries")
       .upsert(
-        { user_id: userId, entry_date: data.date, user_draft: text || null },
+        { user_id: userId, entry_date: data.date, user_draft: text || null, ...stale },
         { onConflict: "user_id,entry_date" },
       )
       .select("*")

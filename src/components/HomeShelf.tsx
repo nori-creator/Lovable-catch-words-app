@@ -10,6 +10,16 @@ import { useSurfaceRoleMap } from "@/lib/photo-surface";
 import { albumHeroUrl, layoutDayAlbum, type DayLayoutItem } from "@/lib/album-day-layout";
 import { resolveCachedSrc } from "@/lib/image-cache";
 import { listMyDiaryMonth, saveMyDiary } from "@/lib/journal.functions";
+import { checkDiaryLine, getDiarySummary, summarizeDiary } from "@/lib/diary-redpen.functions";
+import type { RedPenLine, RedPenSummary } from "@/lib/red-pen";
+import { useTargetLang } from "@/lib/target-lang-pref";
+import { useReadableError } from "@/lib/errors";
+import {
+  DiaryWriteSheet,
+  RedPenSummarySheet,
+  type RedPenLineRecord,
+  type RedPenSummaryState,
+} from "@/components/DiaryRedPen";
 import { monthDays, monthKey, shelfMonths } from "@/lib/home-shelf";
 import {
   DIARY_FONTS,
@@ -66,6 +76,12 @@ prewarmShelf();
 type Loaders = {
   diary: (month: string) => Promise<Array<{ date: string; text: string }>>;
   save: (date: string, text: string) => Promise<void>;
+  /** 1文ごとの赤ペン（`DiaryRedPen.tsx`）。 */
+  redPen: (sentence: string, before: string[]) => Promise<RedPenLine>;
+  /** 書き終わった後のまとめを作って残す。 */
+  summarize: (date: string, text: string, lines: RedPenLineRecord[]) => Promise<RedPenSummary>;
+  /** 残してあるまとめ（無ければ null）。 */
+  summary: (date: string) => Promise<RedPenSummary | null>;
 };
 
 type View = "spread" | "left" | "right" | "cover";
@@ -100,6 +116,11 @@ export function HomeShelf({
   const locale = localeOf(useUiLang());
   const listDiary = useServerFn(listMyDiaryMonth);
   const saveDiaryFn = useServerFn(saveMyDiary);
+  const checkLineFn = useServerFn(checkDiaryLine);
+  const summarizeFn = useServerFn(summarizeDiary);
+  const summaryFn = useServerFn(getDiarySummary);
+  const target = useTargetLang();
+  const readable = useReadableError();
   const load: Loaders = {
     diary: loaders?.diary ?? ((month) => listDiary({ data: { month } })),
     save:
@@ -107,6 +128,10 @@ export function HomeShelf({
       (async (date, text) => {
         await saveDiaryFn({ data: { date, text } });
       }),
+    redPen: loaders?.redPen ?? ((sentence, before) => checkLineFn({ data: { sentence, before } })),
+    summarize:
+      loaders?.summarize ?? ((date, text, lines) => summarizeFn({ data: { date, text, lines } })),
+    summary: loaders?.summary ?? ((date) => summaryFn({ data: { date } })),
   };
   const loadRef = useRef(load);
   loadRef.current = load;
@@ -158,7 +183,16 @@ export function HomeShelf({
   const [font, setFont] = useState<DiaryFontId>(() => getDiaryFont());
   const fontRef = useRef(font);
   const [writing, setWriting] = useState<string | null>(null);
-  const viewport = useVisualViewport(writing !== null);
+  /**
+   * 赤ペンのまとめ（書き終わった後・本の釦から）。`open` は画面に出しているか —
+   * 書き終えた直後は鉛筆が書き終わるまで裏で作り、書き終わってから出す。
+   */
+  const [review, setReview] = useState<{
+    date: string;
+    state: RedPenSummaryState;
+    open: boolean;
+  } | null>(null);
+  const viewport = useVisualViewport(writing !== null || !!review?.open);
   const writingOpen = writing !== null;
   useEffect(() => {
     if (writingOpen) ensureDiaryInputFontCss(font);
@@ -592,9 +626,46 @@ export function HomeShelf({
     bump((n) => n + 1);
   };
 
-  const saveDiary = async () => {
+  /** 書き終わった後のまとめを作る（作り終えたら、出している時はそのまま中身が入る）。 */
+  const makeSummary = (date: string, text: string, lines: RedPenLineRecord[], open: boolean) => {
+    setReview({ date, state: { status: "loading" }, open });
+    loadRef.current
+      .summarize(date, text, lines)
+      .then((summary) =>
+        setReview((r) => (r?.date === date ? { ...r, state: { status: "ready", summary } } : r)),
+      )
+      .catch((e: unknown) =>
+        setReview((r) =>
+          r?.date === date
+            ? { ...r, state: { status: "error", message: readable(e, t("redpen.summaryFailed")) } }
+            : r,
+        ),
+      );
+  };
+
+  /** 本の釦から開く: 残してあるまとめを読み、無ければ作る。 */
+  const openSummary = async () => {
+    if (!day?.diary.trim()) return;
+    const date = `${monthKey(day.y, day.m)}-${String(day.d).padStart(2, "0")}`;
+    if (review?.date === date && review.state.status !== "error") {
+      setReview({ ...review, open: true });
+      return;
+    }
+    setReview({ date, state: { status: "loading" }, open: true });
+    try {
+      const saved = await loadRef.current.summary(date);
+      if (saved) {
+        setReview({ date, state: { status: "ready", summary: saved }, open: true });
+        return;
+      }
+    } catch {
+      // 読めなければ作り直す。
+    }
+    makeSummary(date, day.diary, [], true);
+  };
+
+  const saveDiary = async (text: string, lines: RedPenLineRecord[]) => {
     if (!day || writing === null) return;
-    const text = writing;
     const date = `${monthKey(day.y, day.m)}-${String(day.d).padStart(2, "0")}`;
     try {
       await loadRef.current.save(date, text);
@@ -604,10 +675,14 @@ export function HomeShelf({
     }
     await loadDiaryFont(fontRef.current, text).catch(() => undefined);
     setWriting(null);
+    // 鉛筆が書いている間に、裏でまとめを作り始める（書き終わったら出す）。
+    if (text.trim()) makeSummary(date, text.trim(), lines, false);
+    else setReview(null);
     const commit = () => {
       day.diary = text.trim();
       world.current?.repaintDiary(dayIndex);
       setPencil(null);
+      if (text.trim()) setReview((r) => (r?.date === date ? { ...r, open: true } : r));
     };
     // **鉛筆で書き込む**（R17「日記を書いたり、書き直したら鉛筆のアニメーションで書き込む」）。
     // 動きを減らす設定の人と、空にした時はすぐページに反映する。
@@ -705,62 +780,63 @@ export function HomeShelf({
                   </button>
                 ))}
               </div>
-              <button
-                type="button"
-                onClick={() => setWriting(day.diary)}
-                className="home-shelf__btn home-shelf__write"
-              >
-                {day.diary.trim() ? t("shelf.home.rewriteDiary") : t("shelf.home.writeDiary")}
-              </button>
+              <div className="flex gap-2">
+                {day.diary.trim() && (
+                  <button
+                    type="button"
+                    onClick={() => void openSummary()}
+                    className="home-shelf__btn home-shelf__redpen flex-1"
+                  >
+                    {t("redpen.summaryTitle")}
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setWriting(day.diary)}
+                  className="home-shelf__btn home-shelf__write flex-1"
+                >
+                  {day.diary.trim() ? t("shelf.home.rewriteDiary") : t("shelf.home.writeDiary")}
+                </button>
+              </div>
             </div>
           )}
           {writing !== null && day && (
-            <div
-              role="dialog"
-              aria-label={t("shelf.home.writeDiary")}
-              className="home-shelf__sheet"
+            <DiaryWriteSheet
+              title={t("shelf.home.diaryOf").replace("{date}", day.label ?? "")}
+              initialText={writing}
+              font={font}
+              // 打つ欄は `swap` の別名で描く（新しい字の切り分けが届くまで、欄の字が
+              // 全部消えていた。`diary-fonts.ts` の `diaryInputFamily`）。
+              inputFontFamily={diaryInputFamily(font)}
+              target={target}
+              check={(sentence, before) => loadRef.current.redPen(sentence, before)}
+              onCancel={() => setWriting(null)}
+              onSave={(text, lines) => void saveDiary(text, lines)}
               // キーボードを除いた、いま見えている範囲に置く（`use-visual-viewport.ts`）。
               style={
                 viewport
                   ? { top: viewport.top, height: viewport.height, bottom: "auto" }
                   : undefined
               }
-            >
-              <div className="home-shelf__sheet-card">
-                <div
-                  style={{ fontFamily: diaryFont("hand").family }}
-                  className="home-shelf__sheet-title"
-                >
-                  {t("shelf.home.diaryOf").replace("{date}", day.label ?? "")}
-                </div>
-                <textarea
-                  autoFocus
-                  value={writing}
-                  onChange={(e) => setWriting(e.target.value)}
-                  rows={7}
-                  className="home-shelf__textarea"
-                  // 打つ欄は `swap` の別名で描く（新しい字の切り分けが届くまで、欄の字が
-                  // 全部消えていた。`diary-fonts.ts` の `diaryInputFamily`）。
-                  style={{ fontFamily: diaryInputFamily(font) }}
-                />
-                <div className="flex gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setWriting(null)}
-                    className="home-shelf__btn flex-1"
-                  >
-                    {t("shelf.home.cancel")}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => void saveDiary()}
-                    className="home-shelf__btn home-shelf__write flex-[2]"
-                  >
-                    {t("shelf.home.writeOnPage")}
-                  </button>
-                </div>
-              </div>
-            </div>
+            />
+          )}
+          {review?.open && writing === null && !pencil && (
+            <RedPenSummarySheet
+              state={review.state}
+              font={font}
+              onClose={() => setReview((r) => (r ? { ...r, open: false } : r))}
+              onRetry={() => {
+                const d = days.find(
+                  (x) => `${monthKey(x.y, x.m)}-${String(x.d).padStart(2, "0")}` === review.date,
+                );
+                if (d?.diary.trim()) makeSummary(review.date, d.diary, [], true);
+              }}
+              style={
+                viewport
+                  ? { top: viewport.top, height: viewport.height, bottom: "auto" }
+                  : undefined
+              }
+            />
           )}
         </div>
       </div>
