@@ -1066,6 +1066,9 @@ const JA_SECTION_RULES = {
 
 function specificChunkRule(headword: string, levelGoal: string): string {
   return (
+    // オーナー報告 2026-10-01「チャンクに学ぶべき単語の芒果がない」— 「芒果」の型に「很+甜」だけが来た。
+    `**どの型にも「${headword}」自身（日本語・英語は活用形でもよい）を必ず1つのパーツとして入れる。**` +
+    `✗「很甜」（「${headword}」が無い — 周りの語だけでは、その語の使い方を教えていない）。\n` +
     `**どの語にも付く組み合わせを書かない。**\n` +
     `✗「買${headword}」「喜歡${headword}」「有${headword}」のように、買う・好き・持っている だけを` +
     `足した形 — 名詞さえあれば言えるので、その語について何も教えていない。\n` +

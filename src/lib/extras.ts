@@ -549,6 +549,44 @@ function countWords(text: string): number {
 }
 
 /**
+ * 型の中に学ぶ語が入っているか（iOS `LanguageRules.mentionsHeadword` と同じ判定）。
+ *
+ * - 台湾華語：見出し語の文字列がそのまま入っている
+ * - 日本語：見出し語、または送り仮名を除いた語幹（食べる→食べた、高い→高くない）
+ * - 英語：見出し語の各語が、そのままか規則的な語形変化で入っている
+ *   （mango→mangoes、make→making、carry→carried）。3文字以下の語は丸ごと一致だけ
+ *   （mankind は man の形ではない）
+ */
+export function chunkMentionsHeadword(text: string, headword: string, language?: string | null): boolean {
+  const core = (s: string) =>
+    s
+      .replace(/[（(【〔[][^）)】〕\]]*[）)】〕\]]/gu, "")
+      .replace(/[\s\p{P}'’‘\-‐–—・·.,、。]/gu, "");
+  const head = core(headword);
+  if (!head) return true;
+  const lang = normalizeTargetLanguage(language);
+  if (lang === "en") {
+    const words = text.toLowerCase().split(/[^\p{L}']+/u).filter(Boolean);
+    const heads = headword.toLowerCase().split(/[^\p{L}]+/u).filter(Boolean);
+    if (heads.length === 0) return true;
+    return heads.every((h) => {
+      let stem = h;
+      if (stem.length >= 4 && /[ey]$/.test(stem)) stem = stem.slice(0, -1);
+      return words.some((w) => w === h || (h.length >= 4 && w.startsWith(stem)));
+    });
+  }
+  const t = core(text);
+  if (t.includes(head)) return true;
+  if (lang === "ja") {
+    let stem = head;
+    if (/\p{Script=Han}/u.test(head)) stem = head.replace(/[\u3041-\u309F]+$/u, "");
+    else if ([...head].length >= 3) stem = [...head].slice(0, -1).join("");
+    return stem.length > 0 && t.includes(stem);
+  }
+  return false;
+}
+
+/**
  * 使い方の型を**厳選する**(オーナー指摘 2026-08-21)。
  *
  * > 「チャンク、型の精度が低い、適当になってる。ネイティブが最も高い確率で
@@ -568,6 +606,9 @@ function countWords(text: string): number {
  * 3. **文になっている型**(句点・感嘆符・疑問符が入っている)
  * 4. 見出し語しか無い型(情報が0)
  * 5. 同じ文字列の重複
+ * 6. **学ぶ語が入っていない型**(オーナー報告 2026-10-01「チャンクに学ぶべき単語の芒果がない」)
+ *    — 「芒果」の型に「很+甜」だけが来た。型は「その語をどう使うか」なので、
+ *    語そのもの（日本語・英語は活用形も可）が入っていない物は型ではない
  *
  * そのうえで**先頭5つ**に切る。生成側は「使用頻度の高い順」に並べるので、
  * 切るのは後ろから。
@@ -608,6 +649,7 @@ export function refineUsageChunks(
       }
       // 見出し語だけの型は、その語を見れば分かることしか言っていない。
       if (text === head) return false;
+      if (!chunkMentionsHeadword(chunkText(c, " "), head, language)) return false;
       if (seen.has(text)) return false;
       seen.add(text);
       return true;

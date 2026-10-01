@@ -8,6 +8,7 @@ import {
   usableCollocations,
   chunkSpeechText,
   refineUsageChunks,
+  chunkMentionsHeadword,
   MAX_CHUNKS,
 } from "./extras";
 
@@ -330,5 +331,36 @@ describe("chunkTranslation（チャンクの右は訳だけ。オーナー指示
   it("空は空", () => {
     expect(chunkTranslation("")).toBe("");
     expect(chunkTranslation(undefined)).toBe("");
+  });
+});
+
+/**
+ * オーナー報告 2026-10-01「チャンクに学ぶべき単語の芒果がない」。
+ * 型は「その語をどう使うか」なので、学ぶ語そのもの（活用形も可）が入っていない型は出さない。
+ */
+describe("chunkMentionsHeadword / refineUsageChunks drops chunks without the word", () => {
+  const c = (...texts: string[]) => ({ parts: texts.map((text) => ({ text, pos: "" })), ja: "" });
+
+  it("台湾華語: 「芒果」の型に「很+甜」だけは出さない", () => {
+    expect(chunkMentionsHeadword("很 甜", "芒果", "zh-TW")).toBe(false);
+    expect(chunkMentionsHeadword("芒果 冰", "芒果", "zh-TW")).toBe(true);
+    const kept = refineUsageChunks([c("很", "甜"), c("芒果", "冰"), c("吃", "芒果")], [], "芒果", "zh-TW");
+    expect(kept.map((k) => k.parts.map((p) => p.text).join(""))).toEqual(["芒果冰", "吃芒果"]);
+  });
+
+  it("英語: 規則的な語形変化は同じ語、短い語は丸ごと一致だけ", () => {
+    expect(chunkMentionsHeadword("very sweet", "mango", "en")).toBe(false);
+    expect(chunkMentionsHeadword("ripe mangoes", "mango", "en")).toBe(true);
+    expect(chunkMentionsHeadword("making friends", "make", "en")).toBe(true);
+    expect(chunkMentionsHeadword("carried it home", "carry", "en")).toBe(true);
+    expect(chunkMentionsHeadword("look it up", "look up", "en")).toBe(true);
+    expect(chunkMentionsHeadword("mankind", "man", "en")).toBe(false);
+  });
+
+  it("日本語: 活用しても語幹があればよい", () => {
+    expect(chunkMentionsHeadword("傘をさす", "傘", "ja")).toBe(true);
+    expect(chunkMentionsHeadword("ご飯を食べた", "食べる", "ja")).toBe(true);
+    expect(chunkMentionsHeadword("高くない", "高い", "ja")).toBe(true);
+    expect(chunkMentionsHeadword("とても甘い", "マンゴー", "ja")).toBe(false);
   });
 });
