@@ -41,10 +41,19 @@ export function reportMayRegenerate(p: {
   return p.isPro ? "ai" : "record_only";
 }
 
-/** 1日の区切り（端末の日付ではなく、サーバが使う「日本時間の0時」）。 */
-export function startOfTokyoDay(now: Date): Date {
-  const JST = 9 * 60 * 60 * 1000;
-  const t = new Date(now.getTime() + JST);
+/**
+ * 1日の区切り（端末の日付ではなく、**台湾時間の0時**）。
+ *
+ * アプリの「今日」は全部台湾時間で数えている（今日の復習の枚数・日記の日付・統計・
+ * 日々のお題 — `Asia/Taipei`）。ここだけ日本時間の0時だったので、切り抜きの回数だけが
+ * 1時間ずれて戻っていた（2026-10-01 にそろえた）。
+ *
+ * AI の暴走止め（`assertWithinDailyCap`）は「直近24時間」のまま — あれは使いすぎを止める
+ * 柵で、案内も「24時間以内に自動で回復」と言っている。利用者に見せる「1日の回数」とは別物。
+ */
+export function startOfAppDay(now: Date): Date {
+  const TST = 8 * 60 * 60 * 1000;
+  const t = new Date(now.getTime() + TST);
   t.setUTCHours(0, 0, 0, 0);
-  return new Date(t.getTime() - JST);
+  return new Date(t.getTime() - TST);
 }

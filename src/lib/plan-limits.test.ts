@@ -3,7 +3,7 @@ import {
   FREE_CUTOUTS_PER_DAY,
   cutoutAllowance,
   reportMayRegenerate,
-  startOfTokyoDay,
+  startOfAppDay,
 } from "./plan-limits";
 
 /** オーナー決定 2026-09-28「無料は1日3つまで」「作り直しはプロユーザーのみ」。 */
@@ -34,12 +34,12 @@ describe("無料と Pro の境目", () => {
     expect(reportMayRegenerate({ isPro: false, item: "pos" })).toBe("dictionary");
   });
 
-  it("1日の区切りは日本時間の0時", () => {
-    expect(startOfTokyoDay(new Date("2026-09-28T14:59:00Z")).toISOString()).toBe(
-      "2026-09-27T15:00:00.000Z",
+  it("1日の区切りは台湾時間の0時（アプリの「今日」と同じ）", () => {
+    expect(startOfAppDay(new Date("2026-09-28T15:59:00Z")).toISOString()).toBe(
+      "2026-09-27T16:00:00.000Z",
     );
-    expect(startOfTokyoDay(new Date("2026-09-28T15:00:00Z")).toISOString()).toBe(
-      "2026-09-28T15:00:00.000Z",
+    expect(startOfAppDay(new Date("2026-09-28T16:00:00Z")).toISOString()).toBe(
+      "2026-09-28T16:00:00.000Z",
     );
   });
 });

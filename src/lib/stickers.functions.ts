@@ -792,10 +792,28 @@ export async function upsertWord(
       source: "ai",
       entry_type: word.entry_type ?? "word",
     };
-    let ins = await supabase.from("words").insert(row).select("id").single();
+    /**
+     * **共有の語はサーバの権限で足す**（2026-10-01）。words は全員が同じ行を見るので、
+     * ブラウザの権限で足せると、アプリを通さずに中身を決めた行を先に置けてしまう
+     * （後から同じ語を撮った人は全員その行を見る）。足した人は `created_by` に残す
+     * （DB の `enforce_words_source` は auth.uid() が空のとき渡した値を使う）。
+     * この版を公開した後に、ブラウザの追加口を閉じる
+     * （`docs/pending-migrations/20261001100200_words_server_only_insert.sql`）。
+     */
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const rowWithOwner = { ...row, created_by: userId };
+    let ins = await supabaseAdmin
+      .from("words")
+      .insert(rowWithOwner as never)
+      .select("id")
+      .single();
     if (ins.error && /entry_type/.test(ins.error.message)) {
-      const { entry_type: _entryType, ...withoutEntryType } = row;
-      ins = await supabase.from("words").insert(withoutEntryType).select("id").single();
+      const { entry_type: _entryType, ...withoutEntryType } = rowWithOwner;
+      ins = await supabaseAdmin
+        .from("words")
+        .insert(withoutEntryType as never)
+        .select("id")
+        .single();
     }
     if (ins.error) throw new Error(ins.error.message);
     wordId = ins.data.id as string;

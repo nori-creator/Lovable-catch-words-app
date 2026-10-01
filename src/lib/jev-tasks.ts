@@ -308,6 +308,23 @@ export function scheduleQuestion(s: ScheduleState): {
 export const JEV_INTERVAL_MIN_RATIO = 0.5;
 export const JEV_INTERVAL_MAX_RATIO = 2;
 
+/**
+ * **次の復習の日を、誰が決めるか**（オーナー判断 2026-10-01「影の実行に戻す」）。
+ *
+ * - `shadow`（既定）… SM-2 が決める。Jev の答えは記録だけ（`model_shadow_predictions`）。
+ *   ロードマップの「まず影響の無い影の実行で当たり方を確かめる」に戻した。
+ * - `live` … Jev の日数を SM-2 の半分〜2倍の柵に収めて使う（2026-09-23〜10-01 の動き）。
+ *
+ * 切り替えは `app_config` の `jev_interval` = `{"mode":"live"}`（デプロイ不要）。
+ * 読めない・知らない値は `shadow`（安全な側）。
+ */
+export type JevIntervalMode = "shadow" | "live";
+
+export function parseJevIntervalMode(value: unknown): JevIntervalMode {
+  const mode = (value as { mode?: unknown } | null)?.mode;
+  return mode === "live" ? "live" : "shadow";
+}
+
 export function pickInterval(
   srsDays: number,
   jevDays: number | null,

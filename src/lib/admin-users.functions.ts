@@ -261,6 +261,13 @@ async function buildDetail(userId: string) {
         reencounter: kinds.save_failed_reencounter ?? 0,
         firstTransfer: kinds.save_failed_first_transfer ?? 0,
       },
+      // 裏の処理の失敗（`background-failure.ts`。記録は 2026-10-01 から、同じ種類は1分に1回）。
+      backgroundFailures: {
+        tts: kinds.bg_failed_tts ?? 0,
+        photoUpload: kinds.bg_failed_photo_upload ?? 0,
+        thumbUpload: kinds.bg_failed_thumb_upload ?? 0,
+        reviewGrade: kinds.bg_failed_review_grade ?? 0,
+      },
     },
     ai: {
       ...aiCostEstimate(kinds),

@@ -11,6 +11,7 @@
 import { supabase } from "@/integrations/supabase/client";
 import { makeThumbBlob, thumbPath } from "@/lib/cutout";
 import { putCachedImage } from "@/lib/image-cache";
+import { reportBackgroundFailure } from "@/lib/background-failure";
 
 async function dataUrlToBlob(dataUrl: string): Promise<Blob> {
   const res = await fetch(dataUrl);
@@ -61,7 +62,7 @@ export async function uploadStickerImage(opts: {
         contentType: thumb.type || "image/webp",
         upsert: true,
       })
-      .catch(() => {});
+      .catch((e: unknown) => reportBackgroundFailure("thumb_upload", e, { kind }));
     void putCachedImage(thumbPath(path), thumb);
   }
   // 端末側の控えに入れておく。いま上げたものを下ろし直さずに図鑑へ出せる。

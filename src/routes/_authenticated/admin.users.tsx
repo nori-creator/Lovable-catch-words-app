@@ -410,6 +410,13 @@ export function AdminUserDetailView({ d }: { d: AdminUserDetail }) {
           {`撮影 ${d.usage.saveFailures.catch}回、再会 ${d.usage.saveFailures.reencounter}回、登録前の1枚の引き継ぎ ${d.usage.saveFailures.firstTransfer}回`}
           <span className="text-caption text-muted-foreground">（記録は 2026-09-30 から）</span>
         </p>
+        <h3 className="mt-3 text-caption font-semibold">裏の処理の失敗</h3>
+        <p className="text-footnote tabular-nums">
+          {`発音 ${d.usage.backgroundFailures.tts}回、写真の上げ直し ${d.usage.backgroundFailures.photoUpload}回、縮小写真 ${d.usage.backgroundFailures.thumbUpload}回、復習の採点 ${d.usage.backgroundFailures.reviewGrade}回`}
+          <span className="text-caption text-muted-foreground">
+            （記録は 2026-10-01 から・同じ種類は1分に1回まで数える）
+          </span>
+        </p>
         <h3 className="mt-3 text-caption font-semibold">開く時間帯（台湾時間）</h3>
         <div className="mt-1 flex h-16 items-end gap-0.5" aria-label="開く時間帯">
           {d.usage.hours.map((n, h) => (

@@ -10,6 +10,7 @@ import { targetProfile } from "@/lib/target-profile";
 import { useNavigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQueryClient } from "@tanstack/react-query";
+import { reportBackgroundFailure } from "@/lib/background-failure";
 import { X, Loader2, Camera, Check, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -296,7 +297,7 @@ export function ScanCatchSheet({
               contentType: thumb.type || "image/webp",
               upsert: true,
             })
-            .catch(() => {});
+            .catch((e: unknown) => reportBackgroundFailure("thumb_upload", e, { kind }));
           void putCachedImage(thumbPath(path), thumb);
         }
         void putCachedImage(path, blob);
@@ -307,8 +308,14 @@ export function ScanCatchSheet({
       // null instead, matching capture.tsx.
       const [object_path, cutout_path, selfie_path] = await Promise.all([
         upload(objectDataUrl, "object"),
-        upload(cutoutUrl, "cutout").catch(() => null),
-        upload(selfieDataUrl, "selfie").catch(() => null),
+        upload(cutoutUrl, "cutout").catch((e: unknown) => {
+          reportBackgroundFailure("photo_upload", e, { kind: "cutout" });
+          return null;
+        }),
+        upload(selfieDataUrl, "selfie").catch((e: unknown) => {
+          reportBackgroundFailure("photo_upload", e, { kind: "selfie" });
+          return null;
+        }),
       ]);
 
       let stickerId: string;

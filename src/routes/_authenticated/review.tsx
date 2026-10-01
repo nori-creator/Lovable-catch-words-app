@@ -1,3 +1,4 @@
+import { reportBackgroundFailure } from "@/lib/background-failure";
 import { useReadableError } from "@/lib/errors";
 import {
   REVIEW_MODE_CHOICE_ENABLED,
@@ -1407,10 +1408,11 @@ export function SpeakingCard({
         response_ms: Date.now() - startedAt.current,
         result,
       },
-    }).catch(() => {
+    }).catch((e: unknown) => {
       // Keep the session flowing, but don't let the user believe it was saved —
       // an unrecorded review simply comes up again next time.
       toast.error(t("review.gradeFailed"));
+      reportBackgroundFailure("review_grade", e, { mode: "speaking" });
     });
     onNext(countsAsRemembered(result));
   }
@@ -2229,7 +2231,10 @@ export function LightModeCard({
         blur_seen: false,
         response_ms: Date.now() - startedAt.current,
       },
-    }).catch(() => toast.error(t("review.gradeFailed")));
+    }).catch((e: unknown) => {
+      toast.error(t("review.gradeFailed"));
+      reportBackgroundFailure("review_grade", e, { mode: "choice" });
+    });
   }
 
   const infos = card.headword_choice_infos?.length

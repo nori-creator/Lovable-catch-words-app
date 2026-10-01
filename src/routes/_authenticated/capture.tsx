@@ -7,6 +7,7 @@ import { containRect, residualZoom, viewfinderCrop } from "@/lib/capture-framing
 import { useCutoutClipped } from "@/lib/cutout-clip";
 import { PeelSticker } from "@/components/PeelSticker";
 import { reportSaveFailure } from "@/lib/save-failure";
+import { reportBackgroundFailure } from "@/lib/background-failure";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useTargetLang } from "@/lib/target-lang-pref";
 import { CandidatePicker } from "@/components/CandidatePicker";
@@ -1051,8 +1052,14 @@ function CapturePage() {
     // (以前は cutout の失敗で全体が例外になり、登録が長引いていた)。
     const [object_path, cutout_path, selfie_path] = await Promise.all([
       upload(objectImg, "object"),
-      upload(cutForSave, "cutout").catch(() => null),
-      upload(selfieImg, "selfie").catch(() => null),
+      upload(cutForSave, "cutout").catch((e: unknown) => {
+        reportBackgroundFailure("photo_upload", e, { kind: "cutout" });
+        return null;
+      }),
+      upload(selfieImg, "selfie").catch((e: unknown) => {
+        reportBackgroundFailure("photo_upload", e, { kind: "selfie" });
+        return null;
+      }),
     ]);
 
     const here = await locationPromise;
