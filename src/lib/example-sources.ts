@@ -1,4 +1,5 @@
 import { DEFAULT_TARGET_LANGUAGE } from "./target-lang";
+import { targetProfile } from "./target-profile";
 /**
  * 例文を**どこから作るか**の指示。
  *
@@ -59,10 +60,9 @@ export function worldExampleRule(
   target: string = DEFAULT_TARGET_LANGUAGE,
   now: Date = new Date(),
 ): string {
-  const zh = target.startsWith("zh");
-  const local = zh
-    ? "台湾の芸能人・歌手・スポーツ選手・歴史上の人物、台湾の文化・習慣・食べ物・街"
-    : "英語圏と世界で広く知られた人物・作品・スポーツ・文化・習慣";
+  // 生きた話題の出どころは言語の表から(前は台湾華語か英語圏かの2分岐で、
+  // 日本語の例文に英語圏の話題を勧めていた)。
+  const { exampleLocalTopics: local, exampleLocalPreference } = targetProfile(target).capture;
   const month = `${now.getFullYear()}年${now.getMonth() + 1}月`;
   // 優先の順（オーナー指示 2026-09-27「例文は、レベルに合わせて語彙・文法を限定。
   // ネイティブが最も頻繁に使う場面・シチュエーション・感情の例文。ニュース・
@@ -83,7 +83,7 @@ export function worldExampleRule(
     `歴史、流行、豆知識、季節の行事（今は${month}）などは、**その語をいちばん自然に使う文に`,
     `そのまま収まる時だけ**使う。**固有名詞を無理に入れない。** 入れると不自然になるなら、`,
     `固有名詞のない日常の一文でよい（その方がよい）。`,
-    zh ? `使うなら台湾のものを優先する。` : ``,
+    exampleLocalPreference,
     `決まりきった退屈な文・教科書的な無名の文(「我是學生。」)は書かない。`,
     `\n**ただし事実を作らない**: 日付・数字・順位・受賞歴・「〜年に〜した」のような`,
     `検証が要る細部は書かない。「〜が好きな人が多い」「〜でよく見る」のように、`,

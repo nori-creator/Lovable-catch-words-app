@@ -17,6 +17,13 @@ import {
   MessageSquareQuote,
   Network,
   Repeat,
+  Languages,
+  ChartSpline,
+  GitBranch,
+  Handshake,
+  ListOrdered,
+  ScrollText,
+  Flag,
   type LucideIcon,
 } from "lucide-react";
 import { sectionIconName, type SectionIconName } from "@/lib/section-icon";
@@ -64,6 +71,13 @@ const ICONS: Record<SectionIconName, LucideIcon> = {
   Megaphone,
   Link2,
   Globe,
+  Languages,
+  ChartSpline,
+  GitBranch,
+  Handshake,
+  ListOrdered,
+  ScrollText,
+  Flag,
 };
 
 /** 丸の寸法。`sm` は一覧の中(並べ替えの行)、`md` は節の見出し。 */

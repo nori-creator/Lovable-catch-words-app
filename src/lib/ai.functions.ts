@@ -2,16 +2,28 @@ import { createServerFn } from "@tanstack/react-start";
 import { meaningRule, distinctionRule, shortMeaning } from "@/lib/meaning-rule";
 import { mnemonicRule } from "@/lib/mnemonic-rule";
 import { DEFAULT_TARGET_LANGUAGE } from "./target-lang";
-import { readingPromptNames, targetProfile } from "./target-profile";
+import {
+  hasSection as profileHasSection,
+  readingPromptNames,
+  targetProfile,
+} from "./target-profile";
 import { resolveLevel } from "./level-source";
-import { LEVEL_INDEXES } from "./level-scale";
+import { JLPT_SCALE, LEVEL_INDEXES, parseLevelStep } from "./level-scale";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { generateText } from "ai";
 import { z } from "zod";
 import { pickReportedItem, reportContext } from "@/lib/report-locate";
 import { CATEGORY_KEYS, ROOM_KEYS, normalizeCategory } from "./category";
 import { orderByRegister } from "./candidate-order";
-import { ExtrasSchema, emptyExtras, mergeExtras, normalizeExtras } from "./extras";
+import {
+  ConjugationRowSchema,
+  CounterSchema,
+  ExtrasSchema,
+  KanjiBreakdownSchema,
+  emptyExtras,
+  mergeExtras,
+  normalizeExtras,
+} from "./extras";
 import { readerText, scrubForReader, scrubForeignNotes } from "./note-language";
 import { explanationKey } from "./word-explanation";
 import { mergeIntoReaderExplanation, readReaderExplanation } from "./word-explanation.functions";
@@ -124,8 +136,14 @@ export const suggestWords = createServerFn({ method: "POST" })
     // (以前は既定の TOCFL-2 が常に使われ、設定が効いていなかった)。
     // 級は**細かさの目安**としてだけ使う(下の `specificity`)。
     const levelGoal = await getUserLevelGoal(context.userId);
-    const levelNum = Number(levelGoal.match(/(\d)/)?.[1] ?? 2);
-    const langRule = await explanationLanguageRule(context.userId);
+    const profile = targetProfile(data.targetLanguage);
+    // **JLPT は数字の向きが逆**(N5 が入門)。数字を拾うと N5 の人が「上位」になり、
+    // 専門の名前ばかり出る。JLPT だけは段(N5→1 … N1→5)で読む。
+    // 台湾華語・英語の読み方は変えない(CEFR の "B1" を 1 と読んでいるのは前からの形)。
+    const jlptStep = profile.levels.id === JLPT_SCALE.id ? parseLevelStep(levelGoal) : null;
+    const levelNum =
+      typeof jlptStep === "number" ? jlptStep : Number(levelGoal.match(/(\d)/)?.[1] ?? 2);
+    const langRule = await explanationLanguageRule(context.userId, data.targetLanguage);
 
     // **ここに `levelInstruction` をそのまま掛けない。**
     //
@@ -142,7 +160,6 @@ export const suggestWords = createServerFn({ method: "POST" })
     // **例は言語ごとに違う。** 「短袖」「三杯雞」は台湾華語の例で、
     // 英語の学習者に渡しても手掛かりにならない。表は
     // `target-profile.ts` の `capture.specificity` が持つ。
-    const profile = targetProfile(data.targetLanguage);
     const band = levelNum <= 2 ? 0 : levelNum <= 4 ? 1 : 2;
     const bandName = ["入門〜基礎", "中位", "上位"][band];
     const specificity = `学習者は${bandName}の級。${profile.capture.specificity[band]}`;
@@ -301,7 +318,7 @@ export const suggestWordCandidates = createServerFn({ method: "POST" })
     const ai = await getAiFor("scan");
     await assertWithinDailyCap(context.userId, "suggest");
     const levelRule = await levelInstruction(context.userId);
-    const langRule = await explanationLanguageRule(context.userId);
+    const langRule = await explanationLanguageRule(context.userId, data.targetLanguage);
 
     const sceneLine = data.scene?.trim()
       ? `その場の様子: 「${data.scene.trim()}」。**この様子に合うものを優先**する。`
@@ -385,7 +402,7 @@ export const generateCard = createServerFn({ method: "POST" })
     await assertWithinDailyCap(context.userId, "card");
     const levelGoal = await getUserLevelGoal(context.userId);
     const levelRule = await levelInstruction(context.userId);
-    const langRule = await explanationLanguageRule(context.userId);
+    const langRule = await explanationLanguageRule(context.userId, data.targetLanguage);
     // 解説をどの言語で書くか。プロンプト本文に散らばる「日本語で」という
     // 指示が langRule と矛盾し、英語設定でも日本語の解説が返っていた。
     // 説明文の言語名をここで差し替えて矛盾を無くす。
@@ -419,7 +436,16 @@ export const generateCard = createServerFn({ method: "POST" })
     const levelNames = LEVEL_INDEXES.map((n) => cardProfile.levels.toStored(n)).join(" / ");
     // 見えない節の欄は頼まない（`lib/card-request.ts`）。
     const want = (id: SectionId) => wantsSection(data.sections, id);
+    // **その言語のカードに在る節だけ**を頼む欄(日本語の節)。`want` だけで見ると、
+    // 節の一覧を渡さない呼び出しで台湾華語・英語のカードにも漢字の内訳を頼むことになる。
+    const wantOwn = (id: SectionId) => profileHasSection(cardProfile, id) && want(id);
+    // 助数詞の節を持つ言語(日本語)には、台湾華語の量詞(繁体字・注音)を頼まない。
+    // 台湾華語・英語の頼み方はそのまま(節の一覧が無い呼び出しでは前から頼んでいる)。
+    const wantMeasure = want("measure_words") && !profileHasSection(cardProfile, "counters");
     const noteSection: SectionId = cardProfile.capture.noteField;
+    // 日本語の節の行。日本語以外のカードでは空 — **空なら行ごと足さない**
+    // (台湾華語・英語の指示文を1文字も変えないため)。
+    const jaLines = japaneseSectionLines(wantOwn, NL);
     const prompt = `「${data.headword}」について、${cardProfile.promptName}の語彙カードを生成してください。
 
 ${langRule}
@@ -507,10 +533,10 @@ ${
   ○ 文旦・肉燥麵(台湾の名物 → specialty) / 悠遊卡(台湾だけの仕組み → institution) /
     その土地だけの言い方(→ regional_word)
   **迷ったら空文字にする。** 誤って限定と書くほうが、書かないより害が大きい
-${want("related_words") ? `- related_words: 類義語(kind:"syn")2〜3・反義語(kind:"ant")0〜2・関連語(kind:"rel")2〜5 の配列。**反義語が無い語(物の名前など)は無理に作らず、その語を使うときに一緒によく使う語を関連語で出す**${cardProfile.code.startsWith("zh") ? "（例: 珍珠奶茶 → 甜度・冰塊・吸管・手搖飲）" : "（例: bubble tea → sweetness level, ice, straw）"}。各 {word:${cardProfile.promptName}の語, kind, note:使い分け・関係の短い説明(${NL}), reading:その語の${cardReadingNames.primary}${cardReadingNames.alt ? `, reading_alt:その語の${cardReadingNames.alt}` : ""}}。類義語の note には「${data.headword}」とのニュアンスの違いを必ず書く。**reading を空にしない** — 読めない語を並べても覚えられない` : ""}
-${want("measure_words") ? `- measure_words: **名詞の場合のみ**、その名詞に使う量詞を1〜3個 {word:"一張"のように数字1つき繁体字, zhuyin:注音, pinyin:拼音, note:いつその量詞を使うか(複数ある場合は使い分けを短く、${NL}で)}。名詞でなければ空配列。**note を中国語で書かない** — 中国語なのは word/zhuyin/pinyin だけ` : ""}
+${want("related_words") ? `- related_words: 類義語(kind:"syn")2〜3・反義語(kind:"ant")0〜2・関連語(kind:"rel")2〜5 の配列。**反義語が無い語(物の名前など)は無理に作らず、その語を使うときに一緒によく使う語を関連語で出す**（例: ${cardProfile.capture.relatedExample}）。各 {word:${cardProfile.promptName}の語, kind, note:使い分け・関係の短い説明(${NL}), reading:その語の${cardReadingNames.primary}${cardReadingNames.alt ? `, reading_alt:その語の${cardReadingNames.alt}` : ""}}。類義語の note には「${data.headword}」とのニュアンスの違いを必ず書く。**reading を空にしない** — 読めない語を並べても覚えられない` : ""}
+${wantMeasure ? `- measure_words: **名詞の場合のみ**、その名詞に使う量詞を1〜3個 {word:"一張"のように数字1つき繁体字, zhuyin:注音, pinyin:拼音, note:いつその量詞を使うか(複数ある場合は使い分けを短く、${NL}で)}。名詞でなければ空配列。**note を中国語で書かない** — 中国語なのは word/zhuyin/pinyin だけ` : ""}
 ${want("pronunciation_tips") ? `- pronunciation_tips: **${learnerL1}が${cardProfile.promptName}でつまずくポイントに絞った発音アドバイス**（2〜3文、${NL}）。\n${l1}\n  ${cardProfile.capture.pronunciationFocus}と、上の干渉項目のうち**この語に実際に当てはまるものだけ**を具体的に書く` : ""}
-${want(noteSection) ? `- ${cardProfile.capture.noteField}: ${cardProfile.capture.noteRule}（${NL}）` : ""}
+${want(noteSection) ? `- ${cardProfile.capture.noteField}: ${cardProfile.capture.noteRule}（${NL}）` : ""}${jaLines ? `\n${jaLines}` : ""}
 ${
   want("etymology")
     ? `- etymology: ${cardProfile.capture.etymologyRule}（${NL}）
@@ -547,7 +573,13 @@ ${data.hintCategory ? `カテゴリのヒント: ${data.hintCategory}` : ""}`;
         "usage_context, frequency_level, register_tag, register_scale, encounter_labels[{kind,label}]",
         "scene_weights, season_months, region_scope, region_scope_kind",
         want("related_words") && "related_words[{word,kind,note}]",
-        want("measure_words") && "measure_words[{word,zhuyin,pinyin,note}]",
+        wantMeasure && "measure_words[{word,zhuyin,pinyin,note}]",
+        wantOwn("kanji_breakdown") && "kanji_breakdown[{kanji,meaning,on,kun}]",
+        wantOwn("conjugation") && "conjugation[{form,text}]",
+        wantOwn("politeness") && "politeness",
+        wantOwn("counters") && "counters[{word,reading,note}]",
+        wantOwn("pitch_accent") && "pitch_accent",
+        wantOwn("word_origin") && "word_origin",
         want("pronunciation_tips") && "pronunciation_tips",
         want(noteSection) && cardProfile.capture.noteField,
         want("etymology") && "etymology, radicals",
@@ -567,7 +599,12 @@ ${data.hintCategory ? `カテゴリのヒント: ${data.hintCategory}` : ""}`;
       `region_scope（そこにしか無い物でなければ空文字）/ ` +
       `region_scope_kind（同上、null）/ ` +
       `season_months（通年なら空配列）/ ` +
-      `measure_words（名詞でなければ空配列）。`;
+      `measure_words（名詞でなければ空配列）` +
+      // 日本語の節にも「当てはまらなければ空」が在る(かなだけの語の漢字、名詞の活用)。
+      (wantOwn("kanji_breakdown") ? ` / kanji_breakdown（かなだけの語なら空配列）` : "") +
+      (wantOwn("conjugation") ? ` / conjugation（活用しない語なら空配列）` : "") +
+      (wantOwn("counters") ? ` / counters（名詞でなければ空配列）` : "") +
+      `。`;
 
     const genOnce = async (extraPush = ""): Promise<GeneratedCard> => {
       // モデルIDが無効なら安全なモデルへ自動フォールバック(404で機能を殺さない)
@@ -617,6 +654,7 @@ ${data.hintCategory ? `カテゴリのヒント: ${data.hintCategory}` : ""}`;
           // 作り直しが毎回走る(費用も待ち時間も倍になる)。
           e.taiwan_note,
           e.culture_note,
+          e.japan_note,
           e.etymology,
           e.mnemonic,
         ].some((v) => !!v && v.trim().length > 0) ||
@@ -932,13 +970,13 @@ function chunkRule(language: string | null | undefined): string {
  * 1つ実際に挿入して」）。型ぜんぶを読み上げても自然な文になる（跟男朋友吵架）。
  */
 function formulaChunkRule(code: string): string {
-  const zh = code.startsWith("zh");
+  // 例と文法の注意は言語の表から(前は `code.startsWith("zh")` の2分岐で、
+  // 日本語のカードに英語の例が渡っていた)。文はいままでと同じ形に組む。
+  const chunk = targetProfile(code).chunkPrompt;
   return (
     `**公式・定理のような型にする。** ネイティブがその語を使うとき、いちばん頻繁に口にする形を、` +
     `どの語と一緒に・どの語順で使うかが一目で分かる公式として書く` +
-    (zh
-      ? `（例: 見面 → 跟＋朋友＋見面、吵架 → 跟＋男朋友＋吵架 / 動不動就＋吵架、牽 → 牽著＋他＋的手、珍珠奶茶 → 點＋一杯＋珍珠奶茶 / 珍珠奶茶＋半糖少冰）。`
-      : `（例: meet → meet up with + a friend、argue → argue with + my boyfriend、hold → hold + his + hand）。`) +
+    `（例: ${chunk.formulaExample}）。` +
     `\n入れ替えて使う所は「人」「事」「someone」のような広い言い方にしない。` +
     `ネイティブがそこにいちばんよく入れる具体語を1つだけ入れて、そのパーツに slot: true を付ける。` +
     `決まった語のパーツは slot を付けない。` +
@@ -946,10 +984,7 @@ function formulaChunkRule(code: string): string {
     `**slot を付けてよいのは具体的な物・人・場所を表す名詞（と量詞）だけ。` +
     `動詞・形容詞・副詞・助詞には絶対に slot を付けない。**` +
     `\n**型ぜんぶは文法的に正しく、ネイティブが実際にそのまま言う形にする。**` +
-    (zh
-      ? `形容詞（状態動詞）を述語にするときは、裸で置かず程度副詞（很・超・好・太 など）を必ず入れる` +
-        `（✗ 滷味＋入味 → ○ 滷味＋很＋入味、✗ 珍珠奶茶＋好喝 → ○ 珍珠奶茶＋超＋好喝）。`
-      : `冠詞・前置詞・語形変化を省かない（✗ argue with boyfriend → ○ argue with + my boyfriend）。`) +
+    chunk.formulaGrammar +
     `\nslot: true のパーツには alts も付ける: ネイティブがそこに**実際によく入れるほかの具体語**を` +
     `頻度の高い順に4〜6個、[{text, ja: その語の意味（解説の言語で、短く）}]。` +
     `slot: true のパーツ自身にも ja（その語の意味。型の訳 ja の中で**その語に当たる部分と同じ書き方**）を付ける` +
@@ -958,6 +993,67 @@ function formulaChunkRule(code: string): string {
     `\n型ぜんぶを続けて読んでも、そのまま自然に言える形にする。＋ などの記号はパーツに入れない。`
   );
 }
+
+/**
+ * 日本語のカードだけの節の指示(2026-10-01)。
+ *
+ * **どの言語の節かは `wantOwn` が決める**(その言語の `sections` に在るか)。ここに
+ * `if (lang === "ja")` を書かないのはそのため — 日本語以外のカードでは全部が空行になる。
+ *
+ * 1行ずつの中身は作り直し(`runSectionRegen`)の指示と同じ観点にしてある。片方だけ
+ * 直すと、作り直したカードだけ別の観点になる(この app が何度も踏んだ兄弟の取りこぼし)。
+ * 指示の本文は日本語だが、**解説・意味・注記は必ず読む人の言語(`nl`)で**書かせる —
+ * 日本語を学ぶ人は英語か繁體中文で読む。
+ */
+function japaneseSectionLines(wantOwn: (id: SectionId) => boolean, nl: string): string {
+  return [
+    wantOwn("kanji_breakdown") && `- kanji_breakdown: ${JA_SECTION_RULES.kanji_breakdown(nl)}`,
+    wantOwn("conjugation") && `- conjugation: ${JA_SECTION_RULES.conjugation(nl)}`,
+    wantOwn("politeness") && `- politeness: ${JA_SECTION_RULES.politeness(nl)}`,
+    wantOwn("counters") && `- counters: ${JA_SECTION_RULES.counters(nl)}`,
+    wantOwn("pitch_accent") && `- pitch_accent: ${JA_SECTION_RULES.pitch_accent(nl)}`,
+    wantOwn("word_origin") && `- word_origin: ${JA_SECTION_RULES.word_origin(nl)}`,
+  ]
+    .filter(Boolean)
+    .join("\n");
+}
+
+/**
+ * 日本語の節ごとの書き方。**生成と作り直しの両方がここを読む。**
+ * `nl` は解説の言語の呼び名(「英語」「繁體中文(台湾)」)。
+ */
+const JA_SECTION_RULES = {
+  kanji_breakdown: (nl: string) =>
+    `見出し語に含まれる**漢字1字ずつ**を語の中の順に [{kanji, meaning, on, kun}]。` +
+    `meaning はその字の意味(${nl}で短く)、on は音読み(カタカナ。複数なら「・」区切り)、` +
+    `kun は訓読み(ひらがな。送り仮名は「.」で区切る 例: た.べる)。` +
+    `**この語で使っている読みを先頭に書く**。無い読みは空文字。同じ字が2回出ても1行にする。` +
+    `かなだけの語(和語・外来語)は**空配列**`,
+  conjugation: (nl: string) =>
+    `動詞・い形容詞・な形容詞なら活用を [{form, text}] で。form は形の名前(${nl}で短く)、text はその形の日本語。` +
+    `動詞は 辞書形 / ます形 / て形 / ない形 / た形 / 可能形 の順、` +
+    `い形容詞・な形容詞は 現在(丁寧) / 否定 / 過去 / て形 の順。` +
+    `**不規則な形(行く→行って、来る、する、いい→よかった)は必ず正しい形で。**` +
+    `名詞・副詞など活用しない語は**空配列**`,
+  politeness: (nl: string) =>
+    `丁寧さ・敬語を1〜3文(${nl})。くだけた言い方 / 丁寧な言い方(です・ます)/ ` +
+    `尊敬語・謙譲語の言い換え(例: 食べる → 召し上がる / いただく)があれば日本語の形を挙げ、` +
+    `**誰に・どんな場面で使うか**を書く。言い換えの無い語は、その語そのものの硬さ` +
+    `(くだけた・普通・改まった)と、目上の人に使ってよいかを1文で`,
+  counters: (nl: string) =>
+    `**名詞の場合のみ**、その名詞を数える助数詞を1〜3個 ` +
+    `{word:「一本」のように数1つきの日本語, reading:ひらがなの読み, note:いつその助数詞を使うか}。` +
+    `数で読みが変わる助数詞は note に代表的な形を添える(いっぽん・にほん・さんぼん)。` +
+    `複数あるなら使い分けを note に。名詞でなければ空配列。**note は${nl}で書く**(日本語なのは word/reading だけ)`,
+  pitch_accent: (nl: string) =>
+    `東京式の高低アクセントを1〜2文(${nl})。型の名前(平板型・頭高型・中高型・尾高型)と、` +
+    `かなで高さの並びを書く(例: は↘し=頭高型「箸」/ はし↗=尾高型「橋」/ はし=平板型「端」)。` +
+    `同じ音で型の違う語があれば対比を1つ添える。**確信が無いときは型を断定せず、そう書く** — ` +
+    `間違った型を覚えるほうが害が大きい`,
+  word_origin: (nl: string) =>
+    `語種(和語・漢語・外来語・混種語のどれか)と、それが硬さ・使う場面にどう効くかを1〜2文(${nl})。` +
+    `同じ物を指す別の語種の語があれば対比を添える(例: 宿屋=和語・素朴 / 旅館=漢語・和風の宿 / ホテル=外来語・洋式)`,
+} as const;
 
 function specificChunkRule(headword: string, levelGoal: string): string {
   return (
@@ -1198,7 +1294,7 @@ async function runSectionRegen(
       }),
     },
     related_words: {
-      prompt: `${base}\n類義語(syn)2〜3・反義語(ant)0〜2・関連語(rel)2〜5。**反義語が無い語(物の名前など)は無理に作らず、その語を使うときに一緒によく使う語を関連語で出す**${regenProfile.code.startsWith("zh") ? "（例: 珍珠奶茶 → 甜度・冰塊・吸管）" : "（例: bubble tea → sweetness level, ice, straw）"}。類義語の note には「${head}」との使い分けを必ず書く。\n**reading を空にしない** — 読めない語を並べても覚えられない(オーナー指示 2026-08-27 ⑧)。\n{"related_words":[{"word":"${targetName}の語","kind":"syn|ant|rel","note":"短い説明(${NL})","reading":"${regenReadingNames.primary}"${regenReadingNames.alt ? `,"reading_alt":"${regenReadingNames.alt}"` : ""}}]}`,
+      prompt: `${base}\n類義語(syn)2〜3・反義語(ant)0〜2・関連語(rel)2〜5。**反義語が無い語(物の名前など)は無理に作らず、その語を使うときに一緒によく使う語を関連語で出す**（例: ${regenProfile.capture.relatedExample}）。類義語の note には「${head}」との使い分けを必ず書く。\n**reading を空にしない** — 読めない語を並べても覚えられない(オーナー指示 2026-08-27 ⑧)。\n{"related_words":[{"word":"${targetName}の語","kind":"syn|ant|rel","note":"短い説明(${NL})","reading":"${regenReadingNames.primary}"${regenReadingNames.alt ? `,"reading_alt":"${regenReadingNames.alt}"` : ""}}]}`,
       schema: z.object({
         related_words: z
           .array(
@@ -1288,6 +1384,39 @@ async function runSectionRegen(
     culture_note: {
       prompt: `${base}\n${regenProfile.capture.noteRule}(${NL}で)\n{"culture_note":""}`,
       schema: z.object({ culture_note: z.string().min(1) }),
+    },
+    // --- 日本語のカードの節(2026-10-01) -------------------------------
+    // 書き方は生成と同じ表(`JA_SECTION_RULES`)。形は `extras.ts` の形を使う —
+    // ここに別の形を書くと、作った物が保存で黙って落ちる。
+    kanji_breakdown: {
+      prompt: `${base}\n${JA_SECTION_RULES.kanji_breakdown(NL)}\n{"kanji_breakdown":[{"kanji":"","meaning":"","on":"","kun":""}]}`,
+      // かなだけの語は空が正しい。`min(1)` にすると、作れない語で毎回失敗する。
+      schema: z.object({ kanji_breakdown: z.array(KanjiBreakdownSchema) }),
+    },
+    pitch_accent: {
+      prompt: `${base}\n${JA_SECTION_RULES.pitch_accent(NL)}\n{"pitch_accent":""}`,
+      schema: z.object({ pitch_accent: z.string().min(1) }),
+    },
+    conjugation: {
+      prompt: `${base}\n${JA_SECTION_RULES.conjugation(NL)}\n{"conjugation":[{"form":"","text":""}]}`,
+      schema: z.object({ conjugation: z.array(ConjugationRowSchema) }),
+    },
+    politeness: {
+      prompt: `${base}\n${JA_SECTION_RULES.politeness(NL)}\n{"politeness":""}`,
+      schema: z.object({ politeness: z.string().min(1) }),
+    },
+    counters: {
+      prompt: `${base}\n${JA_SECTION_RULES.counters(NL)}\n{"counters":[{"word":"一本","reading":"いっぽん","note":""}]}`,
+      schema: z.object({ counters: z.array(CounterSchema) }),
+    },
+    word_origin: {
+      prompt: `${base}\n${JA_SECTION_RULES.word_origin(NL)}\n{"word_origin":""}`,
+      schema: z.object({ word_origin: z.string().min(1) }),
+    },
+    // 日本の一言メモ。何を書くかは `target-profile.ts` の `noteRule` が唯一の正。
+    japan_note: {
+      prompt: `${base}\n${regenProfile.capture.noteRule}(${NL}で)\n{"japan_note":""}`,
+      schema: z.object({ japan_note: z.string().min(1) }),
     },
   };
 
@@ -1731,12 +1860,11 @@ async function askReadingTwice(
   headword: string,
   language: string | null,
 ): Promise<ReadingAnswer[]> {
-  const zh = (language ?? DEFAULT_TARGET_LANGUAGE).startsWith("zh");
+  // 読みの欄の指示は言語の表から(前は台湾華語か、それ以外は英語の IPA の2分岐で、
+  // 日本語の語に IPA を聞くことになっていた)。
   const prompt =
     `語: ${headword}\n` +
-    (zh
-      ? "台湾（教育部）の標準の読みを答えてください。reading は注音（声調記号つき、音節ごとに半角スペース区切り）、reading_alt は拼音（声調記号つき）。"
-      : "reading はアメリカ英語の IPA、reading_alt はイギリス英語の IPA（どちらも / / なし）。") +
+    targetProfile(language).capture.readingLookupRule +
     ` pos はこの語のいちばん普通の品詞を日本語1語（名詞・動詞・形容詞・副詞など）。\n` +
     `出力はJSONだけ: {"reading":"","reading_alt":"","pos":""}`;
   const a = await getAiFor("audit");

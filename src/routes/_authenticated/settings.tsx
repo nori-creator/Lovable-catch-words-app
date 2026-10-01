@@ -9,7 +9,7 @@ import { CUTOUT_ENABLED } from "@/lib/cutout-feature";
 import { useMotion } from "@/components/motion-provider";
 import { parseMotionChoice } from "@/lib/motion-pref";
 import { createFileRoute, Link, useNavigate, useRouter } from "@tanstack/react-router";
-import { DEFAULT_TARGET_LANGUAGE, TARGET_LANGUAGES } from "@/lib/target-lang";
+import { DEFAULT_TARGET_LANGUAGE, webTargetChoices } from "@/lib/target-lang";
 import { setTargetLang, storedTargetLang } from "@/lib/target-lang-pref";
 import {
   getStoredReviewMode,
@@ -763,10 +763,12 @@ function SettingsPage() {
               label={t("settings.targetLang")}
               value={targetLanguage}
               onChange={edit(pickTargetLanguage)}
-              // **一覧を書き並べない。** `TARGET_LANGUAGES` を回す —
+              // **一覧を書き並べない。** 言語の表(`target-lang.ts`)から回す —
               // ここに手書きの写しを置くと、言語を足したときにここだけ
               // 増えない(または、外したのにここだけ残る)。
-              options={TARGET_LANGUAGES.map((code) => ({
+              // 日本語は iOS が先なので Web の選択肢には出さない
+              // (`webTargetChoices`。今その人が選んでいる値だけは残す)。
+              options={webTargetChoices(targetLanguage).map((code) => ({
                 value: code,
                 label: t(TARGET_LANG_LABEL_KEYS[code]),
               }))}

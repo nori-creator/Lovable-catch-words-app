@@ -53,7 +53,15 @@ export type SectionIconName =
   | "Boxes"
   | "Megaphone"
   | "Link2"
-  | "Globe";
+  | "Globe"
+  // 日本語のカードの節(2026-10-01)。
+  | "Languages"
+  | "ChartSpline"
+  | "GitBranch"
+  | "Handshake"
+  | "ListOrdered"
+  | "ScrollText"
+  | "Flag";
 
 /**
  * 節 → 絵の名前。
@@ -82,6 +90,17 @@ export const SECTION_ICON_NAME: Record<SectionId, SectionIconName> = {
   stress: "Megaphone",
   phrasal_verbs: "Link2",
   culture_note: "Globe",
+  // --- 日本語のカードだけ ---------------------------------------------------
+  kanji_breakdown: "Languages",
+  // 高さの上がり下がり(箸 ハ↘シ / 橋 ハシ↗)を線で見せる絵。
+  pitch_accent: "ChartSpline",
+  // 辞書形から形が枝分かれする。`Repeat` は英語の語形が使っている。
+  conjugation: "GitBranch",
+  politeness: "Handshake",
+  // 量詞(`Hash`)とは別の絵にする — 似た働きでも別の節。
+  counters: "ListOrdered",
+  word_origin: "ScrollText",
+  japan_note: "Flag",
 };
 
 /** 節の目印の名前。知らない節でも落ちない(既定は「意味」の絵)。 */

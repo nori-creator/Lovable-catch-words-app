@@ -27,6 +27,8 @@ import { targetProfile, type ProfileSection } from "./target-profile";
  *   台湾華語だけ … `measure_words`(量詞) / `taiwan_note`
  *   英語だけ     … `forms` / `countability` / `stress` /
  *                  `phrasal_verbs` / `culture_note`
+ *   日本語だけ   … `kanji_breakdown` / `pitch_accent` / `conjugation` /
+ *                  `politeness` / `counters` / `word_origin` / `japan_note`
  * どちらに出るかを `if (lang === …)` で書かない。`sectionsFor()` を通す。
  */
 export const SECTION_IDS = [
@@ -50,6 +52,14 @@ export const SECTION_IDS = [
   "stress",
   "phrasal_verbs",
   "culture_note",
+  // --- 日本語のカードだけ(2026-10-01) -------------------------------------
+  "kanji_breakdown",
+  "pitch_accent",
+  "conjugation",
+  "politeness",
+  "counters",
+  "word_origin",
+  "japan_note",
 ] as const;
 
 export type SectionId = (typeof SECTION_IDS)[number];
@@ -104,6 +114,17 @@ export const REGEN_SECTIONS = [
   "stress",
   "phrasal_verbs",
   "culture_note",
+  // --- 日本語のカードの節 -------------------------------------------------
+  // 英語の `forms` と違い、**活用も AI に作らせる。** 日本語の活用を引ける
+  // 辞書の取り込みがまだ無いので、作り直せないと節が空のまま残る。
+  // 活用は規則で決まるので、作らせても誤りにくい(指示文で辞書形からの形を名指しする)。
+  "kanji_breakdown",
+  "pitch_accent",
+  "conjugation",
+  "politeness",
+  "counters",
+  "word_origin",
+  "japan_note",
 ] as const;
 
 export type RegenSection = (typeof REGEN_SECTIONS)[number];
@@ -233,6 +254,22 @@ export function sectionHasContent(id: SectionId, input: SectionContentInput): bo
       return (ex.phrasal_verbs?.length ?? 0) > 0;
     case "culture_note":
       return !!ex.culture_note;
+    // --- 日本語のカードの節 -------------------------------------------------
+    case "kanji_breakdown":
+      // 字の無い行(空の `kanji`)は描く物が無い。数える側も同じ物を見る。
+      return (ex.kanji_breakdown ?? []).some((k) => !!k?.kanji?.trim());
+    case "pitch_accent":
+      return !!ex.pitch_accent;
+    case "conjugation":
+      return (ex.conjugation ?? []).some((c) => !!c?.text?.trim());
+    case "politeness":
+      return !!ex.politeness;
+    case "counters":
+      return (ex.counters?.length ?? 0) > 0;
+    case "word_origin":
+      return !!ex.word_origin;
+    case "japan_note":
+      return !!ex.japan_note;
     // 外の情報を見に行くだけの節。**行の中身では決められない。**
     //
     // `real_usage` は決まった数のリンクなので、いつでも描ける。

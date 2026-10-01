@@ -53,10 +53,21 @@ describe("**言語が混ざらない**", () => {
   });
 
   it("かな・ハングル・キリル文字はどちらの取り込みも通らない", () => {
-    for (const lang of TARGET_LANGUAGES) {
+    // 日本語(2026-10-01)はかなが正しい見出し語なので、かなの行はここでは見ない
+    // (下の「日本語の取り込み」で見る)。
+    for (const lang of TARGET_LANGUAGES.filter((l) => l !== "ja")) {
       const got = partitionByLanguage([zh("シャーペン"), zh("안녕"), zh("Привет")], lang);
       expect(got.ok, lang).toEqual([]);
     }
+  });
+
+  it("**日本語の取り込みは、かな・漢字・カタカナ語を通し、ハングル・キリル・英語を落とす**", () => {
+    const got = partitionByLanguage(
+      [zh("シャーペン"), zh("傘"), zh("お弁当"), zh("안녕"), zh("Привет"), en("umbrella")],
+      "ja",
+    );
+    expect(got.ok.map((r) => r.headword)).toEqual(["シャーペン", "傘", "お弁当"]);
+    expect(got.rejected.map((r) => r.headword)).toEqual(["안녕", "Привет", "umbrella"]);
   });
 
   it("知らない言語を渡されても既定に落ちる(未知の言語で書き込まない)", () => {

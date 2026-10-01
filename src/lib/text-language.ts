@@ -52,6 +52,15 @@ export function looksLikeTargetLanguage(
   const han = HAN.test(s);
   const latin = LATIN.test(s);
 
+  if (lang === "ja") {
+    // 日本語(2026-10-01)。**かなが在れば日本語の文。** 日本語の文はほぼ必ず
+    // 助詞・活用語尾のかなを含む。漢字だけのまとまった文は中国語の写しとみなす
+    // (短い物は名詞句のことがあるので通す)。ハングルが在れば日本語ではない。
+    if (/[가-힯]/.test(s)) return false;
+    if (KANA.test(s)) return true;
+    if (han) return s.replace(/[^一-鿿㐀-䶿々]/g, "").length < 5;
+    return !latin;
+  }
   if (lang === "en") {
     // 漢字が在れば英語の文ではない。ラテン文字が1つも無くても同じ。
     if (han) return false;

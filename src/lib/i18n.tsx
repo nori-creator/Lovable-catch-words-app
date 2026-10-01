@@ -94,6 +94,8 @@ export const UI_LANG_PROMPT_NAMES: Record<UiLang, string> = {
 export const TARGET_LANG_LABEL_KEYS: Record<TargetLanguage, string> = {
   "zh-TW": "settings.langZhTw",
   en: "settings.langEn",
+  // 表示言語の「日本語」と同じ文言を使う(名前としては同じ)。意味は「日本語を学ぶ」。
+  ja: "settings.langJa",
 };
 
 /**
@@ -890,6 +892,14 @@ export const DICT: Record<string, Record<UiLang, string>> = {
     "zh-TW": "{n}（Band {band}）",
   },
   "cefr.out": { ja: "CEFR の外の語", en: "Outside the CEFR bands", "zh-TW": "CEFR 之外的字" },
+  // JLPT の言い方(2026-10-01、日本語を学習言語に足した日)。段の名前(N5〜N1)は
+  // それ自体が名前なので、CEFR と同じく「級」を足さない。
+  "jlpt.levelInBand": {
+    ja: "{n}（Band {band}）",
+    en: "{n} · Band {band}",
+    "zh-TW": "{n}（Band {band}）",
+  },
+  "jlpt.out": { ja: "JLPT の外の語", en: "Outside the JLPT levels", "zh-TW": "JLPT 之外的字" },
   // **取り込みではない。** 許可を取っていないので、見に行く先だけを出す。
   // --- 英語のコーパス(第4段) -----------------------------------------------
   // --- もう一度撮る提案(src/lib/retake.ts) ---
@@ -1168,6 +1178,66 @@ export const DICT: Record<string, Record<UiLang, string>> = {
     ja: "アメリカ英語の標準的な辞書（定義・発音）",
     en: "The standard American English dictionary (definitions, pronunciation)",
     "zh-TW": "美式英語的標準辭典（釋義、發音）",
+  },
+  // --- 日本語のカードの「実際の使われ方」(2026-10-01) -----------------------
+  // 日本語を学ぶのは英語か繁體中文で読む人。**名前に台湾・英語圏を入れない。**
+  "card.ytHintJa": {
+    ja: "日本の動画をまとめて（複数見られます）",
+    en: "Videos from Japan — a whole list of them",
+    "zh-TW": "彙整日本的影片（可以看好幾支）",
+  },
+  "card.yglHintJa": {
+    ja: "日本語の話者で1本ずつ。矢印で次へ",
+    en: "One Japanese speaker at a time — arrows move to the next",
+    "zh-TW": "一次一位日語的說話者，用箭頭換下一位",
+  },
+  "card.xLabel": {
+    ja: "X（Twitter）で見る",
+    en: "See it on X (Twitter)",
+    "zh-TW": "在 X（Twitter）上看",
+  },
+  "card.xHint": {
+    ja: "日本の人がいま書いている短い文",
+    en: "Short posts people in Japan are writing now",
+    "zh-TW": "日本人現在正在寫的短句",
+  },
+  "card.chiebukuroLabel": {
+    ja: "Yahoo!知恵袋で見る",
+    en: "See it on Yahoo! Chiebukuro",
+    "zh-TW": "在 Yahoo!知恵袋 上看",
+  },
+  "card.chiebukuroHint": {
+    ja: "普通の人の質問と答え（使い分け・失礼にならないか）",
+    en: "Everyday Q&A from people in Japan — nuance and politeness",
+    "zh-TW": "日本一般人的問答（用法差別、會不會失禮）",
+  },
+  "card.newsLabelJa": {
+    ja: "日本のサイトで検索",
+    en: "Search Japanese sites",
+    "zh-TW": "在日本的網站搜尋",
+  },
+  "card.newsHintJa": {
+    ja: "日本の日本語の頁だけに絞った検索結果",
+    en: "Results limited to Japanese-language pages from Japan",
+    "zh-TW": "只限日本日文網頁的搜尋結果",
+  },
+  "card.weblioLabel": { ja: "Weblio辞書", en: "Weblio Dictionary", "zh-TW": "Weblio 辭典" },
+  "card.weblioHint": {
+    ja: "国語辞典・類語・用例をまとめて",
+    en: "Japanese dictionaries, synonyms and usage examples in one place",
+    "zh-TW": "國語辭典、近義詞、例句一次看",
+  },
+  "card.kotobankLabel": { ja: "コトバンク", en: "Kotobank", "zh-TW": "Kotobank" },
+  "card.kotobankHint": {
+    ja: "複数の辞書・事典を並べて読む",
+    en: "Several Japanese dictionaries and encyclopedias side by side",
+    "zh-TW": "多本日文辭典、百科並排查看",
+  },
+  "card.jishoLabel": { ja: "Jisho.org", en: "Jisho.org", "zh-TW": "Jisho.org" },
+  "card.jishoHint": {
+    ja: "学習者向け（英語の語釈・漢字の音訓）",
+    en: "For learners — English definitions, kanji readings",
+    "zh-TW": "給學習者（英文釋義、漢字音訓）",
   },
   // --- スキャン・カード詳細 ---
   "scan.cameraFailed": {
@@ -2782,6 +2852,15 @@ export const DICT: Record<string, Record<UiLang, string>> = {
   "card.stress": { ja: "強く読む所", en: "Stress", "zh-TW": "重音" },
   "card.phrasal_verbs": { ja: "句動詞", en: "Phrasal verbs", "zh-TW": "片語動詞" },
   "card.culture_note": { ja: "文化の一言", en: "Culture note", "zh-TW": "文化筆記" },
+  // --- 日本語のカードだけの節(2026-10-01) ---------------------------------
+  // 日本語を学ぶのは英語か繁體中文で読む人なので、その2つが本番の文言。
+  "card.kanji_breakdown": { ja: "漢字の内訳", en: "Kanji breakdown", "zh-TW": "漢字拆解" },
+  "card.pitch_accent": { ja: "高低アクセント", en: "Pitch accent", "zh-TW": "高低重音" },
+  "card.conjugation": { ja: "活用", en: "Conjugation", "zh-TW": "動詞與形容詞變化" },
+  "card.politeness": { ja: "丁寧さ・敬語", en: "Politeness & keigo", "zh-TW": "禮貌程度與敬語" },
+  "card.counters": { ja: "助数詞", en: "Counters", "zh-TW": "助數詞" },
+  "card.word_origin": { ja: "語種", en: "Word origin type", "zh-TW": "詞的來源類型" },
+  "card.japan_note": { ja: "日本メモ", en: "Japan note", "zh-TW": "日本筆記" },
   // 活用の名前。**表の左の列**に出る短い名前で、文にしない。
   "card.formPlural": { ja: "複数形", en: "Plural", "zh-TW": "複數" },
   "card.formPast": { ja: "過去形", en: "Past", "zh-TW": "過去式" },
@@ -4192,6 +4271,9 @@ export const DICT: Record<string, Record<UiLang, string>> = {
   },
   "settings.ipaUs": { ja: "IPA アメリカ", en: "IPA (US)", "zh-TW": "IPA 美式" },
   "settings.ipaUk": { ja: "IPA イギリス", en: "IPA (UK)", "zh-TW": "IPA 英式" },
+  // 日本語の読み(2026-10-01)。学ぶ人は英語か繁體中文で読むので、その2つが本番の文言。
+  "settings.kana": { ja: "ふりがな", en: "Kana (furigana)", "zh-TW": "假名（振假名）" },
+  "settings.romaji": { ja: "ローマ字", en: "Romaji", "zh-TW": "羅馬拼音" },
   "settings.langJa": { ja: "日本語", en: "Japanese", "zh-TW": "日本語" },
   "settings.langEn": { ja: "English", en: "English", "zh-TW": "English" },
   // 符号は見せない。この束の他の4行(日本語 / English / 母語 / 表示言語)は

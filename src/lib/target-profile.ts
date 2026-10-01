@@ -34,7 +34,7 @@
  * 外の世界に触れるものをここに入れないこと。
  */
 
-import { CEFR_SCALE, TOCFL_SCALE, type LevelScale } from "./level-scale";
+import { CEFR_SCALE, JLPT_SCALE, TOCFL_SCALE, type LevelScale } from "./level-scale";
 import { DEFAULT_TARGET_LANGUAGE, normalizeTargetLanguage, speechLangOf } from "./target-lang";
 
 /**
@@ -63,10 +63,107 @@ export type ProfileSection =
   | "countability"
   | "stress"
   | "phrasal_verbs"
-  | "culture_note";
+  | "culture_note"
+  // 日本語だけ(2026-10-01)。日本語の仕組みそのものから来る節:
+  // 漢字の字ごとの意味と音訓・高低アクセント・活用・敬語(丁寧さ)・
+  // 助数詞・語種(和語/漢語/外来語)・日本の一言メモ。
+  | "kanji_breakdown"
+  | "pitch_accent"
+  | "conjugation"
+  | "politeness"
+  | "counters"
+  | "word_origin"
+  | "japan_note";
 
-/** 読みの種類。設定で「どちらか一方だけ」を出す。 */
-export type ReadingKind = "zhuyin" | "pinyin" | "ipa-us" | "ipa-uk";
+/**
+ * 読みの種類。設定で「どちらか一方だけ」を出す。
+ *
+ * 日本語は `kana`(ひらがなの読み=ふりがな)が既定、`romaji`(ヘボン式)が2つめ。
+ * 保存の欄は台湾華語と同じ「読み1・読み2」(`reading_zhuyin` / `pinyin` の列)を使う —
+ * 列の名前は古いが、中身をどの表記として読むかはこの並びが決める(`neutralReadings`)。
+ */
+export type ReadingKind = "zhuyin" | "pinyin" | "ipa-us" | "ipa-uk" | "kana" | "romaji";
+
+/**
+ * 話す練習・日記・スキャンの指示文で、**その言語ごとに変わる言い回し**。
+ *
+ * ## なぜ別の束にしたか
+ * 復習の添削(`getSpeakingFeedback`)・話す足場(`getSpeakingScaffold`)・日記の添削と
+ * 書き出し(`journal.functions.ts`)・写真の検出(`scan.functions.ts`)は、指示文が
+ * 「台湾華語(zh-TW)のネイティブ講師」「繁体字」「量詞」と**直に書かれていた**。
+ * 日本語を学習言語に足した日(2026-10-01)に、日本語を学ぶ人へ「繁体字で添削して」と
+ * 頼むことになる。言い回しの差だけをここに集め、指示文の骨組みは1つのまま回す。
+ *
+ * **台湾華語の値はいまの文を1文字も変えずに写した物。** 英語はまだ英語向けの文を
+ * 持っていないので、今回は台湾華語と同じ値を使う(振る舞いを変えない — 直すのは別の回)。
+ */
+export type CoachPhrases = {
+  /** 「あなたは◯◯です」の◯◯(話した文の添削)。 */
+  nativeTeacher: string;
+  /** 「あなたは◯◯です」の◯◯(話す足場)。 */
+  scaffoldTeacher: string;
+  /** 文の中でその言語を呼ぶ名前(「自然な◯◯の添削文」「◯◯の語順ルール」)。 */
+  languageName: string;
+  /** 書く字の決まり(「(繁体字)」の中身)。 */
+  scriptName: string;
+  /** 話した文を分けるときの品詞の記号の一覧。 */
+  feedbackPos: string;
+  /** 語順の説明の例(「」付きで2つ)。 */
+  wordOrderExamples: string;
+  /** 一緒によく使う語の例(ネイティブの一言)。 */
+  collocationNote: string;
+  /** 足場の「chunk」の中身の言い方(「」の語のあとに続く)。 */
+  scaffoldChunk: string;
+  /** 足場の「phrase」の例。 */
+  scaffoldPhraseExample: string;
+  /** 足場の「grammar」の例。 */
+  scaffoldGrammarExample: string;
+  /** 足場の chunks の品詞の決まり。 */
+  scaffoldPosRule: string;
+  /** 日記の添削者・先生の呼び名に付く言語名(「台湾華語(繁體字)」)。 */
+  journalLanguage: string;
+  /** 日記で「◯◯のネイティブ」と呼ぶ人(「台湾のネイティブ」)。 */
+  journalNatives: string;
+  /** 日記で書く字の名前(「繁體字」)。 */
+  journalScript: string;
+  /** 日記の書き出しの形の例(「我今天在…」)。 */
+  journalOpener: string;
+  /** 写真の検出の見出し(「◯◯の学習アプリの検出エンジンです」の◯◯)。 */
+  scanEngineLabel: string;
+  /** 写真の検出の字の決まり(1行)。 */
+  scanScriptRule: string;
+  /** 写真の検出で埋めさせる読みの欄の説明。 */
+  scanReadingRule: string;
+  /** 写真の検出の出力見本の1件(`headword`〜`meaning_ja` の部分)。 */
+  scanSample: string;
+  /** 部品の検出で言語を呼ぶ名前(「台湾華語(繁体字/注音)」)。 */
+  partsLanguage: string;
+  /** 部品の検出の字・級の決まり(1行)。 */
+  partsRule: string;
+  /** 部品の検出の例(「手→拇指/手掌/指甲/手腕」)。 */
+  partsExample: string;
+  /** 部品の検出の出力見本の1件(`headword`〜`meaning_ja` の部分)。 */
+  partsSample: string;
+  /** 4択の誤答を作るときの、その語の呼び方(「◯◯の単語」)。 */
+  quizWordLabel: string;
+};
+
+/**
+ * 単語帳の写真から語を読み取るときの言い回し。
+ *
+ * オーナー方針(2026-10-01)「単語帳の取り込みも学習言語に付いていく」。前は
+ * 台湾華語に決め打ちで、英語・日本語の単語帳を撮っても繁体字に直そうとしていた。
+ */
+export type WordbookPhrases = {
+  /** 「◯◯の学習アプリの、単語帳読み取りエンジンです」の◯◯。 */
+  engineLabel: string;
+  /** 字・綴りの決まり(1行)。 */
+  scriptLine: string;
+  /** 読みと意味を写す/補う決まり(1行)。 */
+  readingLine: string;
+  /** 出力見本の1件(`headword`〜`pinyin` の部分)。 */
+  sample: string;
+};
 
 export type TargetProfile = {
   code: string;
@@ -100,6 +197,10 @@ export type TargetProfile = {
    * ここに書いてあることで生成まで届く。
    */
   promptName: string;
+  /** 話す練習・日記・スキャンの言い回し(`CoachPhrases` の注)。 */
+  coach: CoachPhrases;
+  /** 単語帳の読み取りの言い回し。 */
+  wordbook: WordbookPhrases;
 
   /**
    * **撮った写真から語を出すとき**の、その言語ならではの指示。
@@ -190,7 +291,7 @@ export type TargetProfile = {
      * 書いてあったので、英語のカードには**台湾の雑学を書けと言いながら
      * `culture_note` は一度も埋まらない**という形になっていた。
      */
-    noteField: "taiwan_note" | "culture_note";
+    noteField: "taiwan_note" | "culture_note" | "japan_note";
     /**
      * 4択の**受け皿の見出し語**。撮った語がまだ少ない人のための埋め草。
      *
@@ -220,6 +321,28 @@ export type TargetProfile = {
      * 英語に「声調の型」と言っても書けることが無い。
      */
     pronunciationFocus: string;
+    /**
+     * 関連語の見本(「物の名前で反義語が無いときは一緒に使う語を出す」の例)。
+     *
+     * 前は `code.startsWith("zh") ? 台湾の例 : 英語の例` の2分岐で、
+     * 日本語のカードに英語の例(bubble tea → ice)が渡っていた。
+     */
+    relatedExample: string;
+    /**
+     * 読みと品詞を**2つの AI に別々に聞く**ときの、読みの欄の指示
+     * (報告からの直しの突き合わせ。`askReadingTwice`)。
+     */
+    readingLookupRule: string;
+    /** 例文に入れてよい「生きた話題」の出どころ(人物・文化・食べ物…)。 */
+    exampleLocalTopics: string;
+    /** 生きた話題を使うときの優先(空なら言わない)。 */
+    exampleLocalPreference: string;
+    /**
+     * スキャンの候補に「**台湾の言い方として疑わしいか**」の札を付けるか
+     * (`rankScanCandidates` の `doubtful`)。台湾の標準語かを問う問いなので、
+     * 日本語の語に掛けるとかなの語がすべて「疑わしい」になる。
+     */
+    taiwanTermCheck: boolean;
   };
   /** 級の目盛り。 */
   levels: LevelScale;
@@ -247,6 +370,13 @@ export type TargetProfile = {
     styleRule: string;
     /** `pos` に何を書くか(記号の一覧そのもの)。 */
     posRule: string;
+    /**
+     * 「公式・定理のような型」の例(`formulaChunkRule`)。
+     * 前は `code.startsWith("zh")` の2分岐で、日本語に英語の例が渡っていた。
+     */
+    formulaExample: string;
+    /** 型ぜんぶを文法的に正しく言うための、その言語の注意。 */
+    formulaGrammar: string;
   };
   /** 見出し語として通してよいか。 */
   headwordOk: (raw: string) => boolean;
@@ -274,6 +404,50 @@ export function headwordCore(text: string): string {
 }
 
 const core = headwordCore;
+
+/**
+ * 台湾華語の話す練習・日記・スキャンの言い回し。
+ *
+ * **指示文に直に書かれていた文を1文字も変えずに写した物。** 英語も今回はこれを使う
+ * (`EN_PROFILE.coach` の注)。
+ */
+const ZH_TW_COACH: CoachPhrases = {
+  nativeTeacher: "台湾華語(zh-TW)のネイティブ講師",
+  scaffoldTeacher: "台湾華語(zh-TW)のMTC(國語教學中心)方式の先生",
+  languageName: "台湾華語",
+  scriptName: "繁体字",
+  feedbackPos: "S(主語)/V(動詞)/O(目的語)/M(修飾・量詞)/Adv(副詞)/C(接続)/Prep(介詞)/Ptc(助詞)",
+  wordOrderExamples:
+    '「中国語は S+時間+場所+V+O の順。学習者の母語と違い動詞が目的語の前に来る」「"用+道具+V" のように手段が動詞の前」',
+  collocationNote:
+    "一緒によく使う動詞や量詞、定番チャンク(例:「擦護唇膏」「一條護唇膏」のように繁体字で)",
+  scaffoldChunk: "動詞・量詞のコロケーション(例「喝一杯◯◯」)",
+  scaffoldPhraseExample: "(例「我要用◯◯…」)",
+  scaffoldGrammarExample: "(例「用+道具+動詞」)",
+  scaffoldPosRule:
+    "pos は台湾の詞類表の\n" +
+    "    役割記号: S(主語) V(動詞) O(目的語) N(名詞) M(量詞・修飾) Adv(副詞)\n" +
+    "    Conj/Prep(接続・介詞) Ptc(助詞) Det(限定詞)。",
+  journalLanguage: "台湾華語(繁體字)",
+  journalNatives: "台湾のネイティブ",
+  journalScript: "繁體字",
+  journalOpener: "「我今天在…」",
+  scanEngineLabel: "台湾華語(zh-TW / 繁体字 / 注音)",
+  scanScriptRule:
+    "台湾教育部準拠の正式な繁体字を使用。大陸簡体字・大陸独自語彙は禁止(例: 出租车✗ → 計程車○)。",
+  scanReadingRule:
+    "各項目に zhuyin(注音)・pinyin・meaning_ja(日本語訳)・pos(名詞/動詞など日本語)を必ず埋める。",
+  scanSample:
+    '      "headword": "繁体字",\n' +
+    '      "zhuyin": "ㄇㄤˊ ㄍㄨㄛˇ",\n' +
+    '      "pinyin": "mángguǒ",\n' +
+    '      "meaning_ja": "マンゴー",',
+  partsLanguage: "台湾華語(繁体字/注音)",
+  partsRule: "台湾教育部準拠の正式な繁体字。TOCFL 1〜3レベル優先",
+  partsExample: "手→拇指/手掌/指甲/手腕",
+  partsSample: '"headword":"拇指","zhuyin":"ㄇㄨˇ ㄓˇ","pinyin":"mǔzhǐ","meaning_ja":"親指"',
+  quizWordLabel: "台湾華語の単語",
+};
 
 /**
  * 台湾華語(繁体字)。
@@ -304,6 +478,15 @@ export const ZH_TW_PROFILE: TargetProfile = {
   ],
   levels: TOCFL_SCALE,
   promptName: "台湾華語(繁体字)",
+  coach: ZH_TW_COACH,
+  wordbook: {
+    engineLabel: "台湾華語(zh-TW / 繁体字 / 注音)",
+    scriptLine: "台湾教育部準拠の繁体字で返す。簡体字で書かれていれば繁体字に直す。",
+    readingLine:
+      "注音・拼音・意味が**その頁に書かれていればそれを写す**。書かれていなければ、\n" +
+      "  その語の正しい読みと意味を補ってよい(読みと意味は補ってよい唯一の項目)。",
+    sample: '"headword":"繁体字","reading_zhuyin":"注音","pinyin":"拼音"',
+  },
   capture: {
     scriptRule: "台湾教育部準拠の正式な繁体字（中国大陸の簡体字は不可）",
     specificity: [
@@ -361,6 +544,13 @@ export const ZH_TW_PROFILE: TargetProfile = {
       "誤用しやすい語法の注意があれば1文追加",
     hasRadicals: true,
     pronunciationFocus: "この語の声調の型",
+    relatedExample: "珍珠奶茶 → 甜度・冰塊・吸管・手搖飲",
+    readingLookupRule:
+      "台湾（教育部）の標準の読みを答えてください。reading は注音（声調記号つき、音節ごとに半角スペース区切り）、reading_alt は拼音（声調記号つき）。",
+    exampleLocalTopics:
+      "台湾の芸能人・歌手・スポーツ選手・歴史上の人物、台湾の文化・習慣・食べ物・街",
+    exampleLocalPreference: "使うなら台湾のものを優先する。",
+    taiwanTermCheck: true,
   },
   // S(主語)/V(動詞)/O(目的語)/M(修飾・量詞)/C(接続・介詞)/Ptc(助詞)
   chunkRoles: ["S", "V", "O", "M", "C", "Ptc"],
@@ -381,6 +571,11 @@ export const ZH_TW_PROFILE: TargetProfile = {
       "Vp(変化動詞)/Vpt/Vp-sep/Adv(副詞)/Conj(接続詞)/Prep(介詞)/M(量詞)/Ptc(助詞)/Det(限定詞)。" +
       "**文を構成する全パーツに付ける**(助詞の「的」「了」「嗎」、副詞の「很」「已經」、" +
       "限定詞の「這」も省かない)。役割記号(S/O/C/P)は使わない。",
+    formulaExample:
+      "見面 → 跟＋朋友＋見面、吵架 → 跟＋男朋友＋吵架 / 動不動就＋吵架、牽 → 牽著＋他＋的手、珍珠奶茶 → 點＋一杯＋珍珠奶茶 / 珍珠奶茶＋半糖少冰",
+    formulaGrammar:
+      "形容詞（状態動詞）を述語にするときは、裸で置かず程度副詞（很・超・好・太 など）を必ず入れる" +
+      "（✗ 滷味＋入味 → ○ 滷味＋很＋入味、✗ 珍珠奶茶＋好喝 → ○ 珍珠奶茶＋超＋好喝）。",
   },
   headwordOk: (raw) => {
     const s = core(raw);
@@ -434,6 +629,19 @@ export const EN_PROFILE: TargetProfile = {
   levels: CEFR_SCALE,
   // オーナー決定 2026-08-24「アメリカ英語を既定」。生成にもそう言う。
   promptName: "英語(アメリカ英語)",
+  // 英語向けの話す練習・日記の文はまだ無い。**今回は台湾華語の文のまま**にして
+  // 振る舞いを変えない(英語の人に「繁体字で」と頼んでいるのは前からの課題)。
+  coach: ZH_TW_COACH,
+  // 単語帳はオーナー方針で学習言語に付いていく(2026-10-01)。
+  wordbook: {
+    engineLabel: "英語(アメリカ英語)",
+    scriptLine:
+      "アメリカ英語の綴りで返す(colour → color)。見出し語は原形(複数形・過去形にしない)。",
+    readingLine:
+      "意味が**その頁に書かれていればそれを写す**。書かれていなければ、その語の正しい意味を補ってよい。\n" +
+      "  英語に注音・拼音は無いので reading_zhuyin と pinyin は空文字。",
+    sample: '"headword":"English word","reading_zhuyin":"","pinyin":""',
+  },
   capture: {
     scriptRule: "アメリカ英語の綴り（color / center。イギリス式の綴りは使わない）",
     specificity: [
@@ -511,6 +719,13 @@ export const EN_PROFILE: TargetProfile = {
       "**台湾の話は書かない**",
     hasRadicals: false,
     pronunciationFocus: "この語のどの音節を強く読むか",
+    relatedExample: "bubble tea → sweetness level, ice, straw",
+    readingLookupRule:
+      "reading はアメリカ英語の IPA、reading_alt はイギリス英語の IPA（どちらも / / なし）。",
+    exampleLocalTopics: "英語圏と世界で広く知られた人物・作品・スポーツ・文化・習慣",
+    exampleLocalPreference: "",
+    // 本来は要らない問い(英語の語に「台湾の標準か」を聞いている)。今回は振る舞いを変えない。
+    taiwanTermCheck: true,
   },
   // S/V/O/Adv(副詞)/Prep(前置詞)/Det(冠詞・限定詞)
   chunkRoles: ["S", "V", "O", "Adv", "Prep", "Det"],
@@ -527,6 +742,10 @@ export const EN_PROFILE: TargetProfile = {
       "pos は英語の品詞の記号を使う: n(名詞)/v(動詞)/adj(形容詞)/adv(副詞)/" +
       "prep(前置詞)/det(冠詞・限定詞)/pron(代名詞)/conj(接続詞)/aux(助動詞)/part(不変化詞)。" +
       "**全パーツに付ける**(a / the / on も省かない)。役割記号(S/O/C/P)は使わない。",
+    formulaExample:
+      "meet → meet up with + a friend、argue → argue with + my boyfriend、hold → hold + his + hand",
+    formulaGrammar:
+      "冠詞・前置詞・語形変化を省かない（✗ argue with boyfriend → ○ argue with + my boyfriend）。",
   },
   headwordOk: (raw) => {
     const s = core(raw);
@@ -541,9 +760,229 @@ export const EN_PROFILE: TargetProfile = {
   },
 };
 
+/**
+ * 日本語(現代の標準語。東京式アクセント)。
+ *
+ * 2026-10-01 に足した。**iOS 版が先**に出すので、Web の選択肢
+ * (`WEB_TARGET_CHOICES`)にはまだ並べない。学ぶのは英語か繁體中文で読む人で、
+ * 解説は必ずその人の表示言語で書く(`explanationLanguageRule`)— 日本語を
+ * 学ぶ人に日本語の解説を渡しても読めない。
+ *
+ * ## 台湾華語・英語と項目が違う所 — 日本語の仕組みから来る物
+ * - `kanji_breakdown` **有り** … 語の中の漢字1字ずつの意味と音読み・訓読み。
+ *   日本語の漢字は1字に読みが複数あり、語ごとにどれを使うかが決まる
+ *   (生: 生活=せい / 生まれる=う / 生ビール=なま)。かなだけの語には無い
+ * - `pitch_accent` **有り** … 高低アクセント(東京式)。箸(ハ↘シ)と橋(ハシ↗)は
+ *   高さの型だけで別の語になる。英語の強勢・中国語の声調とも違う仕組み
+ * - `conjugation` **有り** … 動詞・い形容詞・な形容詞の活用(辞書形・ます形・
+ *   て形・ない形・た形)。名詞には無い
+ * - `politeness` **有り** … 敬語・丁寧さ。同じ意味でも相手で語が変わる
+ *   (食べる / 召し上がる / いただく)。日本語でいちばん「母語に無い」所
+ * - `counters` **有り** … 助数詞(一本・一枚・一匹)。台湾華語の量詞に似ているが別物
+ *   で、数との組み合わせで音が変わる(いっぽん・さんぼん・ろっぽん)
+ * - `word_origin` **有り** … 語種(和語・漢語・外来語)。硬さ・場面がこれでほぼ決まる
+ *   (宿屋 / 旅館 / ホテル)
+ * - `taiwan_note` / `culture_note` → `japan_note` … 日本ならではの一言
+ * - `measure_words` / `forms` / `stress` **無し**
+ */
+const JA_COACH: CoachPhrases = {
+  nativeTeacher: "日本語(現代の標準語)のネイティブ講師",
+  scaffoldTeacher: "日本語(現代の標準語)を教える、会話中心の授業の先生",
+  languageName: "日本語",
+  scriptName: "漢字かな交じり。常用漢字で書くのが普通の語は漢字、外来語はカタカナ",
+  feedbackPos: "S(主語)/O(目的語)/V(述語・動詞)/M(修飾)/Adv(副詞)/Ptc(助詞)/Aux(助動詞)",
+  wordOrderExamples:
+    "「日本語は S+O+V の順で、動詞が最後に来る」「場所の「で」・行き先の「に」のように、役割は語順ではなく助詞で決まる」",
+  collocationNote:
+    "一緒によく使う動詞・助詞の組み合わせ、定番チャンク(例:「リップクリームを塗る」「傘をさす」のように日本語で)",
+  scaffoldChunk: "動詞と助詞の組み合わせ(例「◯◯を塗る」「◯◯に乗る」)",
+  scaffoldPhraseExample: "(例「◯◯を使って…」)",
+  scaffoldGrammarExample: "(例「名詞+で+動詞(手段・場所)」)",
+  scaffoldPosRule:
+    "pos は日本語の品詞の\n" +
+    "    記号: S(主語) O(目的語) V(動詞・述語) N(名詞) M(修飾) Adv(副詞)\n" +
+    "    Ptc(助詞) Aux(助動詞) Conj(接続詞)。",
+  journalLanguage: "日本語(現代の標準語)",
+  journalNatives: "日本のネイティブ",
+  journalScript: "日本語(漢字かな交じり)",
+  journalOpener: "「今日は…で…」",
+  scanEngineLabel: "日本語(標準語 / 漢字かな交じり / ひらがなの読み)",
+  scanScriptRule:
+    "現代日本語の標準的な表記を使用(常用漢字で書くのが普通の語は漢字、外来語はカタカナ)。中国語の簡体字・繁体字の字形は禁止(例: 图书馆✗ 圖書館✗ → 図書館○)。",
+  scanReadingRule:
+    "各項目に zhuyin(この欄は**ひらがなの読み**)・pinyin(この欄は**ヘボン式ローマ字**)・meaning_ja(解説の言語での意味)・pos(名詞/動詞など日本語)を必ず埋める。",
+  scanSample:
+    '      "headword": "日本語の語",\n' +
+    '      "zhuyin": "まんごー",\n' +
+    '      "pinyin": "mangō",\n' +
+    '      "meaning_ja": "意味(解説の言語で)",',
+  partsLanguage: "日本語(漢字かな交じり/ひらがなの読み)",
+  partsRule: "現代日本語の標準的な表記(外来語はカタカナ)。JLPT N5〜N3 の語を優先",
+  partsExample: "手→親指/手のひら/爪/手首",
+  partsSample:
+    '"headword":"親指","zhuyin":"おやゆび","pinyin":"oyayubi","meaning_ja":"意味(解説の言語で)"',
+  quizWordLabel: "日本語の単語",
+};
+
+/** 日本語の文字(かな・漢字・長音符・々・〆・ヶ)だけでできているか。 */
+const JA_ONLY = /^[ぁ-ゟァ-ヺー・ヽヾ㐀-䶿一-鿿々〆ヶ]+$/;
+
+export const JA_PROFILE: TargetProfile = {
+  code: "ja",
+  speechLang: speechLangOf("ja"),
+  // `lang="ja"` を付ける。付けないと、繁體中文の画面では漢字が台湾の字形で出る
+  // (直・骨・角 の形が違う)。
+  scriptLang: "ja",
+  readings: ["kana", "romaji"],
+  sections: [
+    "meaning",
+    "web_images",
+    "example",
+    "examples_extra",
+    "usage_chunks",
+    "kanji_breakdown",
+    "conjugation",
+    "politeness",
+    "counters",
+    "related_words",
+    "pitch_accent",
+    "pronunciation_tips",
+    "word_origin",
+    "etymology",
+    "mnemonic",
+    "japan_note",
+    "real_usage",
+  ],
+  levels: JLPT_SCALE,
+  promptName: "日本語(現代の標準語)",
+  coach: JA_COACH,
+  wordbook: {
+    engineLabel: "日本語(漢字かな交じり / ひらがなの読み)",
+    scriptLine:
+      "現代日本語の標準的な表記で返す(外来語はカタカナ)。動詞・形容詞は辞書形で。中国語の字形で書かれていれば日本の字形に直す。",
+    readingLine:
+      "読み(ひらがな)・意味が**その頁に書かれていればそれを写す**。書かれていなければ、\n" +
+      "  その語の正しい読みと意味を補ってよい(読みと意味は補ってよい唯一の項目)。\n" +
+      "  reading_zhuyin の欄に**ひらがなの読み**、pinyin の欄に**ヘボン式ローマ字**を入れる。",
+    sample: '"headword":"日本語の語","reading_zhuyin":"ひらがなの読み","pinyin":"ヘボン式ローマ字"',
+  },
+  capture: {
+    scriptRule:
+      "現代日本語の標準的な表記（常用漢字で書くのが普通の語は漢字、ふだん仮名で書く語は仮名、外来語はカタカナ。" +
+      "中国語の簡体字・繁体字の字形は使わない — 例: 气・氣 ではなく 気、图书馆 ではなく 図書館）",
+    specificity: [
+      "**日常でその物を指すときの普通の名前**で呼ぶ(例: 「衣類」より「Tシャツ」、「飲料」より「お茶」)。",
+      "**店や献立で実際に使われる名前**まで細かく(例: 服なら「パーカー」「ワンピース」、料理なら「親子丼」「味噌汁」)。",
+      "**その道の人が使う正確な名前**まで細かく(例: 「ラグランスリーブ」「だし巻き卵」)。一般名詞は既に知っている。",
+    ],
+    distinctionExamples:
+      "お湯→「温めた水」/ 水→「冷たい・常温の水」(日本語では温度で語が分かれる)、" +
+      "着る→「シャツ・上着(上半身・全身)」/ 履く→「靴・ズボン・スカート(下半身)」/ かぶる→「帽子(頭)」のように、" +
+      "母語からの連想を外す必要があるとき",
+    defaultPos: "名詞",
+    phrasePos: "フレーズ",
+    jsonHeadwordHint: "日本語の語(漢字かな交じり)",
+    // **欄の名前は台湾華語のときのまま。** 中身を言語ごとに読み替える
+    // (`readings` の並び: 読み1=かな、読み2=ローマ字)。見本にも書いておかないと、
+    // AI は「注音」の欄に注音を入れようとする。
+    jsonReadingHint: '"reading_zhuyin":"ひらがなの読み","pinyin":"ヘボン式ローマ字"',
+    namingExamples:
+      "料理なら料理名（親子丼・味噌汁・たこ焼き）であって、材料名（鶏肉・米）ではない。\n" +
+      "  服なら形の名前（パーカー・ワンピース・カーディガン）であって、上位の分類（服・衣類）ではない。\n" +
+      "- **上位の分類語に逃げない。** 「服」「食べ物」「飲み物」「動物」は、\n" +
+      "  それ以上細かく呼べない写真のときだけ。",
+    commonFirstExamples:
+      "帽子・キャップ（トラッカーキャップは下に残す）、じゃがいも（メークインは品種名なので下に残す）、" +
+      "岩（〜岩のような固有名詞は下に残す）。ふだん口にしない硬い名前（馬鈴薯）は下に置く",
+    posRule:
+      "日本語の品詞で: 名詞/動詞/い形容詞/な形容詞/副詞/助詞/助動詞/接続詞/連体詞/感動詞/代名詞 のどれか。\n" +
+      "  動詞は活用の種類を括弧で添える(動詞(五段) / 動詞(一段) / 動詞(する) / 動詞(来る))。「する」が付いて動詞になる名詞は 名詞(する)。",
+    readingRule:
+      "- reading_zhuyin: **ひらがなの読み**(ふりがな。この欄の名前は古いが、日本語ではかなの読みを入れる)。\n" +
+      "  漢字を含む語はその語での正しい読みを全部ひらがなで(例: 今日 → きょう、生ビール → なまびーる)。\n" +
+      "  カタカナだけの語は見出し語と同じカタカナでよい。\n" +
+      "- pinyin: **ヘボン式ローマ字**(この欄も名前は古いが、日本語ではローマ字を入れる)。\n" +
+      "  長音はマクロンで書く(例: とうきょう → tōkyō、がっこう → gakkō、ラーメン → rāmen)。",
+    etymologyRule:
+      "語の成り立ち・由来(1〜2文)。和語なら古い形や元の意味(例: ありがとう ← 有り難し「めったにない」)、" +
+      "漢語なら漢字の組み合わせが表す意味、外来語ならどの言語のどの語から来たか(例: パン ← ポルトガル語 pão)。\n" +
+      "  **和語・漢語・外来語の分類そのものは word_origin の欄に書くので、ここでは由来の話を書く。**",
+    /**
+     * 日本語で「同じ由来」がいちばん効くのも、**同じ漢字を共有する語**。
+     * 「電」を覚えれば電車・電気・停電がまとめて読める(読みも同じ音読みになることが多い)。
+     */
+    relativesRule:
+      "同じ漢字を共有する**仲間の語を2〜4語**。\n" +
+      "  各 {word, note}。note はその漢字がその語で持つ意味を**5〜12字**で。\n" +
+      "  例: 電話 なら 電車(電気で走る車) / 電気(電の力) / 停電(電気が止まる)。\n" +
+      "  **その漢字が本当に同じ意味で働いているときだけ**並べる。\n" +
+      "  読みが同じだけの語・たまたま同じ字が入っているだけの語は入れない — 覚え違いの種になる。\n" +
+      "  かなだけの語(和語・外来語)で仲間が無ければ**空配列**。無理に埋めない。",
+    // 漢字1字ずつの意味と音訓は `kanji_breakdown` が持つ。ここで部首を語らせると
+    // 同じ話が2つの節に出る。
+    radicalsRule: "**空文字**(漢字1字ずつの意味と読みは kanji_breakdown の欄に書く)",
+    noteField: "japan_note",
+    // 街で日常的に見る語。読みはひらがな(既定の読み)とヘボン式。
+    quizFallbackHeadwords: ["りんご", "バス", "傘", "お弁当"],
+    quizFallbackReadings: {
+      りんご: { zhuyin: "りんご", pinyin: "ringo" },
+      バス: { zhuyin: "バス", pinyin: "basu" },
+      傘: { zhuyin: "かさ", pinyin: "kasa" },
+      お弁当: { zhuyin: "おべんとう", pinyin: "obentō" },
+    },
+    noteRule:
+      "日本ならではの一言雑学（文化・習慣・マナー・季節・地域差）を1〜2文。" +
+      "その語を日本で使うときに知っておくと役立つことを選ぶ(例: お弁当 → コンビニで「温めますか」と聞かれる)。" +
+      "誤用しやすい語法の注意があれば1文追加",
+    hasRadicals: false,
+    pronunciationFocus:
+      "この語の高低アクセントの型(東京式)と、長音・促音(っ)・撥音(ん)を1拍として保つこと",
+    relatedExample: "お弁当 → お箸・電子レンジ・コンビニ・おにぎり",
+    readingLookupRule:
+      "日本語(東京の標準語)の読みを答えてください。reading はひらがなの読み(カタカナ語はカタカナのまま)、reading_alt はヘボン式ローマ字(長音はマクロン: tōkyō)。",
+    exampleLocalTopics:
+      "日本の芸能人・歌手・スポーツ選手・歴史上の人物、アニメ・漫画・ゲーム、日本の文化・習慣・食べ物・季節の行事・街",
+    exampleLocalPreference: "使うなら日本のものを優先する。",
+    taiwanTermCheck: false,
+  },
+  // S(主語)/O(目的語)/V(述語)/M(修飾)/Ptc(助詞)/Aux(助動詞)
+  chunkRoles: ["S", "O", "V", "M", "Ptc", "Aux"],
+  chunkPrompt: {
+    // かな・漢字・カタカナを1字と数える。カタカナ語が長いので台湾華語(8)より広い。
+    lengthRule:
+      "型1つは12文字以内・パーツ4つ以内(かな・漢字・カタカナを1字と数える)。超えるものは型ではなく例文。" +
+      "**句点・感嘆符・疑問符を入れない** — 文ではなく、そのまま口に乗せる塊。",
+    styleRule:
+      "**助詞(を・に・で・が・へ・と)を型の中に必ず入れる** — どの助詞を取るかが学習者のいちばん崩れる所で、" +
+      "型の中身そのもの(例: 傘をさす / 電車に乗る / 風邪をひく)。\n" +
+      "動詞は辞書形で置く(ます形にしない)。名詞+助詞+動詞だけに寄せず、形容詞+名詞・副詞+動詞・決まり文句の型も" +
+      "**頻度が高ければ**入れる。**助数詞(一本・一枚)だけの型は作らない** — 助数詞は別の欄で読む。",
+    posRule:
+      "pos は日本語の品詞の記号を使う: N(名詞)/V(動詞)/Adj-i(い形容詞)/Adj-na(な形容詞)/Adv(副詞)/" +
+      "Ptc(助詞)/Aux(助動詞)/Cop(だ・です)/Pron(代名詞)/Det(連体詞: この・その)/Conj(接続詞)/Ctr(助数詞)。" +
+      "**全パーツに付ける**(助詞の「を」「に」「が」も省かない)。役割記号(S/O/C/P)は使わない。",
+    formulaExample:
+      "会う → 友達＋に＋会う、けんか → 彼氏＋と＋けんかする、傘 → 傘＋を＋さす、お茶 → お茶＋を＋入れる / 冷たい＋お茶",
+    formulaGrammar:
+      "助詞を省かない（✗ 傘＋さす → ○ 傘＋を＋さす）。動詞は辞書形、形容詞は名詞の前に置く形で書く（✗ 彼氏けんか → ○ 彼氏＋と＋けんかする）。",
+  },
+  headwordOk: (raw) => {
+    // 「Tシャツ」「Eメール」「Uターン」のように**頭に大文字1〜2字+カタカナ**の
+    // 語は日本語として普通に使う。そこだけは欧文を許し、ほかは落とす
+    // (「pencil」「シャーペンpen」を日本語の見出し語にしない)。
+    const s = core(raw).replace(/^[A-ZＡ-Ｚ]{1,2}(?=[ァ-ヺー])/, "");
+    if (!s) return false;
+    if (NON_CJK_LETTER.test(s)) return false;
+    // 日本語の文字だけでできていること。数字・ハングル・注音(ㄅㄆㄇ)は通さない。
+    if (!JA_ONLY.test(s)) return false;
+    return KANA.test(s) || HAN.test(s);
+  },
+};
+
 const PROFILES: Record<string, TargetProfile> = {
   [ZH_TW_PROFILE.code]: ZH_TW_PROFILE,
   [EN_PROFILE.code]: EN_PROFILE,
+  [JA_PROFILE.code]: JA_PROFILE,
 };
 
 /**
@@ -584,6 +1023,8 @@ const READING_PROMPT_NAMES: Record<ReadingKind, string> = {
   pinyin: "拼音",
   "ipa-us": "IPA(アメリカ英語)",
   "ipa-uk": "IPA(イギリス英語)",
+  kana: "ひらがなの読み",
+  romaji: "ヘボン式ローマ字",
 };
 
 /**

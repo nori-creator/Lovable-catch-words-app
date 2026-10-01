@@ -30,8 +30,23 @@ export const MAX_ENTRIES_PER_PHOTO = 60;
 /** 単語帳の名前の長さの上限。 */
 export const MAX_TITLE_CHARS = 40;
 
+import { isTargetHeadword } from "./target-language";
+
 /** 漢字が1文字も無い行は語ではない(ページ番号・記号・欧文の見出し)。 */
 const HAS_HAN = /[㐀-䶿一-鿿]/;
+
+/**
+ * その行を語として通すか。
+ *
+ * 台湾華語(と、学習言語を渡さない古い呼び出し)は**いままでどおり漢字の有無**で見る。
+ * 英語・日本語の単語帳(2026-10-01、単語帳も学習言語に付いていくようにした)は、
+ * その言語の見出し語の規則で見る — 「漢字が無い」で落とすと、英単語も
+ * 「りんご」「バス」も1つも入らない。
+ */
+function isEntryWord(headword: string, language?: string | null): boolean {
+  if (!language || language.startsWith("zh")) return HAS_HAN.test(headword);
+  return isTargetHeadword(headword, language);
+}
 
 function trim(s: string | null | undefined): string {
   return (s ?? "").replace(/\s+/g, " ").trim();
@@ -55,11 +70,13 @@ function clean(s: string | null | undefined): string | null {
 export function cleanWordbookEntries(
   raw: readonly WordbookEntryDraft[] | null | undefined,
   max: number = MAX_ENTRIES_PER_PHOTO,
+  /** 学習言語。渡さなければ台湾華語の規則(漢字を含む行だけ)。 */
+  language?: string | null,
 ): WordbookEntryDraft[] {
   const byHead = new Map<string, WordbookEntryDraft>();
   for (const r of raw ?? []) {
     const headword = trim(r?.headword);
-    if (!headword || !HAS_HAN.test(headword)) continue;
+    if (!headword || !isEntryWord(headword, language)) continue;
     const existing = byHead.get(headword);
     if (existing) {
       existing.reading_zhuyin = existing.reading_zhuyin ?? clean(r.reading_zhuyin);

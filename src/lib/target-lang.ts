@@ -38,8 +38,37 @@
  * 読み上げの言語が、**全部この値から引かれる**。
  * `if (lang === …)` を書き足す形にしなかったのはそのため。
  */
-export const TARGET_LANGUAGES = ["zh-TW", "en"] as const;
+export const TARGET_LANGUAGES = ["zh-TW", "en", "ja"] as const;
 export type TargetLanguage = (typeof TARGET_LANGUAGES)[number];
+
+/**
+ * **Web の画面で選べる**学習言語。
+ *
+ * 2026-10-01 に日本語(`"ja"`)をサーバ側の学習言語に足した。iOS 版が先に
+ * 出すので、Web の選択肢にはまだ並べない(オーナー方針「iOS が先」)。
+ * サーバ関数・カード生成・読み上げは `TARGET_LANGUAGES` を回すので
+ * 日本語でも動く — 隠すのは**選ぶ入口だけ**。
+ *
+ * `TARGET_LANGUAGES` を画面で直に回すと、ここに足した日に Web の設定にも
+ * 「日本語」が出てしまう。選ぶ入口はこちらを回すこと。
+ */
+export const WEB_TARGET_CHOICES = ["zh-TW", "en"] as const satisfies readonly TargetLanguage[];
+
+/**
+ * Web の選択肢に並べる学習言語。**いま選ばれている値は必ず残す。**
+ *
+ * iOS 版で日本語を選んだ人が Web の設定を開くと、`WEB_TARGET_CHOICES` だけでは
+ * 選択が空に見え、別の項目を保存した拍子に学習言語まで書き換わりかねない。
+ * 選べる入口は増やさず、その人の今の値だけは見える形で並べる。
+ */
+export function webTargetChoices(current?: string | null): TargetLanguage[] {
+  const list: TargetLanguage[] = [...WEB_TARGET_CHOICES];
+  const v = (current ?? "").trim();
+  if ((TARGET_LANGUAGES as readonly string[]).includes(v) && !list.includes(v as TargetLanguage)) {
+    list.push(v as TargetLanguage);
+  }
+  return list;
+}
 
 /** 既定の学習言語。 */
 export const DEFAULT_TARGET_LANGUAGE: TargetLanguage = "zh-TW";
@@ -66,6 +95,9 @@ export function speechLangOf(target: string = DEFAULT_TARGET_LANGUAGE): string {
   const SPEECH: Record<TargetLanguage, string> = {
     "zh-TW": DEFAULT_TARGET_LANGUAGE,
     en: "en-US",
+    // 地域まで付ける。`ja` だけでも日本の声になる端末が多いが、
+    // 英語で起きた「地域を端末任せにする」穴を最初から塞いでおく。
+    ja: "ja-JP",
   };
   return SPEECH[normalizeTargetLanguage(target)];
 }
@@ -83,6 +115,7 @@ export function sttLangOf(target: string = DEFAULT_TARGET_LANGUAGE): string {
   const STT: Record<TargetLanguage, string> = {
     "zh-TW": "cmn-Hant-TW",
     en: "en-US",
+    ja: "ja-JP",
   };
   return STT[normalizeTargetLanguage(target)];
 }

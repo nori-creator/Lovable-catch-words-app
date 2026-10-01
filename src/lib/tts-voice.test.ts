@@ -49,7 +49,8 @@ describe("ttsVoiceFor", () => {
   });
 
   it("知らない値は既定に落とす(未知のコードを合成に渡さない)", () => {
-    for (const bad of [null, undefined, "", "  ", "kl-GL", "ja"]) {
+    // `"ja"` は 2026-10-01 から学習言語なので、知らない値の例は `"ko"` にした。
+    for (const bad of [null, undefined, "", "  ", "kl-GL", "ko"]) {
       expect(ttsVoiceFor(bad), String(bad)).toEqual(ttsVoiceFor(DEFAULT_TARGET_LANGUAGE));
     }
   });
