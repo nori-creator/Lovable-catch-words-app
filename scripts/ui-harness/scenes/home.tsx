@@ -21,15 +21,12 @@ import {
   dayTagline,
   HomeEmptyState,
   HomeLoading,
-  JournalLink,
   PastDays,
   PendingCapturesCard,
   DayCollage,
   MemorialAlbum,
   MemorialEntry,
 } from "@/routes/_authenticated/home";
-import { JournalWritingPage } from "@/components/JournalWritingPage";
-import { JournalComposer } from "@/components/JournalComposer";
 import { groupBySpan, type AlbumSpan } from "@/lib/album-span";
 import type { StickerWithWord } from "@/lib/stickers.functions";
 import type { PendingCapture } from "@/lib/offline-queue";
@@ -258,30 +255,6 @@ export function HomePendingScene({ q }: { q: URLSearchParams }) {
       onDiscard={() => {}}
       onCancelDiscard={() => {}}
     />
-  );
-}
-
-/**
- * 日記を**書く**ときの見開き(オーナー指摘)。
- *
- * 左(上)に今日の写真、右(下)に書く紙。読む側の `DayJournalPage` と
- * **同じ紙・同じ綴じ目**になっているかは、並べた絵でしか分からない。
- * `JournalComposer` は問い合わせが空のまま描かれる — それでも
- * 「白紙・足場・ボタン」の配置は本物と同じ。
- */
-export function HomeWritingScene() {
-  return (
-    <>
-      <DayCollage
-        stickers={today}
-        opening
-        onOpen={() => {}}
-        heading={<DiaryDate date={new Date()} />}
-      />
-      <JournalWritingPage onClose={() => {}}>
-        <JournalComposer showHeading={false} />
-      </JournalWritingPage>
-    </>
   );
 }
 

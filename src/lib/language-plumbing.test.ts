@@ -1289,15 +1289,6 @@ describe("鳴らす道は1本だけ", () => {
     expect(src).toMatch(/const pronounceLang = card\.language \?\? undefined;/);
     expect(src).not.toMatch(/usePronounce\(\)/);
   });
-
-  it("単語帳も同じ部品・同じ言語", () => {
-    const card = codeOnly(read("components/WordbookReviewCard.tsx"));
-    expect(card).toMatch(/<PronounceButton/);
-    expect(card).not.toMatch(/onSpeak/);
-    const page = codeOnly(read("routes/_authenticated/wordbooks.tsx"));
-    expect(page).toMatch(/language=\{targetLanguage\}/);
-    expect(page).not.toMatch(/usePronounce\(\)/);
-  });
 });
 
 describe("2026-08-26 の2度目の報告", () => {
@@ -1740,8 +1731,8 @@ describe("2026-08-26（7件目）: 文字検索・言語の切り替え・記憶
   it("**学習言語を切り替えたら一覧を読み直す**", () => {
     const src = codeOnly(read("lib/use-language-prefs.ts"));
     expect(src).toMatch(/export function useRefreshOnTargetLanguage\(\)/);
-    // 図鑑・アルバム・復習・記憶・単語帳が入っていること。
-    for (const key of ["stickers", "reviews-due", "memory-overview", "wordbooks"]) {
+    // 図鑑・アルバム・復習・記憶が入っていること（単語帳は 2026-10-01 に消した）。
+    for (const key of ["stickers", "reviews-due", "memory-overview"]) {
       expect(src, key).toContain(`"${key}"`);
     }
     // 呼ばれていること（作っただけ、を防ぐ）。
@@ -2316,8 +2307,6 @@ describe("独自ドメインへ移れる形になっているか", () => {
     "routes/terms.tsx",
     "routes/privacy.tsx",
     "routes/sitemap[.]xml.ts",
-    "routes/_authenticated/u.$userId.tsx",
-    "routes/_authenticated/post.$postId.tsx",
   ];
 
   it("**画面のコードにドメインを直接書かない**（移った日に取り残しが出る）", () => {
@@ -3121,8 +3110,6 @@ describe("キャッチの報酬演出", () => {
       "components/DexShelf.tsx",
       "components/SectionsPanel.tsx",
       "routes/_authenticated/scan.tsx",
-      "routes/_authenticated/feed.tsx",
-      "routes/_authenticated/post.$postId.tsx",
     ];
     const stray: string[] = [];
     for (const f of files) {
@@ -4028,11 +4015,7 @@ describe("N. 下のタブ帯と、札を開く動き", () => {
     expect(btn).toMatch(/const skin = `speak-button/);
     expect(btn).not.toMatch(/bg-secondary text-primary/);
     expect(btn).not.toMatch(/bg-primary\/12/);
-    for (const f of [
-      "components/JournalScaffold.tsx",
-      "components/InputCatchSheet.tsx",
-      "routes/_authenticated/scan.tsx",
-    ]) {
+    for (const f of ["components/InputCatchSheet.tsx", "routes/_authenticated/scan.tsx"]) {
       expect(codeOnly(read(f))).toMatch(/speak-button/);
     }
     const rv = codeOnly(read("routes/_authenticated/review.tsx"));
@@ -4845,8 +4828,6 @@ describe("ホームは今日の誌面", () => {
     expect(home).not.toMatch(/<DayJournalPage/);
     expect(home).not.toMatch(/listJournal/);
     expect(home).not.toMatch(/journals\?\.get\(/);
-    // 日記そのものは消していない（書く画面と読む部品は残る）。
-    expect(read("components/DayJournalPage.tsx")).toMatch(/export function DayJournalPage\(/);
   });
 
   it("**字だけの札も、押せる大きさ**（§11 の 44px）", () => {
@@ -4909,7 +4890,7 @@ describe("ホームは今日の誌面", () => {
     expect(home).toMatch(/\{heading && <div className="album-date">\{heading\}<\/div>\}/);
     const diary = home.slice(
       home.indexOf("export function DiaryDate("),
-      home.indexOf("export function JournalLink("),
+      home.indexOf("export function PastDays("),
     );
     // 手書きの書体・明朝・波線（svg）は使わない。
     expect(diary).not.toMatch(/handwritten/);

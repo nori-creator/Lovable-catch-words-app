@@ -558,16 +558,6 @@ export const DICT: Record<string, Record<UiLang, string>> = {
   "first.ready": { ja: "保存できました", en: "Saved", "zh-TW": "已儲存" },
 
   // --- 動的ページタイトル ---
-  "page.post": {
-    ja: "投稿 {id} — CatchWords",
-    en: "Post {id} — CatchWords",
-    "zh-TW": "貼文 {id} — CatchWords",
-  },
-  "page.userProfile": {
-    ja: "ユーザー {id} のプロフィール — CatchWords",
-    en: "{id}'s profile — CatchWords",
-    "zh-TW": "{id} 的個人檔案 — CatchWords",
-  },
   "page.cardDetail": {
     ja: "カード {id} — CatchWords",
     en: "Card {id} — CatchWords",
@@ -653,31 +643,6 @@ export const DICT: Record<string, Record<UiLang, string>> = {
     en: "Settings — CatchWords",
     "zh-TW": "設定 — CatchWords",
   },
-  "page.feed": {
-    ja: "フィード — CatchWords",
-    en: "Feed — CatchWords",
-    "zh-TW": "動態 — CatchWords",
-  },
-  "page.notifications": {
-    ja: "通知 — CatchWords",
-    en: "Notifications — CatchWords",
-    "zh-TW": "通知 — CatchWords",
-  },
-  "page.discover": {
-    ja: "発見 — CatchWords",
-    en: "Discover — CatchWords",
-    "zh-TW": "探索 — CatchWords",
-  },
-  "page.journal": {
-    ja: "日記 — CatchWords",
-    en: "Journal — CatchWords",
-    "zh-TW": "日記 — CatchWords",
-  },
-  "page.wordbooks": {
-    ja: "単語帳 — CatchWords",
-    en: "Wordbooks — CatchWords",
-    "zh-TW": "單字本 — CatchWords",
-  },
   "page.onboarding": {
     ja: "ようこそ — CatchWords",
     en: "Welcome — CatchWords",
@@ -711,23 +676,6 @@ export const DICT: Record<string, Record<UiLang, string>> = {
     "zh-TW": "不方便出聲時用的四選一模式",
   },
   // --- 日記の足場(要望 #88) ---
-  "jr.scaffoldTitle": {
-    ja: "今日撮ったものから",
-    en: "From what you caught today",
-    "zh-TW": "從你今天拍到的東西",
-  },
-  "jr.aboutCapture": { ja: "「{w}」のこと", en: "about “{w}”", "zh-TW": "關於「{w}」" },
-  "jr.useThese": { ja: "この型が使えます", en: "Patterns you can use", "zh-TW": "可以用這些句型" },
-  "jr.tapToInsert": {
-    ja: "押すと下に入ります",
-    en: "Tap to drop it into your draft",
-    "zh-TW": "點一下就會加到下面",
-  },
-  "jr.noCaptures": {
-    ja: "今日はまだ何も撮っていないので、質問は出せません。1つ撮ると、その物のことを聞きます。",
-    en: "Nothing caught today yet, so there are no questions. Catch one and they'll be about it.",
-    "zh-TW": "今天還沒拍任何東西，所以出不了題目。拍一個，題目就會跟它有關。",
-  },
   "rv.autoMode": {
     ja: "AI が記憶の段階を見て、出題の形を選びます",
     en: "AI reads how well you remember and picks the task format",
@@ -756,113 +704,6 @@ export const DICT: Record<string, Record<UiLang, string>> = {
     "zh-TW": "已經連續複習 {n} 天",
   },
   // --- 単語帳の取り込み(src/lib/wordbook.ts) ---
-  "wb.title": { ja: "単語帳", en: "Wordbooks", "zh-TW": "單字本" },
-  "wb.shootBook": { ja: "単語帳を撮る", en: "Photograph a wordbook", "zh-TW": "拍單字本" },
-  "wb.shootHint": {
-    ja: "単語が並んだページを、まっすぐ明るい所で撮ってください。並んでいる語をまとめて取り込みます。",
-    en: "Shoot a page of listed words, straight on and well lit. Every word on it comes in at once.",
-    "zh-TW": "請在光線充足的地方，正面拍下排列著單字的那一頁。上面的單字會一次全部匯入。",
-  },
-  "wb.reading": { ja: "読み取っています…", en: "Reading the page…", "zh-TW": "正在讀取這一頁…" },
-  "wb.extractFailed": {
-    ja: "読み取れませんでした",
-    en: "Couldn't read that page",
-    "zh-TW": "讀不出這一頁",
-  },
-  "wb.confirmTitle": {
-    ja: "この語で合っていますか",
-    en: "Do these look right?",
-    "zh-TW": "這些字對嗎",
-  },
-  "wb.confirmHint": {
-    ja: "違う語が混ざっていたら、右の×で外してください。外した語は入りません。",
-    en: "Drop anything that came out wrong with the × — dropped words are not saved.",
-    "zh-TW": "有認錯的字，就用右邊的 × 移除。移除的字不會存進來。",
-  },
-  "wb.bookTitle": { ja: "単語帳の名前", en: "Wordbook name", "zh-TW": "單字本名稱" },
-  "wb.bookTitlePlaceholder": {
-    ja: "例: TOCFL 2級 第3課",
-    en: "e.g. TOCFL 2, unit 3",
-    "zh-TW": "例：TOCFL 2級 第3課",
-  },
-  "wb.dropWord": { ja: "「{word}」を外す", en: "Drop “{word}”", "zh-TW": "移除「{word}」" },
-  "wb.saveN": { ja: "{n}語を取り込む", en: "Import {n} words", "zh-TW": "匯入 {n} 個單字" },
-  "wb.saved": {
-    ja: "{n}語を取り込みました",
-    en: "Imported {n} words",
-    "zh-TW": "已匯入 {n} 個單字",
-  },
-  "wb.saveFailed": { ja: "取り込めませんでした", en: "Couldn't import those", "zh-TW": "匯入失敗" },
-  "wb.emptyTitle": {
-    ja: "まだ単語帳がありません",
-    en: "No wordbooks yet",
-    "zh-TW": "還沒有單字本",
-  },
-  "wb.emptyBody": {
-    ja: "教科書や自作のリストを撮ると、そこに並ぶ語をまとめて取り込んで、図鑑とは別に復習できます。",
-    en: "Photograph a textbook page or your own list to bring every word in at once and review it apart from your dex.",
-    "zh-TW": "拍下課本的一頁或自己整理的清單，上面的字會一次全部匯入，可以跟圖鑑分開複習。",
-  },
-  "wb.whatShelf": { ja: "単語帳の一覧", en: "your wordbooks", "zh-TW": "單字本清單" },
-  "wb.whatDue": { ja: "今日の出題", en: "today's questions", "zh-TW": "今天的題目" },
-  "wb.dueN": { ja: "今日 {n}語", en: "{n} due today", "zh-TW": "今天 {n} 個" },
-  "wb.doneForToday": { ja: "今日はおしまい", en: "Done for today", "zh-TW": "今天到這裡" },
-  "wb.learnedOf": {
-    ja: "覚えた {n}／{total}",
-    en: "{n} of {total} learned",
-    "zh-TW": "記住 {n}／{total}",
-  },
-  "wb.review": {
-    ja: "この単語帳を復習する",
-    en: "Review this wordbook",
-    "zh-TW": "複習這本單字本",
-  },
-  "wb.delete": { ja: "「{title}」を消す", en: "Delete “{title}”", "zh-TW": "刪除「{title}」" },
-  "wb.confirmDelete": {
-    ja: "「{title}」を語ごと消します。戻せません。",
-    en: "Delete “{title}” and every word in it. This can't be undone.",
-    "zh-TW": "將連同裡面的單字一起刪除「{title}」，無法復原。",
-  },
-  "wb.deleteFailed": { ja: "消せませんでした", en: "Couldn't delete it", "zh-TW": "刪除失敗" },
-  "wb.reviewTitle": { ja: "単語帳の復習", en: "Wordbook review", "zh-TW": "單字本複習" },
-  "wb.backToShelf": { ja: "単語帳の一覧へ", en: "Back to wordbooks", "zh-TW": "回到單字本清單" },
-  "wb.pickTheWord": {
-    ja: "この意味の語はどれ",
-    en: "Which word means this",
-    "zh-TW": "哪一個字是這個意思",
-  },
-  "wb.noMeaning": {
-    ja: "（意味が読み取れていません）",
-    en: "(no meaning was read)",
-    "zh-TW": "（沒有讀到意思）",
-  },
-  "wb.progress": { ja: "{done}／{total}", en: "{done}/{total}", "zh-TW": "{done}／{total}" },
-  "wb.finished": {
-    ja: "この本の今日ぶんは終わりです",
-    en: "That's today's batch",
-    "zh-TW": "這本今天的份結束了",
-  },
-  "wb.score": {
-    ja: "{correct}／{total} 正解",
-    en: "{correct} of {total} right",
-    "zh-TW": "答對 {correct}／{total}",
-  },
-  "wb.gradeFailed": {
-    ja: "採点を送れませんでした。この語はまた出ます。",
-    en: "Couldn't record that answer — the word will come round again.",
-    "zh-TW": "無法送出這次的結果，這個字之後還會再出現。",
-  },
-  "wb.allDoneTitle": {
-    ja: "今日出す語はありません",
-    en: "Nothing due today",
-    "zh-TW": "今天沒有要出的字",
-  },
-  "wb.allDoneBody": {
-    ja: "この本の語は、次に出る日まで休みます。ほかの本を選ぶか、新しく取り込んでください。",
-    en: "This book rests until its words come due. Pick another book, or import a new one.",
-    "zh-TW": "這本的字要等到下次到期。可以換一本，或匯入新的。",
-  },
-  "wb.openShelf": { ja: "単語帳で復習する", en: "Review a wordbook", "zh-TW": "用單字本複習" },
   // --- TOCFL の段々(src/lib/tocfl.ts) ---
   "tocfl.title": { ja: "TOCFL", en: "TOCFL", "zh-TW": "TOCFL" },
   "tocfl.level": { ja: "{n}級", en: "Level {n}", "zh-TW": "{n}級" },
@@ -1687,32 +1528,6 @@ export const DICT: Record<string, Record<UiLang, string>> = {
   "pron.pressAfter": { ja: "」と言ってみてください", en: "”", "zh-TW": "」看看" },
   "pron.score": { ja: "スコア", en: "Score", "zh-TW": "分數" },
   // --- フィード・ホーム・プロフィール・オンボーディング・再設定・ルート ---
-  "feed.title": { ja: "フィード", en: "Feed", "zh-TW": "動態" },
-  "feed.following": { ja: "フォロー中", en: "Following", "zh-TW": "追蹤中" },
-  "feed.popular": { ja: "人気", en: "Popular", "zh-TW": "熱門" },
-  "feed.emptyFollowing": { ja: "まだ投稿がありません", en: "No posts yet", "zh-TW": "還沒有貼文" },
-  "feed.emptyPopular": {
-    ja: "人気の投稿はまだありません",
-    en: "No popular posts yet",
-    "zh-TW": "還沒有熱門貼文",
-  },
-  "feed.hintFollowing": {
-    ja: "誰かをフォローするか、自分のカードをシェアしてみましょう。",
-    en: "Follow someone, or share one of your own cards.",
-    "zh-TW": "追蹤某個人，或分享自己的字卡看看。",
-  },
-  "feed.hintPopular": {
-    ja: "最初の投稿者になろう！",
-    en: "Be the first to post!",
-    "zh-TW": "當第一個發文的人吧！",
-  },
-  "feed.postFromDex": { ja: "図鑑から投稿", en: "Post from your dex", "zh-TW": "從圖鑑發文" },
-  "feed.like": { ja: "いいね", en: "Like", "zh-TW": "喜歡" },
-  "feed.likeFailed": {
-    ja: "いいねできませんでした。もう一度お試しください。",
-    en: "Couldn't update your like. Please try again.",
-    "zh-TW": "無法按喜歡，請再試一次。",
-  },
   "home.waitingPhoto": {
     ja: "解析待ちの写真",
     en: "Photo waiting to be analyzed",
@@ -1723,28 +1538,6 @@ export const DICT: Record<string, Record<UiLang, string>> = {
   "home.bgNotebook": { ja: "ノート", en: "Notebook", "zh-TW": "筆記本" },
   "home.bgCork": { ja: "コルクと画鋲", en: "Corkboard", "zh-TW": "軟木板與圖釘" },
   "home.bgWall": { ja: "壁", en: "Wall", "zh-TW": "牆面" },
-  "user.profile": { ja: "プロフィール", en: "Profile", "zh-TW": "個人檔案" },
-  "user.loading": { ja: "読み込み中…", en: "Loading…", "zh-TW": "載入中…" },
-  "user.loadFailed": {
-    ja: "プロフィールを読み込めませんでした",
-    en: "Couldn't load this profile",
-    "zh-TW": "無法載入個人檔案",
-  },
-  "user.since": { ja: "{date} から", en: "since {date}", "zh-TW": "從 {date} 開始" },
-  "user.avatarOf": { ja: "{name}のアバター", en: "{name}'s avatar", "zh-TW": "{name} 的頭像" },
-  "user.statDex": { ja: "図鑑", en: "Dex", "zh-TW": "圖鑑" },
-  "user.statPosts": { ja: "投稿", en: "Posts", "zh-TW": "貼文" },
-  "user.statFollowers": { ja: "フォロワー", en: "Followers", "zh-TW": "粉絲" },
-  "user.statFollowing": { ja: "フォロー中", en: "Following", "zh-TW": "追蹤中" },
-  "user.editProfile": { ja: "プロフィールを編集", en: "Edit profile", "zh-TW": "編輯個人檔案" },
-  "user.follow": { ja: "フォローする", en: "Follow", "zh-TW": "追蹤" },
-  "user.recentCatches": { ja: "最近のキャッチ", en: "Recent catches", "zh-TW": "最近的捕捉" },
-  "user.noCatches": {
-    ja: "まだキャッチがありません",
-    en: "No catches yet",
-    "zh-TW": "還沒有捕捉紀錄",
-  },
-  "user.someone": { ja: "ユーザー", en: "User", "zh-TW": "使用者" },
   "err.failed": { ja: "失敗しました", en: "Something went wrong", "zh-TW": "失敗了" },
   // ログイン・新規登録・パスワード再設定の失敗（`errors.ts` の `authErrorText`）。
   "autherr.invalidCredentials": {
@@ -1928,92 +1721,7 @@ export const DICT: Record<string, Record<UiLang, string>> = {
   },
   "root.errorDetail": { ja: "エラーの内容", en: "Error details", "zh-TW": "錯誤內容" },
   // --- 発見・投稿・日記 ---
-  "discover.title": { ja: "発見", en: "Discover", "zh-TW": "探索" },
-  "discover.search": {
-    ja: "ユーザー名 / 単語 / 意味で検索",
-    en: "Search users, words or meanings",
-    "zh-TW": "用使用者名稱／單字／意思搜尋",
-  },
-  "discover.ranking": { ja: "ランキング", en: "Leaderboard", "zh-TW": "排行榜" },
-  "discover.rankingEmpty": {
-    ja: "まだランキングデータがありません。",
-    en: "No leaderboard data yet.",
-    "zh-TW": "還沒有排行榜資料。",
-  },
-  "discover.stats": {
-    ja: "{words} 単語 · {posts} 投稿",
-    en: "{words} words · {posts} posts",
-    "zh-TW": "{words} 個單字 · {posts} 則貼文",
-  },
-  "discover.users": { ja: "ユーザー", en: "Users", "zh-TW": "使用者" },
-  "discover.noUsers": {
-    ja: "該当ユーザーなし",
-    en: "No matching users",
-    "zh-TW": "沒有符合的使用者",
-  },
-  "discover.words": { ja: "単語", en: "Words", "zh-TW": "單字" },
-  "discover.noWords": { ja: "該当単語なし", en: "No matching words", "zh-TW": "沒有符合的單字" },
   "common.anon": { ja: "名無し", en: "Anonymous", "zh-TW": "無名氏" },
-  "post.title": { ja: "投稿", en: "Post", "zh-TW": "貼文" },
-  "post.toFeed": { ja: "フィードへ", en: "Back to feed", "zh-TW": "回動態" },
-  "post.notFound": {
-    ja: "投稿が見つかりませんでした。",
-    en: "Post not found.",
-    "zh-TW": "找不到這則貼文。",
-  },
-  "post.comments": { ja: "コメント", en: "Comments", "zh-TW": "留言" },
-  "post.firstComment": {
-    ja: "最初のコメントを投稿しよう。",
-    en: "Be the first to comment.",
-    "zh-TW": "來當第一個留言的人吧。",
-  },
-  "post.writeComment": { ja: "コメントを書く…", en: "Write a comment…", "zh-TW": "寫留言…" },
-  "post.sendComment": { ja: "コメントを送信", en: "Send comment", "zh-TW": "送出留言" },
-  "journal.title": { ja: "日記", en: "Journal", "zh-TW": "日記" },
-  "journal.today": { ja: "今日の日記", en: "Today's entry", "zh-TW": "今天的日記" },
-  "journal.intro": {
-    ja: "今日撮った写真をもとに、学習している言語で書いてみよう。AIが添削して、その気持ちをネイティブが使う自然なフレーズと「型」の解説も教えてくれます。",
-    en: "Write about a photo you took today, in the language you're learning. AI corrects it and shows the natural phrasing and sentence patterns a native would use.",
-    "zh-TW":
-      "用今天拍的照片，試著用你正在學的語言寫寫看。AI 會幫你修改，還會告訴你母語者表達這種心情時會用的自然說法和「句型」解說。",
-  },
-  "journal.placeholder": {
-    ja: "例: 今天早上我去咖啡店…",
-    en: "e.g. 今天早上我去咖啡店…",
-    "zh-TW": "例：今天早上我去咖啡店…",
-  },
-  "journal.correcting": { ja: "添削中…", en: "Reviewing…", "zh-TW": "修改中…" },
-  "journal.askCorrect": {
-    ja: "AIに添削してもらう",
-    en: "Ask AI to review",
-    "zh-TW": "請 AI 幫忙修改",
-  },
-  "journal.corrected": { ja: "✦ 添削後", en: "✦ Corrected", "zh-TW": "✦ 修改後" },
-  "journal.patterns": { ja: "型と解説", en: "Patterns & notes", "zh-TW": "句型與解說" },
-  "journal.leftover": {
-    ja: "{d} の書きかけが残っています:「{s}…」",
-    en: "Unfinished writing from {d}: “{s}…”",
-    "zh-TW": "還留著 {d} 沒寫完的草稿：「{s}…」",
-  },
-  "journal.leftoverRestore": { ja: "戻す", en: "Restore", "zh-TW": "還原" },
-  "journal.keptOnDevice": {
-    ja: "書いたものはこの端末に控えてあります。添削が通らなくても消えません。",
-    en: "Your writing is kept on this device — it won't be lost if the check fails.",
-    "zh-TW": "你寫的內容有留在這台裝置上，就算修改沒成功也不會不見。",
-  },
-  "journal.loadFailedNote": {
-    ja: "これまでの日記を読み込めませんでした。今日の書きかけがあっても表示できていないので、このまま送ると上書きになります。",
-    en: "Couldn't load your journal. If you had a draft for today, it isn't shown — sending now will overwrite it.",
-    "zh-TW": "無法載入以前的日記。就算今天有寫到一半的草稿也顯示不出來，直接送出會覆蓋掉。",
-  },
-  "journal.past": { ja: "過去の日記", en: "Past entries", "zh-TW": "以前的日記" },
-  "journal.nativeWould": {
-    ja: "ネイティブならこう言う",
-    en: "A native would say",
-    "zh-TW": "母語者會這樣說",
-  },
-  "journal.done": { ja: "添削できました", en: "Review complete", "zh-TW": "修改完成" },
-  "journal.failed": { ja: "添削失敗", en: "Review failed", "zh-TW": "修改失敗" },
   // --- 通知・相対時刻 ---
   "ago.seconds": { ja: "{n}秒前", en: "{n}s ago", "zh-TW": "{n} 秒前" },
   "ago.minutes": { ja: "{n}分前", en: "{n}m ago", "zh-TW": "{n} 分鐘前" },
@@ -2021,15 +1729,6 @@ export const DICT: Record<string, Record<UiLang, string>> = {
   "ago.days": { ja: "{n}日前", en: "{n}d ago", "zh-TW": "{n} 天前" },
   "ago.months": { ja: "{n}ヶ月前", en: "{n}mo ago", "zh-TW": "{n} 個月前" },
   "ago.years": { ja: "{n}年前", en: "{n}y ago", "zh-TW": "{n} 年前" },
-  "notif.title": { ja: "通知", en: "Notifications", "zh-TW": "通知" },
-  "notif.empty": { ja: "まだ通知はありません", en: "No notifications yet", "zh-TW": "還沒有通知" },
-  "notif.liked": { ja: "さんがいいねしました", en: " liked your post", "zh-TW": "說讚" },
-  "notif.commented": {
-    ja: "さんがコメントしました",
-    en: " commented on your post",
-    "zh-TW": "留言了",
-  },
-  "notif.followed": { ja: "さんがフォローしました", en: " followed you", "zh-TW": "追蹤了你" },
   "common.someone": { ja: "誰か", en: "Someone", "zh-TW": "某人" },
   // --- 場所の思い出し(文の前後) ---
   // **「」の中は母語**(オーナー指摘 2026-08-20)。

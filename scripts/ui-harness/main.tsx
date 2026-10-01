@@ -31,7 +31,6 @@ import { GalleryScene } from "./scenes/gallery";
 import { TabBarScene } from "./scenes/tabbar";
 import { OnboardingScene } from "./scenes/onboarding";
 import { StickerSheetScene } from "./scenes/sticker-sheet";
-import { JournalResultScene, JournalScaffoldScene } from "./scenes/journal";
 import { WordCandidateScene } from "./scenes/word-candidate";
 import { CandidatePickerScene } from "./scenes/candidate-picker";
 import { InputCatchScene } from "./scenes/input-catch";
@@ -84,11 +83,6 @@ import { CatchSoundScene } from "./scenes/catch-sound";
 import { AiModelsScene } from "./scenes/ai-models";
 import { DexMapScene } from "./scenes/dex-map";
 import { ScanCameraScene, ScanChipScene, ScanDotsScene, ScanNothingScene } from "./scenes/scan";
-import {
-  WordbookShelfScene,
-  WordbookQuizScene,
-  WordbookQuizNoMeaningScene,
-} from "./scenes/wordbook";
 import { AuthScene, ResetPasswordScene } from "./scenes/auth";
 import {
   HomeAlbumScene,
@@ -101,7 +95,6 @@ import {
   HomeScene,
   WallpaperPickerScene,
   HomeTapScene,
-  HomeWritingScene,
 } from "./scenes/home";
 import {
   SettingsPolishScene,
@@ -187,10 +180,6 @@ const SCENES: Record<string, ((p: { q: URLSearchParams }) => ReactNode) | undefi
   "home-empty": HomeEmptyScene,
   "home-loading": HomeLoadingScene,
   "home-past": HomePastScene,
-  "home-writing": HomeWritingScene,
-  "wordbook-shelf": WordbookShelfScene,
-  "wordbook-quiz": WordbookQuizScene,
-  "wordbook-quiz-nomeaning": WordbookQuizNoMeaningScene,
   "home-pending": HomePendingScene,
   "settings-polish": SettingsPolishScene,
   "settings-choices": SettingsChoicesScene,
@@ -251,8 +240,6 @@ const SCENES: Record<string, ((p: { q: URLSearchParams }) => ReactNode) | undefi
   "scan-camera": ScanCameraScene,
   "scan-bottom": ScanBottomScene,
   "camera-strip": CameraStripScene,
-  "journal-result": JournalResultScene,
-  "journal-scaffold": JournalScaffoldScene,
   "word-candidate": WordCandidateScene,
   "candidate-picker": CandidatePickerScene,
   "input-catch": InputCatchScene,

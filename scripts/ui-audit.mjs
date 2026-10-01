@@ -314,22 +314,6 @@ const MODES = [
   ...crossThemes("home-loading", { scene: "home-loading" }),
   ...crossThemes("review-loading", { scene: "review-loading" }),
   ...crossThemes("home-past", { scene: "home-past" }),
-  ...crossThemes("home-writing", { scene: "home-writing" }),
-  ...crossThemes("wordbook-shelf", { scene: "wordbook-shelf" }),
-  // 冊数が増えたときの棚。**横にあふれないか・題が読めるか**は絵で見る。
-  ["wordbook-shelf-many", "", false, { scene: "wordbook-shelf", many: "1" }],
-  ["wordbook-shelf-many-dark", 'class="dark"', false, { scene: "wordbook-shelf", many: "1" }],
-  ...crossThemes("wordbook-quiz", { scene: "wordbook-quiz" }),
-  // 答え合わせのあと(正解を押した / 間違いを押した)。色の付き方を見る。
-  ...crossThemes("wordbook-quiz-right", {
-    scene: "wordbook-quiz",
-    click: "ul li:nth-child(2) button",
-  }),
-  ...crossThemes("wordbook-quiz-wrong", {
-    scene: "wordbook-quiz",
-    click: "ul li:nth-child(1) button",
-  }),
-  ["wordbook-quiz-nomeaning", "", false, { scene: "wordbook-quiz-nomeaning" }],
   // 台紙は4種類ある。選べるようにしたものは全部見る — 紙以外の3種は
   // 見出し語(濃い墨色の直書き)を載せる面なので、暗い側も含めて見る。
   ["home-frame", "", false, { scene: "home", bg: "frame" }],
@@ -410,10 +394,6 @@ const MODES = [
   // 声で吹き込んだ一言が録れた後(オーナー指示 2026-08-26)。
   // 文字の欄の隣にボタンが立っていること・指が届く大きさかを見る。
   ...crossThemes("cap-card-voice", { scene: "capture-card", variant: "voice" }),
-  // 日記の添削の結果。**学習の中心機能のひとつ**なのに未検査だった。
-  ...crossThemes("journal-result", { scene: "journal-result" }),
-  // 書く前の足場(要望 #88)。**白紙を渡していないか**を絵で見る。
-  ...crossThemes("journal-scaffold", { scene: "journal-scaffold" }),
   // 語を選ぶ札。**打ち込んだ語の側は場面が1つも無かった。**
   ...crossThemes("word-candidate", { scene: "word-candidate" }),
   // 打ち込みキャッチ。**2度「機能してない」と言われた画面**なのに、
@@ -430,7 +410,6 @@ const MODES = [
   // **アルバムの見え方を触っている面**(オーナー指示 2026-08-25)。
   // 「設定に従う」が消えて、どの画面に効くのかが見出しの下に出る。
   ["hero-picker-album", "", false, { scene: "hero-picker", variant: "album" }],
-  ["journal-result-compact", "", false, { scene: "journal-result", variant: "compact" }],
   ["sheet-selfie", "", false, { scene: "sticker-sheet", variant: "selfie" }],
   ["sheet-armed", "", false, { scene: "sticker-sheet", variant: "armed" }],
   ["sheet-armed-dark", 'class="dark"', false, { scene: "sticker-sheet", variant: "armed" }],

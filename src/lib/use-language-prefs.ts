@@ -169,8 +169,6 @@ const LANGUAGE_SCOPED_QUERIES = [
   "memory-stats",
   "memory-overview",
   "my-stats",
-  "wordbooks",
-  "wordbook-due",
   "user-shelves",
   "search-words",
 ] as const;
