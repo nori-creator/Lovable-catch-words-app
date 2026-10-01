@@ -35,6 +35,18 @@ export type RedPenLineRecord = { sentence: string; corrected: string; verdict: s
 
 type Result = RedPenLine | "pending" | "error";
 
+/**
+ * **見た目の案**（オーナー指示 2026-10-01「色分けが多すぎる。もう一度添削のデザイン案を一から
+ * 複数考えて。記号や図形を見出しなどの視覚的な解説を工夫して」）。どの案も色は赤ともう1色まで。
+ * 見出しは色ではなく**形**（記号・図形・番号）で見分ける。
+ *
+ * - `a` 余白に赤ペン … 箱を置かない。文のすぐ下の余白に赤の手書きで直し、見出しは ✎ ▶ ★ の記号。
+ * - `b` ノートの見出し … 白い箱（左の色帯なし）。見出しは ■ ● ★ の塗りの図形と紺の字。
+ * - `c` 先生の吹き出し … 文を指す吹き出し。見出しは ① ② ③ の丸数字で、読む順が分かる。
+ */
+export type RedPenDesign = "a" | "b" | "c";
+export const DEFAULT_REDPEN_DESIGN: RedPenDesign = "a";
+
 /** 同時に AI に見せる文の数（打つ速さに追いつきつつ、並べすぎない）。 */
 const PARALLEL = 2;
 
@@ -49,7 +61,10 @@ export function DiaryWriteSheet({
   onSave,
   style,
   initialResults,
+  design = DEFAULT_REDPEN_DESIGN,
 }: {
+  /** 見た目の案（A/B/C。オーナーが選ぶまで見本で並べて比べる）。 */
+  design?: RedPenDesign;
   title: string;
   initialText: string;
   font: DiaryFontId;
@@ -206,7 +221,7 @@ export function DiaryWriteSheet({
 
   return (
     <div role="dialog" aria-label={title} className="home-shelf__sheet" style={style}>
-      <div className="home-shelf__sheet-card redpen-card">
+      <div className="home-shelf__sheet-card redpen-card" data-design={design}>
         <div className="redpen-card__head">
           <div style={{ fontFamily: diaryFont("hand").family }} className="home-shelf__sheet-title">
             {title}
@@ -215,7 +230,6 @@ export function DiaryWriteSheet({
             {t("redpen.badge")}
           </span>
         </div>
-        <RedPenLegend />
         <div ref={paper} className="redpen-paper" aria-live="polite">
           {sentences.length === 0 && !editing && (
             <p className="redpen-paper__hint">{t("redpen.hint")}</p>
@@ -228,6 +242,7 @@ export function DiaryWriteSheet({
                 result={results[redPenKey(target, s)]}
                 family={family}
                 redFamily={redFamily}
+                design={design}
                 editing={editing?.index === i}
                 onEdit={() => startEdit(i)}
                 onRetry={() => {
@@ -304,6 +319,7 @@ function RedPenSentence({
   result,
   family,
   redFamily,
+  design,
   editing,
   onEdit,
   onRetry,
@@ -312,6 +328,7 @@ function RedPenSentence({
   result: Result | undefined;
   family: string;
   redFamily: string;
+  design: RedPenDesign;
   editing: boolean;
   onEdit: () => void;
   onRetry: () => void;
@@ -319,7 +336,22 @@ function RedPenSentence({
   const t = useT();
   const line = result && typeof result === "object" ? result : null;
   const segments = markSegments(sentence.replace(/\n+$/, ""), line?.marks ?? []);
-  const red = line && needsRedInk(line);
+  const red = !!line && needsRedInk(line);
+  const sym = SYMBOLS[design];
+  // 出す節の順（案 C は ①②③ と番号を振る）。
+  const sections: Array<"fixed" | "why" | "point"> = line
+    ? [
+        ...(red ? (["fixed"] as const) : []),
+        ...(red && line.marks.length ? (["why"] as const) : []),
+        ...(line.note ? (["point"] as const) : []),
+      ]
+    : [];
+  const heading = (kind: "fixed" | "why" | "point", label: string) => (
+    <p className="rp-h">
+      <Glyph shape={sym[kind]} n={sections.indexOf(kind) + 1} />
+      <span>{label}</span>
+    </p>
+  );
   return (
     <div className="redpen-line" data-editing={editing || undefined} data-verdict={line?.verdict}>
       <button
@@ -348,71 +380,62 @@ function RedPenSentence({
           {t("redpen.retry")}
         </button>
       )}
-      {line && (red || line.note) && (
-        <div className="redpen-card-note" data-verdict={line.verdict}>
-          {red && (
-            <p className="redpen-fixed">
-              <span className="redpen-stamp" data-verdict={line.verdict}>
-                {t(`redpen.verdict.${line.verdict}`)}
-              </span>
-              <span className="redpen-fixed__text" style={{ fontFamily: redFamily }}>
+      {line && sections.length > 0 && (
+        <div className="rp-note" data-verdict={line.verdict}>
+          {sections.includes("fixed") && (
+            <div className="rp-sec">
+              {heading("fixed", t(`redpen.verdict.${line.verdict}`))}
+              <p className="rp-fixed" style={{ fontFamily: redFamily }}>
                 {/* 母語で書いた文（こう言う）は比べる相手が別の言語なので、印は付けない。 */}
                 {(line.verdict === "say"
                   ? [{ text: line.corrected, added: false }]
                   : diffAdded(sentence.trim(), line.corrected)
                 ).map((seg, i) =>
                   seg.added ? (
-                    <mark key={i} className="redpen-added">
+                    <mark key={i} className="rp-added">
                       {seg.text}
                     </mark>
                   ) : (
                     <span key={i}>{seg.text}</span>
                   ),
                 )}
-              </span>
-            </p>
+              </p>
+            </div>
           )}
-          {red &&
-            line.marks.map((m, i) => (
-              <div key={i} className="redpen-why">
-                <span className="redpen-chip redpen-chip--why">{t("redpen.why")}</span>
-                <div className="redpen-why__body">
-                  <p className="redpen-why__swap">
-                    <span className="redpen-pill redpen-pill--wrong">{m.wrong}</span>
-                    <span className="redpen-why__arrow" aria-hidden>
-                      →
-                    </span>
-                    <span className="redpen-pill redpen-pill--right">{m.right}</span>
-                  </p>
-                  {m.why && <p className="redpen-why__text">{m.why}</p>}
-                </div>
-              </div>
-            ))}
-          {line.note && (
-            <div className="redpen-point">
-              <span className="redpen-chip redpen-chip--point">{t("redpen.point")}</span>
-              <p className="redpen-point__text">{line.note}</p>
+          {sections.includes("why") && (
+            <div className="rp-sec">
+              {heading("why", t("redpen.why"))}
+              <ul className="rp-whys">
+                {line.marks.map((m, i) => (
+                  <li key={i}>
+                    <p className="rp-swap">
+                      <span className="rp-from">
+                        <Glyph shape="cross" />
+                        <s>{m.wrong}</s>
+                      </span>
+                      <span className="rp-arrow" aria-hidden>
+                        →
+                      </span>
+                      <span className="rp-to">
+                        <Glyph shape="ring" />
+                        {m.right}
+                      </span>
+                    </p>
+                    {m.why && <p className="rp-text">{m.why}</p>}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+          {sections.includes("point") && (
+            <div className="rp-sec">
+              {heading("point", t("redpen.point"))}
+              <p className="rp-text">{line.note}</p>
             </div>
           )}
         </div>
       )}
     </div>
-  );
-}
-
-/**
- * **色の意味**（2026-10-01「赤だけだと見にくい」）。1つの色に1つの意味だけを持たせ、
- * 紙の上で同じ色はいつも同じことを言う: 赤＝間違い / 緑＝直した形 / 青＝理由 / 黄＝ポイント。
- */
-function RedPenLegend() {
-  const t = useT();
-  return (
-    <ul className="redpen-legend" aria-label={t("redpen.badge")}>
-      <li data-c="wrong">{t("redpen.legend.wrong")}</li>
-      <li data-c="right">{t("redpen.legend.right")}</li>
-      <li data-c="why">{t("redpen.why")}</li>
-      <li data-c="point">{t("redpen.point")}</li>
-    </ul>
   );
 }
 
@@ -445,6 +468,170 @@ function Hanamaru() {
   );
 }
 
+type Shape =
+  | "pen"
+  | "tri"
+  | "star"
+  | "square"
+  | "dot"
+  | "diamond"
+  | "num"
+  | "cross"
+  | "ring"
+  | "bubble"
+  | "book";
+
+/** 見出しの記号・図形（案ごとに `SYMBOLS` で選ぶ）。字ではなく図形なので、字体で形が変わらない。 */
+function Glyph({ shape, n = 1 }: { shape: Shape; n?: number }) {
+  const common = {
+    className: `rp-glyph rp-glyph--${shape}`,
+    viewBox: "0 0 16 16",
+    "aria-hidden": true,
+    focusable: false,
+  } as const;
+  switch (shape) {
+    case "num":
+      return (
+        <svg {...common}>
+          <circle cx="8" cy="8" r="7" fill="none" stroke="currentColor" strokeWidth="1.4" />
+          <text
+            x="8"
+            y="11.6"
+            textAnchor="middle"
+            fontSize="10"
+            fontWeight="700"
+            fill="currentColor"
+            fontFamily="system-ui, sans-serif"
+          >
+            {n}
+          </text>
+        </svg>
+      );
+    case "pen":
+      return (
+        <svg {...common}>
+          <path
+            d="M3 13l1-3.5 7-7 2.5 2.5-7 7zM9.5 4l2.5 2.5"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.5"
+            strokeLinejoin="round"
+          />
+        </svg>
+      );
+    case "tri":
+      return (
+        <svg {...common}>
+          <path d="M4 2.5l9 5.5-9 5.5z" fill="currentColor" />
+        </svg>
+      );
+    case "star":
+      return (
+        <svg {...common}>
+          <path
+            d="M8 1.5l1.9 4.1 4.5.5-3.4 3 1 4.4L8 11.3l-4 2.2 1-4.4-3.4-3 4.5-.5z"
+            fill="currentColor"
+          />
+        </svg>
+      );
+    case "square":
+      return (
+        <svg {...common}>
+          <rect x="3" y="3" width="10" height="10" rx="1.5" fill="currentColor" />
+        </svg>
+      );
+    case "dot":
+      return (
+        <svg {...common}>
+          <circle cx="8" cy="8" r="5" fill="currentColor" />
+        </svg>
+      );
+    case "diamond":
+      return (
+        <svg {...common}>
+          <path d="M8 1.8l6.2 6.2L8 14.2 1.8 8z" fill="currentColor" />
+        </svg>
+      );
+    case "cross":
+      return (
+        <svg {...common}>
+          <path
+            d="M4 4l8 8M12 4l-8 8"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+          />
+        </svg>
+      );
+    case "ring":
+      return (
+        <svg {...common}>
+          <circle cx="8" cy="8" r="5.2" fill="none" stroke="currentColor" strokeWidth="2" />
+        </svg>
+      );
+    case "bubble":
+      return (
+        <svg {...common}>
+          <path
+            d="M2.5 3.5h11v7H7l-3.5 3v-3h-1z"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.5"
+            strokeLinejoin="round"
+          />
+        </svg>
+      );
+    case "book":
+      return (
+        <svg {...common}>
+          <path
+            d="M2 3.5c2-.7 4-.7 6 .7 2-1.4 4-1.4 6-.7v9c-2-.7-4-.7-6 .7-2-1.4-4-1.4-6-.7zM8 4.2v9"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.4"
+            strokeLinejoin="round"
+          />
+        </svg>
+      );
+  }
+}
+
+/** 案ごとの見出しの形。 */
+const SYMBOLS: Record<
+  RedPenDesign,
+  Record<"fixed" | "why" | "point" | "intent" | "model" | "learn", Shape> & {
+    kinds: Record<RedPenLearnKind, Shape>;
+  }
+> = {
+  a: {
+    fixed: "pen",
+    why: "tri",
+    point: "star",
+    intent: "bubble",
+    model: "star",
+    learn: "book",
+    kinds: { pattern: "tri", chunk: "dot", word: "square", grammar: "diamond" },
+  },
+  b: {
+    fixed: "square",
+    why: "dot",
+    point: "star",
+    intent: "square",
+    model: "square",
+    learn: "square",
+    kinds: { pattern: "tri", chunk: "dot", word: "square", grammar: "diamond" },
+  },
+  c: {
+    fixed: "num",
+    why: "num",
+    point: "num",
+    intent: "num",
+    model: "num",
+    learn: "num",
+    kinds: { pattern: "tri", chunk: "dot", word: "square", grammar: "diamond" },
+  },
+};
+
 export type RedPenSummaryState =
   | { status: "loading" }
   | { status: "ready"; summary: RedPenSummary }
@@ -455,19 +642,22 @@ const KIND_ORDER: RedPenLearnKind[] = ["pattern", "chunk", "word", "grammar"];
 /**
  * **書き終わった後の赤ペンのまとめ**（③模範解答 ②言いたいことに合う単語・チャンク・型・文法）。
  * 上から: 言いたかったこと → 直した日記 → 模範解答（訳つき）→ 今日覚える物（種類ごと）。
+ * 見出しは案ごとの記号・図形・番号で見分ける（色は赤ともう1色まで）。
  */
 export function RedPenSummarySheet({
   state,
   font,
   original,
+  design = DEFAULT_REDPEN_DESIGN,
   onClose,
   onRetry,
   style,
 }: {
   state: RedPenSummaryState;
   font: DiaryFontId;
-  /** 本人が書いた日記（直した日記の、変わった所に緑の印を付けるため）。 */
+  /** 本人が書いた日記（直した日記の、変わった所に印を付けるため）。 */
   original?: string;
+  design?: RedPenDesign;
   onClose: () => void;
   onRetry: () => void;
   style?: React.CSSProperties;
@@ -475,6 +665,22 @@ export function RedPenSummarySheet({
   const t = useT();
   const family = diaryFont(font).family;
   const redFamily = diaryFont("hand").family;
+  const sym = SYMBOLS[design];
+  const ready = state.status === "ready" ? state.summary : null;
+  const order: Array<"intent" | "fixed" | "model" | "learn"> = ready
+    ? [
+        ...(ready.intent ? (["intent"] as const) : []),
+        ...(ready.correction ? (["fixed"] as const) : []),
+        "model" as const,
+        "learn" as const,
+      ]
+    : [];
+  const heading = (kind: (typeof order)[number], label: string) => (
+    <h3 className="rp-h rp-h--sum">
+      <Glyph shape={sym[kind]} n={order.indexOf(kind) + 1} />
+      <span>{label}</span>
+    </h3>
+  );
   return (
     <div
       role="dialog"
@@ -482,7 +688,7 @@ export function RedPenSummarySheet({
       className="home-shelf__sheet"
       style={style}
     >
-      <div className="home-shelf__sheet-card redpen-card redpen-summary">
+      <div className="home-shelf__sheet-card redpen-card redpen-summary" data-design={design}>
         <div className="redpen-card__head">
           <div style={{ fontFamily: redFamily }} className="home-shelf__sheet-title redpen-red">
             {t("redpen.summaryTitle")}
@@ -503,30 +709,24 @@ export function RedPenSummarySheet({
               </button>
             </div>
           )}
-          {state.status === "ready" && (
+          {ready && (
             <>
-              {state.summary.intent && (
-                <section className="redpen-sum redpen-sum--intent">
-                  <h3 className="redpen-sum__h">
-                    <SumIcon kind="intent" />
-                    {t("redpen.intent")}
-                  </h3>
-                  <p className="redpen-sum__body">{state.summary.intent}</p>
+              {ready.intent && (
+                <section className="rp-sum">
+                  {heading("intent", t("redpen.intent"))}
+                  <p className="rp-sum__body">{ready.intent}</p>
                 </section>
               )}
-              {state.summary.correction && (
-                <section className="redpen-sum redpen-sum--fixed">
-                  <h3 className="redpen-sum__h">
-                    <SumIcon kind="fixed" />
-                    {t("redpen.corrected")}
-                  </h3>
-                  <p className="redpen-sum__target" style={{ fontFamily: redFamily }}>
+              {ready.correction && (
+                <section className="rp-sum">
+                  {heading("fixed", t("redpen.corrected"))}
+                  <p className="rp-sum__target rp-fixed" style={{ fontFamily: redFamily }}>
                     {(original
-                      ? diffAdded(original.trim(), state.summary.correction)
-                      : [{ text: state.summary.correction, added: false }]
+                      ? diffAdded(original.trim(), ready.correction)
+                      : [{ text: ready.correction, added: false }]
                     ).map((seg, i) =>
                       seg.added ? (
-                        <mark key={i} className="redpen-added">
+                        <mark key={i} className="rp-added">
                           {seg.text}
                         </mark>
                       ) : (
@@ -536,51 +736,44 @@ export function RedPenSummarySheet({
                   </p>
                 </section>
               )}
-              <section className="redpen-sum redpen-sum--model">
-                <h3 className="redpen-sum__h">
-                  <SumIcon kind="model" />
-                  {t("redpen.model")}
-                </h3>
-                <p className="redpen-sum__target" style={{ fontFamily: family }}>
-                  {state.summary.model_answer}
+              <section className="rp-sum">
+                {heading("model", t("redpen.model"))}
+                <p className="rp-sum__target" style={{ fontFamily: family }}>
+                  {ready.model_answer}
                 </p>
-                {state.summary.model_answer_translation && (
-                  <p className="redpen-sum__sub">{state.summary.model_answer_translation}</p>
+                {ready.model_answer_translation && (
+                  <p className="rp-sum__sub">{ready.model_answer_translation}</p>
                 )}
               </section>
-              <section className="redpen-sum redpen-sum--learn">
-                <h3 className="redpen-sum__h">
-                  <SumIcon kind="learn" />
-                  {t("redpen.learn")}
-                </h3>
+              <section className="rp-sum">
+                {heading("learn", t("redpen.learn"))}
                 {KIND_ORDER.map((kind) => {
-                  const items = state.summary.learn.filter((l) => l.kind === kind);
+                  const items = ready.learn.filter((l) => l.kind === kind);
                   if (!items.length) return null;
                   return (
-                    <div key={kind} className="redpen-learn" data-kind={kind}>
-                      <span className="redpen-learn__kind">
-                        {t(`redpen.kind.${kind}`)}
-                        <span className="redpen-learn__count">{items.length}</span>
-                      </span>
+                    <div key={kind} className="rp-learn">
+                      <p className="rp-learn__kind">
+                        <Glyph shape={sym.kinds[kind]} />
+                        <span>{t(`redpen.kind.${kind}`)}</span>
+                        <span className="rp-learn__count">{items.length}</span>
+                      </p>
                       <ul>
                         {items.map((l, i) => (
-                          <li key={i} className="redpen-learn__item">
-                            <p className="redpen-learn__text" style={{ fontFamily: family }}>
+                          <li key={i} className="rp-learn__item">
+                            <p className="rp-learn__text" style={{ fontFamily: family }}>
                               {l.text}
+                              {l.reading && <span className="rp-learn__reading">{l.reading}</span>}
                             </p>
-                            {l.reading && <p className="redpen-learn__reading">{l.reading}</p>}
-                            {l.meaning && <p className="redpen-learn__meaning">{l.meaning}</p>}
+                            {l.meaning && <p className="rp-learn__meaning">{l.meaning}</p>}
                             {l.note && (
-                              <p className="redpen-learn__note">
-                                <span className="redpen-chip redpen-chip--point">
-                                  {t("redpen.point")}
-                                </span>
-                                {l.note}
+                              <p className="rp-learn__note">
+                                <Glyph shape="star" />
+                                <span>{l.note}</span>
                               </p>
                             )}
                             {l.example && (
-                              <p className="redpen-learn__example">
-                                <span className="redpen-learn__exlabel">{t("redpen.example")}</span>
+                              <p className="rp-learn__example">
+                                <span className="rp-learn__exlabel">{t("redpen.example")}</span>
                                 <span style={{ fontFamily: family }}>{l.example}</span>
                               </p>
                             )}
@@ -599,31 +792,5 @@ export function RedPenSummarySheet({
         </button>
       </div>
     </div>
-  );
-}
-
-/** まとめの見出しの小さな印（色と形で、どの欄かを読む前に分かるように）。 */
-function SumIcon({ kind }: { kind: "intent" | "fixed" | "model" | "learn" }) {
-  const d = {
-    // 吹き出し（言いたかったこと）
-    intent: "M4 5h16v10H9l-5 4z",
-    // 鉛筆（直した日記）
-    fixed: "M4 20l4-1 11-11-3-3L5 16zM14 6l3 3",
-    // 星（模範解答）
-    model: "M12 3l2.6 5.6 6 .7-4.5 4.1 1.2 6L12 16.4 6.7 19.4l1.2-6L3.4 9.3l6-.7z",
-    // 本（今日覚える）
-    learn: "M4 5c3-1 6-1 8 1 2-2 5-2 8-1v13c-3-1-6-1-8 1-2-2-5-2-8-1z M12 6v13",
-  }[kind];
-  return (
-    <svg className="redpen-sum__icon" viewBox="0 0 24 24" aria-hidden focusable="false">
-      <path
-        d={d}
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.8"
-        strokeLinejoin="round"
-        strokeLinecap="round"
-      />
-    </svg>
   );
 }

@@ -5050,7 +5050,7 @@ describe("ホームは今日の誌面", () => {
     // 2026-09-24「過去のものが多すぎで画面で確認できないから、過去のものは全て
     // 削除して」: 帯には**今回の依頼の面だけ**。
     // 2026-10-01「日記を書いたら AI が赤ペン先生のように添削」の回。先頭は書いている途中の赤ペン。
-    expect(list.slice(0, list.indexOf("},"))).toMatch(/scene: "diary-redpen"/);
+    expect(list.slice(0, list.indexOf("},"))).toMatch(/scene: "diary-redpen&design=a"/);
     // 前の回（単語の詳細の注音・チュートリアルの4択）の面は残さない。
     expect(list).not.toMatch(/scene: "word-card"/);
     expect(list).not.toMatch(/scene: "first-catch&step=review"/);

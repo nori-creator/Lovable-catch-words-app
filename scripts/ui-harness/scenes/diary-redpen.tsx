@@ -5,12 +5,13 @@
  * 返すので、欄に文を打って「。」を押すと、その場で赤ペンが入る流れも試せる（見本にない文は
  * 「直す所なし」の花丸が付く）。
  *
+ * - `?design=a|b|c` … 見た目の案（a 余白に赤ペン / b ノートの見出し / c 先生の吹き出し）
  * - `?state=summary` … 書き終わった後のまとめ（言いたかったこと・模範解答・今日覚える物）
  * - `?state=loading` … まとめを作っている間
  * - `?ui=en` などの表示言語は帯の切り替えに従う（赤ペンの中身は日本語の見本）。
  */
 import { useState } from "react";
-import { DiaryWriteSheet, RedPenSummarySheet } from "@/components/DiaryRedPen";
+import { DiaryWriteSheet, RedPenSummarySheet, type RedPenDesign } from "@/components/DiaryRedPen";
 import { redPenKey, type RedPenLine, type RedPenSummary } from "@/lib/red-pen";
 
 export const REDPEN_DIARY =
@@ -126,6 +127,8 @@ export async function fakeSummary(): Promise<RedPenSummary> {
 
 export function DiaryRedPenScene({ q }: { q: URLSearchParams }) {
   const state = q.get("state");
+  const d = q.get("design");
+  const design: RedPenDesign = d === "b" || d === "c" ? d : "a";
   const [summary, setSummary] = useState<"none" | "loading" | "ready">(
     state === "summary" ? "ready" : state === "loading" ? "loading" : "none",
   );
@@ -150,6 +153,7 @@ export function DiaryRedPenScene({ q }: { q: URLSearchParams }) {
           target="zh-TW"
           check={(s) => fakeRedPen(s)}
           initialResults={initial}
+          design={design}
           onCancel={() => {}}
           onSave={() => {
             setSummary("loading");
@@ -165,6 +169,7 @@ export function DiaryRedPenScene({ q }: { q: URLSearchParams }) {
           }
           font="hand"
           original={REDPEN_DIARY}
+          design={design}
           onClose={() => setSummary("none")}
           onRetry={() => {}}
         />

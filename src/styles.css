@@ -10439,32 +10439,37 @@ html[data-dex-dragging] {
 }
 /*
  * **日記の赤ペン**（2026-10-01、`components/DiaryRedPen.tsx`）。書き終わった文は上の紙に上がり、
- * その文のすぐ下に直しのカードが付く。
+ * その文のすぐ下に直しが付く。
  *
- * **色は1つの意味だけを持つ**（オーナー指示 2026-10-01「赤だけだと見にくい。いろんな色や
- * デザイン、視覚的に見やすい解説」）: 赤＝間違い / 緑＝直した形 / 青＝理由 / 黄＝ポイント。
- * 判定の札も色で分ける: 直し＝赤 / より自然に＝橙 / こう言う＝紫。字の色は紙（#fbf8ef・白）の上で
- * 4.5:1 以上になる濃さにし、色だけに頼らず札の言葉・線の形（波線・取り消し線・蛍光ペン）でも分ける。
- * 解説の文は手書きではなく読みやすい字。手書きは直した文（と自分の文）だけ。
+ * オーナー指示の積み重ね: 「赤だけだと見にくい」→「色分けが多すぎる。記号や図形を見出しなどの
+ * 視覚的な解説を工夫して。白いボックスの左のカラーのデザイン消して」。
+ * だから**色は赤ともう1色まで**、見出しは色ではなく**形**（記号・図形・丸数字）で見分ける。
+ * 左の色帯は置かない。案は3つ（`data-design`）:
+ *   a 余白に赤ペン   … 箱なし。余白に赤の手書き、見出しは ✎ ▶ ★
+ *   b ノートの見出し … 白い箱（細い枠だけ）。見出しは ■ ● ★ と紺の字
+ *   c 先生の吹き出し … 文を指す吹き出し。見出しは ①②③ で読む順が分かる
+ * 解説の文は読みやすい字。手書きは自分の文と直した文だけ。
  */
 .redpen-card {
   --rp-red: #c42b23;
-  --rp-red-bg: #fde8e6;
-  --rp-green: #17733f;
-  --rp-green-bg: #dcf3e4;
-  --rp-green-mark: #bfeccd;
-  --rp-blue: #1f57b8;
-  --rp-blue-bg: #e5eefc;
-  --rp-amber: #8a5a00;
-  --rp-amber-bg: #fff1cc;
-  --rp-orange: #b5470b;
-  --rp-orange-bg: #ffe7d6;
-  --rp-purple: #6b33c9;
-  --rp-purple-bg: #efe6fd;
   --rp-ink: #23304a;
-  --rp-sub: #5c5248;
-  --redpen: var(--rp-red);
+  --rp-text: #3a3128;
+  --rp-sub: #6b6158;
+  --rp-navy: #24467a;
+  --rp-head: var(--rp-red);
+  --rp-glyph: var(--rp-red);
+  --rp-fix-ink: var(--rp-red);
+  --rp-right: var(--rp-red);
   height: min(88dvh, 100%);
+}
+.redpen-card[data-design="b"] {
+  --rp-head: var(--rp-navy);
+  --rp-glyph: var(--rp-navy);
+  --rp-fix-ink: var(--rp-ink);
+  --rp-right: var(--rp-navy);
+}
+.redpen-card[data-design="c"] {
+  --rp-head: var(--rp-text);
 }
 .redpen-card__head {
   display: flex;
@@ -10483,46 +10488,6 @@ html[data-dex-dragging] {
 }
 .redpen-red {
   color: var(--rp-red);
-}
-/* 色の意味（紙の上に1行）。 */
-.redpen-legend {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px 12px;
-  margin: -4px 0 0;
-  padding: 0;
-  list-style: none;
-  font-size: 12px;
-  color: var(--rp-sub);
-}
-.redpen-legend li {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-}
-.redpen-legend li::before {
-  content: "";
-  width: 14px;
-  height: 8px;
-  border-radius: 3px;
-}
-.redpen-legend li[data-c="wrong"]::before {
-  content: "〜";
-  width: auto;
-  height: auto;
-  color: var(--rp-red);
-  font-weight: 700;
-  line-height: 1;
-}
-.redpen-legend li[data-c="right"]::before {
-  background: var(--rp-green-mark);
-  box-shadow: inset 0 -2px 0 var(--rp-green);
-}
-.redpen-legend li[data-c="why"]::before {
-  background: var(--rp-blue);
-}
-.redpen-legend li[data-c="point"]::before {
-  background: #f2c14e;
 }
 .redpen-paper {
   --rule: 35px;
@@ -10609,151 +10574,153 @@ html[data-motion="reduce"] .redpen-pending {
   font-size: 14px;
   text-decoration: underline;
 }
-/*
- * 直しのカード（文のすぐ下）。紙の上に貼った付箋のように白地・影付き。左の帯の色が判定。
- */
-.redpen-card-note {
-  --band: var(--rp-red);
+/* ---- 文の下の直し（3案で共通の骨組み） ---- */
+.rp-note {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  margin: 4px 0 10px 6px;
-  padding: 10px 12px;
-  border-radius: 12px;
-  border-inline-start: 4px solid var(--band);
-  background: #fff;
-  box-shadow: 0 1px 3px rgb(40 30 20 / 0.12);
+  margin: 2px 0 12px 10px;
   font-family:
     system-ui,
     -apple-system,
     "Hiragino Sans",
     "PingFang TC",
     sans-serif;
-  line-height: 1.5;
+  line-height: 1.55;
+  color: var(--rp-text);
 }
-.redpen-card-note[data-verdict="better"] {
-  --band: var(--rp-orange);
-}
-.redpen-card-note[data-verdict="say"] {
-  --band: var(--rp-purple);
-}
-.redpen-card-note[data-verdict="good"] {
-  --band: #f2c14e;
-}
-.redpen-card-note p {
+.rp-note p,
+.rp-sum p {
   margin: 0;
 }
-.redpen-fixed {
+.rp-sec {
   display: flex;
   flex-direction: column;
-  align-items: flex-start;
   gap: 4px;
 }
-.redpen-fixed__text {
+.rp-h {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  line-height: 1.4;
+  color: var(--rp-head);
+}
+.rp-glyph {
+  flex: none;
+  width: 14px;
+  height: 14px;
+  color: var(--rp-glyph);
+}
+.rp-fixed {
   font-size: 20px;
   line-height: 1.6;
-  color: var(--rp-green);
+  color: var(--rp-fix-ink);
   overflow-wrap: anywhere;
 }
-/* 新しく入った所に緑の蛍光ペン（字の下の帯だけ塗る — 字の真ん中に掛けると取り消し線に見える）。 */
-.redpen-added {
-  padding: 0 1px;
-  border-radius: 2px;
-  background: linear-gradient(transparent 68%, var(--rp-green-mark) 68%);
+/* 新しく入った所は太字と下線（色を増やさない）。 */
+.rp-added {
+  background: none;
   color: inherit;
   font-weight: 700;
+  text-decoration: underline;
+  text-decoration-color: var(--rp-glyph);
+  text-decoration-thickness: 2px;
+  text-underline-offset: 5px;
 }
-.redpen-stamp {
-  display: inline-block;
-  padding: 1px 8px;
-  border-radius: 9999px;
-  background: var(--rp-red-bg);
-  color: var(--rp-red);
-  font-size: 12px;
-  font-weight: 700;
-  line-height: 1.6;
-}
-.redpen-stamp[data-verdict="better"] {
-  background: var(--rp-orange-bg);
-  color: var(--rp-orange);
-}
-.redpen-stamp[data-verdict="say"] {
-  background: var(--rp-purple-bg);
-  color: var(--rp-purple);
-}
-.redpen-chip {
-  flex: none;
-  display: inline-block;
-  padding: 1px 8px;
-  border-radius: 6px;
-  font-size: 12px;
-  font-weight: 700;
-  line-height: 1.6;
-}
-.redpen-chip--why {
-  background: var(--rp-blue-bg);
-  color: var(--rp-blue);
-}
-.redpen-chip--point {
-  background: var(--rp-amber-bg);
-  color: var(--rp-amber);
-}
-.redpen-why {
-  display: flex;
-  align-items: flex-start;
-  gap: 8px;
-  padding-top: 8px;
-  border-top: 1px dashed rgb(58 49 40 / 0.18);
-}
-.redpen-why__body {
-  min-width: 0;
+.rp-whys {
+  margin: 0;
+  padding: 0;
+  list-style: none;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 6px;
 }
-.redpen-why__swap {
+.rp-swap {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 4px 6px;
+  gap: 2px 8px;
+  font-size: 16px;
+  overflow-wrap: anywhere;
 }
-.redpen-why__arrow {
+.rp-from,
+.rp-to {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.rp-from {
+  color: var(--rp-sub);
+}
+.rp-from s {
+  text-decoration-color: var(--rp-red);
+  text-decoration-thickness: 1.5px;
+}
+.rp-from .rp-glyph {
+  width: 11px;
+  height: 11px;
+  color: var(--rp-red);
+}
+.rp-to {
+  font-weight: 700;
+  color: var(--rp-right);
+}
+.rp-to .rp-glyph {
+  width: 12px;
+  height: 12px;
+  color: var(--rp-right);
+}
+.rp-arrow {
   color: var(--rp-sub);
   font-size: 14px;
 }
-.redpen-pill {
-  padding: 1px 8px;
-  border-radius: 8px;
-  font-size: 16px;
-  line-height: 1.6;
-  overflow-wrap: anywhere;
-}
-.redpen-pill--wrong {
-  background: var(--rp-red-bg);
-  color: var(--rp-red);
-  text-decoration: line-through;
-  text-decoration-thickness: 1.5px;
-}
-.redpen-pill--right {
-  background: var(--rp-green-bg);
-  color: var(--rp-green);
-  font-weight: 700;
-}
-.redpen-why__text {
+.rp-text {
   font-size: 14px;
-  color: var(--rp-blue);
+  color: var(--rp-text);
 }
-.redpen-point {
-  display: flex;
-  align-items: flex-start;
-  gap: 8px;
-  padding: 8px 10px;
-  border-radius: 10px;
-  background: #fff8e1;
+/* 案 a: 箱を置かない。余白に赤の手書きで書き足す。 */
+.redpen-card[data-design="a"] .rp-note {
+  padding: 2px 0 4px 4px;
+  /* 紙と同じ地で罫線だけを隠す（箱には見せない — 解説の字に罫線が重なると読みにくい）。 */
+  background: #fbf8ef;
 }
-.redpen-point__text {
-  font-size: 14px;
-  color: #4a3a12;
+/* 案 b: 白い箱（細い枠だけ・左の色帯なし）。節の間は点線。 */
+.redpen-card[data-design="b"] .rp-note {
+  padding: 10px 12px;
+  border: 1px solid #e4ded3;
+  border-radius: 12px;
+  background: #fff;
+}
+.redpen-card[data-design="b"] .rp-sec + .rp-sec {
+  padding-top: 8px;
+  border-top: 1px dotted #d6cdbd;
+}
+/* 案 c: 文を指す吹き出し。見出しは丸数字。 */
+.redpen-card[data-design="c"] .rp-note {
+  position: relative;
+  margin-top: 10px;
+  padding: 12px 12px 10px;
+  border-radius: 14px;
+  background: #efe8db;
+}
+.redpen-card[data-design="c"] .rp-note::before {
+  content: "";
+  position: absolute;
+  top: -8px;
+  left: 22px;
+  border: 8px solid transparent;
+  border-top: 0;
+  border-bottom-color: #efe8db;
+}
+.redpen-card[data-design="c"] .rp-h {
+  font-size: 13px;
+}
+.redpen-card[data-design="c"] .rp-h .rp-glyph--num {
+  width: 18px;
+  height: 18px;
 }
 .redpen-editing {
   display: flex;
@@ -10791,7 +10758,7 @@ html[data-motion="reduce"] .redpen-pending {
   display: flex;
   flex-direction: column;
   gap: 12px;
-  color: #2b241d;
+  color: var(--rp-text);
   font-family:
     system-ui,
     -apple-system,
@@ -10806,170 +10773,152 @@ html[data-motion="reduce"] .redpen-pending {
   gap: 10px;
   font-size: 16px;
 }
-.redpen-sum {
-  --c: var(--rp-blue);
-  --bg: var(--rp-blue-bg);
-  padding: 12px 14px;
-  border-radius: 16px;
-  background: #fff;
-  border-top: 4px solid var(--c);
-  box-shadow: 0 1px 3px rgb(40 30 20 / 0.1);
-}
-.redpen-sum--intent {
-  --c: var(--rp-purple);
-  --bg: var(--rp-purple-bg);
-  background: var(--rp-purple-bg);
-}
-.redpen-sum--fixed {
-  --c: var(--rp-green);
-  --bg: var(--rp-green-bg);
-}
-.redpen-sum--model {
-  --c: var(--rp-blue);
-  --bg: var(--rp-blue-bg);
-}
-.redpen-sum--learn {
-  --c: #c98a00;
-  background: #fffaf0;
-}
-.redpen-sum__h {
-  display: flex;
-  align-items: center;
-  gap: 6px;
+.rp-h--sum {
   margin: 0 0 8px;
   font-size: 14px;
-  font-weight: 700;
-  color: var(--c);
 }
-.redpen-sum--learn .redpen-sum__h {
-  color: var(--rp-amber);
+.rp-h--sum .rp-glyph {
+  width: 16px;
+  height: 16px;
 }
-.redpen-sum__icon {
-  width: 20px;
-  height: 20px;
-  flex: none;
-}
-.redpen-sum p {
-  margin: 0;
-}
-.redpen-sum__body {
+.rp-sum__body {
   font-size: 16px;
   line-height: 1.65;
 }
-.redpen-sum__target {
+.rp-sum__target {
   font-size: 20px;
   line-height: 1.75;
   color: var(--rp-ink);
   overflow-wrap: anywhere;
 }
-.redpen-sum--fixed .redpen-sum__target {
-  color: var(--rp-green);
+.rp-sum__target.rp-fixed {
+  color: var(--rp-fix-ink);
 }
-.redpen-sum__sub {
+.rp-sum__sub {
   margin-top: 6px !important;
-  padding-top: 6px;
-  border-top: 1px dashed rgb(58 49 40 / 0.2);
   color: var(--rp-sub);
   font-size: 14px;
   line-height: 1.6;
 }
-/* 覚える物は種類ごとに色を変える: 型＝藍 / フレーズ＝青緑 / 単語＝橙 / 文法＝薔薇。 */
-.redpen-learn {
-  --k: #3f46b8;
-  --kbg: #e8e9fb;
-}
-.redpen-learn[data-kind="chunk"] {
-  --k: #0d7470;
-  --kbg: #d9f2f0;
-}
-.redpen-learn[data-kind="word"] {
-  --k: #a04a00;
-  --kbg: #ffe9d4;
-}
-.redpen-learn[data-kind="grammar"] {
-  --k: #b0285a;
-  --kbg: #fde4ee;
-}
-.redpen-learn + .redpen-learn {
+.rp-learn + .rp-learn {
   margin-top: 14px;
 }
-.redpen-learn__kind {
-  display: inline-flex;
+.rp-learn__kind {
+  display: flex;
   align-items: center;
   gap: 6px;
-  margin-bottom: 8px;
-  padding: 2px 10px;
-  border-radius: 9999px;
-  background: var(--kbg);
-  color: var(--k);
+  margin-bottom: 4px !important;
   font-size: 13px;
   font-weight: 700;
+  color: var(--rp-head);
 }
-.redpen-learn__count {
-  min-width: 18px;
-  padding: 0 5px;
-  border-radius: 9999px;
-  background: var(--k);
-  color: #fff;
-  font-size: 11px;
-  text-align: center;
+.rp-learn__count {
+  font-weight: 400;
+  color: var(--rp-sub);
 }
-.redpen-learn ul {
+.rp-learn__count::before {
+  content: "×";
+  margin-inline-end: 1px;
+}
+.rp-learn ul {
   margin: 0;
   padding: 0;
   list-style: none;
   display: flex;
   flex-direction: column;
-  gap: 8px;
 }
-.redpen-learn__item {
+.rp-learn__item {
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  padding: 10px 12px;
-  border-radius: 12px;
-  border-inline-start: 4px solid var(--k);
-  background: #fff;
-  box-shadow: 0 1px 2px rgb(40 30 20 / 0.08);
+  gap: 3px;
+  padding: 10px 0;
+  border-bottom: 1px dotted #d6cdbd;
 }
-.redpen-learn__text {
-  font-size: 21px;
+.rp-learn__item:last-child {
+  border-bottom: 0;
+}
+.rp-learn__text {
+  font-size: 20px;
   font-weight: 700;
   line-height: 1.4;
-  color: var(--k);
+  color: var(--rp-ink);
 }
-.redpen-learn__reading {
+.rp-learn__reading {
+  margin-inline-start: 8px;
   font-size: 13px;
+  font-weight: 400;
   color: var(--rp-sub);
 }
-.redpen-learn__meaning {
+.rp-learn__meaning {
   font-size: 15px;
   font-weight: 700;
+  color: var(--rp-text);
 }
-.redpen-learn__note {
+.rp-learn__note {
   display: flex;
   align-items: flex-start;
   gap: 6px;
   font-size: 14px;
   line-height: 1.55;
-  color: #4a3a12;
 }
-.redpen-learn__example {
+.rp-learn__note .rp-glyph {
+  width: 12px;
+  height: 12px;
+  margin-top: 4px;
+}
+.rp-learn__example {
   display: flex;
   align-items: baseline;
   gap: 8px;
-  margin-top: 2px !important;
-  padding: 6px 10px;
-  border-radius: 8px;
-  background: var(--kbg);
   font-size: 16px;
   color: var(--rp-ink);
 }
-.redpen-learn__exlabel {
+.rp-learn__exlabel {
   flex: none;
+  padding: 0 4px;
+  border: 1px solid currentColor;
+  border-radius: 4px;
   font-size: 11px;
   font-weight: 700;
-  color: var(--k);
+  line-height: 1.5;
+  color: var(--rp-sub);
+}
+/* 案 a: 箱なし。節の間は細い線だけ。 */
+.redpen-card[data-design="a"] .rp-sum {
+  padding: 4px 0 14px;
+  border-bottom: 1px solid rgb(58 49 40 / 0.15);
+}
+.redpen-card[data-design="a"] .rp-sum:last-child {
+  border-bottom: 0;
+}
+/* 案 b: 白い箱（細い枠だけ）。 */
+.redpen-card[data-design="b"] .rp-sum {
+  padding: 12px 14px;
+  border: 1px solid #e4ded3;
+  border-radius: 14px;
+  background: #fff;
+}
+/* 案 c: 番号の付いた手順。見出しの丸数字を大きく。覚える物は白い札。 */
+.redpen-card[data-design="c"] .rp-sum {
+  padding: 12px 14px;
+  border-radius: 16px;
+  background: #efe8db;
+}
+.redpen-card[data-design="c"] .rp-h--sum {
+  font-size: 15px;
+}
+.redpen-card[data-design="c"] .rp-h--sum .rp-glyph--num {
+  width: 24px;
+  height: 24px;
+}
+.redpen-card[data-design="c"] .rp-learn ul {
+  gap: 8px;
+}
+.redpen-card[data-design="c"] .rp-learn__item {
+  padding: 10px 12px;
+  border: 0;
+  border-radius: 12px;
+  background: #fff;
 }
 /* 片ページ（全画面）。ページは 3D の本が寄って見せる。この層は釦だけ（間は素通し）。 */
 .home-shelf__single {

@@ -404,18 +404,16 @@ const q = new URLSearchParams(location.search);
  * 「これを見てください」と差し出すことになる。
  */
 const REVIEW_SCENES: Array<{ scene: string; label: string }> = [
-  // 2026-10-01「日記を書いたら AI が赤ペン先生のように添削してくれる機能をつける」。
-  {
-    scene: "diary-redpen",
-    label: "日記の赤ペン: 1文書くたびに、そのすぐ下に赤で直し（。を打つと次の文へ）",
-  },
-  {
-    scene: "diary-redpen&state=summary",
-    label: "日記の赤ペン: 書き終わった後のまとめ（言いたかったこと・模範解答・今日覚える物）",
-  },
+  // 2026-10-01「色分けが多すぎる。添削のデザイン案を一から複数考えて」。A/B/C を並べて比べる。
+  { scene: "diary-redpen&design=a", label: "案A 余白に赤ペン: 書いている途中（箱なし・✎▶★）" },
+  { scene: "diary-redpen&design=a&state=summary", label: "案A 余白に赤ペン: まとめ" },
+  { scene: "diary-redpen&design=b", label: "案B ノートの見出し: 書いている途中（白い箱・■●★）" },
+  { scene: "diary-redpen&design=b&state=summary", label: "案B ノートの見出し: まとめ" },
+  { scene: "diary-redpen&design=c", label: "案C 先生の吹き出し: 書いている途中（吹き出し・①②③）" },
+  { scene: "diary-redpen&design=c&state=summary", label: "案C 先生の吹き出し: まとめ" },
   {
     scene: "home-shelf",
-    label: "本棚の本を開いて日記を書く（実際の流れ。書き終えると鉛筆の後にまとめ）",
+    label: "本棚の本を開いて日記を書く（実際の流れ・いまは案A。書き終えると鉛筆の後にまとめ）",
   },
 ];
 
