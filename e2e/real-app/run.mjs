@@ -410,9 +410,9 @@ async function step(page, run) {
     await allow.click();
     return "撮る前の一枚（カメラを使う）";
   }
-  // 5) カメラが使えない面（許可なし・アプリ内ブラウザ）: 端末のカメラの代わりに、
+  // 5) カメラが使えない面（許可なし・アプリ内ブラウザ）: 「写真を選ぶ」で、
   //    同じ本物の写真をファイルとして渡す（撮った写真と同じ道で AI へ）。
-  const file = page.locator('[data-tour="camera-help"] [data-tour="camera-file"]');
+  const file = page.locator('[data-tour="camera-help"] [data-tour="camera-library"]');
   if (await file.isVisible().catch(() => false)) {
     const [chooser] = await Promise.all([
       page.waitForEvent("filechooser", { timeout: 5000 }),
@@ -423,7 +423,7 @@ async function step(page, run) {
       mimeType: "image/webp",
       buffer: PHOTO_BYTES,
     });
-    return "カメラが使えない面: 端末のカメラの代わりに写真を渡す";
+    return "カメラが使えない面: 写真を選ぶ";
   }
   // 6) 撮影の画面（案内が外れているとき）: シャッター。
   const shutter = page.locator(".camera-shutter");

@@ -124,22 +124,13 @@ export function cameraProblemOf(error: unknown, app: InAppBrowser): CameraProble
  *
  * ブラウザ自身の許可の画面（Brave の「…wants to use your camera」など）は、ページから
  * 形を変えることも消すこともできない。ページにできるのは:
- *  1. 頼む**前に**、アプリの言葉で「なぜカメラか・写真はどこへ行くか」を見せ、押して
- *     もらってから頼む（ブラウザの画面は押した直後にだけ出る。断られにくい）
- *  2. 端末のカメラアプリで撮ってもらう（`<input capture>` — サイトの許可は要らない）
- *  3. 断られていたら、端末ごとの直し方と、2 の道をすぐに出す
+ *  1. 頼む**前に**、アプリの一枚を見せ、押してもらってから頼む（ブラウザの画面は
+ *     押した直後にだけ出る。不意に出ない・断られにくい）
+ *  2. 断られていたら、端末ごとの直し方と「写真を選ぶ」をすぐに出す（行き止まりにしない）
+ *
+ * 2026-10-03 オーナー指示「スマホのカメラで撮る機能は消して」— 端末のカメラアプリへ
+ * 渡す道（`<input capture>`）は持たない。
  * ------------------------------------------------------------------ */
-
-/** 前置きの見せ方。本番は {@link CAMERA_PRIMER_VARIANT} の1つ。見本で3つを見比べる。 */
-export type CameraPrimerVariant = "sheet" | "full" | "inline";
-
-/**
- * **本番で使う前置きの見せ方**（ここ1か所で切り替える）。
- * - `sheet` … 暗いカメラの上に浮く下のシート（端末の許可の画面に近い・親指が届く）
- * - `full`  … 画面いっぱいのカード（写真の絵つき）
- * - `inline`… 案内の札の位置に、2つの釦つきの札
- */
-export const CAMERA_PRIMER_VARIANT: CameraPrimerVariant = "sheet";
 
 /** ブラウザに聞いたカメラの許可の状態。聞けなければ `unknown`。 */
 export type CameraPermission = "granted" | "denied" | "prompt" | "unknown";
@@ -148,7 +139,7 @@ export type CameraPermission = "granted" | "denied" | "prompt" | "unknown";
  * 撮る画面を開いたとき、最初に何をするか。
  * - `live` … すぐにカメラを頼む（許可済み・前置きを使わない画面）
  * - `primer` … 前置きを見せ、押してもらってから頼む
- * - それ以外 … 頼んでも無駄なので、直し方（と端末のカメラで撮る道）を出す
+ * - それ以外 … 頼んでも無駄なので、直し方（と写真を選ぶ道）を出す
  */
 export type CameraStart = "live" | "primer" | CameraProblem;
 
@@ -178,15 +169,6 @@ export function cameraStart({
   if (!primer) return "live";
   if (permission === "unknown" && grantedBefore) return "live";
   return "primer";
-}
-
-/**
- * 端末のカメラアプリで撮れるか。スマホ（iPhone・Android）は `<input capture>` で
- * 端末のカメラが開く。パソコンは `capture` が効かず、ファイルを選ぶ画面になるので
- * 「写真を選ぶ」と書く。
- */
-export function osCameraKind(ua: string): "camera" | "file" {
-  return cameraPlatform(ua) === "other" ? "file" : "camera";
 }
 
 /** 画面の手順1行（i18n の鍵と差し込む値）。 */

@@ -45,7 +45,6 @@ import { DexSurface, JUST_CAUGHT_VIEW } from "@/routes/_authenticated/dex";
 import { StickerSheet } from "@/components/StickerSheet";
 import { FirstCatchHome, FirstCatchShell } from "./FirstCatchHome";
 import { Spotlight } from "./Spotlight";
-import { CAMERA_PRIMER_VARIANT, type CameraPrimerVariant } from "@/lib/camera-access";
 import { TutorialSettings, TutorialSettingsContext } from "./TutorialSettings";
 import "./first-catch.css";
 
@@ -115,11 +114,8 @@ export function FirstCatchFlow({
   initialDraft,
   persist = writeFirstCatch,
   initialSettingsOpen = false,
-  cameraPrimer = CAMERA_PRIMER_VARIANT,
   initialSuggestions = [],
 }: {
-  /** 撮る前の一枚の見せ方（見本で A/B/C を見比べるため。本番は既定の1つ）。 */
-  cameraPrimer?: CameraPrimerVariant;
   /** 見本（UI ハーネス）で設定画面を開いた状態から見せるため。 */
   initialSettingsOpen?: boolean;
   /**
@@ -149,7 +145,7 @@ export function FirstCatchFlow({
   /**
    * 撮る画面のシャッターが「次に押す物」か（映像が届いていて、撮る前の一枚も直し方も
    * 出ていない）。そうでない間はシャッターを照らす案内を出さない — 案内の覆いが
-   * 撮る前の一枚・直し方の「カメラを使う」「スマホのカメラで撮る」を押せなくし、
+   * 撮る前の一枚・直し方の「カメラを使う」「写真を選ぶ」を押せなくし、
    * ブラウザの確認の後ろに札が重なるため（2026-10-02 オーナーの画面写真）。
    */
   const [shutterReady, setShutterReady] = useState(false);
@@ -159,7 +155,6 @@ export function FirstCatchFlow({
   const hero = useRef<HTMLDivElement>(null);
   const fly = useRef<HTMLImageElement>(null);
   const pronounce = usePronounce(useTargetLang());
-  const input = useRef<HTMLInputElement>(null);
   const mounted = useRef(true);
   useEffect(() => {
     preloadFirstCatchImages();
@@ -625,7 +620,6 @@ export function FirstCatchFlow({
             ) : (
               <CaptureObjectPanel
                 retakeWord={null}
-                cameraInputRef={input}
                 onObjectFile={photo}
                 typedWord=""
                 setTypedWord={() => {}}
@@ -633,7 +627,7 @@ export function FirstCatchFlow({
                 onOpenScan={() => {}}
                 error={null}
                 onShutterReady={setShutterReady}
-                primer={cameraPrimer}
+                primer
               />
             ))}
         </FirstCatchShell>

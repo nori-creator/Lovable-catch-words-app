@@ -2091,16 +2091,16 @@ export const DICT: Record<string, Record<UiLang, string>> = {
     "zh-TW": "把發現的東西放進框內",
   },
   "capture.tapToShoot": { ja: "タップして撮影", en: "Tap to shoot", "zh-TW": "點一下拍照" },
-  // 2026-10-02: 直す手順より先に「このまま写真で続けられる」ことを言う（行き止まりにしない）。
+  // 2026-10-02: どの理由でも「写真を選んで続けられる」ことを言う（行き止まりにしない）。
   "camhelp.title.inapp": {
     ja: "このアプリの中ではカメラを使えません",
     en: "The camera isn't available in this app",
     "zh-TW": "在這個 App 裡無法使用相機",
   },
   "camhelp.body.inapp": {
-    ja: "スマホのカメラで撮れば続けられます。",
-    en: "Take a photo with your phone's camera to keep going.",
-    "zh-TW": "用手機相機拍照，就能繼續。",
+    ja: "SafariやChromeで開き直すと、カメラが使えます。写真を選んで続けることもできます。",
+    en: "Reopen this page in Safari or Chrome to use the camera, or continue with a photo.",
+    "zh-TW": "用 Safari 或 Chrome 重新開啟就能使用相機，也可以選擇照片繼續。",
   },
   "camhelp.title.denied": {
     ja: "カメラがオフになっています",
@@ -2108,9 +2108,9 @@ export const DICT: Record<string, Record<UiLang, string>> = {
     "zh-TW": "相機權限已關閉",
   },
   "camhelp.body.denied": {
-    ja: "このまま写真で続けられます。この画面のカメラを使うには、許可を変えてください。",
-    en: "You can keep going with a photo, or change the permission to use the camera here.",
-    "zh-TW": "可以直接用照片繼續；若要使用這個畫面的相機，請更改權限。",
+    ja: "下の手順でカメラを許可してください。写真を選んで続けることもできます。",
+    en: "Allow the camera with the steps below, or continue with a photo.",
+    "zh-TW": "請依照下方步驟允許使用相機，也可以選擇照片繼續。",
   },
   "camhelp.title.unavailable": {
     ja: "カメラを起動できませんでした",
@@ -2118,9 +2118,9 @@ export const DICT: Record<string, Record<UiLang, string>> = {
     "zh-TW": "無法啟動相機",
   },
   "camhelp.body.unavailable": {
-    ja: "ほかのアプリがカメラを使っていたら閉じて、もう一度試してください。写真で続けることもできます。",
-    en: "If another app is using the camera, close it and try again. You can also keep going with a photo.",
-    "zh-TW": "如果有其他 App 正在使用相機，請先關閉再試一次。也可以直接用照片繼續。",
+    ja: "ほかのアプリがカメラを使っていたら閉じて、もう一度試してください。写真を選んで続けることもできます。",
+    en: "If another app is using the camera, close it and try again, or continue with a photo.",
+    "zh-TW": "如果有其他 App 正在使用相機，請先關閉再試一次，也可以選擇照片繼續。",
   },
   "camhelp.title.unsupported": {
     ja: "このブラウザではカメラを使えません",
@@ -2128,9 +2128,9 @@ export const DICT: Record<string, Record<UiLang, string>> = {
     "zh-TW": "這個瀏覽器無法使用相機",
   },
   "camhelp.body.unsupported": {
-    ja: "写真で続けるか、SafariかChromeの最新版でこのページを開いてください。",
-    en: "Keep going with a photo, or open this page in the latest Safari or Chrome.",
-    "zh-TW": "可以直接用照片繼續，或用最新版的 Safari 或 Chrome 開啟這個頁面。",
+    ja: "写真を選んで続けるか、SafariかChromeの最新版でこのページを開いてください。",
+    en: "Continue with a photo, or open this page in the latest Safari or Chrome.",
+    "zh-TW": "可以選擇照片繼續，或用最新版的 Safari 或 Chrome 開啟這個頁面。",
   },
   // iPhone の Safari は、このサイトだけの許可がアドレス欄の「ぁあ」の中にある（2026-10-02）。
   "camhelp.iosSafari1": {
@@ -2154,22 +2154,12 @@ export const DICT: Record<string, Record<UiLang, string>> = {
     "zh-TW": "如何允許使用相機",
   },
   // 撮る前の一枚（オーナー指示 2026-10-02「許可の画面がダサい…どこからでもカメラを
-  // 許可して、新規登録前にこのアプリを体験できるように」）。ブラウザの確認より先に、
-  // アプリの言葉で「なぜカメラか・写真はどこへ行くか」を伝える。
+  // 許可して、新規登録前にこのアプリを体験できるように」→ 2026-10-03「写したものから…と
+  // 緑のマークのあとの注意書きは消す」）。ブラウザの確認より先に、見出しと次に押す物だけ。
   "campriming.title": {
     ja: "カメラで、ことばを見つけよう",
     en: "Find words with your camera",
     "zh-TW": "用相機發現單字",
-  },
-  "campriming.reason": {
-    ja: "写したものから、学べることばをAIが提案します。",
-    en: "Point at anything. AI suggests words to learn from what it sees.",
-    "zh-TW": "拍下任何東西，AI 會從畫面中推薦值得學的單字。",
-  },
-  "campriming.privacy": {
-    ja: "写真はことば探しにだけ使い、登録するまではこの端末の中だけに保存します。",
-    en: "Your photo is only used to find words, and is saved only on this device until you sign up.",
-    "zh-TW": "照片只用來找單字，註冊前只存在這台裝置。",
   },
   "campriming.next": {
     ja: "次に出るブラウザの確認では「許可」を選んでください。",
@@ -2177,11 +2167,6 @@ export const DICT: Record<string, Record<UiLang, string>> = {
     "zh-TW": "接著瀏覽器詢問時，請選「允許」。",
   },
   "campriming.allow": { ja: "カメラを使う", en: "Use camera", "zh-TW": "使用相機" },
-  "campriming.osCamera": {
-    ja: "スマホのカメラで撮る",
-    en: "Use phone camera app",
-    "zh-TW": "用手機相機拍",
-  },
   "campriming.library": { ja: "写真を選ぶ", en: "Choose a photo", "zh-TW": "選擇照片" },
   "camhelp.iosChrome1": {
     ja: "iPhoneの「設定」→「アプリ」→「Chrome」を開く",

@@ -204,11 +204,6 @@ export function Spotlight({
     const allowed = (e: Event) =>
       // チュートリアルのメニュー（言語・最初に戻る）はいつでも押せる。
       (e.target instanceof Element && !!e.target.closest("[data-tour-escape]")) ||
-      // The shutter's file-picker fallback dispatches a click on its hidden input.
-      (target === ".camera-shutter" &&
-        e.type === "click" &&
-        e.target instanceof HTMLInputElement &&
-        e.target.matches('[data-first-stage="camera"] input[type="file"][capture]')) ||
       (e.target instanceof Node &&
         (panel.current?.contains(e.target) ||
           (interactive &&

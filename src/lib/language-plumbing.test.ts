@@ -4960,10 +4960,13 @@ describe("狭い画面と指と声", () => {
   });
 
   it("**押すためだけの隠し input は、指にも声にも渡さない**", () => {
-    // シャッターが `.click()` で代わりに開く控えの口。`sr-only` のままだと
+    // 「写真」「写真を選ぶ」が `.click()` で代わりに開く控えの口。`sr-only` のままだと
     // キーボードの順番にも声の案内にも「名前の無い欄」として現れていた。
+    // （端末のカメラアプリへ渡す口 `cameraInputRef` は 2026-10-03「スマホのカメラで撮る
+    // 機能は消して」で無くした。）
     const cap = codeOnly(read("routes/_authenticated/capture.tsx"));
-    const box = cap.slice(cap.indexOf("ref={cameraInputRef}"));
+    expect(cap).not.toMatch(/cameraInputRef/);
+    const box = cap.slice(cap.indexOf("ref={libraryInputRef}"));
     expect(box.slice(0, 300)).toMatch(/tabIndex=\{-1\}/);
     expect(box.slice(0, 300)).toMatch(/aria-hidden="true"/);
   });
