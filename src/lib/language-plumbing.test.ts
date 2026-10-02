@@ -4855,10 +4855,10 @@ describe("ホームは今日の誌面", () => {
     for (const layout of ["scatter", "hero", "cascade", "bouquet"]) {
       expect(list).toContain(`scene: "first-catch&layout=${layout}"`);
     }
-    // カメラの許可の前の一枚（A/B/C）と、断った時・LINE の中の時。
+    // カメラの許可の前の一枚と、断った時・LINE の中の時。
     expect(list).toContain('scene: "first-catch&step=camera&cam=prompt"');
-    expect(list).toContain('scene: "first-catch&step=camera&cam=prompt&primer=b"');
-    expect(list).toContain('scene: "first-catch&step=camera&cam=prompt&primer=c"');
+    // 2026-10-03「カメラ前はBにして」— 案の切り替え（primer=）は外した。
+    expect(list).not.toMatch(/primer=/);
     for (const cam of ["denied", "android", "brave", "line"]) {
       expect(list).toContain(`scene: "first-catch&step=camera&cam=${cam}"`);
     }

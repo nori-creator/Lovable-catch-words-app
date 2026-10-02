@@ -372,9 +372,7 @@ const REVIEW_SCENES: Array<{ scene: string; label: string }> = [
   // 2026-10-02「カメラの許可の画面がダサい…iPhone でも Android でもブラウザからでも
   // どこからでも、登録前に体験できるように」。ブラウザ自身の許可の画面は変えられないので、
   // その前に出すアプリの一枚（A/B/C は右上で切り替え）と、スマホのカメラで撮る道。
-  { scene: "first-catch&step=camera&cam=prompt", label: "カメラの許可の前の一枚 A（おすすめ）" },
-  { scene: "first-catch&step=camera&cam=prompt&primer=b", label: "カメラの許可の前の一枚 B" },
-  { scene: "first-catch&step=camera&cam=prompt&primer=c", label: "カメラの許可の前の一枚 C" },
+  { scene: "first-catch&step=camera&cam=prompt", label: "カメラの許可の前の一枚（B に決定）" },
   { scene: "first-catch&step=camera&cam=denied", label: "カメラを断った時（iPhone）" },
   { scene: "first-catch&step=camera&cam=android", label: "カメラを断った時（Android）" },
   { scene: "first-catch&step=camera&cam=brave", label: "カメラを断った時（Brave）" },
