@@ -453,8 +453,9 @@ export function weekdayCounts(days: string[]): number[] {
 /**
  * **記憶の段の内訳**（札の数、段0〜5）。アプリの画面と同じ1本の数
  * （`retentionNow` → `memoryOf`）で決める — 管理画面だけ別の物差しにすると、本人の
- * 画面と食い違う（ARCHITECTURE.md「Displayed number」）。記憶の起点は最後に復習した時刻、
- * 無ければ札ができた時刻（本人の画面は撮った日時。ほぼ同じ時刻で、表をもう1つ読まずに済む）。
+ * 画面と食い違う（ARCHITECTURE.md「Displayed number」）。記憶の起点は最後に復習した時刻だけ。
+ * 一度も復習していない札は 0%（撮っただけではまだ覚えていない — オーナー指示 2026-10-02）。
+ * `created_at` は以前の起点の名残で、いまは読まない（本人の画面も撮った日を起点にしない）。
  */
 export function memoryLevelCounts(
   cards: Array<{
@@ -467,8 +468,7 @@ export function memoryLevelCounts(
 ): number[] {
   const out = [0, 0, 0, 0, 0, 0];
   for (const c of cards) {
-    const anchor = c.last_reviewed_at ?? c.created_at;
-    const lastMs = anchor ? Date.parse(anchor) : null;
+    const lastMs = c.last_reviewed_at ? Date.parse(c.last_reviewed_at) : null;
     const r = retentionNow(
       c.interval_days ?? 0,
       c.ease ?? 2.5,

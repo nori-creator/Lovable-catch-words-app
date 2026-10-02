@@ -63,15 +63,17 @@ Separate:
    Store enough event data to re-evaluate algorithms later without rewriting history.
    Experimental models should initially run shadow predictions, not control production schedules.
 
-**Owner decision (2026-10-01, back to shadow):** SM-2 sets the next review interval again. After grading, `gradeReview` asks Jev in the background and only logs its interval (`model_shadow_predictions`, `meta.mode = "shadow"`); grading never waits for Jev. The switch is `app_config.jev_interval = {"mode":"live"}` (read by `jevIntervalMode`, unknown/unreadable = shadow). Going live again requires the calibration evaluation below. When live, the 2026-09-23 guardrails apply:
+**Scheduler (owner decision 2026-10-02, "単語のアルゴリズムを正確に改善したい"):** the next interval and the displayed probability come from an FSRS-style DSR model (`src/lib/srs.ts`, formulas and FSRS-6 default weights from the MIT `ts-fsrs` package; see `docs/memory-algorithm-options.md` › decided). No DB migration: `reviews.interval_days` (integer) holds the stability S in whole days (interval at the 90% target equals S; 0 = never reviewed), `ease` 1.3–3.0 is a linear image of difficulty D 10–1 (`easeToDifficulty`/`difficultyToEase`), `repetitions` stays the consecutive-success count, `last_reviewed_at` is the memory anchor. Score 1–5 maps to Again (<3) / Hard (3, 4) / Good (5); Easy is unused because a four-choice recognition quiz gives no evidence for it. Displayed retention is FSRS's power forgetting curve (`forgettingCurve`); a word that has never been reviewed shows **0%** and the lowest level (badge, list, curves, overall average, admin counts). After a lapse the post-lapse stability (≤ S) sets the next date, so a mature word returns in a few days, a young one tomorrow; `review_history.interval_days_after` therefore also records S.
+
+**Owner decision (2026-10-01, back to shadow):** the app's scheduler (FSRS since 2026-10-02; SM-2 before) sets the next review interval. After grading, `gradeReview` asks Jev in the background and only logs its interval (`model_shadow_predictions`, `meta.mode = "shadow"`); grading never waits for Jev. The switch is `app_config.jev_interval = {"mode":"live"}` (read by `jevIntervalMode`, unknown/unreadable = shadow). Going live again requires the calibration evaluation below. When live, the 2026-09-23 guardrails apply (read "SM-2" as "the app's scheduler"):
 
 **Owner override (2026-09-23, "jevにすぐに切り替えて", superseded 2026-10-01 by the shadow default above):** Jev sets the next review interval in `gradeReview`, without a prior shadow-calibration period. Guardrails that must stay:
 
-- A failed/hinted review (score < `LAPSE_SCORE`) always stays on SM-2 (tomorrow); Jev is not asked.
-- If Jev is unavailable, times out (2.5 s) or returns an invalid shape, SM-2 is used.
-- Jev's days are clamped to 0.5×–2× the SM-2 interval (1–365 days) by `pickInterval` (`src/lib/jev-tasks.ts`). Widen only after calibration data supports it.
-- Every Jev interval decision (Jev days, SM-2 days, used days) and every pre-answer recall prediction are logged to `model_shadow_predictions` so calibration can still be evaluated; nothing reads that table to change behavior.
-- ease and repetitions remain SM-2 state.
+- A failed/hinted review (score < `LAPSE_SCORE`) always stays on the scheduler's post-lapse interval; Jev is not asked.
+- If Jev is unavailable, times out (2.5 s) or returns an invalid shape, the scheduler's interval is used.
+- Jev's days are clamped to 0.5×–2× the scheduler's interval (1–365 days) by `pickInterval` (`src/lib/jev-tasks.ts`). Widen only after calibration data supports it. When live, Jev's days are written to `interval_days`, i.e. they replace that word's stability.
+- Every Jev interval decision (Jev days, scheduler days, used days) and every pre-answer recall prediction are logged to `model_shadow_predictions` so calibration can still be evaluated; nothing reads that table to change behavior.
+- ease and repetitions remain scheduler state (difficulty image and consecutive successes).
 
 **Jev usage map (owner request 2026-09-23, "速さと正確性を両立させて"):** Jev is a fast, text-only judge. Use it to _check, rank and decide_, never to _write_ learner-facing content (LLMs write; Jev verifies). Every Jev call must have a timeout and a non-Jev fallback, and must not add latency to the first thing the user sees.
 
@@ -79,6 +81,8 @@ Separate:
 - Shadow (logged only, until calibrated): review interval (switchable, see above), recall prediction, example-sentence naturalness. Next candidate for going live: repair examples Jev rates clearly unnatural (<0.2) in a background job after the word is saved, applied only with the correction judge's approval.
 
 **Displayed number (owner decision 2026-09-23, "単語の数値は1つに統一したい"):** every surface (photo badge, review list, forgetting-curve y-axis and colors, modal chip) shows one number: the estimated probability of recalling the word now (`memoryOf` → `memoryPercent(retention)`), matching PRODUCT.md. How long a word lasts is expressed as the next review date, never as a second percentage.
+
+**No to-do counts (owner decision 2026-10-02, "今日覚えるべき単語などの数字を出すと…やる気がなくなるから出さない"):** the review header shows no "0 / 10" counter and the batch-end hint no "あと N 語"; progress is the bar only. Per-word percentages and the overall % stay. The overall graph (`MiniRetentionGraph`) draws one-colour lines over background bands of the six memory levels (`.mem-band` tokens, light/dark), with the y-axis zoomed to the data.
 
 ## Data licensing
 

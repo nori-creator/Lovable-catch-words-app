@@ -2,11 +2,12 @@
  * 記憶の状態のデザイン案の見本データ（`memory-designs.tsx`）。決まった値。
  *
  * 135語: 薄れぎみ 5・覚えている 67・はっきり 63、全体の今日の値 94%（オーナーの画面写し）。
- * 語ごとの間隔・ease・最後の復習から、本番と同じ式（`stabilityOf` / `buildRetentionSeries`）で
- * % と前後2週間の線と次の復習の日を作る — 数を手で並べると、一覧の % と線と予定の日が食い違う。
+ * 語ごとの間隔・ease・最後の復習から、本番と同じ式（`stabilityOf` / `forgettingCurve` /
+ * `buildRetentionSeries`）で % と前後2週間の線と次の復習の日を作る — 数を手で並べると、
+ * 一覧の % と線と予定の日が食い違う。
  * 日付は 2026-10-02 9:00（台湾）に固定する（絵が日によって変わらない）。
  */
-import { stabilityOf } from "@/lib/srs";
+import { daysUntilRetention, forgettingCurve, stabilityOf } from "@/lib/srs";
 import { buildRetentionSeries, type RetentionEvent } from "@/lib/retention-series";
 import type { MemoryWord } from "@/lib/reviews.functions";
 import type { MemoryDesignProps } from "@/components/memory-designs";
@@ -65,13 +66,14 @@ export function buildMemoryDesignsFixture(): Fixture {
       const interval = Math.round(pick(iLo, iHi));
       const ease = Math.round(pick(2.2, 2.8) * 100) / 100;
       const stability = stabilityOf(interval, ease);
-      const dt = stability * Math.log(100 / target);
+      // 最後の復習から「目標の % まで落ちた」日数だけ遡った所を最後の復習にする。
+      const dt = daysUntilRetention(stability, target / 100);
       const anchor = MEMORY_DESIGNS_NOW - dt * DAY;
       const prevInterval = Math.max(1, Math.round(interval / ease));
       const prevAt = anchor - prevInterval * DAY;
       const takenAt = Math.min(prevAt - DAY, MEMORY_DESIGNS_NOW - pick(16, 60) * DAY);
       const id = `md${i}`;
-      const retention = Math.round(100 * Math.exp(-dt / stability));
+      const retention = Math.round(100 * forgettingCurve(dt, stability));
       const repetitions = 2 + Math.round(pick(0, 6));
       words.push({
         sticker_id: id,
@@ -80,7 +82,7 @@ export function buildMemoryDesignsFixture(): Fixture {
         interval_days: interval,
         repetitions,
         due_at: new Date(anchor + interval * DAY).toISOString(),
-        days_until_forgot: Math.max(0, Math.round(stability * Math.LN2 - dt)),
+        days_until_forgot: Math.max(0, Math.round(daysUntilRetention(stability, 0.5) - dt)),
         fresh: repetitions <= 2,
         long_term: interval >= 30,
         anchor_at: new Date(anchor).toISOString(),

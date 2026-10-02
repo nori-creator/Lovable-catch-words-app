@@ -26,21 +26,20 @@
  * - **その日にまだ無かったカードは平均から外す。** 以前は今日キャッチした
  *   語が2週間前の平均にも混ざっていた(しかも 100% として)。
  *   数えられる語が1枚も無い日は `null` — 0% ではない。線を切る。
- * - **安定度は `stabilityOf` を使う。** 元の関数は
+ * - **安定度は `stabilityOf`、曲線は `forgettingCurve` を使う。** 元の関数は
  *   `Math.max(0.5, interval_days * ease)` と自前で書いていて、
  *   未復習(`interval_days = 0`)の語の安定度が **0.5日** になっていた。
- *   単語ごとの曲線は `stabilityOf`(下限1日)を使っていたので、
+ *   単語ごとの曲線は `stabilityOf` を使っていたので、
  *   同じ語が画面によって違う速さで忘れられていた。
+ * - **まだ1度も復習していない期間は 0%**（オーナー指示 2026-10-02「写真を撮ったときは
+ *   まだ覚えてないから 0% になるように」）。数には入れる（撮った語の分だけ平均が下がり、
+ *   復習すると上がる）。
  *
  * 外の世界に触れるものをここに入れないこと。入れた瞬間にまた試せなくなる。
  */
-import { stabilityOf } from "./srs";
+import { forgettingCurve, stabilityOf } from "./srs";
 
 const DAY_MS = 86400_000;
-
-/** 初回の復習より前の期間に使う既定値(まだ1度も復習していない語)。 */
-export const INITIAL_EASE = 2.5;
-export const INITIAL_INTERVAL_DAYS = 1;
 
 export type RetentionCard = {
   sticker_id: string;
@@ -68,7 +67,7 @@ export type RetentionPoint = {
   counted: number;
 };
 
-/** 記憶の状態 — 起点と安定度の組。 */
+/** 記憶の状態 — 起点と安定度の組。安定度 0 = まだ覚えていない（0%）。 */
 export type MemoryState = { anchorMs: number | null; stabilityDays: number };
 
 function ms(iso: string | null | undefined): number | null {
@@ -124,19 +123,20 @@ export function cardStateAt(
     return { anchorMs: last, stabilityDays: stabilityOf(card.interval_days, card.ease) };
   }
 
-  // まだ1度も復習していない期間 — 起点は出会った日、安定度は初期値。
-  return {
-    anchorMs: from,
-    stabilityDays: stabilityOf(INITIAL_INTERVAL_DAYS, INITIAL_EASE),
-  };
+  // まだ1度も復習していない期間 — 起点は出会った日、記憶はまだ無い（安定度 0 = 0%）。
+  return { anchorMs: from, stabilityDays: 0 };
 }
 
-/** 状態と時刻から定着度(0〜100)。起点が無ければ、まだ忘れる時間が経っていない。 */
+/**
+ * 状態と時刻から定着度(0〜100)。安定度が無ければ（未復習）0。
+ * 起点が無ければ、まだ忘れる時間が経っていない。
+ */
 export function retentionOf(state: MemoryState, atMs: number): number {
+  if (!(state.stabilityDays > 0)) return 0;
   if (state.anchorMs == null) return 100;
   const dt = (atMs - state.anchorMs) / DAY_MS;
   if (dt <= 0) return 100;
-  return Math.max(0, Math.min(100, 100 * Math.exp(-dt / state.stabilityDays)));
+  return Math.max(0, Math.min(100, 100 * forgettingCurve(dt, state.stabilityDays)));
 }
 
 export function groupEvents(events: RetentionEvent[]): Map<string, RetentionEvent[]> {

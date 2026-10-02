@@ -1,5 +1,5 @@
 /**
- * 復習の間隔を決める計算(SM-2 の簡略版)と、忘却曲線。
+ * 復習の間隔を決める計算と、忘却曲線。**FSRS（難しさ・安定度・思い出せる確率）**。
  *
  * ## なぜ別ファイルにしたか
  * これは `reviews.functions.ts` の中にあった。あのファイルは
@@ -13,75 +13,73 @@
  *
  * ---
  *
- * # 点検 2026-09-15（オーナー指示「復習の最適な頻度のアルゴリズムが
- * 科学的に正しいか点検して」）
+ * # 2026-10-02 SM-2 から FSRS へ（オーナー指示「単語のアルゴリズムを正確に改善したい」）
  *
- * 出典と1行ずつ突き合わせた。**合っている所**:
+ * > 「復習を何回もして何回も正解することによって、グラフの角度が変わるようにしたい。
+ * >  より滑らかになって復習の頻度が落ちる。長期記憶でも復習で一度間違えたらその傾きが
+ * >  また少し急になって復習する頻度が増える。復習した期間・正解した連続数・最初に
+ * >  覚えてからどれぐらい経ってるかを元に最適な復習時期と、その単語の記憶の%を出したい」
+ * > 「写真を撮ったときはまだ覚えてないから０％になるように」
  *
- * | | SM-2 の原典 | この実装 |
- * |---|---|---|
- * | 1回目の間隔 | 1日 | 1日 ✓ |
- * | n>2 の間隔 | 前の間隔 × EF | 同じ ✓ |
- * | EF の更新式 | `EF + (0.1 − (5−q)(0.08 + (5−q)0.02))` | 同じ ✓ |
- * | EF の下限 | 1.3 | 1.3 ✓ |
- * | q<3 のとき | 連続回数 0・間隔 1日・**EF は変えない** | 同じ ✓ |
+ * SM-2（1987 年の決め打ちの式）はこれができない: 間隔は ease 倍に伸びるだけで、
+ * 忘れ方そのものは変わらず、間違えると間隔が 1 日へ戻るだけだった。
+ * FSRS は語ごとに **D（難しさ 1〜10）・S（安定度 = 思い出せる確率が 90% まで落ちる
+ * までの日数）** を持ち、正解のたびに S が伸び（曲線がなだらかになる）、間違えると
+ * S が縮む（曲線が急になり、次の復習が早く来る）。Anki が採用している式で、
+ * 約1万人・約7億件の復習記録から既定値が決まっている（`docs/memory-algorithm-options.md`
+ * の A2）。式と既定値は MIT の `ts-fsrs`（FSRS-6、21 個の重み）をそのまま使う —
+ * 式を写すと、更新のたびにここだけ古くなる。
  *
- * 採点も二値ではなく 1〜5 を実際に使っている（正解 5、ぼかしを見たら −1、
- * 8秒超で −1、ヒント 2、不正解 1）。二値 SM-2 だと EF が上がる一方になり
- * 「難しい語」の信号が消えるので、ここは原典の意図に沿っている。
+ * ## DB の列はそのまま（移行なし）
  *
- * ## ずれ ①：2回目の間隔が **3日**（原典は 6日）
- * 意図的に短くしたもので、間違いではない（復習は増えるが取りこぼしは減る）。
- * ただし**どこにも書いていなかった**ので、ここに書き留める。戻すなら
- * `interval_days = 6` の1箇所。
+ * | 列 | いまの意味 |
+ * |---|---|
+ * | `interval_days` | **S（安定度・日）**。狙いの定着度 90% で出すとき FSRS の間隔は S そのものなので、「次に出すまでの日数」と同じ数になる。列は整数なので、小数は四捨五入し 1 日を下限にする（`storedStability`）。**0 = まだ一度も復習していない**。 |
+ * | `ease` | **D を 1.3〜3.0 に写したもの**（`easeToDifficulty` / `difficultyToEase`、一次の対応: ease 3.0 ↔ D 1、ease 1.3 ↔ D 10）。SM-2 の ease と同じ向き（大きいほど覚えやすい）。 |
+ * | `repetitions` | 連続で正解した回数（間違えると 0）。出題形式（`modeFor`）に使う。 |
+ * | `last_reviewed_at` | 記憶の起点。null なら未復習。 |
  *
- * ## ずれ ②：**出す日と、画面が言う「最適な日」が食い違っていた**（2026-09-16 に直した）
+ * 既存の値はそのまま読める: SM-2 の間隔は「ease 2.5 の語が出題日に 90%」になるように
+ * 安定度を合わせてあったので（2026-09-16）、間隔をそのまま S と読んでも**出題日の値は
+ * 90% のまま**。曲線の形だけが指数からべき関数に変わる（遅れた語は少し高く出る）。
  *
- * 安定度を `S = 間隔 × ease` と置いていたので、`R(t) = exp(−t/S)` に
- * 出題日 `t = 間隔` を入れると `R = exp(−1/ease)` ＝ ease 2.5 で **67%**。
- * つまり「67% まで落ちた頃」に出していた。一方、忘却曲線の画面は
- * 「85% 付近がいちばんおいしい」と書き、その日を `S·ln(1/0.85)` で出す。
- * 間隔 30日の語では**出題日より 18日も前**を最適だと言っていた。
+ * ## 採点 1〜5 → FSRS の評価
  *
- * SuperMemo も Anki も FSRS も、狙いは**出題時に約 90%**（FSRS は安定度を
- * *R が 0.9 に落ちるまでの日数* と定義している）。そこへ揃えた
- * （オーナー指示 2026-09-16「アルゴリズムを最適化して」）。
+ * 正解 5、ぼかしを見たら −1、8 秒超で −1、ヒント 2、不正解 1（`reviews.functions.ts`）。
  *
- * | 間隔 30日・ease 2.5 | 前 | いま |
- * |---|---|---|
- * | 安定度 | 75.0日 | 284.7日 |
- * | 出題日の定着度 | 67% | **90%** |
+ * | 採点 | 評価 |
+ * |---|---|
+ * | 3 未満 | Again（思い出せなかった） |
+ * | 3・4 | Hard（思い出せたが、ぼかし・時間切れ・ヒントの助けがあった） |
+ * | 5 | Good |
  *
- * **ease の効きは残してある。** 一律に `間隔 / ln(1/0.9)` とすると、
- * どの語も出題日ちょうど 90% になり、**覚えにくい語という信号が消える**。
- * `S = 間隔 × ease × K` の形のまま K を決めたので、ease 1.3 の語は
- * 出題日に 82%、ease 3.0 の語は 92% と、難しさが定着度に残る。
+ * **Easy は使わない。** 4 択で速く当てたことは「簡単だった」の証拠にならない
+ * （認識は想起より易しい）。Easy の初期安定度は 8.3 日で、証拠の無い語を遠くへ
+ * 飛ばしてしまう。「かんたん」の答え方をアプリが持ったときに足す。
  *
- * # 再点検 2026-09-28（オーナー指示 R11「復習アルゴリズム・記憶判定・復習タイミングを
- * 科学的根拠で再精査」）
+ * ## 撮った直後は 0%
  *
- * ## 直した: **遅れて復習して思い出せた分を数えていなかった**
- * 10日後の予定を 20日後に復習して正解した語は、記憶が 20日もったことを示している。
- * SM-2 の原典は予定の間隔（10日）だけを伸ばすので、この証拠を捨てていた。
- * Anki は遅れた日数を間隔に足し（「Good」で半分、「Easy」で全部）、FSRS は安定度の
- * 更新に実際の経過日数を使う（open-spaced-repetition/fsrs4anki の式）。ここでは Anki と
- * 同じ足し方にした: 採点 5（すぐ・ぼかし無し）は遅れた日数を全部、4 は半分、3 は足さない。
- * 早く復習した時（予定より前）は何も変えない。経過日数が分からない時も今まで通り。
+ * 未復習（`interval_days = 0` / `last_reviewed_at = null`）の語は、まだ記憶が
+ * 始まっていない: `retentionNow` は 0 を返し、段は「忘れかけ」。最初の復習で
+ * 評価に応じた初期安定度（Good 2.3 日・Hard 1.3 日・Again 0.2 日→1 日）が付く。
  *
- * ## 直さない（理由つき）
- * - **忘却曲線の形**: 学習者全体の平均は指数より**べき関数**に近い（Wixted & Ebbesen
- *   1991、FSRS-4.5 以降の `R = (1 + t/(9S))^-1` の系統）。1語ごとの曲線は指数でよく
- *   近似できるので、画面の「記憶の%」は指数のまま（数字が急に変わると混乱するため）。
- *   次の間隔の決め方は Jev（柵つき）に移っているので、形の違いは出題日には効かない。
- * - **間違えた時に間隔を 1日へ戻す**: FSRS は安定度をゼロにはしない（学び直しは速い
- *   = Ebbinghaus の節約）。ここでは「明日もう一度」は残し、その後の伸び方で取り戻す。
- *   学び直しの時点で ease を削らないのは原典どおり（上の表）。
+ * ## 間違えたとき
+ *
+ * SM-2 は「明日もう一度」の決め打ちだった。FSRS は忘れた後の安定度
+ * `S' = w11·D^(−w12)·((S+1)^w13 − 1)·e^(w14·(1−R))`（S を超えない）を使う —
+ * 長くもっていた語ほど学び直しも速い（Ebbinghaus の節約）。間隔 90 日の語を
+ * 間違えると 4 日ほど、若い語は 1 日（下限）で戻ってくる。
+ *
+ * 出典: open-spaced-repetition/ts-fsrs（MIT）、
+ * https://github.com/open-spaced-repetition/fsrs4anki/wiki/The-Algorithm
  */
 
+import { FSRSAlgorithm, computeDecayFactor, default_w } from "ts-fsrs";
+
 export type SrsState = {
-  /** 覚えやすさ。大きいほど間隔が伸びる。下限 1.3。 */
+  /** 覚えやすさ 1.3〜3.0（FSRS の難しさ D を写したもの。大きいほど覚えやすい）。 */
   ease: number;
-  /** 次に出すまでの日数。 */
+  /** 安定度 S（日）= 次に出すまでの日数。**0 = 未復習**。 */
   interval_days: number;
   /** 連続で正解した回数。間違えると 0 に戻る。 */
   repetitions: number;
@@ -89,94 +87,145 @@ export type SrsState = {
 
 /** 間違いと見なす境目。3未満は「思い出せなかった」。 */
 export const LAPSE_SCORE = 3;
-/** ease の下限。ここを割ると間隔が縮み続けて復習が終わらなくなる。 */
+/** ease の下限（= 難しさ D 10）。 */
 export const MIN_EASE = 1.3;
+/** ease の上限（= 難しさ D 1）。SM-2 の ease には上限が無かったので、古い値は 3.0 に丸める。 */
+export const MAX_EASE = 3.0;
+/** 列は整数なので 1 日が下限（「明日」より早くは出さない）。 */
+export const MIN_INTERVAL_DAYS = 1;
+/** FSRS の上限（100 年）。 */
+export const MAX_INTERVAL_DAYS = 36500;
+
+/**
+ * 狙いの定着度。**出題日にこれくらい残っているようにする。**
+ * SuperMemo / Anki / FSRS と同じ 0.9（90%）。FSRS の S はこの値で定義されて
+ * いるので、出す日 = S の日。
+ */
+export const TARGET_RETENTION = 0.9;
+
+/** FSRS-6 の既定の重み。学習の段（短期の学び直し）は持たないので長期の式だけ使う。 */
+const fsrs = new FSRSAlgorithm({
+  w: [...default_w],
+  request_retention: TARGET_RETENTION,
+  enable_short_term: false,
+  enable_fuzz: false,
+  maximum_interval: MAX_INTERVAL_DAYS,
+});
+
+/** べき関数の忘却曲線の定数（FSRS-6: decay = −w20、factor = 0.9^(1/decay) − 1）。 */
+const { decay: DECAY, factor: FACTOR } = computeDecayFactor(default_w);
+
+const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
+
+/** FSRS の評価。1 = Again（思い出せなかった）、2 = Hard、3 = Good。Easy（4）は使わない（上の注）。 */
+export type SrsRating = 1 | 2 | 3;
+
+/** 採点 1〜5 → 評価。 */
+export function ratingOf(score: number): SrsRating {
+  if (score < LAPSE_SCORE) return 1;
+  if (score >= 5) return 3;
+  return 2;
+}
+
+/** ease 1.3〜3.0 → 難しさ D 10〜1（一次。範囲の外は端に寄せる）。 */
+export function easeToDifficulty(ease: number): number {
+  const e = clamp(Number.isFinite(ease) ? ease : 2.5, MIN_EASE, MAX_EASE);
+  return 1 + (9 * (MAX_EASE - e)) / (MAX_EASE - MIN_EASE);
+}
+
+/** 難しさ D 1〜10 → ease 3.0〜1.3（`easeToDifficulty` の逆）。 */
+export function difficultyToEase(difficulty: number): number {
+  const d = clamp(Number.isFinite(difficulty) ? difficulty : 5, 1, 10);
+  return MAX_EASE - ((d - 1) * (MAX_EASE - MIN_EASE)) / 9;
+}
+
+/** 安定度を列に入れる形（整数の日・1 以上）。 */
+export function storedStability(stability: number): number {
+  if (!Number.isFinite(stability)) return MIN_INTERVAL_DAYS;
+  return clamp(Math.round(stability), MIN_INTERVAL_DAYS, MAX_INTERVAL_DAYS);
+}
 
 /**
  * 採点(0〜5)から次の状態を出す。
  *
- * - 3未満(思い出せなかった): 連続回数を捨てて**明日また出す**。
- *   ease はここでは動かさない — 失敗のたびに ease まで削ると、
- *   一度つまずいた語が二度と間隔を伸ばせなくなる。
- * - 3以上: 1回目→1日、2回目→**3日**、それ以降は ease 倍に伸ばす。
- *   原典の SM-2 は2回目が **6日**。短くしてあるのは意図（上の点検 ①）。
+ * - 未復習（`interval_days` 0）: 評価に応じた初期の D・S（FSRS の `init_*`）。
+ * - 復習済み: 前回からの経過日数で「答える直前に思い出せる確率 R」を出し、
+ *   正解なら S を伸ばす（R が低いほど・D が小さいほど大きく伸びる。Hard は w15 で控えめ）、
+ *   間違えたら S を縮める。D は評価で動き、平均へ少し戻る（mean reversion）。
+ *
+ * `elapsedDays` が分からないときは予定どおり（経過 = S、R = 90%）と見なす。
+ * 同じ日に二度答えても R ≈ 1 なので S はほとんど動かない（二重採点に強い）。
  */
 export function nextSrs(
   prev: SrsState,
   score: number,
-  /** 前の復習から実際に経った日数（分かる時だけ）。遅れて思い出せた分を間隔に足す。 */
+  /** 前の復習から実際に経った日数（分かる時だけ）。 */
   opts: { elapsedDays?: number | null } = {},
 ): SrsState {
-  let { ease, interval_days, repetitions } = prev;
-  if (score < LAPSE_SCORE) {
-    repetitions = 0;
-    interval_days = 1;
-  } else {
-    repetitions += 1;
-    if (repetitions === 1) interval_days = 1;
-    else if (repetitions === 2) interval_days = 3;
-    else {
-      const late = Math.max(0, (opts.elapsedDays ?? 0) - interval_days);
-      const credit = score >= 5 ? 1 : score === 4 ? 0.5 : 0;
-      interval_days = Math.round((interval_days + late * credit) * ease);
-    }
-    ease = Math.max(MIN_EASE, ease + (0.1 - (5 - score) * (0.08 + (5 - score) * 0.02)));
-  }
-  return { ease, interval_days, repetitions };
+  const rating = ratingOf(score);
+  const learned = prev.interval_days > 0;
+  const memory = learned
+    ? { difficulty: easeToDifficulty(prev.ease), stability: stabilityOf(prev.interval_days) }
+    : null;
+  const elapsed = learned ? Math.max(0, opts.elapsedDays ?? stabilityOf(prev.interval_days)) : 0;
+  const next = fsrs.next_state(memory, elapsed, rating);
+  return {
+    ease: difficultyToEase(next.difficulty),
+    interval_days: storedStability(next.stability),
+    repetitions: rating === 1 ? 0 : prev.repetitions + 1,
+  };
 }
 
 /**
- * 狙いの定着度。**出題日にこれくらい残っているようにする。**
- * SuperMemo / Anki / FSRS と同じ 0.9（90%）。
- */
-export const TARGET_RETENTION = 0.9;
-
-/** 平均的な覚えやすさ。SM-2 の初期値。 */
-const BASE_EASE = 2.5;
-
-/**
- * 安定度の係数。**「ease 2.5 の語が、出題日にちょうど 90% になる」**
- * ように決めた定数（≒3.796）。
+ * 記憶の安定度(日)。**列の `interval_days` そのもの**（0 = 未復習 = 安定度なし）。
  *
- * ```
- *   exp(−間隔 / S) = 0.9        …… 狙い
- *   S = 間隔 / ln(1/0.9)
- *   間隔 × 2.5 × K = 間隔 / 0.10536
- *   K = 1 / (2.5 × ln(1/0.9)) ≒ 3.796
- * ```
- *
- * `間隔` が約分で消えるので、**K は間隔によらず1つの値**になる。
+ * 第2引数は以前の `S = 間隔 × ease × K` の名残で、呼ぶ側の形を変えないために
+ * 残してある。難しさは次の S の伸び方に効き、いまの曲線の形には効かない（FSRS）。
  */
-const STABILITY_K = 1 / (BASE_EASE * Math.log(1 / TARGET_RETENTION));
-
-/**
- * 記憶の安定度(日)。大きいほどゆっくり忘れる。
- *
- * 未復習のカードは `interval_days` が 0 になる。そのまま計算すると
- * 安定度が 0 になり、**キャッチした直後の語が数時間で「忘れかけ」に
- * 落ちる**。実感と食い違うので、下限を1日ぶんに持ち上げてある。
- */
-export function stabilityOf(interval_days: number, ease: number): number {
-  return Math.max(0.5, Math.max(1, interval_days) * Math.max(1, ease) * STABILITY_K);
+export function stabilityOf(interval_days: number, _ease?: number): number {
+  if (!Number.isFinite(interval_days) || interval_days <= 0) return 0;
+  return Math.max(MIN_INTERVAL_DAYS, interval_days);
 }
 
 /**
- * いまの定着度(0〜100)。指数の忘却曲線。
+ * 忘却曲線（0〜1）。FSRS-6 のべき関数 `R = (1 + FACTOR·t/S)^DECAY`。
+ * 学習者全体の平均は指数より**べき関数**に近い（Wixted & Ebbesen 1991）。
+ * 安定度が無い（未復習）なら 0。
+ */
+export function forgettingCurve(elapsedDays: number, stability: number): number {
+  if (!(stability > 0)) return 0;
+  if (!(elapsedDays > 0)) return 1;
+  return clamp(Math.pow(1 + (FACTOR * elapsedDays) / stability, DECAY), 0, 1);
+}
+
+/**
+ * 保持率が `r`（0〜1）まで落ちるのは起点から何日後か（`forgettingCurve` の逆）。
+ * 安定度が無ければ 0（もう来ている）。
+ */
+export function daysUntilRetention(stability: number, r: number): number {
+  if (!(stability > 0)) return 0;
+  const rr = clamp(r, 1e-6, 1);
+  return Math.max(0, (stability * (Math.pow(rr, 1 / DECAY) - 1)) / FACTOR);
+}
+
+/**
+ * いまの定着度(0〜100)。
  *
- * `lastMs` は「記憶の起点」— 最後に復習した時刻、無ければその語に
- * 出会った時刻。null(どちらも無い)なら、まだ忘れる時間が経っていない
- * ということなので 100 を返す。
+ * `lastReviewMs` は**最後に復習した時刻**。null（未復習）か `interval_days` が 0 なら
+ * まだ覚えていない語なので **0**（オーナー指示 2026-10-02「写真を撮ったときはまだ
+ * 覚えてないから 0% になるように」）。復習の直後は 100。
  */
 export function retentionNow(
   interval_days: number,
-  ease: number,
-  lastMs: number | null,
+  _ease: number,
+  lastReviewMs: number | null,
   nowMs: number,
 ): number {
-  if (lastMs == null) return 100;
-  const dt = (nowMs - lastMs) / 86400_000;
+  const s = stabilityOf(interval_days);
+  if (s <= 0 || lastReviewMs == null) return 0;
+  const dt = (nowMs - lastReviewMs) / 86400_000;
   if (dt <= 0) return 100;
-  return Math.max(0, Math.min(100, 100 * Math.exp(-dt / stabilityOf(interval_days, ease))));
+  return Math.max(0, Math.min(100, 100 * forgettingCurve(dt, s)));
 }
 
 export type ReviewMode = "recognition" | "listening" | "reverse" | "production";

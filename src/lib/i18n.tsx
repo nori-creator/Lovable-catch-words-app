@@ -2213,10 +2213,12 @@ export const DICT: Record<string, Record<UiLang, string>> = {
     en: "That's this batch",
     "zh-TW": "這一輪先到這裡",
   },
+  // 残りの数は言わない（オーナー指示 2026-10-02「今日覚えるべき単語などの数字を出すと
+  // …やる気がなくなるから出さない」）。
   "review.moreHint": {
-    ja: "あと {n} 語、期限が来ています。続けられます。",
-    en: "{n} more are due. You can keep going.",
-    "zh-TW": "還有 {n} 個字到複習時間了，可以繼續。",
+    ja: "まだ期限が来ている語があります。続けられます。",
+    en: "More words are due. You can keep going.",
+    "zh-TW": "還有到複習時間的字，可以繼續。",
   },
   "review.moreCta": { ja: "続ける", en: "Keep going", "zh-TW": "繼續" },
   "review.empty": {

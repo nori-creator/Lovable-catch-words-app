@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { stabilityOf } from "./srs";
+import { forgettingCurve, stabilityOf } from "./srs";
 import {
   buildRetentionSeries,
   cardStateAt,
@@ -82,19 +82,29 @@ describe("cardStateAt", () => {
   it("未来の日から見た最後の復習は、今日の復習になる", () => {
     const s = cardStateAt(card(), events, NOW + 3 * DAY);
     expect(s?.anchorMs).toBe(NOW);
-    // 間隔8日・ease 2.7 → 安定度 21.6日。3日後はまだ高い。
-    expect(retentionOf(s!, NOW + 3 * DAY)).toBeGreaterThan(80);
+    // 間隔 8 日 = 安定度 8 日（出題日に 90%）。3日後はまだ高い。
+    expect(retentionOf(s!, NOW + 3 * DAY)).toBeGreaterThan(90);
   });
 
   it("まだ存在しない日は null(平均から外す)", () => {
     expect(cardStateAt(card({ taken_at: iso(NOW - 2 * DAY) }), [], NOW - 10 * DAY)).toBeNull();
   });
 
-  it("1度も復習していない期間は、出会った日を起点に初期の安定度で忘れる", () => {
+  it("1度も復習していない期間は、記憶がまだ無い（安定度 0 = 0%）", () => {
+    // オーナー指示 2026-10-02「写真を撮ったときはまだ覚えてないから 0% になるように」。
     const s = cardStateAt(card({ taken_at: iso(NOW - 3 * DAY) }), [], NOW);
     expect(s?.anchorMs).toBe(NOW - 3 * DAY);
-    // 初期の安定度は `stabilityOf(0, 2.5)`（1日 × ease 2.5 × 係数）。0.5日ではない。
-    expect(s?.stabilityDays).toBeCloseTo(stabilityOf(0, 2.5), 6);
+    expect(s?.stabilityDays).toBe(0);
+    expect(retentionOf(s!, NOW)).toBe(0);
+    // 数には入る（平均を下げる）。
+    const { series } = buildRetentionSeries({
+      cards: [card({ taken_at: iso(NOW - 3 * DAY) })],
+      events: [],
+      nowMs: NOW,
+    });
+    const today = series.find((p) => p.day_offset === 0)!;
+    expect(today.counted).toBe(1);
+    expect(today.avg_retention).toBe(0);
   });
 
   it("記録が無いのに復習済みの古い行は、いまの状態で補う", () => {
@@ -113,11 +123,16 @@ describe("retentionOf", () => {
     expect(retentionOf({ anchorMs: null, stabilityDays: 3 }, NOW)).toBe(100);
   });
 
-  it("起点より前なら100、そこから指数で落ちる", () => {
+  it("起点より前なら100、そこから忘却曲線（`srs.ts` の `forgettingCurve`）で落ちる", () => {
     const s = { anchorMs: NOW, stabilityDays: 2 };
     expect(retentionOf(s, NOW - DAY)).toBe(100);
     expect(retentionOf(s, NOW)).toBe(100);
-    expect(retentionOf(s, NOW + 2 * DAY)).toBeCloseTo(100 * Math.exp(-1), 6);
+    // 安定度の日 = 90%（狙いの定着度）。
+    expect(retentionOf(s, NOW + 2 * DAY)).toBeCloseTo(90, 4);
+    expect(retentionOf(s, NOW + 6 * DAY)).toBeCloseTo(100 * forgettingCurve(6, 2), 6);
+  });
+  it("安定度が無ければ（未復習）0", () => {
+    expect(retentionOf({ anchorMs: NOW - DAY, stabilityDays: 0 }, NOW)).toBe(0);
   });
 });
 
@@ -183,7 +198,7 @@ describe("buildRetentionSeries — 報告された不具合", () => {
   it("復習の直前は下がりきり、直後に戻る(昨日の谷が残る)", () => {
     const { series } = buildRetentionSeries({ ...before, nowMs: NOW });
     const at = (d: number) => series.find((p) => p.day_offset === d)!.avg_retention!;
-    // 5日前に復習(間隔1日=安定度2.5日) → 昨日までじりじり落ちる
+    // 5日前に復習(間隔1日=安定度1日) → 昨日までじりじり落ちる
     expect(at(-2)).toBeLessThan(at(-4));
     // 昨日また復習したので、そこで持ち直す
     expect(at(-1)).toBeGreaterThan(at(-2));
