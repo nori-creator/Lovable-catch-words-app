@@ -222,8 +222,16 @@ export function FirstCatchReview({
             !introduced
               ? '[data-tour="review-question"]'
               : answerOpen
-                ? '[data-tour="review-next"]'
+                ? // 答え合わせは**面ごと**囲って明るく見せる（オーナー指示 2026-10-03「答え合わせの
+                  // 部分が灰色で見えないから青い枠で囲うのは解答の解説全体にして」）。
+                  '[data-tour="review-answer"] > div'
                 : '[data-tour="review-choices"]'
+          }
+          primary={answerOpen && introduced ? '[data-tour="review-next"]' : undefined}
+          allowSelector={
+            answerOpen && introduced
+              ? '[data-tour="review-next"], [data-tour="review-answer"] button[aria-label]'
+              : undefined
           }
           title={t(
             !introduced
@@ -248,7 +256,7 @@ export function FirstCatchReview({
             !introduced
               ? undefined
               : answerOpen
-                ? '[data-tour="review-answer"]'
+                ? '[data-tour="review-prompt"]'
                 : '[data-tour="review-prompt"], [data-tour="review-question"] .quiz-photo'
           }
         />

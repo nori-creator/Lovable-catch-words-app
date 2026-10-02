@@ -1,4 +1,4 @@
-import { FirstCatchScene } from "./scenes/first-catch";
+import { FirstCatchScene, TutorialHarnessFrame, embedsTutorial } from "./scenes/first-catch";
 import {
   RECOMMENDED_WELCOME_LAYOUT,
   setWelcomeLayoutPreview,
@@ -702,7 +702,10 @@ function WelcomeLayoutBar() {
 }
 
 createRoot(document.getElementById("root")!).render(
-  Scene ? (
+  // チュートリアルは帯の下の iframe で開く（帯が案内を隠さない。`TutorialHarnessFrame`）。
+  Scene && embedsTutorial(q, wanted, showReviewBar) ? (
+    <TutorialHarnessFrame q={q} bar={showReviewBar ? <ReviewBar /> : null} />
+  ) : Scene ? (
     <QueryClientProvider client={qc}>
       {showReviewBar && <ReviewBar />}
       {showWelcomeLayoutBar && <WelcomeLayoutBar />}

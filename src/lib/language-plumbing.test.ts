@@ -6156,7 +6156,8 @@ describe("単語の詳細が開いた直後に別の文へ入れ替わらない�
     expect(sheet).toMatch(/readExplanationCache\(s\?\.word_id, wantKey\)/);
     expect(shared).toMatch(/initialData: cached,/);
     expect(shared).toMatch(/writeCachedExplanation\(cacheKey, r\)/);
-    expect(sheet).toMatch(/explanationPending=\{explanation === undefined\}/);
+    // 端末の中だけの語（登録前のチュートリアル）は問い合わせないので待たない（2026-10-03）。
+    expect(sheet).toMatch(/explanationPending=\{!local && explanation === undefined\}/);
     expect(sheet).toMatch(/extras: explanationPending \? null : s\.word\.extras/);
     expect(sheet).toMatch(/data: readerExplanationSaveInput\(\{/);
     expect(shared).toMatch(/extras: keepShownFields\(/);

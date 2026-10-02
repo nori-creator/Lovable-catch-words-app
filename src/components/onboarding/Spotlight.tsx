@@ -42,6 +42,8 @@ export const TOUR_TIMING = {
 export const RING_GAP = 4;
 
 type Box = { top: number; left: number; width: number; height: number };
+/** 角の丸み（左上・右上・右下・左下）。上だけ丸い面（答え合わせの面）もそのまま囲う。 */
+type Radii = [number, number, number, number];
 type Phase = "wait" | "focus" | "coach";
 
 /** Overlay blocks pointer input outside the target; capture listeners also block
@@ -57,6 +59,9 @@ export function Spotlight({
   allowSelector,
   gesture,
   keepVisible,
+  primary,
+  alignTop = false,
+  compact = false,
 }: {
   /** 照らす物。**押す所そのもの**を指す（押す所を中に含む広い範囲ではなく）。 */
   target: string;
@@ -77,6 +82,22 @@ export function Spotlight({
   gesture?: "tap" | "swipe" | "peel";
   /** 札で**隠さない**物（問題文・答えの面など）。札はこれと枠の両方を避けて置く。 */
   keepVisible?: string;
+  /**
+   * 枠が**読ませたい面ごと**囲う時（答え合わせの面）、その中で次に押す物。脈打つ光で
+   * 示し、実物確認の自動操作もこれを押す（`data-tour-primary`）。
+   */
+  primary?: string;
+  /**
+   * 対象の頭を画面の上に寄せてから照らす（単語の詳細: 写真の下にある意味・例文・チャンクを
+   * 最初から見せる。オーナー指示 2026-10-03「単語の詳細は例文とチャンクをなるべく表示して」）。
+   */
+  alignTop?: boolean;
+  /**
+   * 札を**1段の細い札**にして画面の下端に置く（下のタブを覆う全画面の面＝単語の詳細）。
+   * 意味・例文・チャンクを札で隠さないため（オーナー指示 2026-10-03「単語の詳細は例文と
+   * チャンクをなるべく表示して」）。
+   */
+  compact?: boolean;
 }) {
   const reduced = usePrefersReducedMotion();
   /**
@@ -88,7 +109,8 @@ export function Spotlight({
     phase: "wait",
   });
   const phase: Phase = stage.for === target ? stage.phase : "wait";
-  const [box, setBox] = useState<{ box: Box; radius: number } | null>(null);
+  const [box, setBox] = useState<{ box: Box; radii: Radii } | null>(null);
+  const [primaryBox, setPrimaryBox] = useState<{ box: Box; radii: Radii } | null>(null);
   const [entry, setEntry] = useState<"expand" | "move" | null>(null);
   const [coachH, setCoachH] = useState(0);
   const panel = useRef<HTMLDivElement>(null);
@@ -96,6 +118,8 @@ export function Spotlight({
   const shown = useRef(false);
   const boxRef = useRef(box);
   boxRef.current = box;
+  const primaryRef = useRef(primaryBox);
+  primaryRef.current = primaryBox;
   const coachReady = phase === "coach";
 
   // 1コマ目〜3コマ目: 待つ → 枠 → 札。対象が変わるたびに最初から。
@@ -106,7 +130,7 @@ export function Spotlight({
     let timer = 0;
     let last: DOMRect | null = null;
     let lastRadiusFor = "";
-    let radius = 0;
+    let radii: Radii = [0, 0, 0, 0];
     let stable = 0;
     let prev = 0;
     let scrolled = false;
@@ -129,14 +153,14 @@ export function Spotlight({
         const key = `${Math.round(r!.width)}x${Math.round(r!.height)}`;
         if (key !== lastRadiusFor) {
           lastRadiusFor = key;
-          radius = radiusOf(node!, r!);
+          radii = radiiOf(node!, r!);
         }
       }
       if (!placed) {
         const settled =
           stable >= TOUR_TIMING.settleFrames || now - started >= hold + TOUR_TIMING.settleTimeout;
         if (ok && settled && now - started >= hold) {
-          if (!scrolled && offscreen(r!)) {
+          if (!scrolled && (offscreen(r!) || (alignTop && r!.top > 160))) {
             // 画面の外にある物は、見える所まで巻き取ってから止まるのを待ち直す。
             // 下は札の分（90px）空ける。
             scrolled = true;
@@ -147,7 +171,7 @@ export function Spotlight({
           }
           placed = true;
           shown.current = true;
-          setBox({ box: ringBox(r!), radius });
+          setBox({ box: ringBox(r!), radii });
           const kind = reduced ? null : moving ? "move" : "expand";
           setEntry(kind);
           setStage({ for: target, phase: "focus" });
@@ -170,15 +194,26 @@ export function Spotlight({
       if (ok) {
         const next = ringBox(r!);
         const cur = boxRef.current;
-        if (!cur || !sameBox(cur.box, next) || cur.radius !== radius) setBox({ box: next, radius });
+        if (!cur || !sameBox(cur.box, next) || cur.radii.join() !== radii.join())
+          setBox({ box: next, radii });
       }
+      const p = primary ? document.querySelector<HTMLElement>(primary) : null;
+      const pr = p?.getBoundingClientRect();
+      const nextPrimary =
+        p && pr && pr.width > 0 ? { box: ringBox(pr), radii: radiiOf(p, pr) } : null;
+      const curPrimary = primaryRef.current;
+      if (
+        !nextPrimary !== !curPrimary ||
+        (nextPrimary && curPrimary && !sameBox(nextPrimary.box, curPrimary.box))
+      )
+        setPrimaryBox(nextPrimary);
     };
     raf = requestAnimationFrame(tick);
     return () => {
       cancelAnimationFrame(raf);
       window.clearTimeout(timer);
     };
-  }, [target, reduced]);
+  }, [target, reduced, primary, alignTop]);
 
   useEffect(() => {
     if (coachReady) return;
@@ -271,12 +306,17 @@ export function Spotlight({
   // 1コマ目（新しい画面）: 画面だけを見せる。透明の鍵で、この間に押しても飛ばさない。
   if (!box && phase !== "coach") return <div className="tour-preview-lock" aria-hidden="true" />;
   const ring = box?.box;
-  const place = coachPlacement(ring ?? null, coachH, keepVisible);
+  const place = compact
+    ? {
+        side: "dock" as const,
+        style: { bottom: "max(12px, calc(env(safe-area-inset-bottom) + 8px))" },
+      }
+    : coachPlacement(ring ?? null, coachH, keepVisible);
   const ringClass = [
     "tour-ring",
     phase === "focus" && entry === "expand" ? "tour-ring--expand" : "",
     phase === "focus" && entry === "move" ? "tour-ring--move" : "",
-    coachReady && interactive && !onNext ? "tour-ring--tap" : "",
+    coachReady && interactive && !onNext && !primary ? "tour-ring--tap" : "",
   ]
     .filter(Boolean)
     .join(" ");
@@ -302,13 +342,14 @@ export function Spotlight({
             className={ringClass}
             data-tour-target={target}
             data-tour-gesture={interactive ? (gesture ?? "tap") : undefined}
+            data-tour-primary={primary}
             style={
               {
                 top: ring.top,
                 left: ring.left,
                 width: ring.width,
                 height: ring.height,
-                borderRadius: box.radius ? box.radius + RING_GAP : RING_GAP,
+                borderRadius: ringRadius(box.radii),
                 pointerEvents: interactive ? "none" : "auto",
                 "--ring-cx": `${ring.left + ring.width / 2}px`,
                 "--ring-cy": `${ring.top + ring.height / 2}px`,
@@ -316,6 +357,19 @@ export function Spotlight({
             }
           />
         </>
+      )}
+      {coachReady && primaryBox && (
+        <div
+          className="tour-primary"
+          aria-hidden="true"
+          style={{
+            top: primaryBox.box.top,
+            left: primaryBox.box.left,
+            width: primaryBox.box.width,
+            height: primaryBox.box.height,
+            borderRadius: ringRadius(primaryBox.radii),
+          }}
+        />
       )}
       {coachReady && (
         <div
@@ -325,7 +379,7 @@ export function Spotlight({
           aria-label={title ?? text}
           aria-describedby={title ? "tour-coach-text" : undefined}
           tabIndex={-1}
-          className="tour-coach"
+          className={compact ? "tour-coach tour-coach--compact" : "tour-coach"}
           data-side={place.side}
           style={{ ...place.style, visibility: coachH ? undefined : "hidden" }}
         >
@@ -381,29 +435,61 @@ function ringBox(r: DOMRect): Box {
   return { left, top, width: Math.max(0, right - left), height: Math.max(0, bottom - top) };
 }
 
+/** 枠の角: 対象の角の丸みに間合い（`RING_GAP`）を足す（同心の角）。角張った角も少し丸める。 */
+function ringRadius(radii: Radii): string {
+  return radii.map((r) => `${r + RING_GAP}px`).join(" ");
+}
+
 /**
- * 対象の角の丸み（px）。対象そのものが角張った入れ物（`<section>` など）で、中の
- * 札が同じ角を共有している時は、その札の丸みを使う — 枠が四角いまま丸い札を
- * 囲うと、角だけ間合いがずれて見える。
+ * 対象の角の丸み（px、左上・右上・右下・左下）。対象そのものが角張った入れ物
+ * （`<section>` など）で、中の札が同じ角を共有している時は、その札の丸みを使う —
+ * 枠が四角いまま丸い札を囲うと、角だけ間合いがずれて見える。
  */
-function radiusOf(node: HTMLElement, r: DOMRect): number {
-  const read = (el: Element, w: number, h: number) => {
-    const raw = getComputedStyle(el).borderTopLeftRadius;
-    const value = parseFloat(raw) || 0;
-    const px = raw.endsWith("%") ? (value / 100) * Math.min(w, h) : value;
-    return Math.min(px, w / 2, h / 2);
+function radiiOf(node: HTMLElement, r: DOMRect): Radii {
+  const read = (el: Element, w: number, h: number): Radii => {
+    const cs = getComputedStyle(el);
+    const one = (raw: string) => {
+      const value = parseFloat(raw) || 0;
+      const px = raw.endsWith("%") ? (value / 100) * Math.min(w, h) : value;
+      return Math.min(px, w / 2, h / 2);
+    };
+    return [
+      one(cs.borderTopLeftRadius),
+      one(cs.borderTopRightRadius),
+      one(cs.borderBottomRightRadius),
+      one(cs.borderBottomLeftRadius),
+    ];
   };
   const own = read(node, r.width, r.height);
-  if (own > 0) return own;
+  if (own.some((v) => v > 0)) return own;
   const all = node.querySelectorAll("*");
   for (let i = 0; i < all.length && i < 60; i++) {
     const c = all[i].getBoundingClientRect();
     if (Math.abs(c.left - r.left) > 1.5 || Math.abs(c.top - r.top) > 1.5) continue;
     if (c.width < r.width * 0.6) continue;
-    const radius = read(all[i], c.width, c.height);
-    if (radius > 0) return radius;
+    const radii = read(all[i], c.width, c.height);
+    if (radii.some((v) => v > 0)) return radii;
   }
-  return 0;
+  return [0, 0, 0, 0];
+}
+
+/**
+ * 画面の上の安全領域（iPhone の時計・切り欠き）の高さ。札をその下に置く。
+ * `env()` は CSS からしか読めないので、見えない箱に当てて測る（画面の大きさごとに1回）。
+ */
+let safeTopCache: { key: string; value: number } | null = null;
+function safeTop(): number {
+  if (typeof document === "undefined") return 0;
+  const key = `${window.innerWidth}x${window.innerHeight}`;
+  if (safeTopCache?.key === key) return safeTopCache.value;
+  const probe = document.createElement("div");
+  probe.style.cssText =
+    "position:fixed;top:0;left:0;visibility:hidden;pointer-events:none;padding-top:env(safe-area-inset-top)";
+  document.body.appendChild(probe);
+  const value = parseFloat(getComputedStyle(probe).paddingTop) || 0;
+  probe.remove();
+  safeTopCache = { key, value };
+  return value;
 }
 
 const GAP = 10;
@@ -430,8 +516,9 @@ function coachPlacement(
         })
       : [];
   const avoid = [...(ring ? [ring] : []), ...keep].filter((b) => b.height > 0);
+  const topClear = TOP_CLEAR + safeTop();
   const fits = (top: number) =>
-    top >= TOP_CLEAR &&
+    top >= topClear &&
     top + need <= vh - TABBAR_CLEAR &&
     avoid.every((b) => top + need <= b.top - 4 || top >= b.top + b.height + 4);
   if (ring) {
@@ -442,8 +529,7 @@ function coachPlacement(
     const highest = Math.min(...avoid.map((b) => b.top));
     if (keep.length && fits(highest - GAP - need))
       return { side: "above", style: { top: highest - GAP - need } };
-    if (fits(TOP_CLEAR + 4))
-      return { side: "top", style: { top: `max(${TOP_CLEAR + 4}px, env(safe-area-inset-top))` } };
+    if (fits(topClear + 4)) return { side: "top", style: { top: topClear + 4 } };
   }
   return {
     side: "bottom",

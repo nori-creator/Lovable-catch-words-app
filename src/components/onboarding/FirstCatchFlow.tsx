@@ -5,7 +5,9 @@ import { CatchLandingOverlay, runCatchLanding } from "@/components/CatchLanding"
 import { usePronounce } from "@/lib/use-pronounce";
 import { useTargetLang } from "@/lib/target-lang-pref";
 import { useEffect, useRef, useState } from "react";
-import { ArrowRight } from "lucide-react";
+import { ArrowRight, Check } from "lucide-react";
+import { Reading } from "@/lib/phonetic";
+import { Term } from "@/components/Term";
 import { useServerFn } from "@tanstack/react-start";
 import { useNavigate } from "@tanstack/react-router";
 import { supabase } from "@/integrations/supabase/client";
@@ -21,6 +23,7 @@ import type { FirstCatchAIRequest } from "@/lib/first-catch-ai-schema";
 import {
   firstCatchPhoto,
   applyFirstCatchLanguage,
+  seedFirstCatchReading,
   ensureFirstCatchSession,
   isGuestRefusal,
 } from "@/lib/first-catch-services";
@@ -129,7 +132,12 @@ export function FirstCatchFlow({
   persist?: (draft: FirstCatch) => Promise<void>;
 }) {
   const t = useT();
-  const [draft, setDraft] = useState<FirstCatch | null>(initialDraft ?? null);
+  const [draft, setDraft] = useState<FirstCatch | null>(() => {
+    // 台湾華語なら最初の描画から拼音（選んだことのある端末はそのまま）。子の読みは
+    // この後に描かれるので、ここで書けば1コマ目から拼音になる。
+    if (initialDraft) seedFirstCatchReading(initialDraft);
+    return initialDraft ?? null;
+  });
   const draftRef = useRef(draft);
   draftRef.current = draft;
   const [busy, setBusy] = useState<"photo" | "card" | "save" | null>(null);
@@ -562,7 +570,26 @@ export function FirstCatchFlow({
         />
       )}
       {draft.stage === "complete" && (
-        <div className="first-standalone first-ready">
+        /* **祝う画面**（オーナー指示 2026-10-03「チュートリアルの終わりの画面はアニメーションを
+           入れて、祝福する、画面に動きを入れて」）。見出しが弾んで出る → 撮った写真が回りながら
+           飛び出す → 紙吹雪が開いて上から降る → 完了の印と、その語（読み付き）が乗る → 登録の釦。
+           動きは transform と opacity だけ。動きを減らす設定では、最後の絵のまま出す。 */
+        <div className="first-standalone first-ready first-complete">
+          <div className="first-confetti-rain" aria-hidden="true">
+            {CONFETTI_RAIN.map(([x, delay, dx, turn], i) => (
+              <i
+                key={i}
+                style={
+                  {
+                    "--x": `${x}%`,
+                    "--d": `${delay}ms`,
+                    "--dx": `${dx}px`,
+                    "--r": `${turn}deg`,
+                  } as React.CSSProperties
+                }
+              />
+            ))}
+          </div>
           <div className="first-ready-heading">
             <h1>{t("first.completeTitle")}</h1>
             <p>{t("first.completeHint")}</p>
@@ -573,7 +600,25 @@ export function FirstCatchFlow({
                 <i key={i} />
               ))}
             </div>
-            <img src={draft.photo!} alt="" className="first-complete-photo" />
+            <div className="first-complete-print">
+              <img src={draft.photo!} alt="" className="first-complete-photo" />
+              <span className="first-complete-badge" aria-hidden="true">
+                <Check size={30} strokeWidth={3} />
+              </span>
+              {sticker && (
+                <span className="first-complete-word">
+                  <Term lang={sticker.word.language} className="first-complete-word__head">
+                    {sticker.word.headword}
+                  </Term>
+                  <Reading
+                    lang={sticker.word.language ?? undefined}
+                    zhuyin={sticker.word.reading_zhuyin}
+                    pinyin={sticker.word.pinyin}
+                    className="first-complete-word__reading"
+                  />
+                </span>
+              )}
+            </div>
           </div>
           <footer className="first-standalone-footer">
             <button className="first-primary tour-pulse" disabled={!!busy} onClick={account}>
@@ -705,6 +750,8 @@ export function FirstCatchFlow({
           />
           <Spotlight
             target='[data-tour="word-detail"]'
+            alignTop
+            compact
             title={t("first.exploreCoachTitle")}
             text={t("first.exploreHint")}
             interactive
@@ -780,3 +827,23 @@ export function FirstCatchFlow({
     </div>,
   );
 }
+
+/** 終わりの画面に降る紙吹雪: 横の位置(%)・遅れ(ms)・横の流れ(px)・回転(度)。決め打ちで毎回同じ絵。 */
+const CONFETTI_RAIN: ReadonlyArray<readonly [number, number, number, number]> = [
+  [6, 120, 18, 260],
+  [14, 420, -12, -320],
+  [22, 60, 26, 300],
+  [31, 300, -20, -240],
+  [39, 520, 14, 360],
+  [47, 180, -16, -280],
+  [55, 380, 22, 250],
+  [63, 90, -24, -340],
+  [71, 460, 12, 290],
+  [79, 240, -18, -260],
+  [87, 140, 20, 330],
+  [94, 560, -14, -300],
+  [10, 760, 16, -220],
+  [35, 880, -22, 280],
+  [59, 700, 18, -310],
+  [83, 820, -12, 240],
+];
