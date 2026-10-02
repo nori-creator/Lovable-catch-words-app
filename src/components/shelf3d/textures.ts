@@ -13,6 +13,7 @@
 
 import { diaryFont, wrapDiaryLines, type DiaryFontId } from "@/lib/diary-fonts";
 import { clamp, COLLAGE_CAP_MIN, COLLAGE_CAP_W, sizePx, type Placement } from "@/lib/album-place";
+import { fitAlbumPage, keepHomeLayout, type PageFitItem } from "@/lib/album-page-fit";
 
 export type Canvas = HTMLCanvasElement;
 
@@ -717,6 +718,24 @@ function paintPlacedPhotos(ctx: CanvasRenderingContext2D, s: DaySpread, w: numbe
   const availH = h - top - 40;
   // 台紙が縦に長い日は、ページに収まるまで全体を縮める（置き方の比は変えない）。
   const fit = Math.min(1, availH / ((s.boardH ?? 1.3) * boardMaxW));
+  // **縮めると細い1本の列になる日・ページの下が大きく空く日は、ページに合わせて並べ直す**
+  // （オーナー指示 2026-10-02「縦に長になっていて変だから、大きさやバランスを自動的に調整して」、
+  // `lib/album-page-fit.ts`）。
+  // 台紙の高さ（`boardH`）には下限があるので、写真と字が**実際に届く一番下**で測る。
+  const k0 = boardMaxW / REF_BOARD_CSS;
+  const reach = Math.max(
+    0,
+    ...s.photos.map((p) => {
+      const { w: cw, h: ch } = sizePx(p.place!, boardMaxW, p.ratio ?? 1.2);
+      const t = cardText(cw, k0);
+      return p.place!.y * boardMaxW + ch / 2 + t.strip + (p.note ? 2 * t.lh : 0);
+    }),
+  );
+  const fill = (reach * fit) / availH;
+  if (!keepHomeLayout(fit, fill)) {
+    paintFlowedPhotos(ctx, s, { x: M, y: top, w: boardMaxW, h: availH });
+    return;
+  }
   const bw = boardMaxW * fit;
   const ox = M + (boardMaxW - bw) / 2;
   const k = bw / REF_BOARD_CSS;
@@ -727,91 +746,164 @@ function paintPlacedPhotos(ctx: CanvasRenderingContext2D, s: DaySpread, w: numbe
     const { w: cw, h: ch } = sizePx(pl, bw, p.ratio ?? 1.2);
     const X = ox + pl.x * bw;
     const Y = top + pl.y * bw;
-    // 語を書く下の余白（元の本と同じく写真より少し広い台紙）。
-    const strip = Math.max(30 * k, cw * 0.2);
-    const wordPx = clamp(cw * 0.12, 15 * k, 26 * k);
-    const notePx = Math.max(13 * k, 20);
-    ctx.save();
-    ctx.translate(X, Y);
-    ctx.rotate((pl.rot * Math.PI) / 180);
+    const capW = clamp(cw + 10, bw * COLLAGE_CAP_MIN, bw * COLLAGE_CAP_W);
+    // 一言が台紙の外へはみ出す時は、台紙の中へ寄せる。
+    const dx = Math.max(0, ox - (X - capW / 2)) - Math.max(0, X + capW / 2 - (ox + bw));
+    paintPhotoCard(ctx, p, { X, Y, cw, ch, rot: pl.rot, k, capW, capDx: dx, plainW: bw });
+  }
+}
 
-    if (p.plain) {
-      // 字だけの札: 枠も地も持たず、紙に語と一言を書く。
-      ctx.textAlign = "left";
-      ctx.textBaseline = "alphabetic";
-      ctx.font = `700 ${wordPx}px ${SANS}`;
-      ctx.fillStyle = "#2b2520";
-      ctx.fillText(fitOneLine(ctx, p.word, Math.max(cw, wordPx * 3)), -cw / 2, -ch / 2 + wordPx);
-      if (p.note) {
-        ctx.font = `400 ${notePx}px ${HAND}`;
-        ctx.fillStyle = "#7a4e2a";
-        const lh = notePx * 1.3;
-        clampLines(ctx, p.note, Math.max(cw, bw * COLLAGE_CAP_MIN), 3).forEach((ln, n) =>
-          inkText(ctx, ln, -cw / 2, -ch / 2 + wordPx + lh * (n + 1), notePx),
-        );
-      }
-      ctx.restore();
-      continue;
-    }
+/** 写真の下の字の大きさ（台紙の白い余白・語・一言）。並べ直しの高さの計算と描く所で同じ値。 */
+function cardText(cw: number, k: number) {
+  const strip = Math.max(30 * k, cw * 0.2);
+  const wordPx = clamp(cw * 0.12, 15 * k, 26 * k);
+  const notePx = Math.max(13 * k, 20);
+  return { strip, wordPx, notePx, lh: notePx * 1.3 };
+}
 
-    // 白い台紙（元の本と同じ: 影つき・角ばった紙）
-    const pad = Math.max(8, cw * 0.045);
-    ctx.shadowColor = "rgba(40,30,20,0.32)";
-    ctx.shadowBlur = 16;
-    ctx.shadowOffsetY = 6;
-    ctx.fillStyle = "#fcfbf7";
-    ctx.fillRect(-cw / 2, -ch / 2, cw, ch + strip);
-    ctx.shadowColor = "transparent";
-    ctx.shadowOffsetY = 0;
-    // 写真（枠いっぱいに `cover`）
-    const px = -cw / 2 + pad;
-    const py = -ch / 2 + pad;
-    const pw = cw - 2 * pad;
-    const ph = ch - pad;
-    ctx.save();
-    ctx.beginPath();
-    ctx.rect(px, py, pw, ph);
-    ctx.clip();
-    if (p.img) {
-      const iw = p.img.naturalWidth || p.img.width;
-      const ih = p.img.naturalHeight || p.img.height;
-      if (iw && ih) {
-        const sc = Math.max(pw / iw, ph / ih);
-        ctx.drawImage(p.img, px + (pw - iw * sc) / 2, py + (ph - ih * sc) / 2, iw * sc, ih * sc);
-      }
-    } else {
-      ctx.fillStyle = "#e9e4d6";
-      ctx.fillRect(px, py, pw, ph);
-    }
-    ctx.restore();
-    // マスキングテープ
-    ctx.fillStyle = "rgba(214,190,140,0.62)";
-    ctx.save();
-    ctx.translate(0, -ch / 2 - 4);
-    ctx.rotate(-0.08);
-    const tw = clamp(cw * 0.34, 56, 100);
-    ctx.fillRect(-tw / 2, -14, tw, 28);
-    ctx.restore();
-    // 語（太字・真ん中）
-    ctx.fillStyle = "#2b2520";
-    ctx.font = `700 ${wordPx}px ${SANS}`;
-    ctx.textAlign = "center";
+/**
+ * ページの幅と高さに合わせて、列の数と写真の幅を選び直して貼る（ホームの置き方では細い列に
+ * なる日だけ）。傾きはホームで付いた角度をそのまま使う。
+ */
+function paintFlowedPhotos(
+  ctx: CanvasRenderingContext2D,
+  s: DaySpread,
+  area: { x: number; y: number; w: number; h: number },
+) {
+  const k = area.w / REF_BOARD_CSS;
+  const gap = Math.max(14, area.w * 0.035);
+  // 一言の行数は字の幅で変わるので、写真の幅ごとに測る。
+  const noteLines = (note: string | undefined, width: number, notePx: number) => {
+    if (!note) return 0;
+    ctx.font = `400 ${notePx}px ${HAND}`;
+    return clampLines(ctx, note, width, 3).length;
+  };
+  const items: PageFitItem[] = s.photos.map((p) => ({
+    ratio: p.plain ? 0 : (p.ratio ?? 1.2),
+    below: (cw: number) => {
+      const t = cardText(cw, k);
+      const lines = noteLines(p.note, cw, t.notePx);
+      if (p.plain) return t.wordPx * 1.4 + lines * t.lh;
+      return t.strip + (lines ? lines * t.lh + t.lh * 0.2 : 0);
+    },
+  }));
+  const laid = fitAlbumPage(items, { w: area.w, h: area.h }, gap);
+  s.photos.forEach((p, i) => {
+    const b = laid.boxes[i];
+    if (!b) return;
+    const X = area.x + b.x + b.w / 2;
+    const Y = area.y + b.y + b.h / 2;
+    // 字だけの札は高さ 0 の枠の上端から書くので、中心をその位置に置く。
+    paintPhotoCard(ctx, p, {
+      X,
+      Y,
+      cw: b.w,
+      ch: b.h,
+      // 列が揃っているぶん、傾きは控えめに（ホームの角度の半分）。
+      rot: (p.place?.rot ?? 0) * 0.5,
+      k,
+      capW: b.w,
+      capDx: 0,
+      plainW: b.w,
+    });
+  });
+}
+
+/** 写真1枚（台紙・写真・テープ・語・一言）を、中心 (X, Y) に傾けて描く。 */
+function paintPhotoCard(
+  ctx: CanvasRenderingContext2D,
+  p: DaySpread["photos"][number],
+  o: {
+    X: number;
+    Y: number;
+    cw: number;
+    ch: number;
+    rot: number;
+    k: number;
+    capW: number;
+    capDx: number;
+    /** 字だけの札が語と一言を書ける幅。 */
+    plainW: number;
+  },
+) {
+  const { X, Y, cw, ch, k } = o;
+  const { strip, wordPx, notePx, lh } = cardText(cw, k);
+  ctx.save();
+  ctx.translate(X, Y);
+  ctx.rotate((o.rot * Math.PI) / 180);
+
+  if (p.plain) {
+    // 字だけの札: 枠も地も持たず、紙に語と一言を書く。
+    ctx.textAlign = "left";
     ctx.textBaseline = "alphabetic";
-    const wordY = ch / 2 + strip * 0.68;
-    ctx.fillText(fitOneLine(ctx, p.word, cw - 2 * pad), 0, wordY);
-    // 本人の一言（茶色の手書き。3行まで、台紙の幅で折る）
+    ctx.font = `700 ${wordPx}px ${SANS}`;
+    ctx.fillStyle = "#2b2520";
+    ctx.fillText(fitOneLine(ctx, p.word, Math.max(cw, wordPx * 3)), -cw / 2, -ch / 2 + wordPx);
     if (p.note) {
-      const capW = clamp(cw + 10, bw * COLLAGE_CAP_MIN, bw * COLLAGE_CAP_W);
-      const dx = Math.max(0, ox - (X - capW / 2)) - Math.max(0, X + capW / 2 - (ox + bw));
       ctx.font = `400 ${notePx}px ${HAND}`;
       ctx.fillStyle = "#7a4e2a";
-      const lh = notePx * 1.3;
-      clampLines(ctx, p.note, capW, 3).forEach((ln, n) =>
-        inkText(ctx, ln, dx, ch / 2 + strip + lh * (n + 1) - lh * 0.15, notePx),
+      clampLines(ctx, p.note, Math.max(cw, o.plainW * COLLAGE_CAP_MIN), 3).forEach((ln, n) =>
+        inkText(ctx, ln, -cw / 2, -ch / 2 + wordPx + lh * (n + 1), notePx),
       );
     }
     ctx.restore();
+    return;
   }
+
+  // 白い台紙（元の本と同じ: 影つき・角ばった紙）
+  const pad = Math.max(8, cw * 0.045);
+  ctx.shadowColor = "rgba(40,30,20,0.32)";
+  ctx.shadowBlur = 16;
+  ctx.shadowOffsetY = 6;
+  ctx.fillStyle = "#fcfbf7";
+  ctx.fillRect(-cw / 2, -ch / 2, cw, ch + strip);
+  ctx.shadowColor = "transparent";
+  ctx.shadowOffsetY = 0;
+  // 写真（枠いっぱいに `cover`）
+  const px = -cw / 2 + pad;
+  const py = -ch / 2 + pad;
+  const pw = cw - 2 * pad;
+  const ph = ch - pad;
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(px, py, pw, ph);
+  ctx.clip();
+  if (p.img) {
+    const iw = p.img.naturalWidth || p.img.width;
+    const ih = p.img.naturalHeight || p.img.height;
+    if (iw && ih) {
+      const sc = Math.max(pw / iw, ph / ih);
+      ctx.drawImage(p.img, px + (pw - iw * sc) / 2, py + (ph - ih * sc) / 2, iw * sc, ih * sc);
+    }
+  } else {
+    ctx.fillStyle = "#e9e4d6";
+    ctx.fillRect(px, py, pw, ph);
+  }
+  ctx.restore();
+  // マスキングテープ
+  ctx.fillStyle = "rgba(214,190,140,0.62)";
+  ctx.save();
+  ctx.translate(0, -ch / 2 - 4);
+  ctx.rotate(-0.08);
+  const tw = clamp(cw * 0.34, 56, 100);
+  ctx.fillRect(-tw / 2, -14, tw, 28);
+  ctx.restore();
+  // 語（太字・真ん中）
+  ctx.fillStyle = "#2b2520";
+  ctx.font = `700 ${wordPx}px ${SANS}`;
+  ctx.textAlign = "center";
+  ctx.textBaseline = "alphabetic";
+  const wordY = ch / 2 + strip * 0.68;
+  ctx.fillText(fitOneLine(ctx, p.word, cw - 2 * pad), 0, wordY);
+  // 本人の一言（茶色の手書き。3行まで、台紙の幅で折る）
+  if (p.note) {
+    ctx.font = `400 ${notePx}px ${HAND}`;
+    ctx.fillStyle = "#7a4e2a";
+    clampLines(ctx, p.note, o.capW, 3).forEach((ln, n) =>
+      inkText(ctx, ln, o.capDx, ch / 2 + strip + lh * (n + 1) - lh * 0.15, notePx),
+    );
+  }
+  ctx.restore();
 }
 
 function wrapCanvas(ctx: CanvasRenderingContext2D, text: string, maxW: number) {

@@ -6394,7 +6394,7 @@ describe("R27: 日記の左ページは元の紙のまま、置き方だけホ�
   it("本の絵は置き方（大きさ・向き・重なり）で貼り、見た目は元の紙（白い台紙・マスキングテープ・手書きの一言3行）", () => {
     expect(tex).toMatch(/function paintPlacedPhotos\(/);
     expect(tex).toMatch(/s\.photos\.every\(\(p\) => p\.place\)/);
-    expect(tex).toMatch(/clampLines\(ctx, p\.note, capW, 3\)/);
+    expect(tex).toMatch(/clampLines\(ctx, p\.note, o\.capW, 3\)/);
     expect(tex).toMatch(/rgba\(214,190,140,0\.62\)/);
     expect(shelf).toMatch(/monthDays\(shown, b\.y, b\.m, 60\)/);
   });

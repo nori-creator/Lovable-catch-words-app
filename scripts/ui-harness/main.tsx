@@ -51,6 +51,7 @@ import { PlaceNotifyDesignsScene } from "./scenes/place-notify-designs";
 import { RegenMagicScene } from "./scenes/regen-magic";
 import { AnalyzingDesignsScene } from "./scenes/analyzing-designs";
 import { Shelf3DScene } from "./scenes/shelf-3d";
+import { BookPageScene } from "./scenes/book-page";
 import { ThreeFxScene } from "./scenes/three-fx";
 import { Object3DScene } from "./scenes/object-3d";
 import { DiaryPencilScene } from "./scenes/diary-pencil";
@@ -172,6 +173,7 @@ const SCENES: Record<string, ((p: { q: URLSearchParams }) => ReactNode) | undefi
   "place-notify-designs": PlaceNotifyDesignsScene,
   "analyzing-designs": AnalyzingDesignsScene,
   "shelf-3d": Shelf3DScene,
+  "book-page": BookPageScene,
   "three-fx": ThreeFxScene,
   "object-3d": Object3DScene,
   "diary-pencil": DiaryPencilScene,
