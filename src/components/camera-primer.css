@@ -1,0 +1,471 @@
+/* ------------------------------------------------------------------
+ * 撮る前の一枚（`CameraPrimer`）と、カメラが使えないときの面（`CameraHelp`）。
+ *
+ * オーナー指示 2026-10-02「許可の画面がダサい…スマホやアプリ、ブラウザの許可のほうが
+ * 洗練されてる」。端末の許可の画面に近づける: 暗いカメラの上に浮く1枚の面、短い見出し、
+ * 1行の理由、写真の扱いの約束、親指の届く所に大きな釦。
+ *
+ * 色はカメラ自前の固定色（`--cam-*`、styles.css）。カメラの画面はテーマに従わない
+ * （暗いテーマで白地に白い字になった事故がある）。案内の札の形（`inline`）だけは、
+ * チュートリアルの札（`.tour-coach`）と同じテーマの色を使う。
+ * ------------------------------------------------------------------ */
+
+.cam-primer {
+  position: absolute;
+  inset: 0;
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  /* 下のバー（タブ）の上に置く。撮る画面の操作と同じ逃げ（`.capture-controls`）。 */
+  padding: calc(env(safe-area-inset-top, 0px) + 3rem) 12px
+    calc(5rem + env(safe-area-inset-bottom, 0px));
+  color: var(--cam-ink);
+  touch-action: manipulation;
+  -webkit-user-select: none;
+  user-select: none;
+}
+.cam-primer__scrim {
+  position: absolute;
+  inset: 0;
+  background: rgb(2 6 18 / 0.5);
+  animation: cam-primer-fade 0.32s ease-out both;
+}
+.cam-primer__panel {
+  position: relative;
+  width: 100%;
+  max-width: 420px;
+  max-height: 100%;
+  margin-inline: auto;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  border-radius: 30px;
+  padding: 24px 18px 14px;
+  background: color-mix(in srgb, var(--cam-body) 80%, transparent);
+  -webkit-backdrop-filter: blur(28px) saturate(170%);
+  backdrop-filter: blur(28px) saturate(170%);
+  border: 1px solid rgb(255 255 255 / 0.12);
+  box-shadow:
+    0 24px 60px rgb(0 0 0 / 0.45),
+    inset 0 1px 0 rgb(255 255 255 / 0.08);
+  animation: cam-primer-rise 0.52s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.cam-primer__body {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+.cam-primer__badge {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 60px;
+  height: 60px;
+  margin-bottom: 14px;
+  border-radius: 20px;
+  color: #fff;
+  background: linear-gradient(150deg, var(--cam-accent), var(--cam-accent-deep));
+  box-shadow:
+    0 10px 24px color-mix(in srgb, var(--cam-accent) 40%, transparent),
+    inset 0 1px 0 rgb(255 255 255 / 0.3);
+}
+.cam-primer__badge--off {
+  background: linear-gradient(150deg, oklch(0.42 0.05 258), oklch(0.3 0.05 258));
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.18);
+}
+.cam-primer__spark {
+  position: absolute;
+  top: 9px;
+  right: 9px;
+}
+.cam-primer__title {
+  font-size: 21px;
+  line-height: 1.3;
+  font-weight: 750;
+  letter-spacing: -0.01em;
+  color: var(--cam-paper);
+  text-wrap: balance;
+}
+.cam-primer__reason {
+  margin-top: 6px;
+  font-size: 15px;
+  line-height: 1.55;
+  color: color-mix(in srgb, var(--cam-ink) 86%, transparent);
+  text-wrap: pretty;
+}
+.cam-primer__privacy {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin-top: 14px;
+  padding: 10px 12px;
+  border-radius: 14px;
+  background: rgb(255 255 255 / 0.07);
+  font-size: 13px;
+  line-height: 1.5;
+  text-align: start;
+  color: color-mix(in srgb, var(--cam-ink) 84%, transparent);
+}
+.cam-primer__privacy svg {
+  flex: none;
+  margin-top: 1px;
+  color: oklch(0.82 0.13 160);
+}
+.cam-primer__actions {
+  display: flex;
+  flex-direction: column;
+  margin-top: 18px;
+}
+.cam-primer__allow {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 54px;
+  padding: 10px 20px;
+  border-radius: 999px;
+  background: var(--cam-accent);
+  color: #fff;
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  box-shadow: 0 10px 26px color-mix(in srgb, var(--cam-accent) 42%, transparent);
+}
+.cam-primer__next {
+  margin: 8px 4px 12px;
+  font-size: 12.5px;
+  line-height: 1.5;
+  text-align: center;
+  color: color-mix(in srgb, var(--cam-ink) 70%, transparent);
+}
+.cam-primer--help .cam-primer__allow {
+  margin-bottom: 10px;
+}
+/* ほかの道は、iOS の設定画面の「まとまった行」のように1つの面に縦に並べる
+   （横に2つ並べると、長い言葉が2行に割れて読みにくかった）。 */
+.cam-primer__alt {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border-radius: 16px;
+  background: rgb(255 255 255 / 0.08);
+  border: 1px solid rgb(255 255 255 / 0.07);
+}
+.cam-primer__file {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 48px;
+  padding: 10px 14px;
+  color: var(--cam-paper);
+  font-size: 15px;
+  font-weight: 650;
+  line-height: 1.3;
+  text-align: center;
+}
+.cam-primer__file + .cam-primer__file {
+  border-top: 1px solid rgb(255 255 255 / 0.09);
+}
+.cam-primer__file:active {
+  background: rgb(255 255 255 / 0.08);
+}
+.cam-primer__file svg {
+  flex: none;
+}
+.cam-primer__steps {
+  margin-top: 8px;
+  text-align: start;
+}
+.cam-primer__steps summary {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  min-height: 44px;
+  list-style: none;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 650;
+  color: color-mix(in srgb, var(--cam-ink) 88%, transparent);
+}
+.cam-primer__steps summary::-webkit-details-marker {
+  display: none;
+}
+.cam-primer__steps summary svg {
+  transition: rotate 0.2s ease;
+}
+.cam-primer__steps[open] summary svg {
+  rotate: 180deg;
+}
+.cam-primer__steps ol {
+  list-style: decimal;
+  display: grid;
+  gap: 6px;
+  padding: 12px 14px 12px 32px;
+  border-radius: 16px;
+  background: rgb(255 255 255 / 0.07);
+  font-size: 13.5px;
+  line-height: 1.55;
+  color: var(--cam-ink);
+}
+.cam-primer__links {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  column-gap: 8px;
+  margin-top: 4px;
+}
+.cam-primer__link {
+  min-height: 44px;
+  padding: 0 12px;
+  font-size: 13px;
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  color: color-mix(in srgb, var(--cam-ink) 80%, transparent);
+}
+
+/* ---- B: 画面いっぱいのカード（写真の絵つき） ---- */
+.cam-primer--full {
+  padding-top: calc(env(safe-area-inset-top, 0px) + 3.25rem);
+  background:
+    radial-gradient(
+      circle at 50% 28%,
+      color-mix(in srgb, var(--cam-accent) 30%, transparent),
+      transparent 58%
+    ),
+    var(--cam-body);
+  animation: cam-primer-fade 0.32s ease-out both;
+}
+.cam-primer--full .cam-primer__panel {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  max-width: 440px;
+  padding: 0 8px;
+  background: none;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+.cam-primer__art {
+  display: grid;
+  flex: 1;
+  min-height: 150px;
+  place-items: center;
+  padding-block: 8px 26px;
+}
+.cam-primer__shot {
+  position: relative;
+  height: 100%;
+  max-height: 300px;
+  aspect-ratio: 3 / 4;
+  rotate: -3deg;
+  animation: cam-primer-shot 0.7s cubic-bezier(0.22, 1, 0.36, 1) 0.08s both;
+}
+.cam-primer__photo {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 22px;
+  border: 4px solid var(--cam-paper);
+  box-shadow: 0 22px 50px rgb(0 0 0 / 0.5);
+}
+.cam-primer__corners i {
+  position: absolute;
+  width: 26px;
+  height: 26px;
+  border: 3px solid var(--cam-paper);
+  filter: drop-shadow(0 1px 3px rgb(0 0 0 / 0.5));
+}
+.cam-primer__corners i:nth-child(1) {
+  top: 16px;
+  left: 16px;
+  border-right: 0;
+  border-bottom: 0;
+  border-top-left-radius: 9px;
+}
+.cam-primer__corners i:nth-child(2) {
+  top: 16px;
+  right: 16px;
+  border-left: 0;
+  border-bottom: 0;
+  border-top-right-radius: 9px;
+}
+.cam-primer__corners i:nth-child(3) {
+  bottom: 16px;
+  left: 16px;
+  border-right: 0;
+  border-top: 0;
+  border-bottom-left-radius: 9px;
+}
+.cam-primer__corners i:nth-child(4) {
+  bottom: 16px;
+  right: 16px;
+  border-left: 0;
+  border-top: 0;
+  border-bottom-right-radius: 9px;
+}
+.cam-primer__chip {
+  position: absolute;
+  right: -14px;
+  bottom: 28px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: var(--cam-paper);
+  color: var(--cam-accent-deep);
+  font-size: 13px;
+  font-weight: 800;
+  rotate: 3deg;
+  box-shadow: 0 8px 20px rgb(0 0 0 / 0.35);
+}
+.cam-primer--full .cam-primer__title {
+  font-size: 24px;
+}
+
+/* ---- C: 案内の札の位置の札（`.tour-coach` と同じ見た目） ---- */
+.cam-primer--inline .cam-primer__panel {
+  max-width: 400px;
+  padding: 18px 18px 12px;
+  border-radius: 22px;
+  border: 0;
+  background: var(--card);
+  color: var(--foreground);
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+  box-shadow: 0 12px 36px rgb(0 0 0 / 0.4);
+}
+.cam-primer--inline .cam-primer__body {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  column-gap: 12px;
+  align-items: center;
+  text-align: start;
+}
+.cam-primer--inline .cam-primer__badge {
+  grid-row: span 2;
+  width: 48px;
+  height: 48px;
+  margin: 0;
+  border-radius: 16px;
+}
+.cam-primer--inline .cam-primer__title {
+  font-size: 17px;
+  color: var(--foreground);
+}
+.cam-primer--inline .cam-primer__reason {
+  margin-top: 2px;
+  font-size: 14px;
+  color: var(--muted-foreground);
+}
+.cam-primer--inline .cam-primer__privacy {
+  grid-column: 1 / -1;
+  background: var(--muted);
+  color: var(--muted-foreground);
+}
+.cam-primer--inline .cam-primer__privacy svg {
+  color: oklch(0.55 0.13 160);
+}
+.cam-primer--inline .cam-primer__actions {
+  margin-top: 14px;
+}
+.cam-primer--inline .cam-primer__allow {
+  min-height: 50px;
+  background: var(--primary);
+  color: var(--primary-foreground);
+  box-shadow: none;
+}
+.cam-primer--inline .cam-primer__next,
+.cam-primer--inline .cam-primer__steps summary,
+.cam-primer--inline .cam-primer__link {
+  color: var(--muted-foreground);
+}
+.cam-primer--inline .cam-primer__alt {
+  background: var(--muted);
+  border-color: transparent;
+}
+.cam-primer--inline .cam-primer__file {
+  color: var(--foreground);
+}
+.cam-primer--inline .cam-primer__file + .cam-primer__file {
+  border-top-color: color-mix(in srgb, var(--foreground) 10%, transparent);
+}
+.cam-primer--inline .cam-primer__steps ol {
+  background: var(--muted);
+  color: var(--foreground);
+}
+.cam-primer--inline .cam-primer__badge--off {
+  color: var(--cam-paper);
+}
+
+/* ---- ログイン後の撮る画面: 映像の枠の中（下の撮り方の帯はそのまま使える） ---- */
+.cam-primer--frame {
+  z-index: 10;
+  justify-content: center;
+  padding: 16px;
+  background: rgb(0 0 0 / 0.72);
+}
+.cam-primer--frame .cam-primer__panel {
+  padding: 8px 4px;
+  background: none;
+  border: 0;
+  box-shadow: none;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+  animation: none;
+}
+.cam-primer--frame .cam-primer__badge {
+  width: 52px;
+  height: 52px;
+  margin-bottom: 10px;
+  border-radius: 18px;
+}
+.cam-primer--frame .cam-primer__title {
+  font-size: 18px;
+}
+.cam-primer--frame .cam-primer__reason {
+  font-size: 14px;
+}
+
+@keyframes cam-primer-fade {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes cam-primer-rise {
+  from {
+    opacity: 0;
+    translate: 0 28px;
+    scale: 0.98;
+  }
+}
+@keyframes cam-primer-shot {
+  from {
+    opacity: 0;
+    translate: 0 16px;
+    rotate: 0deg;
+    scale: 0.94;
+  }
+}
+html[data-motion="reduce"] .cam-primer,
+html[data-motion="reduce"] .cam-primer *,
+html[data-motion="reduce"] .cam-primer *::before,
+html[data-motion="reduce"] .cam-primer *::after {
+  animation: none !important;
+  transition: none !important;
+}
+@media (prefers-reduced-transparency: reduce) {
+  .cam-primer__panel {
+    background: var(--cam-body);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+}

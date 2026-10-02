@@ -230,7 +230,13 @@ let fakeCameraOn = false;
 function useFakeCamera() {
   useState(() => {
     const md = navigator.mediaDevices;
-    if (fakeCameraOn || !md || typeof HTMLCanvasElement.prototype.captureStream !== "function")
+    // `?cam=` は端末の答え（許可なし・アプリ内ブラウザ）を main.tsx で差し替えてある。
+    if (
+      fakeCameraOn ||
+      !md ||
+      typeof HTMLCanvasElement.prototype.captureStream !== "function" ||
+      new URLSearchParams(location.search).has("cam")
+    )
       return;
     fakeCameraOn = true;
     md.getUserMedia = async () => {

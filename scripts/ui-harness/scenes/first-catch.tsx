@@ -7,6 +7,75 @@ import { CardSchema } from "@/lib/card-schema";
 import { createFirstCatchServices } from "@/lib/first-catch-ai-client";
 import { FirstCatchSchema, type FirstCatch } from "@/lib/first-catch";
 import type { FirstCatchAIRequest } from "@/lib/first-catch-ai-schema";
+import { CAMERA_PRIMER_VARIANT, type CameraPrimerVariant } from "@/lib/camera-access";
+
+/**
+ * **撮る前の一枚の見比べ**（2026-10-02 オーナー指示「許可の画面がダサい」）。
+ * `?primer=a|b|c`。付けなければ本番と同じ1つ（`CAMERA_PRIMER_VARIANT`）。
+ */
+const PRIMER_VARIANTS: Array<{ id: string; variant: CameraPrimerVariant; label: string }> = [
+  { id: "a", variant: "sheet", label: "A 下のシート" },
+  { id: "b", variant: "full", label: "B 画面いっぱい" },
+  { id: "c", variant: "inline", label: "C 案内の札" },
+];
+function primerOf(q: URLSearchParams): CameraPrimerVariant {
+  return PRIMER_VARIANTS.find((p) => p.id === q.get("primer"))?.variant ?? CAMERA_PRIMER_VARIANT;
+}
+/**
+ * 見比べの切り替え（A/B/C）。撮る画面の上に浮かせる。押すと読み込み直す — 許可の状態
+ * （見本の「まだ許可していない」）からやり直して、同じ所から見比べられるように。
+ */
+function PrimerPicker({ q }: { q: URLSearchParams }) {
+  const current = primerOf(q);
+  return (
+    <div
+      role="radiogroup"
+      aria-label="撮る前の一枚の見せ方"
+      style={{
+        position: "fixed",
+        top: "calc(env(safe-area-inset-top, 0px) + 6px)",
+        right: 8,
+        zIndex: 2147483000,
+        display: "flex",
+        gap: 2,
+        padding: 3,
+        borderRadius: 999,
+        background: "rgb(255 255 255 / 0.92)",
+        boxShadow: "0 4px 14px rgb(0 0 0 / 0.3)",
+        font: "600 12px/1 system-ui, sans-serif",
+      }}
+    >
+      {PRIMER_VARIANTS.map((p) => {
+        const on = p.variant === current;
+        return (
+          <button
+            key={p.id}
+            type="button"
+            role="radio"
+            aria-checked={on}
+            title={p.label}
+            onClick={() => {
+              const next = new URLSearchParams(location.search);
+              next.set("primer", p.id);
+              location.search = next.toString();
+            }}
+            style={{
+              minWidth: 36,
+              minHeight: 32,
+              padding: "0 8px",
+              borderRadius: 999,
+              border: 0,
+              background: on ? "#1f6feb" : "transparent",
+              color: on ? "#fff" : "#1b2433",
+            }}
+          >
+            {p.id.toUpperCase()}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
 
 async function previewRequest(data: FirstCatchAIRequest): Promise<unknown> {
   const response = await fetch("/api/first-catch", {
@@ -160,8 +229,13 @@ export function FirstCatchScene({ q }: { q: URLSearchParams }) {
             setDraft(next);
           }}
           onAccount={() => setAccount(true)}
+          cameraPrimer={primerOf(q)}
         />
       )}
+      {!account &&
+        draft.stage === "camera" &&
+        !draft.photo &&
+        (q.has("primer") || q.has("cam")) && <PrimerPicker q={q} />}
     </>
   );
 }

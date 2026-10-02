@@ -425,22 +425,89 @@ const REVIEW_SCENES: Array<{ scene: string; label: string }> = [
     "Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1";
   const android =
     "Mozilla/5.0 (Linux; Android 14; SM-S911B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0 Mobile Safari/537.36";
-  const agents: Record<string, string> = {
-    denied: iphone,
-    line: `${iphone.replace(" Version/17.5", "")} Line/14.9.0`,
-    android,
+  const desktop =
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0 Safari/537.36";
+  /**
+   * 端末の名乗り・許可の状態・カメラの答え（2026-10-02 撮る前の一枚）。
+   * - `prompt*` … まだ許可していない。撮る前の一枚が出て、「カメラを使う」で見本の景色が映る
+   * - `denied` / `android` / `brave` … 断ってある（iPhone の Safari・Android の Chrome・Brave）
+   * - `line` / `android-app` … アプリ内ブラウザでカメラの仕組みが無い
+   */
+  const agents: Record<
+    string,
+    { ua: string; state: "prompt" | "denied"; camera: "fake" | "deny" | "none"; brave?: true }
+  > = {
+    prompt: { ua: iphone, state: "prompt", camera: "fake" },
+    "prompt-android": { ua: android, state: "prompt", camera: "fake" },
+    "prompt-desktop": { ua: desktop, state: "prompt", camera: "fake" },
+    denied: { ua: iphone, state: "denied", camera: "deny" },
+    android: { ua: android, state: "denied", camera: "deny" },
+    brave: { ua: android, state: "denied", camera: "deny", brave: true },
+    line: {
+      ua: `${iphone.replace(" Version/17.5", "")} Line/14.9.0`,
+      state: "prompt",
+      camera: "none",
+    },
     // Android の Google アプリの中のブラウザ（WebView は「; wv)」を名乗る）。
-    "android-app": `${android.replace("SM-S911B)", "SM-S911B; wv)")} GSA/15.20`,
+    "android-app": {
+      ua: `${android.replace("SM-S911B)", "SM-S911B; wv)")} GSA/15.20`,
+      state: "prompt",
+      camera: "none",
+    },
   };
-  if (cam && agents[cam]) {
+  const emu = cam ? agents[cam] : undefined;
+  if (emu) {
     try {
-      Object.defineProperty(navigator, "userAgent", { get: () => agents[cam] });
+      Object.defineProperty(navigator, "userAgent", { get: () => emu.ua });
+      if (emu.brave) Object.defineProperty(navigator, "brave", { value: {}, configurable: true });
     } catch {
       /* 差し替えられないブラウザでは、端末そのままの手順が出る。 */
     }
-    if (navigator.mediaDevices)
-      navigator.mediaDevices.getUserMedia = () =>
-        Promise.reject(new DOMException("preview", "NotAllowedError"));
+    let state: string = emu.state;
+    const permissions = navigator.permissions;
+    if (permissions?.query) {
+      const query = permissions.query.bind(permissions);
+      permissions.query = (desc: PermissionDescriptor) =>
+        desc.name === ("camera" as PermissionName)
+          ? Promise.resolve({
+              get state() {
+                return state;
+              },
+              addEventListener() {},
+              removeEventListener() {},
+            } as unknown as PermissionStatus)
+          : query(desc);
+    }
+    const md = navigator.mediaDevices;
+    if (md && emu.camera === "deny")
+      md.getUserMedia = () => Promise.reject(new DOMException("preview", "NotAllowedError"));
+    if (md && emu.camera === "none")
+      Object.defineProperty(md, "getUserMedia", { value: undefined, configurable: true });
+    if (md && emu.camera === "fake")
+      // 見本の景色（生成したカフェの写真）を縦 3:4 の映像にして流す。
+      md.getUserMedia = async () => {
+        const c = document.createElement("canvas");
+        c.width = 1080;
+        c.height = 1440;
+        const img = new Image();
+        img.src = "/first-catch-cafe.webp";
+        await img.decode().catch(() => {});
+        const g = c.getContext("2d")!;
+        const draw = () => {
+          const s = Math.max(c.width / (img.width || 1), c.height / (img.height || 1));
+          g.drawImage(
+            img,
+            (c.width - img.width * s) / 2,
+            (c.height - img.height * s) / 2,
+            img.width * s,
+            img.height * s,
+          );
+        };
+        draw();
+        window.setInterval(draw, 500);
+        state = "granted";
+        return c.captureStream(2);
+      };
   }
 }
 
