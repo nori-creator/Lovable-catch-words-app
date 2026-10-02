@@ -16,79 +16,27 @@ export const FIRST_CATCH_PHOTOS = [
 ];
 
 /**
- * **最初の画面の4枚の並べ方**（オーナー指示 2026-09-30「ウェルカム画面の4枚の画像の配置が
- * 美しくないから、4枚を一つの作品のように並べて。デザイン案を複数出して」）。
- *
- * - `mosaic`（A）: 傾けず重ねず、同じ隙間で組んだ**1つの長方形**。左の列は縦長の珈琲と猫、
- *   右の列は花と海。右の列を 1.25 倍の幅にすると、両方の列の高さがちょうど揃う
- *   （左 = 1.5w + 1w、右 = 1.25w × 2）。
- * - `frame`（B）: A と同じ組み方を、**1枚の額**（台紙＋細い縁）に収める。
- * - `bouquet`（C）: 猫を手前の主役に、花と海を左右対称に傾け、珈琲を奥の中央に立てる。
- *
- * 写真は3案とも**写真の比のまま**（切らない・潰さない）。**本番は C**（オーナー決定
- * 2026-09-30「Cにして」）。A・B は確認用ページ（`?layout=`）で見比べられるよう残す。
- *
- * 2026-10-02 オーナー指示「ウェルカム画面の画像の配置を美しくして。デザイン案を私に。
- * 縦横無機質には並べないで」で、縦横に揃えない新しい3案を足した。
- *
- * - `scatter`（D「散らす」）: 卓上に手で置いた4枚。左の列を高く・右の列を低くずらした
- *   斜めの流れで、大きさも傾きも1枚ずつ変える。
- * - `hero`（E「主役」）: 猫を大きな主役にし、珈琲・花・海を主役の角に添える。
- * - `cascade`（F「流れ」）: 縦長の珈琲を左の柱にし、花・猫・海が右上から左下へ
- *   流れ落ちる。流れの先が「はじめる」。
- *
- * 本番の並べ方は `DEFAULT_WELCOME_LAYOUT` の1か所だけで決まる。オーナーが選んだら
- * ここを書き換える（確認用ページは `RECOMMENDED_WELCOME_LAYOUT` を先に見せる）。
- */
-export const WELCOME_LAYOUTS = [
-  "mosaic",
-  "frame",
-  "bouquet",
-  "scatter",
-  "hero",
-  "cascade",
-] as const;
-export type WelcomeLayout = (typeof WELCOME_LAYOUTS)[number];
-export const DEFAULT_WELCOME_LAYOUT: WelcomeLayout = "bouquet";
-/** 確認用ページで最初に見せる案（2026-10-02 の新しい3案のうちのおすすめ）。 */
-export const RECOMMENDED_WELCOME_LAYOUT: WelcomeLayout = "scatter";
-let welcomeLayoutPreview: WelcomeLayout | null = null;
-/** 確認用ページだけが使う（本番のコードからは呼ばない）。 */
-export function setWelcomeLayoutPreview(layout: WelcomeLayout | null) {
-  welcomeLayoutPreview = layout;
-}
-
-/**
- * **最初の画面とログイン画面の写真の束。**（オーナー指示 2026-09-29「画像の縮尺が変、
+ * **ログイン画面の写真の束。**（オーナー指示 2026-09-29「画像の縮尺が変、
  * 縦に圧縮されすぎてる…写真自体のデザインもホーム画面のアルバムの写真と全く同じ
  * ものにして」）
  *
  * 前は4枚とも同じ正方形に近い枠に `object-fit: cover` で押し込んでいたので、縦長の
  * 珈琲の写真（2:3）は上下が大きく切られ、枠も横に広く見えた。今は1枚ずつ
  * **写真の比のままの枠**（`AlbumPrint`）で、ホームのアルバムと同じ紙・語。
- * 留め具（テープ・四隅）は付けない（2026-09-30）。
- * 大きさは束の箱の高さ（`cqh`）から決めるので、背の低い画面でもはみ出さない。
- * `layout` を渡さない束（ログイン画面）は、今までどおりの扇形。
+ * 留め具（テープ・四隅）は付けない（2026-09-30）。横に少しずつ重ねた扇形。
+ * （最初の画面は 2026-10-03 から `FirstCatchIntro` の空と手の1枚に変わった。）
  */
 export function FirstCatchPhotoStack({
   labels,
   lang,
   className,
-  layout,
 }: {
   labels: string[];
   lang?: string | null;
   className?: string;
-  layout?: WelcomeLayout;
 }) {
-  const chosen = layout ? (welcomeLayoutPreview ?? layout) : null;
   return (
-    <div
-      className={`first-print-stack ${chosen ? `first-print-stack--${chosen}` : ""} ${className ?? ""}`}
-      data-layout={chosen ?? undefined}
-      aria-hidden="true"
-    >
-      {chosen === "frame" && <span className="first-print-frame" />}
+    <div className={`first-print-stack ${className ?? ""}`} aria-hidden="true">
       {FIRST_CATCH_PHOTOS.map(({ src, ratio }, i) => (
         <AlbumPrint
           key={src}
@@ -127,6 +75,46 @@ function PrimaryAction({
   );
 }
 
+/**
+ * 最初の画面の周りの4枚（ぼかした奥の写真）。語はどれも学ぶ言語の見本の語。
+ * `photo` は花・猫・珈琲・湖の写真を**先にぼかして小さくした**1枚（`ratio` は高さ÷幅）。
+ * 画面で `filter: blur()` を掛けると、Chrome で写真が白く抜けて描かれる時があった
+ * （実測）うえ、動く4枚を毎回ぼかすのは重い。
+ */
+const WELCOME_AROUND = [
+  { key: "flower", photo: "/first-catch-welcome-blur-flower.webp", ratio: 1 },
+  { key: "cat", photo: "/first-catch-welcome-blur-cat.webp", ratio: 1 },
+  { key: "coffee", photo: "/first-catch-welcome-blur-coffee.webp", ratio: 1.5 },
+  { key: "lake", photo: "/first-catch-welcome-blur-lake.webp", ratio: 1 },
+] as const;
+
+/** 写真の下に手で書く1語。手前の1枚はオーナー指定の「海邊」（2026-10-03）。 */
+function welcomeWord(key: (typeof WELCOME_AROUND)[number]["key"] | "seaside", en: boolean) {
+  const words = {
+    seaside: ["seaside", "海邊"],
+    flower: ["flower", "花"],
+    cat: ["cat", "貓"],
+    coffee: ["coffee", "咖啡"],
+    lake: ["lake", "湖"],
+  } as const;
+  return words[key][en ? 0 : 1];
+}
+
+/**
+ * **最初の画面**（オーナー指示 2026-10-03「ウェルカム画面はAのデザインを再現して。
+ * キャッチフレーズは日常のすべてが学びになる。海の写真の下には海邊という台湾華語を
+ * 書き入れて」「アニメーションを入れて、祝福する、画面に動きを入れて」）。
+ *
+ * 明るい空の上に、手が持ち上げた海の1枚（下の余白に手書きの「海邊」）と、その周りに
+ * ぼかした4枚の写真。写真の並びはオーナーの見本（A. シンプルモダン）の寸法をそのまま
+ * 写した1枚の「舞台」（横 612・縦 770 の見本の単位）で、箱の高さ・幅に収まる倍率で描く。
+ * 見本にある3つの点は付けない — 横に送れない画面を送れるように見せるため（2026-09-30
+ * に外した理由と同じ）。
+ *
+ * 動き: 雲が流れ、周りの写真が舞い込んで止まり、手の1枚が下から上がって小さく揺れ、
+ * 写真に光が走って星がまたたく。動きを減らす設定（`html[data-motion="reduce"]`）では
+ * 止まった最後の絵だけを出す。
+ */
 export function FirstCatchIntro({
   draft,
   busy,
@@ -135,42 +123,83 @@ export function FirstCatchIntro({
 }: {
   draft: FirstCatch;
   busy: boolean;
-  /** 「はじめる」で保存できなかった時の理由と再試行。前は出す所が無く、押しても無反応に見えた。 */
+  /** 「はじめる」で保存できなかった時の理由。前は出す所が無く、押しても無反応に見えた。 */
   error?: ReactNode;
   onStart: () => void;
 }) {
   const t = useT();
-  const labels = sampleStickers(draft, t, draft.targetLanguage).map(
-    (sample) => sample.word.headword,
-  );
+  const en = draft.targetLanguage === "en";
+  // 学ぶ言語の字で、細いペンで書いたように（台湾華語は Zen Kurenaido、英語は Caveat）。
+  const hand = en ? "handwritten" : "first-welcome-pen";
   return (
-    <div className="first-run">
+    <div className="first-run first-welcome">
+      <div className="first-sky" aria-hidden="true">
+        <span className="first-sky-cloud first-sky-cloud--1" />
+        <span className="first-sky-cloud first-sky-cloud--2" />
+        <span className="first-sky-cloud first-sky-cloud--3" />
+        <span className="first-sky-cloud first-sky-cloud--4" />
+        <span className="first-sky-sea" />
+        {Array.from({ length: 5 }, (_, i) => (
+          <span key={i} className={`first-sky-glint first-sky-glint--${i + 1}`} />
+        ))}
+      </div>
       <div className="first-standalone first-intro">
         <header className="first-intro-heading">
           <img src="/icon-192.png" alt="" className="first-intro-logo" />
           <h1>CatchWords</h1>
+          <p className="first-intro-tagline">{t("first.introTagline")}</p>
         </header>
-        {/* 写真の束は、残りの高さに収まる大きさで描く（`container-type: size`）。
-            前は高さを固定していたので、背の低い画面では「はじめる」の上に
-            猫の写真が重なり、667px では「はじめる」が画面の外へ落ちていた。
-            手書きの一言と4つの点は外した — 一言は見出しの言い直しで、
-            点は横に送れない画面を送れるように見せていた。 */}
-        <FirstCatchPhotoStack
-          labels={labels}
-          lang={draft.targetLanguage}
-          className="first-polaroids"
-          layout={DEFAULT_WELCOME_LAYOUT}
-        />
+        <div className="first-welcome-stage" aria-hidden="true">
+          {WELCOME_AROUND.map(({ key, photo, ratio }, i) => (
+            <span
+              key={key}
+              className={`first-welcome-around first-welcome-around--${i + 1}`}
+              style={{ ["--ratio" as string]: String(ratio) }}
+            >
+              <span className="first-welcome-paper">
+                <img src={photo} alt="" className="first-welcome-photo" decoding="async" />
+                <span className="first-welcome-caption" lang={draft.targetLanguage}>
+                  <span className={hand}>{welcomeWord(key, en)}</span>
+                </span>
+              </span>
+            </span>
+          ))}
+          <span className="first-welcome-held">
+            <span className="first-welcome-sway">
+              <span className="first-welcome-paper first-welcome-paper--main">
+                <span className="first-welcome-shot">
+                  <img
+                    src="/first-catch-ready.webp"
+                    alt=""
+                    className="first-welcome-photo"
+                    decoding="async"
+                  />
+                  <span className="first-welcome-shine" />
+                </span>
+                <span className="first-welcome-caption" lang={draft.targetLanguage}>
+                  <span className={hand}>{welcomeWord("seaside", en)}</span>
+                </span>
+              </span>
+              <img src="/first-catch-hand.webp" alt="" className="first-welcome-hand" />
+            </span>
+            {Array.from({ length: 5 }, (_, i) => (
+              <span key={i} className={`first-welcome-spark first-welcome-spark--${i + 1}`} />
+            ))}
+          </span>
+        </div>
         {error}
         <footer className="first-standalone-footer">
           <PrimaryAction onClick={onStart} disabled={busy}>
             {t("first.introStart")}
           </PrimaryAction>
           {/* 再訪した人（期限切れ・別端末）は最初の画面からログインへ行ける。
-              前は質問の1枚目まで進まないと入口が無かった。 */}
-          <a className="first-secondary text-center" href="/auth">
-            {t("first.signin")}
-          </a>
+              見本どおり「ログイン」だけを青い文字にし、押せる高さ（44px）は保つ。 */}
+          <p className="first-welcome-signin">
+            {t("first.signinPrompt")}
+            <a className="first-secondary" href="/auth">
+              {t("first.signinLink")}
+            </a>
+          </p>
         </footer>
       </div>
     </div>

@@ -1,10 +1,4 @@
 import { FirstCatchScene, TutorialHarnessFrame, embedsTutorial } from "./scenes/first-catch";
-import {
-  RECOMMENDED_WELCOME_LAYOUT,
-  setWelcomeLayoutPreview,
-  WELCOME_LAYOUTS,
-  type WelcomeLayout,
-} from "@/components/onboarding/FirstCatchPages";
 import { HomeShelfScene } from "./scenes/home-shelf";
 import { InstallAppScene } from "./scenes/install-app";
 import { ChunkDesignsScene } from "./scenes/chunk-designs";
@@ -361,30 +355,49 @@ const q = new URLSearchParams(location.search);
  * 「これを見てください」と差し出すことになる。
  */
 const REVIEW_SCENES: Array<{ scene: string; label: string }> = [
-  // 2026-10-02「ウェルカム画面の画像の配置を美しくして。デザイン案を私に。縦横無機質には
-  // 並べないで」「はじめる…ログインが近いから少しだけ離して」。上の帯で C〜F を切り替えられる。
-  { scene: "first-catch&layout=scatter", label: "ウェルカム D 散らす（おすすめ）" },
-  { scene: "first-catch&layout=hero", label: "ウェルカム E 主役" },
-  { scene: "first-catch&layout=cascade", label: "ウェルカム F 流れ" },
-  { scene: "first-catch&layout=bouquet", label: "ウェルカム C 今の本番（比べる用）" },
-  { scene: "first-catch&layout=scatter&theme=dark", label: "ウェルカム D（暗いテーマ）" },
+  // 2026-10-03「ウェルカム画面はAのデザインを再現して。キャッチフレーズは日常のすべてが学びになる。
+  // 海の写真の下には海邊」「海邊はふさわしい字体に」「背景の空とか海のライティングも再現して」
+  // 「最初のウェルカム画面…はアニメーションを入れて」。
+  { scene: "first-catch", label: "ウェルカム画面（A 案）" },
+  { scene: "first-catch&theme=dark", label: "ウェルカム画面（暗いテーマ）" },
+  { scene: "first-catch&lang=en&target=en", label: "ウェルカム画面（英語）" },
+  { scene: "first-catch&lang=zh-TW", label: "ウェルカム画面（繁體中文）" },
   { scene: "first-catch&fail=start", label: "ウェルカム: 保存できない時の一言（はじめるを押す）" },
-  // 2026-10-02「カメラの許可の画面がダサい…iPhone でも Android でもブラウザからでも
-  // どこからでも、登録前に体験できるように」。ブラウザ自身の許可の画面は変えられないので、
-  // その前に出すアプリの一枚（A/B/C は右上で切り替え）と、スマホのカメラで撮る道。
-  { scene: "first-catch&step=camera&cam=prompt", label: "カメラの許可の前の一枚（B に決定）" },
+  // 2026-10-03「カメラ前はBにして、画像が真っ直ぐ…注意書きは消す。スマホのカメラで撮る機能は消して」。
+  { scene: "first-catch&step=camera&cam=prompt", label: "カメラの許可の前の一枚" },
   { scene: "first-catch&step=camera&cam=denied", label: "カメラを断った時（iPhone）" },
   { scene: "first-catch&step=camera&cam=android", label: "カメラを断った時（Android）" },
-  { scene: "first-catch&step=camera&cam=brave", label: "カメラを断った時（Brave）" },
   { scene: "first-catch&step=camera&cam=line", label: "LINE の中で開いた時" },
-  // 2026-10-02「チュートリアルの青の囲う枠をもう少し正確に、時間をコマ割りをしっかり。
-  // 説明をもっと正確に簡潔に…便利さを伝えて。流れを確認して完成度を上げて」。
-  // 右上で章を選べる・「もう一度」で同じ章を流し直せる。
-  { scene: "first-catch&step=home&tour=1", label: "チュートリアル（最初から・章を選べる）" },
-  { scene: "first-catch&step=home&tour=1&lang=en", label: "チュートリアル（英語）" },
-  { scene: "first-catch&step=home&tour=1&lang=zh-TW", label: "チュートリアル（繁體中文）" },
-  { scene: "first-catch&step=pick", label: "チュートリアル: 撮った後の候補" },
-  { scene: "first-catch&step=review", label: "チュートリアル: 自分の写真で復習" },
+  // 2026-10-03 チュートリアル:「中文は必ずピンイン（復習の選択肢も）」「はじめに本棚が映るのが変」
+  // 「ギャラリー表示がデモのバーに隠れる」「単語の詳細は例文とチャンクを」「答え合わせは解説全体を
+  // 青い枠で」「チュートリアルのはじめと終わりにアニメーション」。
+  { scene: "first-catch&step=ready&target=zh-TW", label: "チュートリアルのはじめ（お祝いの動き）" },
+  {
+    scene: "first-catch&step=home&tour=1",
+    label: "チュートリアル: ホームはアルバムだけ（章を選べる）",
+  },
+  {
+    scene: "first-catch&step=pick&lang=zh-TW&target=zh-TW",
+    label: "チュートリアル: 候補にピンイン",
+  },
+  {
+    scene: "first-catch&step=card&lang=ja&target=zh-TW",
+    label: "チュートリアル: カードにピンイン",
+  },
+  {
+    scene: "first-catch&step=dex&tour=1",
+    label: "チュートリアル: 図鑑（1回めくるとギャラリー表示）",
+  },
+  { scene: "first-catch&step=explore", label: "チュートリアル: 単語の詳細（例文とチャンク）" },
+  { scene: "first-catch&step=review", label: "チュートリアル: 復習（答えると解説全体に枠）" },
+  {
+    scene: "first-catch&step=review&lang=zh-TW&target=zh-TW",
+    label: "チュートリアル: 復習の選択肢にピンイン",
+  },
+  {
+    scene: "first-catch&step=complete&target=zh-TW",
+    label: "チュートリアルの終わり（お祝いの動き）",
+  },
 ];
 
 /**
@@ -507,20 +520,9 @@ if (!explicitScene) {
   });
 }
 const wanted = q.get("scene") ?? "";
-/**
- * **最初の画面の並べ方を、画面の上の帯で選ぶ**（2026-10-02 オーナー指示「デザイン案を私に」）。
- * 見比べの帯から開いた最初の画面（`first-catch` の intro）にだけ出す。名指しの検査では出さない。
- */
-const showWelcomeLayoutBar =
-  showReviewBar &&
-  (wanted === "first-catch" || wanted === "onboarding") &&
-  (q.get("step") ?? "intro") === "intro";
-const WELCOME_LAYOUT_BAR_PX = 44;
 document.documentElement.style.setProperty(
   "--first-viewport-height",
-  showReviewBar
-    ? `calc(100dvh - 42px${showWelcomeLayoutBar ? ` - ${WELCOME_LAYOUT_BAR_PX}px` : ""})`
-    : "100dvh",
+  showReviewBar ? "calc(100dvh - 42px)" : "100dvh",
 );
 
 /**
@@ -559,17 +561,6 @@ if (q.get("theme") === "dark") document.documentElement.classList.add("dark");
     }
   }
 }
-/**
- * 最初の画面の4枚の並べ方を見比べる（`?layout=bouquet|scatter|hero|cascade|mosaic|frame`）。
- * 付けずに開いたら、2026-10-02 の新しい案のおすすめ（`RECOMMENDED_WELCOME_LAYOUT`）を見せる
- * — 本番の並べ方（`DEFAULT_WELCOME_LAYOUT`）はオーナーが選ぶまで変えない。
- */
-const welcomeLayout: WelcomeLayout = (WELCOME_LAYOUTS as readonly string[]).includes(
-  q.get("layout") ?? "",
-)
-  ? (q.get("layout") as WelcomeLayout)
-  : RECOMMENDED_WELCOME_LAYOUT;
-setWelcomeLayoutPreview(welcomeLayout);
 const Scene = SCENES[wanted];
 // 知らない場面は**印を残して落とす**。以前は静かに `unknown scene` と
 // 描くだけだったので、一覧の綴りを間違えると「文字も押せるものも無い
@@ -646,61 +637,6 @@ function ReviewBar() {
   );
 }
 
-/** 見比べる並べ方。C は今の本番、D・E・F は 2026-10-02 の新しい案。 */
-const WELCOME_LAYOUT_CHOICES: Array<{ layout: WelcomeLayout; label: string }> = [
-  { layout: "bouquet", label: "C 今の本番" },
-  { layout: "scatter", label: "D 散らす" },
-  { layout: "hero", label: "E 主役" },
-  { layout: "cascade", label: "F 流れ" },
-];
-function WelcomeLayoutBar() {
-  return (
-    <div
-      role="group"
-      aria-label="最初の画面の写真の並べ方"
-      style={{
-        height: WELCOME_LAYOUT_BAR_PX,
-        boxSizing: "border-box",
-        display: "flex",
-        alignItems: "center",
-        gap: 6,
-        padding: "0 10px",
-        overflowX: "auto",
-        whiteSpace: "nowrap",
-        background: "#1e293b",
-        color: "#fff",
-        fontSize: 12,
-      }}
-    >
-      <span style={{ opacity: 0.75, marginRight: 2 }}>並べ方</span>
-      {WELCOME_LAYOUT_CHOICES.map(({ layout, label }) => {
-        const next = new URLSearchParams(location.search);
-        next.set("layout", layout);
-        next.set("review", "1");
-        const on = layout === welcomeLayout;
-        return (
-          <a
-            key={layout}
-            href={`?${next.toString()}`}
-            aria-current={on ? "true" : undefined}
-            style={{
-              padding: "6px 10px",
-              borderRadius: 999,
-              background: on ? "#f59e0b" : "rgba(255,255,255,0.14)",
-              color: on ? "#111827" : "#fff",
-              textDecoration: "none",
-              fontWeight: on ? 700 : 500,
-            }}
-          >
-            {label}
-            {layout === RECOMMENDED_WELCOME_LAYOUT ? " ★" : ""}
-          </a>
-        );
-      })}
-    </div>
-  );
-}
-
 createRoot(document.getElementById("root")!).render(
   // チュートリアルは帯の下の iframe で開く（帯が案内を隠さない。`TutorialHarnessFrame`）。
   Scene && embedsTutorial(q, wanted, showReviewBar) ? (
@@ -708,7 +644,6 @@ createRoot(document.getElementById("root")!).render(
   ) : Scene ? (
     <QueryClientProvider client={qc}>
       {showReviewBar && <ReviewBar />}
-      {showWelcomeLayoutBar && <WelcomeLayoutBar />}
       {BARE.has(wanted) ? (
         <Scene q={q} />
       ) : (

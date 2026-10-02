@@ -143,12 +143,13 @@ export function setUiLang(lang: UiLang) {
  * 手で直した決めごとが次の文字列で戻らないようにする。
  */
 export const DICT: Record<string, Record<UiLang, string>> = {
-  "first.introTagline": {
-    ja: "見つけたものが、\nあなたのことばになる。",
-    en: "See it. Catch it.\nMake it yours.",
-    "zh-TW": "發現生活裡的事物，\n學會用自己的話說出來。",
-  },
   "first.introStart": { ja: "はじめる", en: "Get started", "zh-TW": "開始使用" },
+  // 最初の画面のキャッチフレーズ（オーナー指定 2026-10-03）。
+  "first.introTagline": {
+    ja: "日常のすべてが学びになる",
+    en: "Every moment becomes a lesson",
+    "zh-TW": "日常的一切，都能成為學習",
+  },
   "first.notificationsTitle": {
     ja: "学習の通知を\n設定しますか？",
     en: "Would you like\nlearning reminders?",
@@ -511,6 +512,13 @@ export const DICT: Record<string, Record<UiLang, string>> = {
     en: "Already have an account? Sign in",
     "zh-TW": "已有帳號？登入",
   },
+  // 最初の画面の下の1行。「ログイン」だけを青い文字（押せる所）にする（2026-10-03）。
+  "first.signinPrompt": {
+    ja: "アカウントをお持ちの方は",
+    en: "Already have an account?",
+    "zh-TW": "已有帳號？",
+  },
+  "first.signinLink": { ja: "ログイン", en: "Sign in", "zh-TW": "登入" },
   "first.homeTitle": {
     ja: "今日のアルバム",
     en: "Today's album",
