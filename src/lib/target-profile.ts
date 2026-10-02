@@ -42,6 +42,10 @@ import { DEFAULT_TARGET_LANGUAGE, normalizeTargetLanguage, speechLangOf } from "
  *
  * `card-sections.ts` の `SECTION_IDS` は**いま作っている物**の並びで、
  * こちらは**言語ごとに存在しうる物**の全体。英語だけの項目もここに居る。
+ *
+ * **ネットの画像・追加の例文・発音のコツ・覚え方**の4つは、どの言語の
+ * `sections` からも外した（オーナー指示 2026-10-02「単語の項目から消して」）。
+ * 名前はここに残す — 保存済みのカードの中身と、作り直しの窓口（iOS 版も使う）の型のため。
  */
 export type ProfileSection =
   // 両方にある
@@ -425,15 +429,11 @@ export const ZH_TW_PROFILE: TargetProfile = {
   readings: ["zhuyin", "pinyin"],
   sections: [
     "meaning",
-    "web_images",
     "example",
-    "examples_extra",
     "usage_chunks",
     "measure_words",
     "related_words",
-    "pronunciation_tips",
     "etymology",
-    "mnemonic",
     "taiwan_note",
     "real_usage",
   ],
@@ -575,18 +575,14 @@ export const EN_PROFILE: TargetProfile = {
   readings: ["ipa-us", "ipa-uk"],
   sections: [
     "meaning",
-    "web_images",
     "example",
-    "examples_extra",
     "usage_chunks",
     "forms",
     "countability",
     "phrasal_verbs",
     "related_words",
     "stress",
-    "pronunciation_tips",
     "etymology",
-    "mnemonic",
     "culture_note",
     "real_usage",
   ],
@@ -784,9 +780,7 @@ export const JA_PROFILE: TargetProfile = {
   readings: ["kana", "romaji"],
   sections: [
     "meaning",
-    "web_images",
     "example",
-    "examples_extra",
     "usage_chunks",
     "kanji_breakdown",
     "conjugation",
@@ -794,10 +788,8 @@ export const JA_PROFILE: TargetProfile = {
     "counters",
     "related_words",
     "pitch_accent",
-    "pronunciation_tips",
     "word_origin",
     "etymology",
-    "mnemonic",
     "japan_note",
     "real_usage",
   ],

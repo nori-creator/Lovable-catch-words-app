@@ -671,7 +671,12 @@ export const WordCard = forwardRef<
    * 欄が残る。並べる側と中身を描く側が**同じ問い合わせ**を読む
    * (`use-web-images.ts`)。
    */
-  const webImages = useWebImages(word.headword, word.meaning_ja ?? "");
+  // 節の一覧に無い言語では検索しない（2026-10-02 にネットの画像の節を外した）。
+  const wantsWebImages = inThisLanguage.has("web_images");
+  const webImages = useWebImages(
+    wantsWebImages ? word.headword : "",
+    wantsWebImages ? (word.meaning_ja ?? "") : "",
+  );
   const canShow = (id: SectionId) =>
     id === "web_images" ? webImages.candidates.length > 0 : hasContent(id);
   const shown = minimal
