@@ -1120,6 +1120,8 @@ export function DexHeader({
               <button
                 key={v}
                 onClick={() => onView(v)}
+                // チュートリアルの案内が指す印（どの表示の釦か）。
+                data-view={v}
                 aria-label={label}
                 aria-pressed={view === v}
                 // 見た目は 36px のまま、**指が当たる範囲だけ 44px** に広げる

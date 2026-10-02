@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import ts from "typescript";
+import { RING_GAP, TOUR_TIMING } from "@/components/onboarding/Spotlight";
 
 const source = (path: string) => readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
 function components(path: string) {
@@ -93,5 +94,110 @@ describe("first-catch rendering boundary", () => {
     expect(css).not.toMatch(
       /^\s*--(card|foreground|border|muted-foreground|primary|primary-ink|background):/m,
     );
+  });
+});
+
+/**
+ * 案内の枠とコマ割り（オーナー指示 2026-10-02「青の囲う枠をもう少し正確にして、時間を
+ * コマ割りをしっかりして」）。数字は QA.md と CSS と同じでなければならない。
+ */
+describe("tutorial guide frame and beats", () => {
+  const spot = source("components/onboarding/Spotlight.tsx");
+  const css = source("components/onboarding/first-catch.css");
+  const qa = readFileSync(new URL("../../QA.md", import.meta.url), "utf8");
+  it("the beat durations in code, CSS and QA.md agree", () => {
+    expect(TOUR_TIMING.screenHold).toBe(1000);
+    expect(TOUR_TIMING.ringIn).toBe(700);
+    expect(TOUR_TIMING.ringMove).toBe(480);
+    expect(TOUR_TIMING.reducedHold).toBe(400);
+    expect(qa).toMatch(/at least 1\.0 s/);
+    expect(qa).toMatch(/over 700ms/);
+    expect(qa).toMatch(/over 480ms/);
+    expect(qa).toMatch(/0\.4 s/);
+    expect(css).toMatch(/\.tour-ring--expand \{\s*animation: tour-focus-expand 700ms/);
+    expect(css).toMatch(/\.tour-ring--move \{\s*transition:\s*top 480ms/);
+    // 広がりは対象の真ん中から（画面の真ん中から飛んで来ない）。
+    expect(css).toMatch(/top: calc\(var\(--ring-cy\) - 12px\)/);
+  });
+  it("the frame hugs the target with one even gap and concentric corners", () => {
+    expect(RING_GAP).toBe(4);
+    expect(spot).toMatch(/borderRadius: ringRadius\(box\.radii\)/);
+    // 角ごとに足す（上だけ丸い答え合わせの面も、そのままの形で囲う）。
+    expect(spot).toMatch(/radii\.map\(\(r\) => `\$\{r \+ RING_GAP\}px`\)/);
+    expect(spot).toMatch(/cs\.borderBottomRightRadius/);
+    // 札は iPhone の時計・切り欠きの下に置く。
+    expect(spot).toMatch(/padding-top:env\(safe-area-inset-top\)/);
+    expect(qa).toMatch(/4px outside on every side/);
+  });
+  it("text never shows before its frame: the phase belongs to one target", () => {
+    expect(spot).toMatch(/stage\.for === target \? stage\.phase : "wait"/);
+  });
+  it("one frame per guide, around the control itself, and every coach shows its chapter", () => {
+    expect(spot).not.toMatch(/tour-tap/);
+    expect(css).not.toMatch(/\.tour-tap\b/);
+    for (const path of [
+      "components/onboarding/FirstCatchFlow.tsx",
+      "components/onboarding/FirstCatchPractice.tsx",
+    ]) {
+      const code = source(path);
+      const guides = code.match(/<Spotlight\b[\s\S]*?\/>/g) ?? [];
+      expect(guides.length).toBeGreaterThan(0);
+      for (const guide of guides) expect(guide).toMatch(/\bstep=/);
+    }
+    expect(source("components/onboarding/FirstCatchPractice.tsx")).not.toMatch(
+      /target='\[data-tour="dex"\]'/,
+    );
+  });
+  it("the real-app driver reads the gesture the guide asks for", () => {
+    expect(spot).toMatch(/data-tour-gesture=/);
+    const driver = readFileSync(new URL("../../e2e/real-app/run.mjs", import.meta.url), "utf8");
+    expect(driver).toMatch(/getAttribute\("data-tour-gesture"\)/);
+    expect(driver).toMatch(/ring\.gesture === "swipe"/);
+    expect(driver).toMatch(/ring\.gesture === "peel"/);
+  });
+});
+
+/** 2026-10-03 のオーナー指示（拼音・本棚・答え合わせの面・例文とチャンク・始まりと終わりの動き）。 */
+describe("tutorial owner revisions 2026-10-03", () => {
+  it("Home in the tutorial shows only the album (no 3D shelf flashing first)", () => {
+    expect(source("routes/_authenticated/home.tsx")).toMatch(/\{ready && shelf \? \(\s*<HomeShelf/);
+    expect(source("components/onboarding/FirstCatchHome.tsx")).toMatch(/shelf=\{false\}/);
+  });
+  it("the answer sheet is framed whole and its Next button pulses inside", () => {
+    const practice = source("components/onboarding/FirstCatchPractice.tsx");
+    expect(practice).toMatch(/'\[data-tour="review-answer"\] > div'/);
+    expect(practice).toMatch(/primary=\{answerOpen && introduced \? '\[data-tour="review-next"\]'/);
+    expect(source("components/onboarding/first-catch.css")).toMatch(/\.tour-primary \{/);
+    const driver = readFileSync(new URL("../../e2e/real-app/run.mjs", import.meta.url), "utf8");
+    expect(driver).toMatch(/getAttribute\("data-tour-primary"\)/);
+  });
+  it("the tutorial stores pinyin for Taiwan Mandarin only when nothing is stored", () => {
+    const services = source("lib/first-catch-services.ts");
+    expect(services).toMatch(/seedFirstCatchReading\(draft\);/);
+    expect(services).toMatch(/seedReadingPrefNow\(ZH_TW_PROFILE, "pinyin"\)/);
+    // 全員の既定は注音のまま（チュートリアルを通らない今までの人は変わらない）。
+    expect(source("lib/target-profile.ts")).not.toMatch(/defaultReading: "pinyin"/);
+    // 最初の描画の前に書く（子の読みが1コマ目から拼音）。
+    expect(source("components/onboarding/FirstCatchFlow.tsx")).toMatch(
+      /if \(initialDraft\) seedFirstCatchReading\(initialDraft\);/,
+    );
+  });
+  it("the word-detail coach is one row at the bottom edge so the example and chunks show", () => {
+    expect(source("components/onboarding/FirstCatchFlow.tsx")).toMatch(/alignTop\s+compact/);
+    expect(source("components/onboarding/first-catch.css")).toMatch(/\.tour-coach--compact \{/);
+  });
+  it("a local (pre-signup) word never waits for the shared explanation, so chunks show", () => {
+    expect(source("components/StickerSheet.tsx")).toMatch(
+      /explanationPending=\{!local && explanation === undefined\}/,
+    );
+  });
+  it("the start and end screens animate with transform/opacity and settle on the final frame", () => {
+    const css = source("components/onboarding/first-catch.css");
+    for (const name of ["first-rise-in", "first-pop-in", "first-confetti-burst", "first-badge-pop"])
+      expect(css).toMatch(new RegExp(`@keyframes ${name} \\{\\s*from \\{`));
+    expect(css).toMatch(/html\[data-motion="reduce"\] \.first-standalone \*/);
+    const flow = source("components/onboarding/FirstCatchFlow.tsx");
+    expect(flow).toMatch(/className="first-standalone first-ready first-complete"/);
+    expect(flow).toMatch(/className="first-complete-badge"/);
   });
 });

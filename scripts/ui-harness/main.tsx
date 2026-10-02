@@ -1,9 +1,4 @@
-import { FirstCatchScene } from "./scenes/first-catch";
-import {
-  setWelcomeLayoutPreview,
-  WELCOME_LAYOUTS,
-  type WelcomeLayout,
-} from "@/components/onboarding/FirstCatchPages";
+import { FirstCatchScene, TutorialHarnessFrame, embedsTutorial } from "./scenes/first-catch";
 import { HomeShelfScene } from "./scenes/home-shelf";
 import { InstallAppScene } from "./scenes/install-app";
 import { ChunkDesignsScene } from "./scenes/chunk-designs";
@@ -360,55 +355,48 @@ const q = new URLSearchParams(location.search);
  * 「これを見てください」と差し出すことになる。
  */
 const REVIEW_SCENES: Array<{ scene: string; label: string }> = [
-  // 2026-10-02「表示言語が英語（繁體中文も）だと、復習の4択の意味が日本語・答え合わせに訳が
-  // 無い・品詞が日本語・図鑑のスライドに意味が出ない」。日本語で作った語を英語・繁體中文で
-  // 読む人の画面。答え合わせは開いてすぐ押して出す（`answer=right`）。
+  // 2026-10-03「ウェルカム画面はAのデザインを再現して。キャッチフレーズは日常のすべてが学びになる。
+  // 海の写真の下には海邊」「海邊はふさわしい字体に」「背景の空とか海のライティングも再現して」
+  // 「最初のウェルカム画面…はアニメーションを入れて」。
+  { scene: "first-catch", label: "ウェルカム画面（A 案）" },
+  { scene: "first-catch&theme=dark", label: "ウェルカム画面（暗いテーマ）" },
+  { scene: "first-catch&lang=en&target=en", label: "ウェルカム画面（英語）" },
+  { scene: "first-catch&lang=zh-TW", label: "ウェルカム画面（繁體中文）" },
+  { scene: "first-catch&fail=start", label: "ウェルカム: 保存できない時の一言（はじめるを押す）" },
+  // 2026-10-03「カメラ前はBにして、画像が真っ直ぐ…注意書きは消す。スマホのカメラで撮る機能は消して」。
+  { scene: "first-catch&step=camera&cam=prompt", label: "カメラの許可の前の一枚" },
+  { scene: "first-catch&step=camera&cam=denied", label: "カメラを断った時（iPhone）" },
+  { scene: "first-catch&step=camera&cam=android", label: "カメラを断った時（Android）" },
+  { scene: "first-catch&step=camera&cam=line", label: "LINE の中で開いた時" },
+  // 2026-10-03 チュートリアル:「中文は必ずピンイン（復習の選択肢も）」「はじめに本棚が映るのが変」
+  // 「ギャラリー表示がデモのバーに隠れる」「単語の詳細は例文とチャンクを」「答え合わせは解説全体を
+  // 青い枠で」「チュートリアルのはじめと終わりにアニメーション」。
+  { scene: "first-catch&step=ready&target=zh-TW", label: "チュートリアルのはじめ（お祝いの動き）" },
   {
-    scene: "review-choice&lang=en&mixed=1&photo=1",
-    label: "復習（英語の表示）: 4択の問いの意味が英語",
+    scene: "first-catch&step=home&tour=1",
+    label: "チュートリアル: ホームはアルバムだけ（章を選べる）",
   },
   {
-    scene: "review-choice&lang=en&mixed=1&photo=1&answer=right",
-    label: "復習（英語）: 答え合わせの訳・品詞が英語",
+    scene: "first-catch&step=pick&lang=zh-TW&target=zh-TW",
+    label: "チュートリアル: 候補にピンイン",
   },
   {
-    scene: "review-choice&lang=zh-TW&mixed=1&photo=1",
-    label: "復習（繁體中文の表示）: 4択の問いの意味が中文",
+    scene: "first-catch&step=card&lang=ja&target=zh-TW",
+    label: "チュートリアル: カードにピンイン",
   },
   {
-    scene: "review-choice&lang=zh-TW&mixed=1&photo=1&answer=right",
-    label: "復習（繁體中文）: 答え合わせの訳・品詞が中文",
+    scene: "first-catch&step=dex&tour=1",
+    label: "チュートリアル: 図鑑（1回めくるとギャラリー表示）",
+  },
+  { scene: "first-catch&step=explore", label: "チュートリアル: 単語の詳細（例文とチャンク）" },
+  { scene: "first-catch&step=review", label: "チュートリアル: 復習（答えると解説全体に枠）" },
+  {
+    scene: "first-catch&step=review&lang=zh-TW&target=zh-TW",
+    label: "チュートリアル: 復習の選択肢にピンイン",
   },
   {
-    scene: "review-choice&lang=en&mixed=1&photo=1&pending=1&answer=wrong",
-    label: "復習（英語）: その人向けの解説がまだ無い間（写真で問う・日本語を出さない）",
-  },
-  {
-    scene: "review-choice&lang=ja&mixed=1&photo=1&answer=right",
-    label: "復習（日本語の表示）: 今までと同じ（比べる用）",
-  },
-  { scene: "dex-cards&lang=en&reader=1", label: "図鑑のスライド（英語）: 見出しの下に意味" },
-  { scene: "dex-cards&lang=zh-TW&reader=1", label: "図鑑のスライド（繁體中文）: 見出しの下に意味" },
-  { scene: "word-card&lang=en", label: "単語の詳細（英語）: 品詞の札とチャンクの凡例が英語" },
-  { scene: "word-card&lang=zh-TW", label: "単語の詳細（繁體中文）: 品詞の札とチャンクの凡例" },
-  // 2026-10-02「英語の単語の見出しのなかの配置がバランス悪い。整理して。単語、品詞、発音ボタン。
-  // 報告ボタンは一番下の削除の横に配置して」。
-  { scene: "sticker-sheet&word=en", label: "単語の詳細（英語）: 見出しの並び・一番下に報告と削除" },
-  { scene: "sticker-sheet", label: "単語の詳細（台湾華語）: 見出しの並び・一番下に報告と削除" },
-  { scene: "sticker-sheet&word=en&theme=dark", label: "単語の詳細（英語・暗いテーマ）" },
-  // 2026-10-02「英語の図鑑にノート」「英語の復習に拿鐵の4択」— 学習言語の語でない見出しは
-  // 保存せず、理由を出す（`err.notTargetLanguage`）。表示言語ごとの文も見られるようにする。
-  {
-    scene: "capture-card&variant=not-target&lang=ja",
-    label: "撮った後: 学習言語の語でない見出しは保存せず理由を出す",
-  },
-  {
-    scene: "capture-card&variant=not-target&lang=en",
-    label: "撮った後: 同じ（英語の表示）",
-  },
-  {
-    scene: "capture-card&variant=not-target&lang=zh-TW",
-    label: "撮った後: 同じ（繁體中文の表示）",
+    scene: "first-catch&step=complete&target=zh-TW",
+    label: "チュートリアルの終わり（お祝いの動き）",
   },
 ];
 
@@ -425,22 +413,86 @@ const REVIEW_SCENES: Array<{ scene: string; label: string }> = [
     "Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1";
   const android =
     "Mozilla/5.0 (Linux; Android 14; SM-S911B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0 Mobile Safari/537.36";
-  const agents: Record<string, string> = {
-    denied: iphone,
-    line: `${iphone.replace(" Version/17.5", "")} Line/14.9.0`,
-    android,
+  /**
+   * 端末の名乗り・許可の状態・カメラの答え（2026-10-02 撮る前の一枚）。
+   * - `prompt*` … まだ許可していない。撮る前の一枚が出て、「カメラを使う」で見本の景色が映る
+   * - `denied` / `android` / `brave` … 断ってある（iPhone の Safari・Android の Chrome・Brave）
+   * - `line` / `android-app` … アプリ内ブラウザでカメラの仕組みが無い
+   */
+  const agents: Record<
+    string,
+    { ua: string; state: "prompt" | "denied"; camera: "fake" | "deny" | "none"; brave?: true }
+  > = {
+    prompt: { ua: iphone, state: "prompt", camera: "fake" },
+    "prompt-android": { ua: android, state: "prompt", camera: "fake" },
+    denied: { ua: iphone, state: "denied", camera: "deny" },
+    android: { ua: android, state: "denied", camera: "deny" },
+    brave: { ua: android, state: "denied", camera: "deny", brave: true },
+    line: {
+      ua: `${iphone.replace(" Version/17.5", "")} Line/14.9.0`,
+      state: "prompt",
+      camera: "none",
+    },
     // Android の Google アプリの中のブラウザ（WebView は「; wv)」を名乗る）。
-    "android-app": `${android.replace("SM-S911B)", "SM-S911B; wv)")} GSA/15.20`,
+    "android-app": {
+      ua: `${android.replace("SM-S911B)", "SM-S911B; wv)")} GSA/15.20`,
+      state: "prompt",
+      camera: "none",
+    },
   };
-  if (cam && agents[cam]) {
+  const emu = cam ? agents[cam] : undefined;
+  if (emu) {
     try {
-      Object.defineProperty(navigator, "userAgent", { get: () => agents[cam] });
+      Object.defineProperty(navigator, "userAgent", { get: () => emu.ua });
+      if (emu.brave) Object.defineProperty(navigator, "brave", { value: {}, configurable: true });
     } catch {
       /* 差し替えられないブラウザでは、端末そのままの手順が出る。 */
     }
-    if (navigator.mediaDevices)
-      navigator.mediaDevices.getUserMedia = () =>
-        Promise.reject(new DOMException("preview", "NotAllowedError"));
+    let state: string = emu.state;
+    const permissions = navigator.permissions;
+    if (permissions?.query) {
+      const query = permissions.query.bind(permissions);
+      permissions.query = (desc: PermissionDescriptor) =>
+        desc.name === ("camera" as PermissionName)
+          ? Promise.resolve({
+              get state() {
+                return state;
+              },
+              addEventListener() {},
+              removeEventListener() {},
+            } as unknown as PermissionStatus)
+          : query(desc);
+    }
+    const md = navigator.mediaDevices;
+    if (md && emu.camera === "deny")
+      md.getUserMedia = () => Promise.reject(new DOMException("preview", "NotAllowedError"));
+    if (md && emu.camera === "none")
+      Object.defineProperty(md, "getUserMedia", { value: undefined, configurable: true });
+    if (md && emu.camera === "fake")
+      // 見本の景色（生成したカフェの写真）を縦 3:4 の映像にして流す。
+      md.getUserMedia = async () => {
+        const c = document.createElement("canvas");
+        c.width = 1080;
+        c.height = 1440;
+        const img = new Image();
+        img.src = "/first-catch-cafe.webp";
+        await img.decode().catch(() => {});
+        const g = c.getContext("2d")!;
+        const draw = () => {
+          const s = Math.max(c.width / (img.width || 1), c.height / (img.height || 1));
+          g.drawImage(
+            img,
+            (c.width - img.width * s) / 2,
+            (c.height - img.height * s) / 2,
+            img.width * s,
+            img.height * s,
+          );
+        };
+        draw();
+        window.setInterval(draw, 500);
+        state = "granted";
+        return c.captureStream(2);
+      };
   }
 }
 
@@ -508,12 +560,6 @@ if (q.get("theme") === "dark") document.documentElement.classList.add("dark");
       /* 使えない環境では既定のまま */
     }
   }
-}
-/** 最初の画面の4枚の並べ方を見比べる（`?layout=mosaic|frame|bouquet`、R25）。 */
-{
-  const layout = q.get("layout");
-  if (layout && (WELCOME_LAYOUTS as readonly string[]).includes(layout))
-    setWelcomeLayoutPreview(layout as WelcomeLayout);
 }
 const Scene = SCENES[wanted];
 // 知らない場面は**印を残して落とす**。以前は静かに `unknown scene` と
@@ -592,7 +638,10 @@ function ReviewBar() {
 }
 
 createRoot(document.getElementById("root")!).render(
-  Scene ? (
+  // チュートリアルは帯の下の iframe で開く（帯が案内を隠さない。`TutorialHarnessFrame`）。
+  Scene && embedsTutorial(q, wanted, showReviewBar) ? (
+    <TutorialHarnessFrame q={q} bar={showReviewBar ? <ReviewBar /> : null} />
+  ) : Scene ? (
     <QueryClientProvider client={qc}>
       {showReviewBar && <ReviewBar />}
       {BARE.has(wanted) ? (

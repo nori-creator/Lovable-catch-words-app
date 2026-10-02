@@ -125,6 +125,35 @@ export function writeReadingPref(
   }
 }
 
+/** 本人がその言語の表記を**選んだことがあるか**（新しい表か、台湾華語なら古い鍵に有効な値）。 */
+export function hasReadingPref(store: ReadingStore, profile: TargetProfile): boolean {
+  if (allowed(profile, readMap(store)[profile.code])) return true;
+  if (profile.code !== ZH_TW_PROFILE.code) return false;
+  try {
+    return allowed(profile, store.getItem(LEGACY_KEY));
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * **まだ選んでいない時だけ**憶える。選んだ人の表記には触らない。書いたら true。
+ *
+ * 登録前のチュートリアルが台湾華語で拼音を入れるため（オーナー指示 2026-10-03「中文を
+ * 選択したら必ずピンインを表示して。外国人が中文を学ぶときほとんどがピンイン使うから」）。
+ * 全員の既定（`defaultReading`）は変えない — チュートリアルを通らない今までの人は、
+ * 選んでいなければ今まで通り注音のまま。
+ */
+export function seedReadingPref(
+  store: ReadingStore,
+  profile: TargetProfile,
+  kind: ReadingKind,
+): boolean {
+  if (hasReadingPref(store, profile) || !allowed(profile, kind)) return false;
+  writeReadingPref(store, profile, kind);
+  return true;
+}
+
 /**
  * 選ばれている表記が無い/空のときに、代わりに出せる読みを探す順。
  *
@@ -206,6 +235,12 @@ export function setReadingPref(profile: TargetProfile, kind: ReadingKind): void 
   if (!store) return;
   writeReadingPref(store, profile, kind);
   window.dispatchEvent(new CustomEvent(EVENT));
+}
+
+/** `seedReadingPref` の端末版。書いたら画面にも知らせる。 */
+export function seedReadingPrefNow(profile: TargetProfile, kind: ReadingKind): void {
+  const store = browserStore();
+  if (store && seedReadingPref(store, profile, kind)) window.dispatchEvent(new CustomEvent(EVENT));
 }
 
 /** いま選ばれている表記を見張る。設定で変えると全画面が同時に変わる。 */

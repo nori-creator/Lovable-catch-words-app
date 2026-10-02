@@ -46,9 +46,8 @@ const STEP_LIMIT = Number(process.env.STEP_LIMIT || 70);
 const IDLE_LIMIT = Number(process.env.IDLE_LIMIT || 75);
 
 const INSTRUMENT = fs.readFileSync(path.join(here, "instrument.js"), "utf8");
-const PHOTO = `data:image/webp;base64,${fs
-  .readFileSync(path.join(here, "../../public/first-catch-cafe.webp"))
-  .toString("base64")}`;
+const PHOTO_BYTES = fs.readFileSync(path.join(here, "../../public/first-catch-cafe.webp"));
+const PHOTO = `data:image/webp;base64,${PHOTO_BYTES.toString("base64")}`;
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -350,8 +349,20 @@ async function step(page, run) {
       return {
         x: b.left + b.width / 2,
         y: b.top + b.height / 2,
+        left: b.left,
         w: b.width,
         h: b.height,
+        // 案内が対象にしてほしい操作（`Spotlight` の `gesture`: tap / swipe / peel）。
+        gesture: r.getAttribute("data-tour-gesture"),
+        // 枠が面ごと囲う時（答え合わせ）、その中で次に押す物の真ん中。
+        primary: (() => {
+          const sel = r.getAttribute("data-tour-primary");
+          const el = sel ? document.querySelector(sel) : null;
+          const pb = el ? el.getBoundingClientRect() : null;
+          return pb && pb.width > 0
+            ? { x: pb.left + pb.width / 2, y: pb.top + pb.height / 2 }
+            : null;
+        })(),
         tap,
         peel,
         btn: bb
@@ -365,7 +376,11 @@ async function step(page, run) {
     })
     .catch(() => null);
   if (ring) {
-    if (ring.peel) {
+    if (ring.primary) {
+      await page.mouse.click(ring.primary.x, ring.primary.y);
+      return "案内の枠の中の次へ";
+    }
+    if (ring.peel || ring.gesture === "peel") {
       // シールをはがす: 右下の角から左上へ引く。
       await page.mouse.move(ring.x + ring.w * 0.4, ring.y + ring.h * 0.4);
       await page.mouse.down();
@@ -379,13 +394,14 @@ async function step(page, run) {
       await page.mouse.up();
       return "シールをはがす";
     }
-    if (ring.tap?.swipe) {
-      // めくる面を右から左へ払う（1枚ぶん）。
-      const y = ring.tap.cy;
-      await page.mouse.move(ring.tap.left + ring.tap.w * 0.8, y);
+    if (ring.tap?.swipe || ring.gesture === "swipe") {
+      // めくる面を右から左へ払う（1枚ぶん）。枠そのものが面を囲う（2026-10-02 から）。
+      const area = ring.tap?.swipe ? ring.tap : { left: ring.left, w: ring.w, cy: ring.y };
+      const y = area.cy;
+      await page.mouse.move(area.left + area.w * 0.8, y);
       await page.mouse.down();
       for (let i = 1; i <= 12; i++) {
-        await page.mouse.move(ring.tap.left + ring.tap.w * (0.8 - i * 0.055), y);
+        await page.mouse.move(area.left + area.w * (0.8 - i * 0.055), y);
         await sleep(25);
       }
       await page.mouse.up();
@@ -399,13 +415,36 @@ async function step(page, run) {
     await page.mouse.click(at.x, at.y);
     return `案内の枠を押す${ring.btn?.name ? `（${ring.btn.name}）` : ""}`;
   }
-  // 4) 撮影の画面（案内が外れているとき）: シャッター。
+  // 4) 撮る前の一枚（チュートリアルで、カメラの許可がまだの時）: 「カメラを使う」。
+  //    ふだんは instrument.js が許可済みと答えるので出ないが、許可の状態を聞けない
+  //    ブラウザでは出る（2026-10-02）。
+  const allow = page.locator('[data-tour="camera-allow"]');
+  if (await allow.isVisible().catch(() => false)) {
+    await allow.click();
+    return "撮る前の一枚（カメラを使う）";
+  }
+  // 5) カメラが使えない面（許可なし・アプリ内ブラウザ）: 「写真を選ぶ」で、
+  //    同じ本物の写真をファイルとして渡す（撮った写真と同じ道で AI へ）。
+  const file = page.locator('[data-tour="camera-help"] [data-tour="camera-library"]');
+  if (await file.isVisible().catch(() => false)) {
+    const [chooser] = await Promise.all([
+      page.waitForEvent("filechooser", { timeout: 5000 }),
+      file.click(),
+    ]);
+    await chooser.setFiles({
+      name: "first-catch-cafe.webp",
+      mimeType: "image/webp",
+      buffer: PHOTO_BYTES,
+    });
+    return "カメラが使えない面: 写真を選ぶ";
+  }
+  // 6) 撮影の画面（案内が外れているとき）: シャッター。
   const shutter = page.locator(".camera-shutter");
   if (await shutter.isVisible().catch(() => false)) {
     await shutter.click();
     return "シャッター";
   }
-  // 5) 各画面の主ボタン。
+  // 7) 各画面の主ボタン。
   const primary = page.locator(".first-primary:not([disabled])");
   if (
     await primary

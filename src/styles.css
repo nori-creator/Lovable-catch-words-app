@@ -6434,6 +6434,21 @@ html[data-motion="reduce"] .tabbar__lens--gone {
 .album-print .collage__margin-word {
   font-size: clamp(0.75rem, 13cqi, 1.1875rem);
 }
+/* 画面の言葉（興味の質問の「Food & drink」「City & architecture」など）は、1行で
+   「Food & dr…」と切らずに**2行まで**折り返す（2026-10-02 英語の表示で 390px 幅でも
+   3枚が切れていた）。字は一段だけ小さくし、2行が下の余白（34px）に収まる行の高さにする。 */
+.album-print .album-print__label {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  font-size: clamp(0.6875rem, 12cqi, 1.0625rem);
+  line-height: 1.12;
+  letter-spacing: 0;
+  white-space: normal;
+  text-align: center;
+  text-wrap: balance;
+  overflow-wrap: anywhere;
+}
 
 /* ── 留め具 ───────────────────────────────────────────────────────
    どれで留めるかは `lib/collage-decor.ts`（`id` から決まる）。 */

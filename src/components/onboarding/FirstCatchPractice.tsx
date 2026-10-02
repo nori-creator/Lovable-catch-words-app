@@ -48,7 +48,8 @@ export function FirstCatchDex({ draft, onOpen }: { draft: FirstCatch; onOpen: ()
         view={view}
         onView={(next) => {
           setView(next);
-          if (next !== "cards") setChanged(true);
+          // 案内は「ギャラリー表示」の釦だけを開けている（次のコマで自分の1枚を押すため）。
+          if (next === "gallery") setChanged(true);
         }}
         search={search}
         onSearch={setSearch}
@@ -67,17 +68,35 @@ export function FirstCatchDex({ draft, onOpen }: { draft: FirstCatch; onOpen: ()
           onClose={() => setOpenedSample(null)}
         />
       ) : (
+        /*
+         * 図鑑の3コマ（PRODUCT.md「swipe the real Collection cards, switches between cards
+         * and gallery, then opens their own word detail」）。枠は毎回**押す所そのもの**を
+         * 囲う — 前は図鑑の画面全体を照らし、その中に2つ目の枠を重ねていたので、
+         * 枠が画面の外まで広がり、どこを触るのか二重に見えた。
+         *   写真を横に払う → ギャラリー表示の釦 → 自分の1枚を押して開く。
+         */
         <Spotlight
-          target='[data-tour="dex"]'
-          title={t("first.dexTitle")}
+          target={
+            !browsed
+              ? ".dex-cf__stage"
+              : !changed
+                ? '[data-tour="dex-views"] [data-view="gallery"]'
+                : `#dex-cell-${draft.id}`
+          }
+          title={t(
+            !browsed ? "first.dexTitle" : !changed ? "first.dexViewsTitle" : "first.openTitle",
+          )}
           text={t(!browsed ? "first.dexSwipe" : !changed ? "first.dexTypes" : "first.dexOpen")}
           interactive
-          allowSelector={!browsed ? ".dex-cf__stage, .dex-cf__stage *" : undefined}
-          // 押す所: 写真を横に払う → 表示の切替 → 「ことばを開く」（札の釦が光る）。
-          tap={!browsed ? ".dex-cf__stage" : !changed ? '[data-tour="dex-views"]' : undefined}
+          allowSelector={
+            !browsed
+              ? ".dex-cf__stage, .dex-cf__stage *"
+              : changed
+                ? `[data-dex-item="${draft.id}"]`
+                : undefined
+          }
+          gesture={!browsed ? "swipe" : "tap"}
           step="3 / 5"
-          nextLabel={t("first.openWord")}
-          onNext={browsed && changed ? onOpen : undefined}
         />
       )}
     </>
@@ -195,21 +214,51 @@ export function FirstCatchReview({
           else onComplete();
         }}
       />
-      {!introduced && (
+      {/* 1つの案内で3コマ（説明 → 選択肢 → 答えの「次へ」）。枠は画面を明るく戻さずに
+          次の所へ滑る。札は問題文と答えの面を隠さない所に置く。 */}
+      {!memoryWord && !expanded && (
         <Spotlight
-          target='[data-tour="review-question"]'
-          title={t("first.reviewTitle")}
-          text={t("first.review")}
+          target={
+            !introduced
+              ? '[data-tour="review-question"]'
+              : answerOpen
+                ? // 答え合わせは**面ごと**囲って明るく見せる（オーナー指示 2026-10-03「答え合わせの
+                  // 部分が灰色で見えないから青い枠で囲うのは解答の解説全体にして」）。
+                  '[data-tour="review-answer"] > div'
+                : '[data-tour="review-choices"]'
+          }
+          primary={answerOpen && introduced ? '[data-tour="review-next"]' : undefined}
+          allowSelector={
+            answerOpen && introduced
+              ? '[data-tour="review-next"], [data-tour="review-answer"] button[aria-label]'
+              : undefined
+          }
+          title={t(
+            !introduced
+              ? "first.reviewTitle"
+              : answerOpen
+                ? "first.reviewNextTitle"
+                : "first.reviewPickTitle",
+          )}
+          text={
+            !introduced
+              ? t("first.review")
+              : answerOpen
+                ? t("first.reviewNext", { next: t("review.next") })
+                : t("first.reviewPick")
+          }
           step="5 / 5"
-          nextLabel={t("first.next")}
-          onNext={() => setIntroduced(true)}
-        />
-      )}
-      {introduced && !memoryWord && !expanded && (
-        <Spotlight
-          target={answerOpen ? '[data-tour="review-next"]' : '[data-tour="review-choices"]'}
-          text={t(answerOpen ? "first.reviewNext" : "first.reviewPick")}
-          interactive
+          nextLabel={!introduced ? t("first.next") : undefined}
+          onNext={!introduced ? () => setIntroduced(true) : undefined}
+          interactive={introduced}
+          gesture="tap"
+          keepVisible={
+            !introduced
+              ? undefined
+              : answerOpen
+                ? '[data-tour="review-prompt"]'
+                : '[data-tour="review-prompt"], [data-tour="review-question"] .quiz-photo'
+          }
         />
       )}
       {memoryWord && (

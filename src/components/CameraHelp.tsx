@@ -1,36 +1,55 @@
-import { useEffect, useState } from "react";
+import { useEffect, useId, useState, type ReactNode } from "react";
+import { CameraOff, ChevronDown, ExternalLink, ImagePlus, RotateCcw } from "lucide-react";
 import { useT } from "@/lib/i18n";
 import {
-  androidBrowserName,
-  cameraPlatform,
+  cameraFixSteps,
   externalBrowserUrl,
   inAppBrowser,
   mayAutoOpenExternal,
   type CameraProblem,
 } from "@/lib/camera-access";
+import "./camera-primer.css";
 
 /**
- * **カメラが使えないときの直し方**を、撮る枠の中に出す（オーナー指示 2026-09-30
- * 「カメラの許可をとる、必要であればスマホの設定を変えるように誘導して。
- * 必ずアプリ内のカメラで新規ユーザーにカメラ撮影させたい」）。
+ * **カメラが使えないときの面**（オーナー指示 2026-09-30「カメラの許可をとる、必要であれば
+ * スマホの設定を変えるように誘導して」→ 2026-10-02「どこからでも…新規登録前にこのアプリを
+ * 体験できるようにして」→ 2026-10-03「スマホのカメラで撮る機能は消して」）。
  *
- * - アプリ内ブラウザ（LINE など）… ふつうのブラウザで開き直す（LINE・Android は1タップ）
- * - 許可されていない … 端末ごとの設定の手順と「もう一度試す」
+ * どの理由でも**行き止まりにしない**。いちばん上の釦は、その理由でいちばん確かな道:
+ * - 許可されていない … 端末ごとの直し方（開いてある）と「許可したので、もう一度試す」
  * - 起動できない … 他のアプリを閉じて「もう一度試す」
+ * - アプリ内ブラウザ（LINE など）… 「ブラウザで開き直す」（LINE・Android は自動で1度）
+ * - 仕組みが無い・開き直せない … 「写真を選ぶ」
+ * 2つ目はいつも「写真を選ぶ」（`capture` を付けない、ふつうのファイルの選び口）。選んだ写真は
+ * 撮った写真と同じ道（縮めて AI へ）を通るので、許可を直さなくてもチュートリアルを続けられる。
  *
- * 端末の別のカメラアプリへは逃がさない（この画面のカメラで撮ってもらう）。
+ * `screen`（チュートリアル）は撮る前の一枚（`CameraPrimer`）と同じ画面いっぱいの面に、
+ * 渡さなければ（ログイン後の撮る画面）今まで通り映像の枠の中に出し、下の撮り方の帯
+ * （検索など）はそのまま使える。
  */
-export function CameraHelp({ problem, onRetry }: { problem: CameraProblem; onRetry: () => void }) {
+export function CameraHelp({
+  problem,
+  onRetry,
+  onLibrary,
+  screen = false,
+}: {
+  problem: CameraProblem;
+  onRetry: () => void;
+  onLibrary: () => void;
+  screen?: boolean;
+}) {
   const t = useT();
+  const titleId = useId();
   const [copied, setCopied] = useState(false);
   const ua = typeof navigator === "undefined" ? "" : navigator.userAgent;
-  const platform = cameraPlatform(ua);
   const app = inAppBrowser(ua);
   const external =
     problem === "inapp" && typeof location !== "undefined"
       ? externalBrowserUrl(location.href, ua, app)
       : null;
-  const chromeOnIos = /CriOS/i.test(ua);
+  /** Brave は Chrome を名乗るので、名乗りではなく `navigator.brave` で見分ける。 */
+  const brave = typeof navigator !== "undefined" && "brave" in navigator;
+  const steps = cameraFixSteps(problem, ua, { brave, external: !!external });
 
   /**
    * **押さなくても、1度だけ自動でブラウザを開く**（オーナー指示 2026-09-30「ブラウザで
@@ -50,23 +69,6 @@ export function CameraHelp({ problem, onRetry }: { problem: CameraProblem; onRet
     if (mayAutoOpenExternal(location.href, tried)) location.href = external;
   }, [external]);
 
-  const steps: string[] =
-    problem === "denied"
-      ? platform === "ios"
-        ? chromeOnIos
-          ? [t("camhelp.iosChrome1"), t("camhelp.iosChrome2")]
-          : [t("camhelp.ios1"), t("camhelp.ios2")]
-        : platform === "android"
-          ? [
-              t("camhelp.android1"),
-              t("camhelp.android2"),
-              t("camhelp.android3", { browser: androidBrowserName(ua) }),
-            ]
-          : [t("camhelp.desktop1")]
-      : problem === "inapp" && !external
-        ? [platform === "ios" ? t("camhelp.inappIos") : t("camhelp.inappOther")]
-        : [];
-
   const copy = () => {
     void navigator.clipboard
       ?.writeText(location.href)
@@ -74,54 +76,81 @@ export function CameraHelp({ problem, onRetry }: { problem: CameraProblem; onRet
       .catch(() => {});
   };
 
+  /** 主の釦の見た目（チュートリアルでは案内と同じ青い光の輪で「ここ」を示す）。 */
+  const primary = `cam-primer__allow press-in${screen ? " tour-pulse" : ""}`;
+  const retry = (
+    <>
+      <RotateCcw size={20} strokeWidth={2.2} aria-hidden="true" />
+      {t(problem === "denied" ? "camhelp.allowRetry" : "camhelp.retry")}
+    </>
+  );
+  const library = (className: string): ReactNode => (
+    <button type="button" data-tour="camera-library" className={className} onClick={onLibrary}>
+      <ImagePlus size={18} strokeWidth={2.2} aria-hidden="true" />
+      {t("campriming.library")}
+    </button>
+  );
+  const libraryFirst = problem === "unsupported" || (problem === "inapp" && !external);
+
   return (
     <div
       role="alert"
-      className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 overflow-y-auto bg-black/80 p-5 text-center text-white"
+      aria-labelledby={titleId}
+      data-tour="camera-help"
+      className={`cam-primer cam-primer--${screen ? "screen" : "frame"} cam-primer--help`}
     >
-      <p className="ja-phrase text-body font-semibold">{t(`camhelp.title.${problem}`)}</p>
-      <p className="ja-phrase text-footnote text-white/85">{t(`camhelp.body.${problem}`)}</p>
-      {steps.length > 0 && (
-        <ol className="ja-phrase w-full max-w-xs list-decimal space-y-1 rounded-2xl bg-white/10 py-3 pl-8 pr-4 text-left text-footnote">
-          {steps.map((step) => (
-            <li key={step}>{step}</li>
-          ))}
-        </ol>
-      )}
-      {external ? (
-        <a
-          href={external}
-          className="press-in inline-flex min-h-11 items-center rounded-full bg-primary px-5 text-body font-semibold text-primary-foreground"
-        >
-          {t("camhelp.openBrowser")}
-        </a>
-      ) : (
-        <button
-          type="button"
-          onClick={onRetry}
-          className="press-in min-h-11 rounded-full bg-primary px-5 text-body font-semibold text-primary-foreground"
-        >
-          {t(problem === "denied" ? "camhelp.allowRetry" : "camhelp.retry")}
-        </button>
-      )}
-      {(problem === "inapp" || problem === "unsupported") && (
-        <button
-          type="button"
-          onClick={copy}
-          className="min-h-11 rounded-full px-4 text-footnote font-semibold text-white underline"
-        >
-          {copied ? t("camhelp.copied") : t("camhelp.copyLink")}
-        </button>
-      )}
-      {external && (
-        <button
-          type="button"
-          onClick={onRetry}
-          className="min-h-11 rounded-full px-4 text-footnote font-semibold text-white/85 underline"
-        >
-          {t("camhelp.retry")}
-        </button>
-      )}
+      <div className="cam-primer__panel">
+        <div className="cam-primer__body">
+          <span className="cam-primer__badge" aria-hidden="true">
+            <CameraOff size={24} strokeWidth={2.2} />
+          </span>
+          <h2 id={titleId} className="cam-primer__title ja-phrase">
+            {t(`camhelp.title.${problem}`)}
+          </h2>
+          <p className="cam-primer__reason ja-phrase">{t(`camhelp.body.${problem}`)}</p>
+        </div>
+        {steps.length > 0 && (
+          // 直し方は、面の大きいチュートリアルでは開いておく（枠の中は狭いので畳む）。
+          <details className="cam-primer__steps" open={screen || problem === "inapp"}>
+            <summary className="ja-phrase">
+              {t(problem === "inapp" ? "camhelp.openBrowser" : "camhelp.howTo")}
+              <ChevronDown size={16} strokeWidth={2.4} aria-hidden="true" />
+            </summary>
+            <ol className="ja-phrase">
+              {steps.map((step) => (
+                <li key={step.key}>{t(step.key, step.vars)}</li>
+              ))}
+            </ol>
+          </details>
+        )}
+        <div className="cam-primer__actions">
+          {libraryFirst ? (
+            library(primary)
+          ) : external ? (
+            <a href={external} className={primary}>
+              <ExternalLink size={20} strokeWidth={2.2} aria-hidden="true" />
+              {t("camhelp.openBrowser")}
+            </a>
+          ) : (
+            <button type="button" className={primary} onClick={onRetry}>
+              {retry}
+            </button>
+          )}
+          {!libraryFirst && library("cam-primer__second press-in")}
+          {(problem === "inapp" || problem === "unsupported") && (
+            <div className="cam-primer__links">
+              <button type="button" onClick={copy} className="cam-primer__link">
+                {copied ? t("camhelp.copied") : t("camhelp.copyLink")}
+              </button>
+              {problem === "inapp" && (
+                <button type="button" onClick={onRetry} className="cam-primer__link">
+                  {t("camhelp.retry")}
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   );
 }

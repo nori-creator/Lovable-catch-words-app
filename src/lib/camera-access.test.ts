@@ -1,11 +1,14 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   androidBrowserName,
+  cameraFixSteps,
   cameraPlatform,
   cameraProblemOf,
+  cameraStart,
   externalBrowserUrl,
   inAppBrowser,
   mayAutoOpenExternal,
+  readCameraPermission,
 } from "./camera-access";
 
 const IOS_LINE =
@@ -85,5 +88,139 @@ describe("camera-access", () => {
     expect(externalBrowserUrl("https://catchwords.lovable.app/welcome", gsa)).toMatch(
       /^intent:\/\/catchwords\.lovable\.app\/welcome#Intent;scheme=https;package=com\.android\.chrome;end$/,
     );
+  });
+});
+
+const DESKTOP_CHROME =
+  "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0 Safari/537.36";
+const IOS_CHROME =
+  "Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) CriOS/125.0 Mobile/15E148 Safari/604.1";
+
+/**
+ * **撮る前の一枚**（オーナー指示 2026-10-02「許可の画面がダサい…どこからでもカメラを
+ * 許可して、新規登録前にこのアプリを体験できるように」）。どの端末・どの状態で、
+ * 前置き・すぐ映す・直し方のどれを出すか。
+ */
+describe("cameraStart（撮る画面を開いた時に最初に何をするか）", () => {
+  const base = { hasGetUserMedia: true, secure: true, primer: true } as const;
+
+  it("まだ許可していない iPhone の Safari・Android の Chrome は、前置きを出す（すぐ頼まない）", () => {
+    expect(cameraStart({ ...base, ua: IOS_SAFARI, permission: "prompt" })).toBe("primer");
+    expect(cameraStart({ ...base, ua: ANDROID_CHROME, permission: "prompt" })).toBe("primer");
+    expect(cameraStart({ ...base, ua: DESKTOP_CHROME, permission: "prompt" })).toBe("primer");
+  });
+
+  it("許可済みなら前置きを省いてすぐ映す", () => {
+    expect(cameraStart({ ...base, ua: IOS_SAFARI, permission: "granted" })).toBe("live");
+    expect(cameraStart({ ...base, ua: ANDROID_CHROME, permission: "granted" })).toBe("live");
+  });
+
+  it("許可の状態を聞けないブラウザは、前に使えた端末だけ前置きを省く", () => {
+    expect(cameraStart({ ...base, ua: IOS_SAFARI, permission: "unknown" })).toBe("primer");
+    expect(
+      cameraStart({ ...base, ua: IOS_SAFARI, permission: "unknown", grantedBefore: true }),
+    ).toBe("live");
+    // 「まだ」と答えるブラウザ（iPhone の「確認」設定）は、前に使えていても前置きを出す。
+    expect(
+      cameraStart({ ...base, ua: IOS_SAFARI, permission: "prompt", grantedBefore: true }),
+    ).toBe("primer");
+  });
+
+  it("断ってあるなら頼まずに直し方へ（アプリ内ブラウザは開き直しの案内）", () => {
+    expect(cameraStart({ ...base, ua: IOS_SAFARI, permission: "denied" })).toBe("denied");
+    expect(cameraStart({ ...base, ua: ANDROID_CHROME, permission: "denied" })).toBe("denied");
+    expect(cameraStart({ ...base, ua: IOS_LINE, permission: "denied" })).toBe("inapp");
+  });
+
+  it("カメラの仕組みが無い・https でないときは頼まずに案内へ（写真を選ぶ道もある）", () => {
+    expect(
+      cameraStart({ ...base, ua: ANDROID_LINE, permission: "unknown", hasGetUserMedia: false }),
+    ).toBe("inapp");
+    expect(
+      cameraStart({ ...base, ua: ANDROID_WV, permission: "prompt", hasGetUserMedia: false }),
+    ).toBe("inapp");
+    expect(cameraStart({ ...base, ua: IOS_SAFARI, permission: "prompt", secure: false })).toBe(
+      "unsupported",
+    );
+  });
+
+  it("アプリ内ブラウザでもカメラの仕組みが在れば、まず前置き（その画面のカメラを試す）", () => {
+    expect(cameraStart({ ...base, ua: IOS_LINE, permission: "prompt" })).toBe("primer");
+  });
+
+  it("前置きを使わない画面（ログイン後の撮る画面）は今まで通りすぐ頼む", () => {
+    expect(cameraStart({ ...base, primer: false, ua: IOS_SAFARI, permission: "prompt" })).toBe(
+      "live",
+    );
+    expect(cameraStart({ ...base, primer: false, ua: IOS_SAFARI, permission: "unknown" })).toBe(
+      "live",
+    );
+  });
+});
+
+describe("cameraFixSteps（許可を直す手順）", () => {
+  const keys = (steps: ReturnType<typeof cameraFixSteps>) => steps.map((s) => s.key);
+
+  it("iPhone の Safari はアドレス欄の「ぁあ」から（出なければ設定アプリ）", () => {
+    expect(keys(cameraFixSteps("denied", IOS_SAFARI))).toEqual([
+      "camhelp.iosSafari1",
+      "camhelp.iosSafari2",
+      "camhelp.iosSettings",
+    ]);
+  });
+
+  it("iPhone の Chrome は設定アプリの Chrome の項目", () => {
+    expect(keys(cameraFixSteps("denied", IOS_CHROME))).toEqual([
+      "camhelp.iosChrome1",
+      "camhelp.iosChrome2",
+    ]);
+  });
+
+  it("Android はアドレス欄のアイコン → 権限、出なければそのブラウザのアプリの権限（Brave は名指し）", () => {
+    const steps = cameraFixSteps("denied", ANDROID_CHROME);
+    expect(keys(steps)).toEqual(["camhelp.android1", "camhelp.android2", "camhelp.android3"]);
+    expect(steps[2].vars).toEqual({ browser: "Chrome" });
+    expect(cameraFixSteps("denied", ANDROID_CHROME, { brave: true })[2].vars).toEqual({
+      browser: "Brave",
+    });
+  });
+
+  it("アプリ内ブラウザは、自動で開き直せる時は手順を出さない", () => {
+    expect(keys(cameraFixSteps("inapp", IOS_INSTAGRAM))).toEqual(["camhelp.inappIos"]);
+    expect(cameraFixSteps("inapp", IOS_LINE, { external: true })).toEqual([]);
+    expect(cameraFixSteps("unavailable", IOS_SAFARI)).toEqual([]);
+  });
+});
+
+describe("readCameraPermission（許可の状態を聞く）", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("答えをそのまま返す", async () => {
+    vi.stubGlobal("navigator", {
+      permissions: { query: async () => ({ state: "granted" }) },
+    });
+    expect(await readCameraPermission()).toBe("granted");
+  });
+
+  it("知らないと投げるブラウザ（Firefox）・聞けないブラウザは unknown", async () => {
+    vi.stubGlobal("navigator", {
+      permissions: {
+        query: async () => {
+          throw new TypeError("'camera' is not a valid value for enumeration PermissionName.");
+        },
+      },
+    });
+    expect(await readCameraPermission()).toBe("unknown");
+    vi.stubGlobal("navigator", {});
+    expect(await readCameraPermission()).toBe("unknown");
+  });
+
+  it("答えが来ないときは待ち続けない", async () => {
+    vi.stubGlobal("navigator", {
+      permissions: { query: () => new Promise(() => {}) },
+    });
+    expect(await readCameraPermission(20)).toBe("unknown");
   });
 });

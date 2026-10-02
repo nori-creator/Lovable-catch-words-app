@@ -474,6 +474,7 @@ export function HomeSurface({
   onOpen,
   onLongPress,
   shelfLoaders,
+  shelf = true,
   truncated = false,
   shown,
   total,
@@ -492,6 +493,12 @@ export function HomeSurface({
   onLongPress?: (id: string) => void;
   /** 本棚の日記の読み書き（チュートリアルは端末の中だけで済ませる）。 */
   shelfLoaders?: Parameters<typeof HomeShelf>[0]["loaders"];
+  /**
+   * 一番上の 3D の本棚を出すか。チュートリアルは出さない（オーナー指示 2026-10-03
+   * 「チュートリアルのはじめに本棚が一瞬映るの変だから、はじめから映すのはホームの
+   * アルバムだけにして」）。画面はそのまま本物で、本棚の段だけを省く。
+   */
+  shelf?: boolean;
   truncated?: boolean;
   shown?: number;
   total?: number;
@@ -545,7 +552,7 @@ export function HomeSurface({
       周りのデザインをそれより下のすべての日にちにも適用して」）。巾木は一番下の日の後。
     */
     <div className={ready ? "home-scene" : undefined}>
-      {ready ? (
+      {ready && shelf ? (
         <HomeShelf
           items={albumItems}
           loaders={shelfLoaders}

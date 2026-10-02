@@ -4848,39 +4848,44 @@ describe("ホームは今日の誌面", () => {
     );
     // 2026-09-24「過去のものが多すぎで画面で確認できないから、過去のものは全て
     // 削除して」: 帯には**今回の依頼の面だけ**。
-    // 2026-10-02「表示言語が英語・繁體中文だと復習の意味が日本語・訳が無い・品詞が日本語・
-    // 図鑑のスライドに意味が無い」の回。先頭は英語の表示の4択（本番の `LightModeCard`）。
-    // 英語と繁體中文の両方、答え合わせ・図鑑のスライド・単語の詳細の品詞を並べる。
-    expect(list.slice(0, list.indexOf("},"))).toMatch(
-      /scene: "review-choice&lang=en&mixed=1&photo=1"/,
-    );
-    for (const lang of ["en", "zh-TW"]) {
-      expect(list).toContain(`scene: "review-choice&lang=${lang}&mixed=1&photo=1"`);
-      expect(list).toContain(`scene: "review-choice&lang=${lang}&mixed=1&photo=1&answer=right"`);
-      expect(list).toContain(`scene: "dex-cards&lang=${lang}&reader=1"`);
-      expect(list).toContain(`scene: "word-card&lang=${lang}"`);
+    // 2026-10-03「ウェルカム画面はAのデザインを再現して」「カメラ前はBにして」「チュートリアルの
+    // ピンイン・本棚・ギャラリー・例文とチャンク・答え合わせの枠・はじめと終わりの動き」の回。
+    // 先頭はウェルカム画面（A 案）。
+    expect(list.slice(0, list.indexOf("},"))).toMatch(/scene: "first-catch"/);
+    // 前の回の並べ方の見比べ（C〜F）とカメラの前の一枚の案（A〜C）は外した。
+    expect(list).not.toMatch(/layout=/);
+    expect(list).not.toMatch(/primer=/);
+    expect(list).toContain('scene: "first-catch&theme=dark"');
+    expect(list).toContain('scene: "first-catch&lang=en&target=en"');
+    expect(list).toContain('scene: "first-catch&lang=zh-TW"');
+    // カメラの許可の前の一枚と、断った時・LINE の中の時。
+    expect(list).toContain('scene: "first-catch&step=camera&cam=prompt"');
+    for (const cam of ["denied", "android", "line"]) {
+      expect(list).toContain(`scene: "first-catch&step=camera&cam=${cam}"`);
     }
-    // 日本語の表示は今と同じことを並べて確かめる。
-    expect(list).toMatch(/scene: "review-choice&lang=ja&mixed=1&photo=1&answer=right"/);
-    // 前の回（単語の詳細の見出しの並び）の面はその後ろに残す。
-    expect(list).toMatch(/scene: "sticker-sheet&word=en"/);
-    expect(list).toMatch(/scene: "sticker-sheet"/);
-    // それより前の回（記憶のグラフ・アルバム・管理画面・パスワードの再設定）の面は残さない。
+    // チュートリアル: はじめと終わりの動き、ピンイン、図鑑、単語の詳細、答え合わせ。
+    expect(list).toContain('scene: "first-catch&step=ready&target=zh-TW"');
+    expect(list).toContain('scene: "first-catch&step=complete&target=zh-TW"');
+    expect(list).toContain('scene: "first-catch&step=review&lang=zh-TW&target=zh-TW"');
+    expect(list).toContain('scene: "first-catch&step=home&tour=1"');
+    expect(list).toContain('scene: "first-catch&step=dex&tour=1"');
+    expect(list).toContain('scene: "first-catch&step=explore"');
+    // 前の回（表示言語の復習・図鑑、単語の詳細の見出し、学習言語でない見出し）の面は残さない。
+    expect(list).not.toMatch(/scene: "review-choice&lang=/);
+    expect(list).not.toMatch(/scene: "dex-cards&lang=/);
+    expect(list).not.toMatch(/scene: "sticker-sheet/);
+    expect(list).not.toMatch(/scene: "capture-card&variant=not-target/);
+    // それより前の回（記憶のグラフ・アルバム・管理画面・パスワードの再設定）の面も残さない。
     expect(list).not.toMatch(/scene: "review-header/);
     expect(list).not.toMatch(/scene: "memory-designs/);
     expect(list).not.toMatch(/scene: "admin-users/);
     expect(list).not.toMatch(/scene: "auth&email=1"/);
     expect(list).not.toMatch(/scene: "reset-password/);
     expect(main).toContain('"review-header": ReviewHeaderScene');
-    // 2026-10-02「英語の図鑑にノート」の回。先頭は撮った後のカードで、学習言語の語で
-    // ない見出しを保存せずに理由を出す所（`err.notTargetLanguage`）。
-    expect(list).toMatch(/scene: "capture-card&variant=not-target&lang=ja"/);
-    expect(list).toMatch(/scene: "capture-card&variant=not-target&lang=en"/);
     expect(main).toContain('"capture-card": CaptureCardScene');
     // 前の回（記憶のグラフ・本の左ページ・管理画面）の面は残さない。
     // 前の回（パスワードの再設定）の面は残さない。
-    // 前の回（チュートリアルの4択）の面は残さない。
-    expect(list).not.toMatch(/scene: "first-catch&step=review"/);
+    // （チュートリアルの4択 `first-catch&step=review` は 2026-10-02 の回でまた並べる。）
     // 前の回（R26/R27）の面は残さない。
     expect(list).not.toMatch(/scene: "home-shelf"/);
     expect(list).not.toMatch(/scene: "dex-map"/);
@@ -4959,10 +4964,13 @@ describe("狭い画面と指と声", () => {
   });
 
   it("**押すためだけの隠し input は、指にも声にも渡さない**", () => {
-    // シャッターが `.click()` で代わりに開く控えの口。`sr-only` のままだと
+    // 「写真」「写真を選ぶ」が `.click()` で代わりに開く控えの口。`sr-only` のままだと
     // キーボードの順番にも声の案内にも「名前の無い欄」として現れていた。
+    // （端末のカメラアプリへ渡す口 `cameraInputRef` は 2026-10-03「スマホのカメラで撮る
+    // 機能は消して」で無くした。）
     const cap = codeOnly(read("routes/_authenticated/capture.tsx"));
-    const box = cap.slice(cap.indexOf("ref={cameraInputRef}"));
+    expect(cap).not.toMatch(/cameraInputRef/);
+    const box = cap.slice(cap.indexOf("ref={libraryInputRef}"));
     expect(box.slice(0, 300)).toMatch(/tabIndex=\{-1\}/);
     expect(box.slice(0, 300)).toMatch(/aria-hidden="true"/);
   });
@@ -6152,7 +6160,8 @@ describe("単語の詳細が開いた直後に別の文へ入れ替わらない�
     expect(sheet).toMatch(/readExplanationCache\(s\?\.word_id, wantKey\)/);
     expect(shared).toMatch(/initialData: cached,/);
     expect(shared).toMatch(/writeCachedExplanation\(cacheKey, r\)/);
-    expect(sheet).toMatch(/explanationPending=\{explanation === undefined\}/);
+    // 端末の中だけの語（登録前のチュートリアル）は問い合わせないので待たない（2026-10-03）。
+    expect(sheet).toMatch(/explanationPending=\{!local && explanation === undefined\}/);
     expect(sheet).toMatch(/extras: explanationPending \? null : s\.word\.extras/);
     expect(sheet).toMatch(/data: readerExplanationSaveInput\(\{/);
     expect(shared).toMatch(/extras: keepShownFields\(/);
@@ -6422,18 +6431,94 @@ describe("R25（2026-09-30: ベータテストの指摘・最初の画面の4枚
     expect(focus).toMatch(/if \(!supported\.pointsOfInterest\) return null;/);
   });
 
-  it("初回の画面の写真には留め具を付けず、最初の画面は3つの並べ方から選べる", () => {
+  it("初回の画面の写真には留め具を付けない", () => {
     const pages = codeOnly(read("components/onboarding/FirstCatchPages.tsx"));
-    expect(pages).toMatch(/WELCOME_LAYOUTS = \["mosaic", "frame", "bouquet"\]/);
-    expect(pages).toMatch(/layout=\{DEFAULT_WELCOME_LAYOUT\}/);
-    expect(pages).toMatch(/DEFAULT_WELCOME_LAYOUT: WelcomeLayout = "bouquet"/);
+    // ログイン画面の束と、準備の画面の1枚。
     expect(pages.match(/fasteners=\{false\}/g)?.length).toBe(2);
     expect(codeOnly(read("components/onboarding/FirstCatchQuestions.tsx"))).toMatch(
       /fasteners=\{false\}/,
     );
+  });
+
+  /**
+   * **最初の画面はオーナーの見本「A. シンプルモダン」**（2026-10-03「ウェルカム画面はAの
+   * デザインを再現して。キャッチフレーズは日常のすべてが学びになる。海の写真の下には
+   * 海邊という台湾華語を書き入れて」「アニメーションを入れて、祝福する、画面に動きを」）。
+   */
+  it("最初の画面は空と手の1枚（海邊）・キャッチフレーズ・動き、点は付けない", () => {
+    const pages = codeOnly(read("components/onboarding/FirstCatchPages.tsx"));
+    const intro = pages.slice(pages.indexOf("export function FirstCatchIntro("));
+    const body = intro.slice(0, intro.indexOf("export function FirstCatchNotifications("));
+    expect(body).toMatch(/t\("first\.introTagline"\)/);
+    expect(body).toMatch(/src="\/first-catch-ready\.webp"/);
+    expect(body).toMatch(/src="\/first-catch-hand\.webp"/);
+    expect(pages).toMatch(/seaside: \["seaside", "海邊"\]/);
+    expect(body).toMatch(/welcomeWord\("seaside", en\)/);
+    // 横に送れない画面なので、送れるように見せる点は出さない。
+    expect(body).not.toMatch(/dot|first-dots/);
+    // 「ログイン」だけが押せる青い文字。押せる高さは .first-secondary（44px）。
+    expect(body).toMatch(
+      /\{t\("first\.signinPrompt"\)\}\s*<a className="first-secondary" href="\/auth">/,
+    );
+    expect(fs.existsSync(path.join(root, "../public/first-catch-hand.webp"))).toBe(true);
+    const dict = read("lib/i18n.tsx");
+    expect(dict).toMatch(/"first\.introTagline": \{\s*ja: "日常のすべてが学びになる"/);
+    // 並べ方の見比べ（C〜F）は畳んだ。
+    expect(pages).not.toMatch(/WELCOME_LAYOUTS|setWelcomeLayoutPreview/);
     const css = read("components/onboarding/first-catch.css");
-    for (const l of ["mosaic", "frame", "bouquet"])
-      expect(css).toContain(`.first-print-stack--${l}`);
+    expect(css).not.toMatch(/first-print-stack--(mosaic|frame|bouquet|scatter|hero|cascade)/);
+    // 舞台が残りの高さを取る（背の高い画面で「はじめる」の上に大きな空白を残さない）。
+    expect(css).toMatch(/\.first-welcome-stage \{[^}]*flex: 1 1 0;[^}]*container-type: size;/);
+    expect(css).toMatch(/\.first-intro \{[^}]*height: max\(var\(--first-viewport-height/);
+    expect(css).toMatch(/\.first-secondary \{[^}]*display: flex;[^}]*min-height: 44px;/);
+    // 雲が流れ・写真が舞い込み・手の1枚が揺れ・光と星。動きを減らす設定では止める。
+    for (const motion of [
+      "first-cloud-drift",
+      "first-welcome-float-in",
+      "first-welcome-sway",
+      "first-welcome-shine",
+      "first-welcome-spark",
+    ])
+      expect(css).toContain(`@keyframes ${motion}`);
+    expect(css).toMatch(
+      /html\[data-motion="reduce"\] \.first-welcome \*,[^{]*\{\s*animation: none !important;/,
+    );
+    // 暗いテーマの空もある。
+    expect(css).toMatch(/\.dark \.first-welcome \{/);
+    // 最初の画面で先読みするのは、最初の画面に出る写真と手だけ。
+    const welcome = codeOnly(read("routes/welcome.tsx"));
+    expect(welcome).toMatch(/WELCOME_IMAGES\.map/);
+    const images = codeOnly(read("lib/first-catch-images.ts"));
+    for (const photo of [
+      "ready",
+      "hand",
+      "welcome-sea",
+      "welcome-blur-flower",
+      "welcome-blur-cat",
+      "welcome-blur-coffee",
+      "welcome-blur-lake",
+    ])
+      expect(images).toMatch(new RegExp(`"/first-catch-${photo}\\.webp"`));
+    // 「海邊」は見本の細いペン字に近い Zen Kurenaido（端末内に配る字体）で書き、その2字を先読みする。
+    expect(css).toMatch(/\.first-welcome-pen \{[^}]*font-family: "Zen Kurenaido"/);
+    expect(body).toMatch(/en \? "handwritten" : "first-welcome-pen"/);
+    expect(images).toMatch(/"\/fonts\/zen-kurenaido\/zk-114\.woff2"/);
+    expect(welcome).toMatch(/WELCOME_FONTS\.map/);
+    // 空の光: 日の光と霞・ぼかした海・きらめき・雲の上の面と影。ぼかしに filter を使わない。
+    expect(css).toMatch(/url\(\/first-catch-welcome-sea\.webp\)/);
+    expect(css).toContain("@keyframes first-glint");
+    expect(css).toMatch(/\.first-sky-cloud::before \{\s*--c: var\(--cloud-shade\);/);
+    expect(css).not.toMatch(/\.first-welcome-around[^{]*\{[^}]*filter: blur/);
+  });
+
+  it("最初の画面・準備の画面でも保存の失敗を出し、読めない下書きで行き止まりにしない", () => {
+    const flow = codeOnly(read("components/onboarding/FirstCatchFlow.tsx"));
+    expect(flow).toMatch(/<FirstCatchIntro[^>]*error=\{inlineError\}/);
+    expect(flow).toMatch(/<FirstCatchReady[^>]*error=\{inlineError\}/);
+    expect(flow).toMatch(/FIRST_CATCH_STORAGE: "first\.storage"/);
+    expect(flow).not.toMatch(
+      /\.catch\(\(\) => \{\s*if \(mounted\.current\) setError\(t\("first\.storage"\)\);/,
+    );
   });
 
   it("量詞の「個」は、見出し・量詞の欄・一覧のどこでも輕聲で出す", () => {

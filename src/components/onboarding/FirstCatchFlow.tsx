@@ -5,7 +5,9 @@ import { CatchLandingOverlay, runCatchLanding } from "@/components/CatchLanding"
 import { usePronounce } from "@/lib/use-pronounce";
 import { useTargetLang } from "@/lib/target-lang-pref";
 import { useEffect, useRef, useState } from "react";
-import { ArrowRight } from "lucide-react";
+import { ArrowRight, Check } from "lucide-react";
+import { Reading } from "@/lib/phonetic";
+import { Term } from "@/components/Term";
 import { useServerFn } from "@tanstack/react-start";
 import { useNavigate } from "@tanstack/react-router";
 import { supabase } from "@/integrations/supabase/client";
@@ -21,6 +23,7 @@ import type { FirstCatchAIRequest } from "@/lib/first-catch-ai-schema";
 import {
   firstCatchPhoto,
   applyFirstCatchLanguage,
+  seedFirstCatchReading,
   ensureFirstCatchSession,
   isGuestRefusal,
 } from "@/lib/first-catch-services";
@@ -94,47 +97,72 @@ export function FirstCatchEntry() {
   );
 }
 
+function freshFirstCatch(): FirstCatch {
+  return {
+    version: 1,
+    id: crypto.randomUUID(),
+    uiLanguage: getUiLang(),
+    targetLanguage: getTargetLang(),
+    dailyMinutes: 10,
+    stage: "intro",
+    photo: null,
+    card: null,
+    capturedAt: null,
+  };
+}
+
 export function FirstCatchFlow({
   services,
   onAccount,
   initialDraft,
   persist = writeFirstCatch,
   initialSettingsOpen = false,
+  initialSuggestions = [],
 }: {
   /** 見本（UI ハーネス）で設定画面を開いた状態から見せるため。 */
   initialSettingsOpen?: boolean;
+  /**
+   * 見本（UI ハーネス）で、見本の写真の候補が並んだ所から見せるため。
+   * 撮った写真の解析結果の代わりには使わない（見本の写真にだけ付ける）。
+   */
+  initialSuggestions?: Suggestion[];
   services: FirstCatchServices;
   onAccount: () => void;
   initialDraft?: FirstCatch;
   persist?: (draft: FirstCatch) => Promise<void>;
 }) {
   const t = useT();
-  const [draft, setDraft] = useState<FirstCatch | null>(initialDraft ?? null);
+  const [draft, setDraft] = useState<FirstCatch | null>(() => {
+    // 台湾華語なら最初の描画から拼音（選んだことのある端末はそのまま）。子の読みは
+    // この後に描かれるので、ここで書けば1コマ目から拼音になる。
+    if (initialDraft) seedFirstCatchReading(initialDraft);
+    return initialDraft ?? null;
+  });
   const draftRef = useRef(draft);
   draftRef.current = draft;
   const [busy, setBusy] = useState<"photo" | "card" | "save" | null>(null);
   const [error, setError] = useState<string | null>(null);
   const retry = useRef<() => void>(() => {});
   const lock = useRef(false);
-  const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
+  const [suggestions, setSuggestions] = useState<Suggestion[]>(initialSuggestions);
   const [manual, setManual] = useState("");
   const [flipped, setFlipped] = useState(false);
   const [detailSeen, setDetailSeen] = useState(false);
   const [homeGuide, setHomeGuide] = useState<"album" | "camera">("album");
   const [landing, setLanding] = useState(false);
   /**
-   * 撮る画面で映像が取れない（アプリ内ブラウザ・許可なし）。そのときは
-   * シャッターだけを照らす案内を外す — 案内の覆いが、枠の中に出る
-   * 「スマホのカメラで撮る」「写真を選ぶ」を押せなくしてしまうため。
+   * 撮る画面のシャッターが「次に押す物」か（映像が届いていて、撮る前の一枚も直し方も
+   * 出ていない）。そうでない間はシャッターを照らす案内を出さない — 案内の覆いが
+   * 撮る前の一枚・直し方の「カメラを使う」「写真を選ぶ」を押せなくし、
+   * ブラウザの確認の後ろに札が重なるため（2026-10-02 オーナーの画面写真）。
    */
-  const [cameraUnavailable, setCameraUnavailable] = useState(false);
+  const [shutterReady, setShutterReady] = useState(false);
   /** チュートリアル用の設定（言語・最初に戻る）。下のタブの「設定」から開く。 */
   const [menuOpen, setMenuOpen] = useState(initialSettingsOpen);
   const openMenu = useRef(() => setMenuOpen(true)).current;
   const hero = useRef<HTMLDivElement>(null);
   const fly = useRef<HTMLImageElement>(null);
   const pronounce = usePronounce(useTargetLang());
-  const input = useRef<HTMLInputElement>(null);
   const mounted = useRef(true);
   useEffect(() => {
     preloadFirstCatchImages();
@@ -155,23 +183,21 @@ export function FirstCatchFlow({
               ? handoff
               : saved?.stage !== "done" && saved
                 ? saved
-                : {
-                    version: 1,
-                    id: crypto.randomUUID(),
-                    uiLanguage: getUiLang(),
-                    targetLanguage: getTargetLang(),
-                    dailyMinutes: 10,
-                    stage: "intro",
-                    photo: null,
-                    card: null,
-                    capturedAt: null,
-                  };
+                : freshFirstCatch();
           applyFirstCatchLanguage(next);
           setDraft(next);
           if (handoff && fresh) void writeFirstCatch(next).catch(() => {});
         })
         .catch(() => {
-          if (mounted.current) setError(t("first.storage"));
+          // 読めない下書き（古い形・壊れた保存・端末の保存が使えない）でも、最初の画面は出す。
+          // 前は「保存できません」と「もう一度試す」だけの画面で止まり、しかもその
+          // ボタンは何もしなかった（再試行の中身が空のまま）。初めての人が最初に見る
+          // 画面が行き止まりにならないよう、新しい下書きで始める。保存が本当に
+          // 使えない端末では、「はじめる」を押した時に理由と再試行が最初の画面に出る。
+          if (!mounted.current) return;
+          const next = freshFirstCatch();
+          applyFirstCatchLanguage(next);
+          setDraft(next);
         });
     return () => {
       mounted.current = false;
@@ -191,8 +217,17 @@ export function FirstCatchFlow({
     else return;
     window.history.replaceState(window.history.state, "", url);
   }, [draft]);
+  /**
+   * 下書きを端末に保存してから画面を進める。保存の失敗は**保存の失敗として**伝える
+   * （`first.storage`）。前は汎用の文（「写真を残したまま、もう一度試せます」）になり、
+   * 写真をまだ撮っていない最初の画面・質問でも「写真」と出ていた。
+   */
   async function commit(next: FirstCatch) {
-    await persist(next);
+    try {
+      await persist(next);
+    } catch {
+      throw new Error("FIRST_CATCH_STORAGE");
+    }
     if (mounted.current) setDraft(next);
   }
   /**
@@ -330,6 +365,7 @@ export function FirstCatchFlow({
       FIRST_CATCH_LIMIT: "first.busy",
       FIRST_CATCH_NO_WORDS: "first.noWords",
       FIRST_CATCH_AI_FORMAT: "first.aiFormat",
+      FIRST_CATCH_STORAGE: "first.storage",
     };
     const key = known[code];
     if (key) return t(key);
@@ -359,6 +395,16 @@ export function FirstCatchFlow({
         </button>
       )}
     </div>
+  );
+  /**
+   * 最初の画面・準備の画面の失敗は、理由の1行だけ。ここの「次へ」（はじめる）が
+   * そのまま再試行なので、同じ形の青いボタンを2つ並べない（並べると「はじめる」が
+   * 背の低い画面の外へ押し出された）。
+   */
+  const inlineError = error && (
+    <p role="alert" className="first-error first-error--inline">
+      {error}
+    </p>
   );
   if (!draft) return <div className="first-questions">{errors ?? <p role="status">…</p>}</div>;
   /** いま走っている処理を捨てる（分析中でもメニューから抜けられるように）。 */
@@ -444,7 +490,14 @@ export function FirstCatchFlow({
     </TutorialSettingsContext.Provider>
   );
   if (draft.stage === "intro")
-    return <FirstCatchIntro draft={draft} busy={!!busy} onStart={() => move("questions")} />;
+    return (
+      <FirstCatchIntro
+        draft={draft}
+        busy={!!busy}
+        error={inlineError}
+        onStart={() => move("questions")}
+      />
+    );
   if (draft.stage === "questions")
     return withMenu(
       <FirstCatchQuestions
@@ -476,6 +529,7 @@ export function FirstCatchFlow({
       <FirstCatchReady
         draft={draft}
         busy={!!busy}
+        error={inlineError}
         onBack={() => move("notifications")}
         onStart={() => move("home")}
       />,
@@ -516,7 +570,26 @@ export function FirstCatchFlow({
         />
       )}
       {draft.stage === "complete" && (
-        <div className="first-standalone first-ready">
+        /* **祝う画面**（オーナー指示 2026-10-03「チュートリアルの終わりの画面はアニメーションを
+           入れて、祝福する、画面に動きを入れて」）。見出しが弾んで出る → 撮った写真が回りながら
+           飛び出す → 紙吹雪が開いて上から降る → 完了の印と、その語（読み付き）が乗る → 登録の釦。
+           動きは transform と opacity だけ。動きを減らす設定では、最後の絵のまま出す。 */
+        <div className="first-standalone first-ready first-complete">
+          <div className="first-confetti-rain" aria-hidden="true">
+            {CONFETTI_RAIN.map(([x, delay, dx, turn], i) => (
+              <i
+                key={i}
+                style={
+                  {
+                    "--x": `${x}%`,
+                    "--d": `${delay}ms`,
+                    "--dx": `${dx}px`,
+                    "--r": `${turn}deg`,
+                  } as React.CSSProperties
+                }
+              />
+            ))}
+          </div>
           <div className="first-ready-heading">
             <h1>{t("first.completeTitle")}</h1>
             <p>{t("first.completeHint")}</p>
@@ -527,7 +600,25 @@ export function FirstCatchFlow({
                 <i key={i} />
               ))}
             </div>
-            <img src={draft.photo!} alt="" className="first-complete-photo" />
+            <div className="first-complete-print">
+              <img src={draft.photo!} alt="" className="first-complete-photo" />
+              <span className="first-complete-badge" aria-hidden="true">
+                <Check size={30} strokeWidth={3} />
+              </span>
+              {sticker && (
+                <span className="first-complete-word">
+                  <Term lang={sticker.word.language} className="first-complete-word__head">
+                    {sticker.word.headword}
+                  </Term>
+                  <Reading
+                    lang={sticker.word.language ?? undefined}
+                    zhuyin={sticker.word.reading_zhuyin}
+                    pinyin={sticker.word.pinyin}
+                    className="first-complete-word__reading"
+                  />
+                </span>
+              )}
+            </div>
           </div>
           <footer className="first-standalone-footer">
             <button className="first-primary tour-pulse" disabled={!!busy} onClick={account}>
@@ -574,14 +665,14 @@ export function FirstCatchFlow({
             ) : (
               <CaptureObjectPanel
                 retakeWord={null}
-                cameraInputRef={input}
                 onObjectFile={photo}
                 typedWord=""
                 setTypedWord={() => {}}
                 onSearch={() => {}}
                 onOpenScan={() => {}}
                 error={null}
-                onCameraUnavailable={setCameraUnavailable}
+                onShutterReady={setShutterReady}
+                primer
               />
             ))}
         </FirstCatchShell>
@@ -628,8 +719,9 @@ export function FirstCatchFlow({
             <Spotlight
               target={`#dex-cell-${sticker.id}`}
               title={t("first.added")}
-              text={t("first.dexOpen")}
-              nextLabel={t("first.dexTitle")}
+              text={t("first.addedHint")}
+              step="3 / 5"
+              nextLabel={t("first.next")}
               onNext={() => move("dex")}
             />
           )}
@@ -658,7 +750,9 @@ export function FirstCatchFlow({
           />
           <Spotlight
             target='[data-tour="word-detail"]'
-            title={t("first.detailTitle")}
+            alignTop
+            compact
+            title={t("first.exploreCoachTitle")}
             text={t("first.exploreHint")}
             interactive
             step="4 / 5"
@@ -682,22 +776,30 @@ export function FirstCatchFlow({
           onNext={homeGuide === "album" ? () => setHomeGuide("camera") : undefined}
           interactive={homeGuide === "camera"}
           allowSelector={homeGuide === "camera" ? '[data-tour="tab-camera"]' : undefined}
+          gesture="tap"
         />
       )}
-      {!error && !landing && !cameraUnavailable && draft.stage === "camera" && !draft.photo && (
+      {!error && !landing && shutterReady && draft.stage === "camera" && !draft.photo && (
         <Spotlight
           target=".camera-shutter"
-          title={t("first.shootTitle")}
+          title={t("first.shutterTitle")}
           text={t("first.shoot")}
+          step="2 / 5"
           interactive
+          gesture="tap"
         />
       )}
       {!error && !landing && draft.stage === "camera" && suggestions.length > 0 && (
         <Spotlight
-          target='[data-tour="pick"]'
+          // 枠は候補の一覧そのもの。下の「違う単語を入力」と、2段目の「戻る」も押せる
+          // （候補に無い時の道を、チュートリアルでも塞がない）。
+          target='[data-tour="pick"] .candidate-picker > ul'
+          allowSelector='[data-tour="pick"]'
           title={t("first.pickTitle")}
           text={t("first.pick")}
+          step="2 / 5"
           interactive
+          gesture="tap"
         />
       )}
       {!error && !landing && draft.stage === "card" && (
@@ -705,7 +807,9 @@ export function FirstCatchFlow({
           target={detailSeen ? '[data-tour="peel"]' : '[data-tour="detail"]'}
           title={t(detailSeen ? "first.peelTitle" : "first.detailTitle")}
           text={t(detailSeen ? "first.peel" : "first.detail")}
+          step="2 / 5"
           interactive
+          gesture={detailSeen ? "peel" : undefined}
           allowSelector={detailSeen ? undefined : "button[aria-label]"}
           nextLabel={t("first.next")}
           onNext={detailSeen ? undefined : () => setDetailSeen(true)}
@@ -723,3 +827,23 @@ export function FirstCatchFlow({
     </div>,
   );
 }
+
+/** 終わりの画面に降る紙吹雪: 横の位置(%)・遅れ(ms)・横の流れ(px)・回転(度)。決め打ちで毎回同じ絵。 */
+const CONFETTI_RAIN: ReadonlyArray<readonly [number, number, number, number]> = [
+  [6, 120, 18, 260],
+  [14, 420, -12, -320],
+  [22, 60, 26, 300],
+  [31, 300, -20, -240],
+  [39, 520, 14, 360],
+  [47, 180, -16, -280],
+  [55, 380, 22, 250],
+  [63, 90, -24, -340],
+  [71, 460, 12, 290],
+  [79, 240, -18, -260],
+  [87, 140, 20, 330],
+  [94, 560, -14, -300],
+  [10, 760, 16, -220],
+  [35, 880, -22, 280],
+  [59, 700, 18, -310],
+  [83, 820, -12, 240],
+];

@@ -123,9 +123,10 @@ export function FirstCatchShell({
 /**
  * **本物のホームの画面（`HomeSurface`）そのもの**に、見本の写真か撮った1枚を載せる。
  *
- * 本棚・今日の誌面・壁の続きまで本物と同じ部品なので、ホームを直すとここも同じ
+ * 今日の誌面・壁の続きまで本物と同じ部品なので、ホームを直すとここも同じ
  * ビルドで変わる（オーナー指示 2026-09-29「アプリ本体をアップデートしたら自動的に
- * 変化するように」）。本棚の日記は登録前なので端末の外へ出さない（空で読み、書いても送らない）。
+ * 変化するように」）。一番上の 3D の本棚だけは省く（`shelf={false}`、オーナー指示
+ * 2026-10-03）— 最初の1コマからアルバムを見せ、登録前の日記も端末の外へ出さない。
  */
 export function FirstCatchHome({
   draft,
@@ -151,7 +152,8 @@ export function FirstCatchHome({
             surfaceClass="album-bg-paper"
             opening={animated && !sticker}
             onOpen={() => {}}
-            shelfLoaders={GUEST_SHELF}
+            // 本棚は出さない — 最初の1コマからアルバムだけ（本棚が一瞬映って巻き取られない）。
+            shelf={false}
           />
         </div>
       </section>
@@ -160,8 +162,3 @@ export function FirstCatchHome({
 }
 
 const SAMPLE_DAY = "2026-09-23T09:00:00.000Z";
-/** 登録前の本棚の日記: 何も読まず、何も送らない。 */
-const GUEST_SHELF = {
-  diary: async () => [],
-  save: async () => {},
-};
