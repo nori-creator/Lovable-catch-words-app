@@ -86,10 +86,8 @@ import {
   cameraProblemOf,
   cameraStart,
   inAppBrowser,
-  osCameraKind,
   readCameraPermission,
   rememberCameraGranted,
-  type CameraPrimerVariant,
   type CameraProblem,
 } from "@/lib/camera-access";
 import { useLockPageZoom } from "@/hooks/use-lock-page-zoom";
@@ -354,7 +352,6 @@ function CapturePage() {
   const [saving, setSaving] = useState(false);
   const heroBoxRef = useRef<HTMLDivElement | null>(null);
   const flyRef = useRef<HTMLImageElement | null>(null);
-  const cameraInputRef = useRef<HTMLInputElement | null>(null);
   const objectImageRef = useRef<string | null>(null);
   const selfieImageRef = useRef<string | null>(null);
   const selfiePendingRef = useRef(false);
@@ -1372,7 +1369,6 @@ function CapturePage() {
       {(step === "object" || step === "selfie") && (
         <CaptureObjectPanel
           retakeWord={retakeParam ?? null}
-          cameraInputRef={cameraInputRef}
           onObjectFile={
             step === "selfie" ? (file) => void handleSelfieFile(file) : handleObjectFile
           }
@@ -2083,7 +2079,6 @@ export function CaptureObjectPanel({
   selfieMode = false,
   onSkipSelfie,
   retakeWord,
-  cameraInputRef,
   onObjectFile,
   onNativeCapture,
   typedWord,
@@ -2104,16 +2099,15 @@ export function CaptureObjectPanel({
    */
   onShutterReady?: (ready: boolean) => void;
   /**
-   * **カメラを頼む前の一枚**の見せ方（`CameraPrimer`）。渡した画面（チュートリアル）だけ、
-   * 許可がまだの時にこれを先に見せ、押してもらってからブラウザに頼む。渡さない画面
+   * **カメラを頼む前の一枚**（`CameraPrimer`）を使うか。使う画面（チュートリアル）だけ、
+   * 許可がまだの時にこれを先に見せ、押してもらってからブラウザに頼む。使わない画面
    * （ログイン後の撮る画面）は今まで通りすぐ頼む — 毎回1タップ増やさない。
    */
-  primer?: CameraPrimerVariant;
+  primer?: boolean;
   /** 復習の「もう一度撮ってみる?」から来たときの語。 */
   selfieMode?: boolean;
   onSkipSelfie?: () => void;
   retakeWord: string | null;
-  cameraInputRef: RefObject<HTMLInputElement | null>;
   onObjectFile: (f: File, analysisImage?: string) => void;
   onNativeCapture?: () => void;
   typedWord: string;
@@ -2148,14 +2142,13 @@ export function CaptureObjectPanel({
    * 枠の中に**直し方**（許可のやり直し・設定の手順・ふつうのブラウザで開き直す）を出す。
    *
    * 2026-10-02（オーナー指示「どこからでも…新規登録前にこのアプリを体験できるように」）から、
-   * 直し方の面のいちばん上は**端末のカメラアプリで撮る**道（`<input capture>`）。この画面の
-   * カメラがいちばんだが、使えない時に行き止まりにしない。シャッターからは逃がさない
-   * （押して端末のカメラが開くのは、自分で選んだ時だけ）。
+   * 直し方の面には「写真を選ぶ」も置き、使えない時に行き止まりにしない。端末のカメラアプリ
+   * へは渡さない（2026-10-03「スマホのカメラで撮る機能は消して」）。
    */
   const [cameraProblem, setCameraProblem] = useState<CameraProblem | null>(null);
   /** 増やすと、カメラをもう一度頼む（許可を変えて戻ってきたとき・「もう一度」）。 */
   const [cameraAttempt, setCameraAttempt] = useState(0);
-  /** 端末のカメラ・写真の画面を開いたところか（戻ってきた時に頼み直さないため）。 */
+  /** 写真を選ぶ画面を開いたところか（戻ってきた時に頼み直さないため）。 */
   const pickingRef = useRef(false);
   /**
    * ブラウザにカメラを頼んでよいか。前置きを使う画面では、許可済みと分かるか、
@@ -2171,7 +2164,7 @@ export function CaptureObjectPanel({
   };
   /**
    * **最初に何をするか**を決める（`cameraStart`。許可済みならすぐ映す・まだなら前置き・
-   * 断られている／仕組みが無いなら直し方と端末のカメラ）。前置きを使う画面だけ。
+   * 断られている／仕組みが無いなら直し方と写真を選ぶ道）。前置きを使う画面だけ。
    */
   useEffect(() => {
     if (!primer || onNativeCapture) return;
@@ -2208,7 +2201,7 @@ export function CaptureObjectPanel({
     if (!cameraProblem || cameraProblem === "unsupported") return;
     const onVisible = () => {
       if (document.visibilityState !== "visible") return;
-      // 端末のカメラ・写真の画面から戻っただけなら頼み直さない（撮った写真の分析と
+      // 写真を選ぶ画面から戻っただけなら頼み直さない（選んだ写真の分析と
       // ブラウザの確認が重ならないように）。
       if (pickingRef.current) {
         pickingRef.current = false;
@@ -2540,14 +2533,10 @@ export function CaptureObjectPanel({
         return;
       }
     }
-    // 映像がまだ無い。**シャッターから端末の別のカメラへは逃がさない**（オーナー指示
-    // 2026-09-30「必ずアプリ内のカメラで撮影させたい」）。取れない理由が出ていれば頼み直す。
-    // 端末のカメラで撮る道は、直し方の面と前置きの面で、本人が選んだ時だけ開く。
+    // 映像がまだ無い。**端末の別のカメラアプリへは逃がさない**（オーナー指示 2026-09-30
+    // 「必ずアプリ内のカメラで撮影させたい」・2026-10-03「スマホのカメラで撮る機能は消して」）。
+    // 取れない理由が出ていれば頼み直す。
     if (cameraProblem) retryCamera();
-  };
-  const openOsCamera = () => {
-    pickingRef.current = true;
-    cameraInputRef.current?.click();
   };
   const openLibrary = () => {
     pickingRef.current = true;
@@ -2638,12 +2627,7 @@ export function CaptureObjectPanel({
           />
         )}
         {cameraProblem && !onNativeCapture && !primer && (
-          <CameraHelp
-            problem={cameraProblem}
-            onRetry={retryCamera}
-            onOsCamera={openOsCamera}
-            onLibrary={openLibrary}
-          />
+          <CameraHelp problem={cameraProblem} onRetry={retryCamera} onLibrary={openLibrary} />
         )}
         {!selfieMode && (
           <div className="capture-focus" aria-hidden="true">
@@ -2783,39 +2767,16 @@ export function CaptureObjectPanel({
       </div>
       {/* 撮る前の一枚・直し方の面（チュートリアル）。下の操作の上に重ねる。 */}
       {primer && showPrimer && !cameraProblem && !onNativeCapture && (
-        <CameraPrimer
-          variant={primer}
-          kind={osCameraKind(navigator.userAgent)}
-          onAllow={retryCamera}
-          onOsCamera={openOsCamera}
-          onLibrary={openLibrary}
-        />
+        <CameraPrimer onAllow={retryCamera} onLibrary={openLibrary} />
       )}
       {primer && cameraProblem && !onNativeCapture && (
-        <CameraHelp
-          variant={primer}
-          problem={cameraProblem}
-          onRetry={retryCamera}
-          onOsCamera={openOsCamera}
-          onLibrary={openLibrary}
-        />
+        <CameraHelp screen problem={cameraProblem} onRetry={retryCamera} onLibrary={openLibrary} />
       )}
-      {/* 控えの口は下の操作（`inert` になることがある）の外に置く — 前置き・直し方の面の
-          「スマホのカメラで撮る」「写真を選ぶ」が `.click()` で開けるように。 */}
-      {/* **これは人が触る欄ではない。** シャッターを押したときに
-          `.click()` で代わりに開く控えの口で、`sr-only` のままだと
-          キーボードの順番にも声の案内にも「名前の無い欄」として
-          現れていた。目から隠すだけでなく、両方から外す。 */}
-      <input
-        ref={cameraInputRef}
-        type="file"
-        accept="image/*"
-        capture={selfieMode ? "user" : "environment"}
-        className="sr-only"
-        tabIndex={-1}
-        aria-hidden="true"
-        onChange={(e) => e.target.files?.[0] && onObjectFile(e.target.files[0])}
-      />
+      {/* 写真を選ぶ控えの口。下の操作（`inert` になることがある）の外に置く — 前置き・直し方の
+          面の「写真を選ぶ」が `.click()` で開けるように。**これは人が触る欄ではない。**
+          `sr-only` のままだとキーボードの順番にも声の案内にも「名前の無い欄」として
+          現れていた。目から隠すだけでなく、両方から外す。`capture` は付けない（端末の
+          カメラアプリへは渡さない。2026-10-03「スマホのカメラで撮る機能は消して」）。 */}
       <input
         ref={libraryInputRef}
         type="file"

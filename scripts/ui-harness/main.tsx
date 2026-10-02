@@ -402,8 +402,6 @@ const REVIEW_SCENES: Array<{ scene: string; label: string }> = [
     "Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1";
   const android =
     "Mozilla/5.0 (Linux; Android 14; SM-S911B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0 Mobile Safari/537.36";
-  const desktop =
-    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0 Safari/537.36";
   /**
    * 端末の名乗り・許可の状態・カメラの答え（2026-10-02 撮る前の一枚）。
    * - `prompt*` … まだ許可していない。撮る前の一枚が出て、「カメラを使う」で見本の景色が映る
@@ -416,7 +414,6 @@ const REVIEW_SCENES: Array<{ scene: string; label: string }> = [
   > = {
     prompt: { ua: iphone, state: "prompt", camera: "fake" },
     "prompt-android": { ua: android, state: "prompt", camera: "fake" },
-    "prompt-desktop": { ua: desktop, state: "prompt", camera: "fake" },
     denied: { ua: iphone, state: "denied", camera: "deny" },
     android: { ua: android, state: "denied", camera: "deny" },
     brave: { ua: android, state: "denied", camera: "deny", brave: true },

@@ -1,58 +1,48 @@
-import { useEffect, useId, useState } from "react";
-import {
-  CameraOff,
-  ChevronDown,
-  ExternalLink,
-  ImagePlus,
-  RotateCcw,
-  Smartphone,
-} from "lucide-react";
+import { useEffect, useId, useState, type ReactNode } from "react";
+import { CameraOff, ChevronDown, ExternalLink, ImagePlus, RotateCcw } from "lucide-react";
 import { useT } from "@/lib/i18n";
 import {
   cameraFixSteps,
   externalBrowserUrl,
   inAppBrowser,
   mayAutoOpenExternal,
-  osCameraKind,
-  type CameraPrimerVariant,
   type CameraProblem,
 } from "@/lib/camera-access";
 import "./camera-primer.css";
 
 /**
  * **カメラが使えないときの面**（オーナー指示 2026-09-30「カメラの許可をとる、必要であれば
- * スマホの設定を変えるように誘導して」→ 2026-10-02「iPhone ユーザーでもAndroid ユーザーでも
- * ブラウザからでもどこからでも…新規登録前にこのアプリを体験できるようにして」）。
+ * スマホの設定を変えるように誘導して」→ 2026-10-02「どこからでも…新規登録前にこのアプリを
+ * 体験できるようにして」→ 2026-10-03「スマホのカメラで撮る機能は消して」）。
  *
- * - いちばん上の釦は**このまま続ける道**（端末のカメラアプリで撮る。パソコンは写真を選ぶ）。
- *   許可を直さなくても、撮った写真は同じ道（縮めて AI へ）を通る
- * - アプリ内ブラウザ（LINE など）… ふつうのブラウザで開き直す（LINE・Android は自動で1度）
- * - 許可されていない … 端末ごとの直し方（畳んである。開けば手順）と「もう一度試す」
+ * どの理由でも**行き止まりにしない**。いちばん上の釦は、その理由でいちばん確かな道:
+ * - 許可されていない … 端末ごとの直し方（開いてある）と「許可したので、もう一度試す」
  * - 起動できない … 他のアプリを閉じて「もう一度試す」
+ * - アプリ内ブラウザ（LINE など）… 「ブラウザで開き直す」（LINE・Android は自動で1度）
+ * - 仕組みが無い・開き直せない … 「写真を選ぶ」
+ * 2つ目はいつも「写真を選ぶ」（`capture` を付けない、ふつうのファイルの選び口）。選んだ写真は
+ * 撮った写真と同じ道（縮めて AI へ）を通るので、許可を直さなくてもチュートリアルを続けられる。
  *
- * `variant` を渡すと（チュートリアル）、撮る前の一枚（`CameraPrimer`）と同じ面・同じ位置に
- * 出す。渡さなければ（ログイン後の撮る画面）、今まで通り映像の枠の中に出し、下の撮り方の
- * 帯（検索など）はそのまま使える。
+ * `screen`（チュートリアル）は撮る前の一枚（`CameraPrimer`）と同じ画面いっぱいの面に、
+ * 渡さなければ（ログイン後の撮る画面）今まで通り映像の枠の中に出し、下の撮り方の帯
+ * （検索など）はそのまま使える。
  */
 export function CameraHelp({
   problem,
   onRetry,
-  onOsCamera,
   onLibrary,
-  variant,
+  screen = false,
 }: {
   problem: CameraProblem;
   onRetry: () => void;
-  onOsCamera: () => void;
   onLibrary: () => void;
-  variant?: CameraPrimerVariant;
+  screen?: boolean;
 }) {
   const t = useT();
   const titleId = useId();
   const [copied, setCopied] = useState(false);
   const ua = typeof navigator === "undefined" ? "" : navigator.userAgent;
   const app = inAppBrowser(ua);
-  const kind = osCameraKind(ua);
   const external =
     problem === "inapp" && typeof location !== "undefined"
       ? externalBrowserUrl(location.href, ua, app)
@@ -86,108 +76,80 @@ export function CameraHelp({
       .catch(() => {});
   };
 
-  const body = (
+  /** 主の釦の見た目（チュートリアルでは案内と同じ青い光の輪で「ここ」を示す）。 */
+  const primary = `cam-primer__allow press-in${screen ? " tour-pulse" : ""}`;
+  const retry = (
     <>
-      <span className="cam-primer__badge cam-primer__badge--off" aria-hidden="true">
-        <CameraOff size={24} strokeWidth={2.2} />
-      </span>
-      <h2 id={titleId} className="cam-primer__title ja-phrase">
-        {t(`camhelp.title.${problem}`)}
-      </h2>
-      <p className="cam-primer__reason ja-phrase">{t(`camhelp.body.${problem}`)}</p>
+      <RotateCcw size={20} strokeWidth={2.2} aria-hidden="true" />
+      {t(problem === "denied" ? "camhelp.allowRetry" : "camhelp.retry")}
     </>
   );
-
-  const actions = (
-    <div className="cam-primer__actions">
-      <button
-        type="button"
-        data-tour="camera-file"
-        className={`cam-primer__allow press-in${variant ? " tour-pulse" : ""}`}
-        onClick={kind === "camera" ? onOsCamera : onLibrary}
-      >
-        {kind === "camera" ? (
-          <Smartphone size={20} strokeWidth={2.2} aria-hidden="true" />
-        ) : (
-          <ImagePlus size={20} strokeWidth={2.2} aria-hidden="true" />
-        )}
-        {t(kind === "camera" ? "campriming.osCamera" : "campriming.library")}
-      </button>
-      <div className="cam-primer__alt">
-        {kind === "camera" && (
-          <button type="button" className="cam-primer__file press-in" onClick={onLibrary}>
-            <ImagePlus size={18} strokeWidth={2.2} aria-hidden="true" />
-            {t("campriming.library")}
-          </button>
-        )}
-        {external ? (
-          <a href={external} className="cam-primer__file press-in">
-            <ExternalLink size={18} strokeWidth={2.2} aria-hidden="true" />
-            {t("camhelp.openBrowser")}
-          </a>
-        ) : (
-          <button type="button" className="cam-primer__file press-in" onClick={onRetry}>
-            <RotateCcw size={18} strokeWidth={2.2} aria-hidden="true" />
-            {t(problem === "denied" ? "camhelp.allowRetry" : "camhelp.retry")}
-          </button>
-        )}
-      </div>
-      {steps.length > 0 && (
-        <details className="cam-primer__steps" open={problem === "inapp"}>
-          <summary className="ja-phrase">
-            {t(problem === "inapp" ? "camhelp.openBrowser" : "camhelp.howTo")}
-            <ChevronDown size={16} strokeWidth={2.4} aria-hidden="true" />
-          </summary>
-          <ol className="ja-phrase">
-            {steps.map((step) => (
-              <li key={step.key}>{t(step.key, step.vars)}</li>
-            ))}
-          </ol>
-        </details>
-      )}
-      {(problem === "inapp" || problem === "unsupported" || external) && (
-        <div className="cam-primer__links">
-          {(problem === "inapp" || problem === "unsupported") && (
-            <button type="button" onClick={copy} className="cam-primer__link">
-              {copied ? t("camhelp.copied") : t("camhelp.copyLink")}
-            </button>
-          )}
-          {external && (
-            <button type="button" onClick={onRetry} className="cam-primer__link">
-              {t("camhelp.retry")}
-            </button>
-          )}
-        </div>
-      )}
-    </div>
+  const library = (className: string): ReactNode => (
+    <button type="button" data-tour="camera-library" className={className} onClick={onLibrary}>
+      <ImagePlus size={18} strokeWidth={2.2} aria-hidden="true" />
+      {t("campriming.library")}
+    </button>
   );
-
-  if (variant)
-    return (
-      <div
-        className={`cam-primer cam-primer--${variant} cam-primer--help`}
-        data-tour="camera-help"
-        role="alert"
-        aria-labelledby={titleId}
-      >
-        {variant === "sheet" && <div className="cam-primer__scrim" aria-hidden="true" />}
-        <div className="cam-primer__panel">
-          <div className="cam-primer__body">{body}</div>
-          {actions}
-        </div>
-      </div>
-    );
+  const libraryFirst = problem === "unsupported" || (problem === "inapp" && !external);
 
   return (
     <div
       role="alert"
       aria-labelledby={titleId}
       data-tour="camera-help"
-      className="cam-primer cam-primer--frame cam-primer--help"
+      className={`cam-primer cam-primer--${screen ? "screen" : "frame"} cam-primer--help`}
     >
       <div className="cam-primer__panel">
-        <div className="cam-primer__body">{body}</div>
-        {actions}
+        <div className="cam-primer__body">
+          <span className="cam-primer__badge" aria-hidden="true">
+            <CameraOff size={24} strokeWidth={2.2} />
+          </span>
+          <h2 id={titleId} className="cam-primer__title ja-phrase">
+            {t(`camhelp.title.${problem}`)}
+          </h2>
+          <p className="cam-primer__reason ja-phrase">{t(`camhelp.body.${problem}`)}</p>
+        </div>
+        {steps.length > 0 && (
+          // 直し方は、面の大きいチュートリアルでは開いておく（枠の中は狭いので畳む）。
+          <details className="cam-primer__steps" open={screen || problem === "inapp"}>
+            <summary className="ja-phrase">
+              {t(problem === "inapp" ? "camhelp.openBrowser" : "camhelp.howTo")}
+              <ChevronDown size={16} strokeWidth={2.4} aria-hidden="true" />
+            </summary>
+            <ol className="ja-phrase">
+              {steps.map((step) => (
+                <li key={step.key}>{t(step.key, step.vars)}</li>
+              ))}
+            </ol>
+          </details>
+        )}
+        <div className="cam-primer__actions">
+          {libraryFirst ? (
+            library(primary)
+          ) : external ? (
+            <a href={external} className={primary}>
+              <ExternalLink size={20} strokeWidth={2.2} aria-hidden="true" />
+              {t("camhelp.openBrowser")}
+            </a>
+          ) : (
+            <button type="button" className={primary} onClick={onRetry}>
+              {retry}
+            </button>
+          )}
+          {!libraryFirst && library("cam-primer__second press-in")}
+          {(problem === "inapp" || problem === "unsupported") && (
+            <div className="cam-primer__links">
+              <button type="button" onClick={copy} className="cam-primer__link">
+                {copied ? t("camhelp.copied") : t("camhelp.copyLink")}
+              </button>
+              {problem === "inapp" && (
+                <button type="button" onClick={onRetry} className="cam-primer__link">
+                  {t("camhelp.retry")}
+                </button>
+              )}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

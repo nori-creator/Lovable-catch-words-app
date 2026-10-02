@@ -1,6 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
-  CAMERA_PRIMER_VARIANT,
   androidBrowserName,
   cameraFixSteps,
   cameraPlatform,
@@ -9,7 +8,6 @@ import {
   externalBrowserUrl,
   inAppBrowser,
   mayAutoOpenExternal,
-  osCameraKind,
   readCameraPermission,
 } from "./camera-access";
 
@@ -134,7 +132,7 @@ describe("cameraStart（撮る画面を開いた時に最初に何をするか�
     expect(cameraStart({ ...base, ua: IOS_LINE, permission: "denied" })).toBe("inapp");
   });
 
-  it("カメラの仕組みが無い・https でないときは行き止まりにせず、端末のカメラの道へ", () => {
+  it("カメラの仕組みが無い・https でないときは頼まずに案内へ（写真を選ぶ道もある）", () => {
     expect(
       cameraStart({ ...base, ua: ANDROID_LINE, permission: "unknown", hasGetUserMedia: false }),
     ).toBe("inapp");
@@ -157,19 +155,6 @@ describe("cameraStart（撮る画面を開いた時に最初に何をするか�
     expect(cameraStart({ ...base, primer: false, ua: IOS_SAFARI, permission: "unknown" })).toBe(
       "live",
     );
-  });
-
-  it("本番の見せ方は3つのうちの1つ", () => {
-    expect(["sheet", "full", "inline"]).toContain(CAMERA_PRIMER_VARIANT);
-  });
-});
-
-describe("osCameraKind（端末のカメラアプリで撮れるか）", () => {
-  it("スマホは端末のカメラ、パソコンは写真を選ぶ", () => {
-    expect(osCameraKind(IOS_SAFARI)).toBe("camera");
-    expect(osCameraKind(ANDROID_CHROME)).toBe("camera");
-    expect(osCameraKind(IOS_LINE)).toBe("camera");
-    expect(osCameraKind(DESKTOP_CHROME)).toBe("file");
   });
 });
 

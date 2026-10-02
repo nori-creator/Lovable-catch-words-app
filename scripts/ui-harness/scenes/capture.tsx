@@ -284,7 +284,6 @@ function useFakeCamera() {
 export function CaptureObjectScene({ q }: { q: URLSearchParams }) {
   const v = q.get("variant");
   const [typedWord, setTypedWord] = useState(v === "typed" ? "腳踏車" : "");
-  const cameraInputRef = useRef<HTMLInputElement | null>(null);
   useFakeCamera();
   /**
    * **払って「スキャン」へ行けること**を確認用ページでも見せる（オーナー指摘
@@ -330,7 +329,6 @@ export function CaptureObjectScene({ q }: { q: URLSearchParams }) {
       key={back}
       initialMode={back}
       retakeWord={v === "retake" ? "珍珠奶茶" : null}
-      cameraInputRef={cameraInputRef}
       onObjectFile={() => {}}
       typedWord={typedWord}
       setTypedWord={setTypedWord}
