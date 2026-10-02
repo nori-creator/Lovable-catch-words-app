@@ -1,5 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
-import { DEFAULT_TARGET_LANGUAGE } from "./target-lang";
+import { DEFAULT_TARGET_LANGUAGE, normalizeTargetLanguage } from "./target-lang";
+import { keepTargetHeadwords } from "./target-language";
 import {
   DICTIONARY_SELECT,
   resolveDictionaryFields,
@@ -31,6 +32,16 @@ const DetectInput = z.object({
   imageBase64: z.string().min(100).max(8_000_000), // data URL or raw base64
   lat: z.number().nullable().optional(),
   lng: z.number().nullable().optional(),
+  /**
+   * 画面が**保存に使う**学習言語（端末の設定）。
+   *
+   * 前は渡しておらず、ここはプロフィールの学習言語で AI に頼んでいた。
+   * ところが画面は端末の学習言語で保存する — 2つが食い違うと、
+   * 台湾華語で見つけた「拿鐵」が英語の語として保存される
+   * （オーナー報告 2026-10-02）。渡されたらそれに合わせる。
+   * iOS 版など渡さない呼び出しは、これまでどおりプロフィールを読む。
+   */
+  targetLanguage: z.string().max(16).optional(),
 });
 
 const DetectItemSchema = z.object({
@@ -138,16 +149,19 @@ export const detectScan = createServerFn({ method: "POST" })
     const { supabase, userId } = context;
     await assertWithinDailyCap(userId, "scan_detect");
     const { levelInstruction, explanationLanguageRule } = await import("./ai-provider.server");
+    const { getUserTargetLanguage } = await import("./ai-provider.server");
+    const target = data.targetLanguage
+      ? normalizeTargetLanguage(data.targetLanguage)
+      : await getUserTargetLanguage(userId);
     const levelRule = await levelInstruction(userId);
-    const langRule = await explanationLanguageRule(userId);
+    const langRule = await explanationLanguageRule(userId, target);
 
     const imageInput = data.imageBase64.startsWith("data:")
       ? data.imageBase64
       : `data:image/jpeg;base64,${data.imageBase64}`;
 
     const t0 = Date.now();
-    const { getUserTargetLanguage } = await import("./ai-provider.server");
-    const coach = targetProfile(await getUserTargetLanguage(userId)).coach;
+    const coach = targetProfile(target).coach;
     const prompt = `${scanPrompt(coach)}\n\nレベル指示: ${levelRule}\n${langRule}`;
     const ask = async (cfg: typeof ai) => {
       const r = await generateText({
@@ -214,6 +228,14 @@ export const detectScan = createServerFn({ method: "POST" })
     //
     // 品詞の札が無いものは通す — 分からないことを理由に捨てない。
     parsed.items = parsed.items.filter((it) => isNounLike(it.pos));
+    /**
+     * **学習言語の字の語だけを返す**（オーナー報告 2026-10-02「英語の復習に
+     * 拿鐵の4択」）。写っている文字（kind=text）は「書き換えない」約束なので、
+     * 台湾の店のメニューを写すと、英語を学ぶ人にも「拿鐵」がそのまま返る。
+     * 画面はそれを学習言語の語として保存していた。言い換えの候補
+     * （`alternatives`）も同じ関所に通す。
+     */
+    parsed.items = keepTargetHeadwords(parsed.items, target);
 
     // 自動で貯まる共有辞書: AIが今調べた読み・意味を蓄積(fire-and-forget)。
     // 次のスキャンからは辞書ヒット=AI再問い合わせゼロで即表示になる。
@@ -279,7 +301,8 @@ export const detectParts = createServerFn({ method: "POST" })
 
     // 言語・字・例は学習言語の表から(`coach`)。台湾華語の値はいままでの文そのもの。
     const { getUserTargetLanguage } = await import("./ai-provider.server");
-    const coach = targetProfile(await getUserTargetLanguage(context.userId)).coach;
+    const partsTarget = await getUserTargetLanguage(context.userId);
+    const coach = targetProfile(partsTarget).coach;
     const prompt = `画像には「${data.parentHeadword}」が写っています。この物体を構成する**部分・要素**の名称を、${coach.partsLanguage}で学習価値のあるものだけ最大6個抽出してください。
 - 全体名(${data.parentHeadword})は含めない
 - 部位・部品・素材・付随物のみ(例: ${coach.partsExample})
@@ -322,8 +345,11 @@ export const detectParts = createServerFn({ method: "POST" })
 
     await logUsage(context.supabase, context.userId, "scan_parts");
 
-    // 部品の候補も名詞だけ(上の検出と同じ約束)。
-    parsed.items = parsed.items.filter((it) => isNounLike(it.pos));
+    // 部品の候補も名詞だけ(上の検出と同じ約束)。学習言語の字の語だけ(同じく)。
+    parsed.items = keepTargetHeadwords(
+      parsed.items.filter((it) => isNounLike(it.pos)),
+      partsTarget,
+    );
     void import("./lexicon.server").then(({ learnLexiconEntries }) =>
       learnLexiconEntries(parsed.items),
     );

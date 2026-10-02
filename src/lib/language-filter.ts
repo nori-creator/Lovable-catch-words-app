@@ -1,4 +1,5 @@
 import { DEFAULT_TARGET_LANGUAGE, normalizeTargetLanguage } from "./target-lang";
+import { isTargetHeadword } from "./target-language";
 
 /**
  * **学習言語で「見えるもの」を絞る**ときの条件。
@@ -58,4 +59,40 @@ export function matchesTargetLanguage(
   const raw = (wordLanguage ?? "").trim();
   if (!raw) return lang === DEFAULT_TARGET_LANGUAGE;
   return raw === lang;
+}
+
+/**
+ * **見出し語の字が、学習言語の字か。**（オーナー報告 2026-10-02）
+ *
+ * 英語の図鑑に「ノート」が出て、復習では「拿鐵」の繁體中文の4択が
+ * 3.5秒出てから英語の4択に替わった。どちらの行も `words.language` は
+ * `'en'` — 保存の道が字を見ずに入れていた（`upsertWord` の関所で塞いだ）。
+ * ところが**既に入った行**は言語の列だけ見ても見分けが付かない。
+ * 見せる側でも見出し語の字を見る。
+ *
+ * 判定は保存の関所と同じ `isTargetHeadword` ただ1つ（正規表現を写さない）。
+ * 見出し語が空の行は判定しない（材料が無いのに隠さない）。
+ */
+export function headwordMatchesTarget(
+  headword: string | null | undefined,
+  targetLanguage: string | null | undefined,
+): boolean {
+  const head = (headword ?? "").trim();
+  if (!head) return true;
+  return isTargetHeadword(head, normalizeTargetLanguage(targetLanguage));
+}
+
+/**
+ * **その語を、この学習言語の一覧（図鑑・復習）に出してよいか。**
+ * 言語の列（`matchesTargetLanguage`）と見出し語の字（`headwordMatchesTarget`）の両方。
+ */
+export function wordBelongsToTarget(
+  word: { language?: string | null; headword?: string | null } | null | undefined,
+  targetLanguage: string | null | undefined,
+): boolean {
+  if (!word) return false;
+  return (
+    matchesTargetLanguage(word.language, targetLanguage) &&
+    headwordMatchesTarget(word.headword, targetLanguage)
+  );
 }

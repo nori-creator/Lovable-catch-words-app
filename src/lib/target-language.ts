@@ -99,8 +99,70 @@ export function coerceTargetHeadword(raw: string, targetLanguage: string): strin
   // 判定するので**通ってしまう**が、そのまま保存すると図鑑に飾りが残る。
   // 落ちる文字なら、落としてから返す。
   const trimmed = best.replace(
-    /[\s，、。．・…！？!?,.:;：；「」『』（）()【】〔〕[\]{}"'’”—–\-~〜]+$/u,
+    /[\s，、。．・…！？!?,.:;：；「」『』（）()【】〔〕[\]{}"'‘’“”—–\-~〜]+$/u,
     "",
   );
   return trimmed && isTargetHeadword(trimmed, targetLanguage) ? trimmed : best;
+}
+
+/**
+ * **AI が返した候補の並びから、学習言語の語だけを残す。**
+ *
+ * ## なぜ要るか（オーナー報告 2026-10-02「図鑑の英語にノートが入っている」）
+ * 英語を学んでいる人の図鑑に「ノート」（カタカナ）と「拿鐵」（繁体字）が
+ * `language = 'en'` で入っていた。どちらも写真から撮った語。
+ * 撮った後の候補（`suggestWords`）とスキャンの検出（`detectScan`）は、
+ * AI の返事を**学習言語かどうか見ずに**そのまま画面へ出していた —
+ * 打った語の候補（`suggestWordCandidates`）だけがこの関所を持っていた。
+ * スキャンの画面に至っては「漢字を含む物だけ」を残す決め打ちで、
+ * 英語を学ぶ人には**英語の語を捨てて漢字の語だけ**を見せていた。
+ *
+ * 1つずつ `coerceTargetHeadword` で直し（「烤肉 (BBQ)」→「烤肉」）、
+ * 直せない物は捨てる。`alternatives`（言い換えの候補）も同じ関所に通す。
+ * 同じ語が2回出たら後のほうを捨てる。
+ */
+export function keepTargetHeadwords<T extends { headword: string; alternatives?: string[] }>(
+  items: readonly T[],
+  targetLanguage: string,
+): T[] {
+  const out: T[] = [];
+  const seen = new Set<string>();
+  for (const it of items) {
+    const head = coerceTargetHeadword(it.headword, targetLanguage);
+    if (!head || seen.has(head)) continue;
+    seen.add(head);
+    const next: T = { ...it, headword: head };
+    if (Array.isArray(it.alternatives)) {
+      next.alternatives = it.alternatives
+        .map((a) => coerceTargetHeadword(a, targetLanguage))
+        .filter((a): a is string => !!a && a !== head);
+    }
+    out.push(next);
+  }
+  return out;
+}
+
+/**
+ * 保存の関所が投げる印。**文ではなく印**にするのは、画面がこれを
+ * その人の表示言語の文に直すため（`errors.ts`）。サーバの日本語の文を
+ * そのまま投げると、英語・繁體中文で使っている人に日本語が出る。
+ */
+export const NOT_TARGET_LANGUAGE = "NOT_TARGET_LANGUAGE";
+
+/**
+ * **学習言語の語でなければ、保存させない。**（オーナー報告 2026-10-02）
+ *
+ * `words` は `(language, headword)` で全員が共有する行なので、
+ * 「ノート」を `en` として1度保存すると、その行は英語の語として残り続ける
+ * （図鑑・復習・4択の誤答の池に出る）。画面の側で何重に止めても、
+ * 止め忘れた道が1本あれば同じことが起きる — 今回がそれだった。
+ * だから**行を作る所（`upsertWord`）で必ず止める**。
+ *
+ * 黙って直さない（言語を付け替えない・見出しを書き換えない）。直すと、
+ * 撮った人が選んだのと違う物が図鑑に入る。投げて、画面に理由を出させる。
+ */
+export function assertTargetHeadword(headword: string, language: string): void {
+  if (!isTargetHeadword((headword ?? "").trim(), language)) {
+    throw new Error(NOT_TARGET_LANGUAGE);
+  }
 }

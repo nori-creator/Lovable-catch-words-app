@@ -365,6 +365,20 @@ const REVIEW_SCENES: Array<{ scene: string; label: string }> = [
   { scene: "sticker-sheet&word=en", label: "単語の詳細（英語）: 見出しの並び・一番下に報告と削除" },
   { scene: "sticker-sheet", label: "単語の詳細（台湾華語）: 見出しの並び・一番下に報告と削除" },
   { scene: "sticker-sheet&word=en&theme=dark", label: "単語の詳細（英語・暗いテーマ）" },
+  // 2026-10-02「英語の図鑑にノート」「英語の復習に拿鐵の4択」— 学習言語の語でない見出しは
+  // 保存せず、理由を出す（`err.notTargetLanguage`）。表示言語ごとの文も見られるようにする。
+  {
+    scene: "capture-card&variant=not-target&lang=ja",
+    label: "撮った後: 学習言語の語でない見出しは保存せず理由を出す",
+  },
+  {
+    scene: "capture-card&variant=not-target&lang=en",
+    label: "撮った後: 同じ（英語の表示）",
+  },
+  {
+    scene: "capture-card&variant=not-target&lang=zh-TW",
+    label: "撮った後: 同じ（繁體中文の表示）",
+  },
 ];
 
 /**

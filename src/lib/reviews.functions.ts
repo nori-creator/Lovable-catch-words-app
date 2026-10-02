@@ -1,5 +1,9 @@
 import { createServerFn } from "@tanstack/react-start";
-import { matchesTargetLanguage, wordLanguageFilter } from "@/lib/language-filter";
+import {
+  matchesTargetLanguage,
+  wordBelongsToTarget,
+  wordLanguageFilter,
+} from "@/lib/language-filter";
 import { targetProfile } from "@/lib/target-profile";
 import { getUserTargetLanguage } from "@/lib/ai-provider.server";
 import { batchEndKind } from "@/lib/review-batch";
@@ -280,6 +284,13 @@ async function getReviewPrefs(
   }
 }
 
+/**
+ * 今日の列を読むときに、`fetchLimit` より多めに読む数。見出しの字が学習言語で
+ * ない札（保存の関所ができる前の行）を落とすので、その分を見込んでおく。
+ * 落とす札は期限が来たまま残るので、多めに読まないと毎回の束の枠を食い続ける。
+ */
+const DUE_OVERFETCH = 10;
+
 export const getDueReviews = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) =>
@@ -361,7 +372,9 @@ export const getDueReviews = createServerFn({ method: "GET" })
           : stageFocus === "new"
             ? scoped.order("repetitions", { ascending: true })
             : scoped;
-      return await focused.order("due_at", { ascending: true }).limit(fetchLimit);
+      // **少し多めに読む**（下で見出しの字が学習言語でない札を落とすため）。
+      // 落とした分だけ束が痩せ続けないよう、落とした後で `fetchLimit` に切る。
+      return await focused.order("due_at", { ascending: true }).limit(fetchLimit + DUE_OVERFETCH);
     };
     let { data, error } = await runDue(true);
     // 絞りが通らない環境(列がまだ無い / 埋め込みの形が違う)では絞りを外す。
@@ -426,9 +439,18 @@ export const getDueReviews = createServerFn({ method: "GET" })
      * 手元に来た行なら言語で選り分けられるので、ここで最後にもう一度通す。
      * 判定は `language-filter.ts` の1つだけを使う(問い合わせ側と同じ規則)。
      */
+    /*
+     * **見出し語の字も見る**（オーナー報告 2026-10-02「拿鐵の繁體中文の4択が
+     * 3.5秒出てから英語の4択に替わる」）。「拿鐵」は `language = 'en'` で
+     * 保存されていたので、言語の列だけの絞り（問い合わせ側も、端末の束の
+     * 確かめも）を素通りし、4択の誤答は見出しの字に引かれて台湾華語の辞書から
+     * 作られていた。保存の関所（`upsertWord`）ができる前の行が残っているので、
+     * 見せる側でも同じ規則（`wordBelongsToTarget`）で落とす。
+     */
     const rows = ((data ?? []) as unknown as DueRow[])
       .filter((r) => r.stickers?.words)
-      .filter((r) => matchesTargetLanguage(r.stickers?.words?.language, targetLanguage));
+      .filter((r) => wordBelongsToTarget(r.stickers?.words, targetLanguage))
+      .slice(0, fetchLimit);
 
     // 名指しの1枚を先頭へ。
     // 既に今日の列に居るなら**動かすだけ**(二重に出さない)。
@@ -518,7 +540,8 @@ export const getDueReviews = createServerFn({ method: "GET" })
     for (const r of (deckRows ?? []) as unknown as Array<{ words: DeckWord | null }>) {
       if (!r.words || seen.has(r.words.id)) continue;
       // 判定は1箇所(`language-filter.ts`)。列が空の古い行も同じ規則で見る。
-      if (!matchesTargetLanguage(r.words.language, targetLanguage)) continue;
+      // 見出しの字も見る — 「ノート」（`en`）を英語の4択の誤答にしない。
+      if (!wordBelongsToTarget(r.words, targetLanguage)) continue;
       seen.add(r.words.id);
       deck.push(r.words);
     }
@@ -1301,8 +1324,8 @@ export const getMemoryOverview = createServerFn({ method: "GET" })
     };
     const words: MemoryWord[] = ((rows ?? []) as unknown as Row[])
       .filter((r) => r.stickers?.words)
-      // 判定は `language-filter.ts` の1つだけ(今日の列と同じ規則)。
-      .filter((r) => matchesTargetLanguage(r.stickers?.words?.language, targetLanguage))
+      // 判定は `language-filter.ts` の1つだけ(今日の列と同じ規則。見出しの字も見る)。
+      .filter((r) => wordBelongsToTarget(r.stickers?.words, targetLanguage))
       .map((r) => {
         // 曲線の起点は最後の復習、無ければ「その単語に出会った瞬間」= sticker.taken_at。
         // ただし % は**最後の復習からだけ**数える: 未復習の札は 0%（撮っただけでは
@@ -1353,7 +1376,8 @@ export const getUpcomingDueTimes = createServerFn({ method: "GET" })
   .handler(async ({ context }) => {
     const { supabase, userId } = context;
     const horizon = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
-    const langFilter = wordLanguageFilter(await getUserTargetLanguage(userId));
+    const targetLanguage = await getUserTargetLanguage(userId);
+    const langFilter = wordLanguageFilter(targetLanguage);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const db = supabase as any;
     let res = await db
@@ -1376,7 +1400,7 @@ export const getUpcomingDueTimes = createServerFn({ method: "GET" })
     const rows = (res.error ? [] : (res.data ?? [])) as Array<{ due_at: string | null }>;
     return {
       dueTimes: rows.map((r) => r.due_at).filter((v): v is string => !!v),
-      quiz: await reminderQuiz(db, userId, horizon, langFilter),
+      quiz: await reminderQuiz(db, userId, horizon, langFilter, targetLanguage),
     };
   });
 
@@ -1402,6 +1426,7 @@ async function reminderQuiz(
   userId: string,
   horizon: string,
   langFilter: string,
+  targetLanguage: string,
 ): Promise<ReminderQuiz | null> {
   try {
     const { data, error } = await db
@@ -1421,10 +1446,13 @@ async function reminderQuiz(
         object_image_url: string | null;
         cutout_image_url: string | null;
         placeholder_image_url: string | null;
-        words: { headword: string; meaning_ja: string | null } | null;
+        words: { headword: string; language?: string | null; meaning_ja: string | null } | null;
       } | null;
     };
-    const rows = (data as Row[]).filter((r) => r.stickers?.words?.headword);
+    // 通知の1問にも、見出しの字が学習言語でない語を出さない（`getDueReviews` と同じ規則）。
+    const rows = (data as Row[]).filter(
+      (r) => r.stickers?.words?.headword && wordBelongsToTarget(r.stickers.words, targetLanguage),
+    );
     const photoOf = (r: Row) =>
       r.stickers?.object_image_url ??
       r.stickers?.cutout_image_url ??
