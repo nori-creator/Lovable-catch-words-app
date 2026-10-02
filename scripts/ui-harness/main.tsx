@@ -8,6 +8,7 @@ import { HomeShelfScene } from "./scenes/home-shelf";
 import { InstallAppScene } from "./scenes/install-app";
 import { ChunkDesignsScene } from "./scenes/chunk-designs";
 import { PeelStickerScene } from "./scenes/peel-sticker";
+import { MemoryDesignsScene } from "./scenes/memory-designs";
 /**
  * 画面の検査用ハーネス — **本物のコンポーネントを描く**。
  *
@@ -234,6 +235,8 @@ const SCENES: Record<string, ((p: { q: URLSearchParams }) => ReactNode) | undefi
   "review-memory-list": ReviewMemoryListScene,
   "memory-curve": MemoryCurveScene,
   "memory-overall": MemoryOverallScene,
+  // 記憶の状態のデザイン案（現在 + A〜D）。場面の中に切り替えがある。
+  "memory-designs": MemoryDesignsScene,
   "review-loading": ReviewLoadingScene,
   "review-choice": ReviewChoiceScene,
   "review-explain": ReviewExplainScene,
@@ -350,17 +353,9 @@ const q = new URLSearchParams(location.search);
  * 「これを見てください」と差し出すことになる。
  */
 const REVIEW_SCENES: Array<{ scene: string; label: string }> = [
-  // 2026-09-30「パスワード忘れた時にパスワードリセットできるようにして」。
-  { scene: "auth&email=1", label: "ログイン: パスワード欄の下に「パスワードを忘れた方」" },
-  {
-    scene: "reset-password",
-    label: "再設定: メールアドレスを入れて送る（ログインで打った物を引き継ぐ）",
-  },
-  { scene: "reset-password&state=sent", label: "再設定: 送った後（画面に残る案内・もう一度送る）" },
-  {
-    scene: "reset-password&state=update",
-    label: "再設定: メールのリンクから戻って新しいパスワード",
-  },
+  // 2026-10-02「記憶の状態のグラフのデザイン案を複数提案して。」
+  // 案の切り替え（現在・A〜D）と、開く/畳む・明暗は場面の中にある。
+  { scene: "memory-designs", label: "復習: 記憶の状態のデザイン案（現在・A〜D）" },
 ];
 
 /**

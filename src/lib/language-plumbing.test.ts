@@ -4787,8 +4787,11 @@ describe("ホームは今日の誌面", () => {
     );
     // 2026-09-24「過去のものが多すぎで画面で確認できないから、過去のものは全て
     // 削除して」: 帯には**今回の依頼の面だけ**。
-    // 2026-09-30「パスワード忘れた時にリセットできるようにして」の回。先頭はログイン。
-    expect(list.slice(0, list.indexOf("},"))).toMatch(/scene: "auth&email=1"/);
+    // 2026-10-02「記憶の状態のグラフのデザイン案を複数提案して」の回。先頭は見比べの場面。
+    expect(list.slice(0, list.indexOf("},"))).toMatch(/scene: "memory-designs"/);
+    // 前の回（パスワードの再設定）の面は残さない。
+    expect(list).not.toMatch(/scene: "auth&email=1"/);
+    expect(list).not.toMatch(/scene: "reset-password/);
     // 前の回（単語の詳細の注音・チュートリアルの4択）の面は残さない。
     expect(list).not.toMatch(/scene: "word-card"/);
     expect(list).not.toMatch(/scene: "first-catch&step=review"/);
