@@ -4792,8 +4792,11 @@ describe("ホームは今日の誌面", () => {
     // 前の回（パスワードの再設定）の面は残さない。
     expect(list).not.toMatch(/scene: "auth&email=1"/);
     expect(list).not.toMatch(/scene: "reset-password/);
-    // 前の回（単語の詳細の注音・チュートリアルの4択）の面は残さない。
-    expect(list).not.toMatch(/scene: "word-card"/);
+    // 同じ回の他の面（本の左ページ・4項目を外したカード・アニメーションのスイッチ）。
+    expect(list).toMatch(/scene: "book-page"/);
+    expect(list).toMatch(/scene: "word-card"/);
+    expect(list).toMatch(/scene: "settings-toggles"/);
+    // 前の回（チュートリアルの4択）の面は残さない。
     expect(list).not.toMatch(/scene: "first-catch&step=review"/);
     // 前の回（R26/R27）の面は残さない。
     expect(list).not.toMatch(/scene: "home-shelf"/);
