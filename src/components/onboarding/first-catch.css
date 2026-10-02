@@ -231,10 +231,11 @@
 .first-interest-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  /* 留め具（テープ）は紙の外へ少し出るので、その分だけ間と縁を空ける。 */
-  gap: 18px 12px;
+  /* 紙の影と、選んだ時の外周の青い輪のぶんだけ縁を空ける。留め具（テープ）は
+     付けなくなったので（2026-09-30）、横の縁は詰めて紙を広くする — 語が切れにくい。 */
+  gap: 18px 10px;
   margin: 24px 0;
-  padding: 10px 12px;
+  padding: 10px 4px;
 }
 /* 1つの選択肢＝ホームのアルバムと同じ1枚の写真（`AlbumPrint`）。ボタンの箱は
    写真の枠＋下の白い余白（34px）で、選ぶと紙の外周に青い輪が付く。 */
@@ -303,7 +304,12 @@
   gap: 10px;
   padding-top: 24px;
 }
+/* 押せる高さ（44px）を箱ぜんぶに持たせ、字はその縦の真ん中に置く。前は `<a>` が
+   行の中の要素のままで `min-height` が効かず、押せる所は字の高さ（16px）しか無かった。 */
 .first-secondary {
+  display: flex;
+  align-items: center;
+  justify-content: center;
   min-height: 44px;
   color: var(--primary-ink);
   font-size: 14px;
@@ -410,6 +416,16 @@
   gap: 12px;
   color: var(--destructive);
   margin: 16px 0;
+}
+.first-error--inline {
+  display: block;
+  margin: 4px 0 0;
+  padding: 10px 14px;
+  border-radius: 14px;
+  font-size: 14px;
+  line-height: 1.5;
+  text-align: center;
+  flex-shrink: 0;
 }
 .tour-layer {
   position: fixed;
@@ -795,7 +811,8 @@ html[data-motion="reduce"] .first-run * {
   padding-top: 8px;
 }
 .first-intro-logo {
-  width: clamp(78px, 12dvh, 104px);
+  /* 背の低い画面では少し小さくし、そのぶんを写真の束に回す。 */
+  width: clamp(64px, 11dvh, 100px);
   height: auto;
   aspect-ratio: 1;
   margin: 0 auto 12px;
@@ -816,21 +833,22 @@ html[data-motion="reduce"] .first-run * {
   white-space: pre-line;
 }
 /* 残りの高さぜんぶを写真の束に使い、束の中は箱の高さ（cqh）で大きさを決める。
-   背の低い画面でも「はじめる」に重ならず、画面の外へも落ちない。 */
+   背の低い画面でも「はじめる」に重ならず、画面の外へも落ちない。
+   **画面の高さを決めた箱にする**（2026-10-02 オーナー指示「ウェルカム画面の画像の配置を
+   美しくして」）。前は束の高さを `clamp(290px, 51dvh, 420px)` で決め打ちしていたので、
+   背の高い画面（1920×1080 のPC・430×932 のスマホ）では束が上に寄り、「はじめる」の上に
+   大きな空白が残った。今は最初の画面を画面の高さちょうどの箱にし、束が残りの高さを
+   ぜんぶ取る。高さが決まった箱の中で伸ばすので、`cqh` も伸ばした後の高さになる。 */
 .first-intro {
-  min-height: var(--first-viewport-height, 100dvh);
-  height: auto;
+  height: max(var(--first-viewport-height, 100dvh), 520px);
+  min-height: 0;
 }
 .first-polaroids {
   width: 100%;
-  max-width: 365px;
-  height: clamp(290px, 51dvh, 420px);
-  margin: 20px auto 14px;
-  /* **伸縮させない。** 中の写真は箱の高さ（`cqh`）で大きさを決めるが、flex で
-     伸ばした高さは Chrome では `cqh` に入らず 0 になり、写真が消えた（実測）。
-     高さは上の clamp だけで決め、余った分は下のボタンの `margin-top: auto` が取る。 */
-  flex: none;
-  min-height: 290px;
+  max-width: 400px;
+  margin: clamp(8px, 2.4dvh, 24px) auto clamp(4px, 1.2dvh, 12px);
+  flex: 1 1 0;
+  min-height: 200px;
 }
 /**
  * **写真の束**（`FirstCatchPhotoStack`）。1枚ずつ写真の比のままの枠で、大きさは
@@ -988,11 +1006,271 @@ html[data-motion="reduce"] .first-run * {
   z-index: 3;
 }
 
+/* ── D・E・F: 縦横に揃えない3つの組み方（2026-10-02 オーナー指示「縦横無機質には並べないで」）──
+   どれも同じ仕組みで置く。
+
+   - 1単位 --u は、組み全体（横 100u・縦 --k u ＋ 紙の下の余白 --n 枚ぶん）が箱に収まる大きさ。
+   - 1枚ごとに --x・--y（u）・--ys（上に重なる紙の余白の数）・--w（幅 u）・--r（傾き）・--z。
+   - **縦長の箱では組み替える**（`@container (aspect-ratio < 0.86)` — 背の高いスマホ）。
+     同じ並びのまま紙を大きくし、横にも深く重ねる。だから箱の高さを写真で満たし、
+     「はじめる」の上に大きな空白が残らない。
+   - それでも余った高さ（--free-y）は、上下の端（--my ぶん）と段の間に配る
+     （上の段は --fy: 0、下の段は --fy: 1）。
+   - 高さは写真の比のまま。紙の縁（左右 5px・上 5px）のぶんも足すので、写真は切れない
+     （`AlbumPrint` は箱を写真の比にするので、縁のぶんだけ上下が少し切れていた）。
+   - 重なるのは**上の段が手前**の所か、語の無い横の縁だけ。紙の下の語はどれも隠れない。
+   - 置き方の値は1枚ずつの要素に持たせる（束の箱は自分の大きさの条件で自分を
+     変えられないので、組み替えの条件は中の紙に効かせる）。 */
+.first-print-stack--scatter > .first-print,
+.first-print-stack--hero > .first-print,
+.first-print-stack--cascade > .first-print {
+  --s: 34px;
+  --fy: 0;
+  --ys: 0;
+  --u: min(0.96cqw, (100cqh - var(--n) * var(--s)) / var(--k));
+  --pw: calc(var(--w) * var(--u));
+  inset: auto;
+  left: calc((100cqw - 100 * var(--u)) / 2 + var(--x) * var(--u));
+  top: calc(
+    (100cqh - var(--k) * var(--u) - var(--n) * var(--s)) *
+      (var(--my) + var(--fy) * (1 - 2 * var(--my))) + var(--y) * var(--u) + var(--ys) * var(--s)
+  );
+  width: var(--pw);
+  height: calc(var(--print-ratio) * (var(--pw) - 10px) + 5px);
+  aspect-ratio: auto;
+  rotate: var(--r);
+  z-index: var(--z);
+  animation: first-print-settle 0.7s cubic-bezier(0.22, 1, 0.36, 1) backwards;
+}
+/* 置いた紙が、少し大きく・少し傾いた所から卓上に落ち着く。動きを減らす設定では出さない
+   （`html[data-motion="reduce"] .first-standalone *`）。 */
+@keyframes first-print-settle {
+  from {
+    opacity: 0;
+    translate: 0 14px;
+    scale: 1.05;
+    rotate: calc(var(--r) + var(--r-from, 4deg));
+  }
+}
+
+/* D「散らす」: 卓上に手で置いた4枚。上の段（花・珈琲）と下の段（海・猫）を左右で
+   高さをずらし、大きさも傾きも1枚ずつ変える。花が珈琲の縁に、珈琲が海と猫の上端
+   （空）に少し乗る。どの紙も語の所は隠れない。 */
+.first-print-stack--scatter > .first-print {
+  --k: 106;
+  --n: 2;
+  --my: 0.3;
+}
+.first-print-stack--scatter > .first-print-1 {
+  --x: 2;
+  --y: 8;
+  --w: 42;
+  --r: -8deg;
+  --z: 4;
+}
+.first-print-stack--scatter > .first-print-0 {
+  --x: 41;
+  --y: 0;
+  --w: 42;
+  --r: 5deg;
+  --z: 3;
+  --r-from: -5deg;
+  animation-delay: 0.07s;
+}
+.first-print-stack--scatter > .first-print-3 {
+  --x: 4;
+  --y: 46;
+  --ys: 1;
+  --fy: 1;
+  --w: 44;
+  --r: 4deg;
+  --z: 1;
+  animation-delay: 0.14s;
+}
+.first-print-stack--scatter > .first-print-2 {
+  --x: 48;
+  --y: 58;
+  --ys: 1;
+  --fy: 1;
+  --w: 48;
+  --r: -4deg;
+  --z: 2;
+  --r-from: -5deg;
+  animation-delay: 0.21s;
+}
+
+/* E「主役」: 猫を大きな1枚にし、3枚は主役の角に添える。添える3枚は大きさも傾きも
+   変え、主役の写真の角（空・壁）にだけ乗る — 主役の語と猫は隠さない。 */
+.first-print-stack--hero > .first-print {
+  --k: 114;
+  --n: 1;
+  --my: 0.32;
+}
+.first-print-stack--hero > .first-print-2 {
+  --x: 14;
+  --y: 28;
+  --fy: 0.5;
+  --w: 64;
+  --r: -2deg;
+  --z: 1;
+  --r-from: 2deg;
+}
+.first-print-stack--hero > .first-print-0 {
+  --x: 0;
+  --y: 0;
+  --fy: 0.3;
+  --w: 31;
+  --r: -9deg;
+  --z: 2;
+  animation-delay: 0.12s;
+}
+.first-print-stack--hero > .first-print-1 {
+  --x: 66;
+  --y: 12;
+  --fy: 0.3;
+  --w: 33;
+  --r: 8deg;
+  --z: 2;
+  --r-from: -4deg;
+  animation-delay: 0.19s;
+}
+.first-print-stack--hero > .first-print-3 {
+  --x: 63;
+  --y: 78;
+  --fy: 0.7;
+  --w: 35;
+  --r: -7deg;
+  --z: 3;
+  animation-delay: 0.26s;
+}
+
+/* F「流れ」: 縦長の珈琲を左の柱にし、花→猫と右の上から下りて、海が2枚の下に
+   もぐって真ん中の下に落ち着く。流れの先は「はじめる」。上の紙が手前なので、
+   どの語も見える。 */
+.first-print-stack--cascade > .first-print {
+  --k: 108;
+  --n: 2;
+  --my: 0.25;
+}
+.first-print-stack--cascade > .first-print-0 {
+  --x: 0;
+  --y: 4;
+  --fy: 0.2;
+  --w: 48;
+  --r: -4deg;
+  --z: 3;
+}
+.first-print-stack--cascade > .first-print-1 {
+  --x: 58;
+  --y: 0;
+  --w: 38;
+  --r: 6deg;
+  --z: 4;
+  --r-from: -5deg;
+  animation-delay: 0.1s;
+}
+.first-print-stack--cascade > .first-print-2 {
+  --x: 51;
+  --y: 34;
+  --ys: 1;
+  --fy: 0.5;
+  --w: 42;
+  --r: -5deg;
+  --z: 2;
+  animation-delay: 0.2s;
+}
+.first-print-stack--cascade > .first-print-3 {
+  --x: 27;
+  --y: 66;
+  --ys: 1;
+  --fy: 1;
+  --w: 42;
+  --r: 3deg;
+  --z: 1;
+  --r-from: -5deg;
+  animation-delay: 0.3s;
+}
+
+/* 縦長の箱（背の高いスマホ）: 同じ並びのまま紙を大きくし、横にも深く重ねる。 */
+@container (aspect-ratio < 0.86) {
+  .first-print-stack--scatter > .first-print {
+    --k: 116;
+    --my: 0.34;
+  }
+  .first-print-stack--scatter > .first-print-1 {
+    --w: 46;
+  }
+  .first-print-stack--scatter > .first-print-0 {
+    --x: 40;
+    --w: 46;
+  }
+  .first-print-stack--scatter > .first-print-3 {
+    --x: 2;
+    --y: 50;
+    --w: 50;
+  }
+  .first-print-stack--scatter > .first-print-2 {
+    --x: 44;
+    --y: 64;
+    --w: 52;
+  }
+  .first-print-stack--hero > .first-print {
+    --k: 123;
+  }
+  .first-print-stack--hero > .first-print-2 {
+    --x: 12;
+    --y: 30;
+    --w: 70;
+  }
+  .first-print-stack--hero > .first-print-0 {
+    --w: 33;
+  }
+  .first-print-stack--hero > .first-print-1 {
+    --x: 64;
+    --y: 14;
+    --w: 35;
+  }
+  .first-print-stack--hero > .first-print-3 {
+    --x: 61;
+    --y: 86;
+    --w: 37;
+  }
+  .first-print-stack--cascade > .first-print {
+    --k: 117;
+  }
+  .first-print-stack--cascade > .first-print-0 {
+    --w: 52;
+  }
+  .first-print-stack--cascade > .first-print-1 {
+    --x: 59;
+    --w: 39;
+  }
+  .first-print-stack--cascade > .first-print-2 {
+    --x: 50;
+    --y: 36;
+    --w: 45;
+  }
+  .first-print-stack--cascade > .first-print-3 {
+    --x: 25;
+    --y: 73;
+    --w: 44;
+  }
+}
+
 .first-standalone-footer {
   margin-top: auto;
   padding-top: 20px;
   text-align: center;
   flex-shrink: 0;
+}
+/* 「はじめる」と「アカウントをお持ちの方はログイン」の間を**ほんの少しだけ**空ける
+   （オーナー指示 2026-10-02「近いからほんの少しだけ離して」）。前は字がボタンの 5px 下に
+   付いていた。今は 6px ＋ 押せる箱（44px）の上半分で、字はボタンの約 18px 下。
+   箱の下半分は画面の下の余白と重ねて、下が間延びしないようにする。 */
+.first-standalone-footer .first-secondary {
+  margin: 6px auto -10px;
+  width: fit-content;
+  padding-inline: 16px;
 }
 .first-standalone-footer .first-primary {
   min-height: 58px;
@@ -1291,17 +1569,11 @@ html[data-motion="reduce"] .tour-coach {
 }
 @media (max-height: 700px) {
   .first-intro-logo {
-    width: 72px;
+    width: 64px;
   }
   .first-intro-heading p {
     margin-top: 8px;
     font-size: 15px;
-  }
-  .first-polaroids {
-    margin: 12px auto;
-    max-width: 315px;
-    min-height: 260px;
-    height: 44dvh;
   }
   .first-standalone {
     padding-block: 18px;

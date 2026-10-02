@@ -223,7 +223,7 @@ export const DICT: Record<string, Record<UiLang, string>> = {
   "first.interest.travel": { ja: "旅行", en: "Travel", "zh-TW": "旅行" },
   "first.interest.animals": { ja: "動物", en: "Animals", "zh-TW": "動物" },
   "first.interest.nature": { ja: "自然", en: "Nature", "zh-TW": "自然" },
-  "first.interest.city": { ja: "建物・街", en: "City & architecture", "zh-TW": "建築、街景" },
+  "first.interest.city": { ja: "建物・街", en: "City & buildings", "zh-TW": "建築、街景" },
   "first.interest.fashion": { ja: "ファッション", en: "Fashion", "zh-TW": "時尚" },
   "first.interest.business": { ja: "ビジネス", en: "Business", "zh-TW": "商業" },
   "first.interest.music": { ja: "音楽・映画", en: "Music & film", "zh-TW": "音樂、電影" },

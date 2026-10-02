@@ -27,10 +27,31 @@ export const FIRST_CATCH_PHOTOS = [
  *
  * 写真は3案とも**写真の比のまま**（切らない・潰さない）。**本番は C**（オーナー決定
  * 2026-09-30「Cにして」）。A・B は確認用ページ（`?layout=`）で見比べられるよう残す。
+ *
+ * 2026-10-02 オーナー指示「ウェルカム画面の画像の配置を美しくして。デザイン案を私に。
+ * 縦横無機質には並べないで」で、縦横に揃えない新しい3案を足した。
+ *
+ * - `scatter`（D「散らす」）: 卓上に手で置いた4枚。左の列を高く・右の列を低くずらした
+ *   斜めの流れで、大きさも傾きも1枚ずつ変える。
+ * - `hero`（E「主役」）: 猫を大きな主役にし、珈琲・花・海を主役の角に添える。
+ * - `cascade`（F「流れ」）: 縦長の珈琲を左の柱にし、花・猫・海が右上から左下へ
+ *   流れ落ちる。流れの先が「はじめる」。
+ *
+ * 本番の並べ方は `DEFAULT_WELCOME_LAYOUT` の1か所だけで決まる。オーナーが選んだら
+ * ここを書き換える（確認用ページは `RECOMMENDED_WELCOME_LAYOUT` を先に見せる）。
  */
-export const WELCOME_LAYOUTS = ["mosaic", "frame", "bouquet"] as const;
+export const WELCOME_LAYOUTS = [
+  "mosaic",
+  "frame",
+  "bouquet",
+  "scatter",
+  "hero",
+  "cascade",
+] as const;
 export type WelcomeLayout = (typeof WELCOME_LAYOUTS)[number];
 export const DEFAULT_WELCOME_LAYOUT: WelcomeLayout = "bouquet";
+/** 確認用ページで最初に見せる案（2026-10-02 の新しい3案のうちのおすすめ）。 */
+export const RECOMMENDED_WELCOME_LAYOUT: WelcomeLayout = "scatter";
 let welcomeLayoutPreview: WelcomeLayout | null = null;
 /** 確認用ページだけが使う（本番のコードからは呼ばない）。 */
 export function setWelcomeLayoutPreview(layout: WelcomeLayout | null) {
@@ -109,10 +130,13 @@ function PrimaryAction({
 export function FirstCatchIntro({
   draft,
   busy,
+  error,
   onStart,
 }: {
   draft: FirstCatch;
   busy: boolean;
+  /** 「はじめる」で保存できなかった時の理由と再試行。前は出す所が無く、押しても無反応に見えた。 */
+  error?: ReactNode;
   onStart: () => void;
 }) {
   const t = useT();
@@ -137,6 +161,7 @@ export function FirstCatchIntro({
           className="first-polaroids"
           layout={DEFAULT_WELCOME_LAYOUT}
         />
+        {error}
         <footer className="first-standalone-footer">
           <PrimaryAction onClick={onStart} disabled={busy}>
             {t("first.introStart")}
@@ -253,11 +278,14 @@ export function FirstCatchNotifications({
 export function FirstCatchReady({
   draft,
   busy,
+  error,
   onBack,
   onStart,
 }: {
   draft: FirstCatch;
   busy: boolean;
+  /** 次へ進む・戻るで保存できなかった時の理由と再試行（最初の画面と同じ）。 */
+  error?: ReactNode;
   onBack: () => void;
   onStart: () => void;
 }) {
@@ -301,6 +329,7 @@ export function FirstCatchReady({
             className="first-ready-photo"
           />
         </div>
+        {error}
         <footer className="first-standalone-footer">
           <PrimaryAction onClick={onStart} disabled={busy}>
             {t("first.readyStart")}
