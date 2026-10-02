@@ -77,13 +77,15 @@ function PrimaryAction({
 
 /**
  * 最初の画面の周りの4枚（ぼかした奥の写真）。語はどれも学ぶ言語の見本の語。
- * `photo` は `public/` の写真、`ratio` は写真の高さ÷幅。
+ * `photo` は花・猫・珈琲・湖の写真を**先にぼかして小さくした**1枚（`ratio` は高さ÷幅）。
+ * 画面で `filter: blur()` を掛けると、Chrome で写真が白く抜けて描かれる時があった
+ * （実測）うえ、動く4枚を毎回ぼかすのは重い。
  */
 const WELCOME_AROUND = [
-  { key: "flower", photo: "/first-catch-flower.webp", ratio: 1 },
-  { key: "cat", photo: "/first-catch-cat.webp", ratio: 1 },
-  { key: "coffee", photo: "/first-catch-cafe.webp", ratio: 1.5 },
-  { key: "lake", photo: "/first-catch-interest-nature.webp", ratio: 1 },
+  { key: "flower", photo: "/first-catch-welcome-blur-flower.webp", ratio: 1 },
+  { key: "cat", photo: "/first-catch-welcome-blur-cat.webp", ratio: 1 },
+  { key: "coffee", photo: "/first-catch-welcome-blur-coffee.webp", ratio: 1.5 },
+  { key: "lake", photo: "/first-catch-welcome-blur-lake.webp", ratio: 1 },
 ] as const;
 
 /** 写真の下に手で書く1語。手前の1枚はオーナー指定の「海邊」（2026-10-03）。 */
@@ -127,8 +129,8 @@ export function FirstCatchIntro({
 }) {
   const t = useT();
   const en = draft.targetLanguage === "en";
-  // 学ぶ言語の字で手書きする（台湾華語は芫荽、英語は Caveat）。
-  const hand = en ? "handwritten" : "handwritten-ja";
+  // 学ぶ言語の字で、細いペンで書いたように（台湾華語は Zen Kurenaido、英語は Caveat）。
+  const hand = en ? "handwritten" : "first-welcome-pen";
   return (
     <div className="first-run first-welcome">
       <div className="first-sky" aria-hidden="true">
@@ -136,6 +138,10 @@ export function FirstCatchIntro({
         <span className="first-sky-cloud first-sky-cloud--2" />
         <span className="first-sky-cloud first-sky-cloud--3" />
         <span className="first-sky-cloud first-sky-cloud--4" />
+        <span className="first-sky-sea" />
+        {Array.from({ length: 5 }, (_, i) => (
+          <span key={i} className={`first-sky-glint first-sky-glint--${i + 1}`} />
+        ))}
       </div>
       <div className="first-standalone first-intro">
         <header className="first-intro-heading">

@@ -6481,8 +6481,26 @@ describe("R25（2026-09-30: ベータテストの指摘・最初の画面の4枚
     const welcome = codeOnly(read("routes/welcome.tsx"));
     expect(welcome).toMatch(/WELCOME_IMAGES\.map/);
     const images = codeOnly(read("lib/first-catch-images.ts"));
-    for (const photo of ["cafe", "flower", "cat", "ready", "hand", "interest-nature"])
+    for (const photo of [
+      "ready",
+      "hand",
+      "welcome-sea",
+      "welcome-blur-flower",
+      "welcome-blur-cat",
+      "welcome-blur-coffee",
+      "welcome-blur-lake",
+    ])
       expect(images).toMatch(new RegExp(`"/first-catch-${photo}\\.webp"`));
+    // 「海邊」は見本の細いペン字に近い Zen Kurenaido（端末内に配る字体）で書き、その2字を先読みする。
+    expect(css).toMatch(/\.first-welcome-pen \{[^}]*font-family: "Zen Kurenaido"/);
+    expect(body).toMatch(/en \? "handwritten" : "first-welcome-pen"/);
+    expect(images).toMatch(/"\/fonts\/zen-kurenaido\/zk-114\.woff2"/);
+    expect(welcome).toMatch(/WELCOME_FONTS\.map/);
+    // 空の光: 日の光と霞・ぼかした海・きらめき・雲の上の面と影。ぼかしに filter を使わない。
+    expect(css).toMatch(/url\(\/first-catch-welcome-sea\.webp\)/);
+    expect(css).toContain("@keyframes first-glint");
+    expect(css).toMatch(/\.first-sky-cloud::before \{\s*--c: var\(--cloud-shade\);/);
+    expect(css).not.toMatch(/\.first-welcome-around[^{]*\{[^}]*filter: blur/);
   });
 
   it("最初の画面・準備の画面でも保存の失敗を出し、読めない下書きで行き止まりにしない", () => {

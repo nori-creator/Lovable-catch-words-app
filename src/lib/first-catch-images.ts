@@ -9,14 +9,27 @@ import { FIRST_CATCH_INTERESTS } from "@/lib/learning-preferences";
 export const WELCOME_IMAGES = [
   "/first-catch-ready.webp",
   "/first-catch-hand.webp",
-  "/first-catch-flower.webp",
-  "/first-catch-cat.webp",
-  "/first-catch-cafe.webp",
-  "/first-catch-interest-nature.webp",
+  "/first-catch-welcome-sea.webp",
+  "/first-catch-welcome-blur-flower.webp",
+  "/first-catch-welcome-blur-cat.webp",
+  "/first-catch-welcome-blur-coffee.webp",
+  "/first-catch-welcome-blur-lake.webp",
+];
+/**
+ * 最初の画面の「海邊」を書く手書き（Zen Kurenaido）のうち、海・邊を持つ2つの切り出し。
+ * 字体は `font-display: block` なので、先に取っておくと字の出る前の空白が短い。
+ */
+export const WELCOME_FONTS = [
+  "/fonts/zen-kurenaido/zk-114.woff2",
+  "/fonts/zen-kurenaido/zk-64.woff2",
 ];
 export const FIRST_CATCH_IMAGES = [
   ...new Set([
     ...WELCOME_IMAGES,
+    // ホーム・図鑑・復習の見本の写真（最初の画面の後で出る）。
+    "/first-catch-cafe.webp",
+    "/first-catch-flower.webp",
+    "/first-catch-cat.webp",
     ...FIRST_CATCH_INTERESTS.map((value) => `/first-catch-interest-${value}.webp`),
   ]),
 ];

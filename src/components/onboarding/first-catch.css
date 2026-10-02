@@ -811,85 +811,228 @@ html[data-motion="reduce"] .first-run * {
    明るい空（雲が流れる）の上に、見出し・手が持ち上げた海の1枚・周りのぼかした4枚・
    「はじめる」。空は画面いっぱい（PC でも列の外まで）。色はアプリの色の名前だけで混ぜる。 */
 .first-welcome {
+  /* 空と海の色（見本の夏の昼の光）。アプリの色の名前だけを混ぜる。 */
+  /* 青（primary）に水色（chart-2）を少し混ぜた、夏の昼の澄んだ空。 */
+  --sky-blue: color-mix(in oklab, var(--primary) 62%, var(--chart-2));
+  --sky-deep: color-mix(in oklab, var(--sky-blue) 54%, var(--card));
+  --sky-mid: color-mix(in oklab, var(--sky-blue) 34%, var(--card));
+  --sky-pale: color-mix(in oklab, var(--sky-blue) 16%, var(--card));
+  --sun: color-mix(in oklab, var(--chart-4) 10%, var(--card));
+  --cloud: var(--card);
+  --cloud-shade: color-mix(in oklab, var(--primary) 20%, var(--card));
   position: relative;
   /* 周りの写真は画面の端からはみ出して見せる。横に送れる画面にはしない。 */
   overflow: hidden;
   isolation: isolate;
   background: linear-gradient(
     180deg,
-    color-mix(in oklab, var(--primary) 58%, var(--card)) 0%,
-    color-mix(in oklab, var(--primary) 36%, var(--card)) 36%,
-    color-mix(in oklab, var(--primary) 12%, var(--card)) 68%,
-    color-mix(in oklab, var(--primary) 4%, var(--background)) 86%,
+    var(--sky-deep) 0%,
+    var(--sky-mid) 30%,
+    var(--sky-pale) 52%,
+    var(--sky-pale) 62%,
     var(--background) 100%
   );
 }
 .dark .first-welcome {
-  /* 暗いテーマは夜明け前の空。上は深い青、下はアプリの地の色へ。 */
-  background: linear-gradient(
-    180deg,
-    color-mix(in oklab, var(--primary) 34%, var(--background)) 0%,
-    color-mix(in oklab, var(--primary) 18%, var(--background)) 45%,
-    color-mix(in oklab, var(--primary) 6%, var(--background)) 78%,
-    var(--background) 100%
-  );
+  /* 暗いテーマは夜明け前の空と、月明かりの海。 */
+  --sky-deep: color-mix(in oklab, var(--primary) 36%, var(--background));
+  --sky-mid: color-mix(in oklab, var(--primary) 22%, var(--background));
+  --sky-pale: color-mix(in oklab, var(--primary) 10%, var(--background));
+  --sun: color-mix(in oklab, var(--foreground) 14%, transparent);
+  --cloud: color-mix(in oklab, var(--foreground) 34%, var(--background));
+  --cloud-shade: color-mix(in oklab, var(--primary) 30%, var(--background));
 }
 .first-welcome > .first-standalone {
   position: relative;
   z-index: 1;
   background: none;
 }
+/* 空の層: 上から差す日の光（右上）、写真のまわりの明るい霞、ぼかした海、
+   「はじめる」のまわりの白い空気。 */
 .first-sky {
   position: absolute;
   inset: 0;
   z-index: 0;
   pointer-events: none;
 }
-/* 雲。白い丸をいくつも重ねてぼかした綿雲で、ゆっくり横に流れる。 */
-.first-sky-cloud {
+.first-sky::before {
+  content: "";
   position: absolute;
-  width: 62vmin;
-  max-width: 340px;
-  aspect-ratio: 2.4;
+  inset: 0;
+  z-index: 2;
   background:
-    radial-gradient(closest-side, var(--card) 70%, transparent) 8% 70% / 42% 62% no-repeat,
-    radial-gradient(closest-side, var(--card) 70%, transparent) 34% 35% / 44% 78% no-repeat,
-    radial-gradient(closest-side, var(--card) 70%, transparent) 62% 48% / 46% 72% no-repeat,
-    radial-gradient(closest-side, var(--card) 70%, transparent) 90% 72% / 36% 52% no-repeat,
-    radial-gradient(closest-side, var(--card) 72%, transparent) 50% 82% / 92% 40% no-repeat;
-  filter: blur(5px);
-  opacity: 0.92;
-  animation: first-cloud-drift 46s ease-in-out infinite alternate;
+    radial-gradient(ellipse 46% 26% at 96% -4%, var(--sun) 0%, transparent 70%),
+    radial-gradient(
+      ellipse 40% 22% at 104% 58%,
+      color-mix(in oklab, var(--sky-blue) 42%, transparent) 0%,
+      transparent 70%
+    ),
+    radial-gradient(
+      ellipse 62% 30% at 50% 50%,
+      color-mix(in oklab, var(--sun) 70%, transparent) 0%,
+      transparent 72%
+    );
 }
-.dark .first-sky-cloud {
+.first-sky::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  background: linear-gradient(
+    180deg,
+    transparent 74%,
+    color-mix(in oklab, var(--background) 82%, transparent) 88%,
+    var(--background) 100%
+  );
+}
+/* ぼかした日なたの海（アプリの海の写真から作った 2KB の1枚）。上の端は空に溶ける。 */
+.first-sky-sea {
+  position: absolute;
+  left: -4%;
+  right: -4%;
+  top: 46%;
+  height: 46%;
+  z-index: 1;
+  opacity: 0.9;
+  background: url(/first-catch-welcome-sea.webp) center / cover no-repeat;
+  -webkit-mask-image: linear-gradient(
+    180deg,
+    transparent 0%,
+    var(--foreground) 22%,
+    var(--foreground) 70%,
+    transparent 100%
+  );
+  mask-image: linear-gradient(
+    180deg,
+    transparent 0%,
+    var(--foreground) 22%,
+    var(--foreground) 70%,
+    transparent 100%
+  );
+}
+.dark .first-sky-sea {
+  opacity: 0.2;
+}
+/* 水面のきらめき（ぼけた光の粒）。ゆっくり明滅する。 */
+.first-sky-glint {
+  position: absolute;
+  z-index: 2;
+  width: 14px;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  background: radial-gradient(
+    circle,
+    var(--card) 0%,
+    color-mix(in oklab, var(--card) 60%, transparent) 45%,
+    transparent 70%
+  );
+  opacity: 0.85;
+  animation: first-glint 4.8s ease-in-out infinite;
+}
+.dark .first-sky-glint {
   opacity: 0.35;
 }
+.first-sky-glint--1 {
+  left: 12%;
+  top: 70%;
+}
+.first-sky-glint--2 {
+  left: 64%;
+  top: 64%;
+  width: 10px;
+  animation-delay: -1.6s;
+}
+.first-sky-glint--3 {
+  left: 84%;
+  top: 76%;
+  width: 18px;
+  animation-delay: -3.1s;
+}
+.first-sky-glint--4 {
+  left: 36%;
+  top: 80%;
+  width: 9px;
+  animation-delay: -2.4s;
+}
+.first-sky-glint--5 {
+  left: 6%;
+  top: 60%;
+  width: 11px;
+  animation-delay: -0.7s;
+}
+@keyframes first-glint {
+  50% {
+    opacity: 0.25;
+    transform: scale(0.7);
+  }
+}
+/* 雲。白く光る上の面と、少し影になった下の面を重ね、ふちはぼかす。ゆっくり流れる。 */
+.first-sky-cloud {
+  position: absolute;
+  z-index: 1;
+  width: 70vmin;
+  max-width: 400px;
+  aspect-ratio: 2.2;
+  filter: blur(2px);
+  animation: first-cloud-drift 46s ease-in-out infinite alternate;
+}
+.first-sky-cloud::before,
+.first-sky-cloud::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  /* もくもくした上の縁と、平らに近い底。 */
+  background:
+    radial-gradient(closest-side, var(--c) 82%, transparent) 10% 72% / 32% 46% no-repeat,
+    radial-gradient(closest-side, var(--c) 82%, transparent) 28% 46% / 38% 70% no-repeat,
+    radial-gradient(closest-side, var(--c) 82%, transparent) 50% 26% / 44% 92% no-repeat,
+    radial-gradient(closest-side, var(--c) 82%, transparent) 71% 40% / 38% 74% no-repeat,
+    radial-gradient(closest-side, var(--c) 82%, transparent) 89% 66% / 28% 48% no-repeat,
+    radial-gradient(closest-side, var(--c) 84%, transparent) 50% 80% / 92% 40% no-repeat;
+}
+/* 下の面（影）: 少し下にずらして、上の面の下からのぞかせる。 */
+.first-sky-cloud::before {
+  --c: var(--cloud-shade);
+  translate: 0 8%;
+  filter: blur(3px);
+}
+/* 上の面（日の当たる白）。 */
+.first-sky-cloud::after {
+  --c: var(--cloud);
+  scale: 0.96 0.88;
+  translate: 0 -4%;
+}
 .first-sky-cloud--1 {
-  top: 3%;
-  right: -16%;
+  top: 7%;
+  right: -24%;
+  width: 78vmin;
+  max-width: 440px;
 }
 .first-sky-cloud--2 {
-  top: 24%;
-  left: -26%;
-  width: 56vmin;
+  top: 20%;
+  left: -30%;
+  width: 58vmin;
   animation-duration: 58s;
   animation-delay: -12s;
 }
 .first-sky-cloud--3 {
-  top: 47%;
-  right: -22%;
-  width: 52vmin;
-  opacity: 0.6;
+  top: 36%;
+  left: -34%;
+  width: 50vmin;
+  opacity: 0.8;
   animation-duration: 52s;
   animation-delay: -30s;
 }
 .first-sky-cloud--4 {
-  top: 66%;
-  left: -18%;
-  width: 70vmin;
-  opacity: 0.7;
+  top: 30%;
+  right: -30%;
+  width: 46vmin;
+  opacity: 0.75;
   animation-duration: 64s;
   animation-delay: -6s;
+}
+.dark .first-sky-cloud {
+  opacity: 0.4;
 }
 @keyframes first-cloud-drift {
   from {
@@ -984,8 +1127,9 @@ html[data-motion="reduce"] .first-run * {
 .first-welcome-caption {
   display: grid;
   place-items: center;
+  /* 細いペン（マーカー）で紙に書いた字。紺のインクで、線は少しだけ太く。 */
+  color: oklch(0.29 0.045 258);
   height: calc(var(--w) * var(--m) * 0.2);
-  color: oklch(0.3 0.02 60);
   font-size: calc(var(--w) * var(--m) * 0.1);
   line-height: 1;
   white-space: nowrap;
@@ -995,12 +1139,17 @@ html[data-motion="reduce"] .first-run * {
 .first-welcome-around {
   left: calc(var(--ox) + var(--x) * var(--m) + var(--side) * var(--ox) * 0.5);
   rotate: var(--r);
-  filter: blur(calc(var(--m) * 2.6));
   opacity: 0.9;
   animation: first-welcome-float-in 1s cubic-bezier(0.22, 1, 0.36, 1) backwards;
 }
 .first-welcome-around > .first-welcome-paper {
   animation: first-welcome-bob 7s ease-in-out infinite alternate;
+}
+/* ぼかしは filter を使わない。写真は先にぼかした1枚、字は影だけで描いてぼかす
+   （動く箱に filter を掛けると、Chrome では写真が白く抜けて描かれる時があった）。 */
+.first-welcome-around .first-welcome-caption {
+  color: transparent;
+  text-shadow: 0 0 calc(var(--m) * 3) oklch(0.29 0.045 258 / 0.85);
 }
 .first-welcome-around--1 {
   --x: -30;
@@ -1087,6 +1236,18 @@ html[data-motion="reduce"] .first-run * {
 .first-welcome-paper--main .first-welcome-caption {
   height: calc(var(--w) * var(--m) * 0.2);
   font-size: calc(var(--m) * 50);
+}
+/* **字体**（オーナー指示 2026-10-03「海邊はこのウェルカム画面にふさわしい字体にして」）。
+   見本の「世界を、ことばに。」の、細いペンで少し崩して書いた字に近い Zen Kurenaido
+   （アプリが端末内に配っている手書き。海・邊ともに持つ）。線を 1.8% だけ太らせて
+   マーカーの筆圧を出し、字間を少し空けて、ほんの少し傾ける。台湾の字形の芫荽より、
+   見本の軽いペン字に近い（比べた7書体の結果）。 */
+.first-welcome-pen {
+  display: inline-block;
+  font-family: "Zen Kurenaido", "Iansui", var(--font-ui);
+  -webkit-text-stroke: 0.018em currentColor;
+  letter-spacing: 0.08em;
+  rotate: -2deg;
 }
 .first-welcome-shot {
   position: relative;
