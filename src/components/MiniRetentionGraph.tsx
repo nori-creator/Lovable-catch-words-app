@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useRef, useState } from "react";
 import { localeOf, useT, useUiLang } from "@/lib/i18n";
 import { LEVEL_EDGES } from "@/lib/memory-curve";
 import { MEMORY_LEVELS } from "@/lib/memory";
@@ -10,7 +10,14 @@ import {
   ResponsiveContainer,
   ReferenceArea,
   ReferenceDot,
+  Customized,
 } from "recharts";
+import {
+  CurveScrubber,
+  ScaleProbe,
+  type ChartGeo,
+  type ScrubLayerProps,
+} from "@/components/CurveScrubber";
 
 /**
  * 全体の記憶率(前後2週間)。
@@ -57,13 +64,26 @@ export function MiniRetentionGraph({
   const yMin = [70, 50, 30, 0].find((b) => b <= low - 3) ?? 0;
   const bands = levelBands(yMin);
   const yTicks = axisTicks(yMin);
+  /**
+   * **点を持って過去を辿る**（オーナー指示 2026-10-02「グラフの点はもっと動かせて、
+   * グラフに沿って過去の状態をたどれる機能が消えてる」）。単語ごとの忘却曲線と同じ部品。
+   * 辿っている間は「今日 94%」の札を隠す（札が2つ重なると読めない）。
+   */
+  const [scrubbing, setScrubbing] = useState(false);
+  const geo = useRef<ChartGeo | null>(null);
+  const known = pts.filter((p): p is { d: number; r: number } => p.r != null);
+  const whenLabel = (d: number) => {
+    const n = Math.round(Math.abs(d));
+    if (n === 0) return t("rv.today");
+    return d < 0 ? t("curve.daysAgo", { n }) : t("curve.daysLater", { n });
+  };
   const dateOf = (d: number) =>
     new Date(nowMs + d * 86_400_000).toLocaleDateString(locale, {
       month: "numeric",
       day: "numeric",
     });
   return (
-    <div className="h-44 w-full">
+    <div className="relative h-44 w-full">
       <ResponsiveContainer width="100%" height="100%">
         <LineChart margin={{ top: 20, right: 22, bottom: 0, left: -18 }}>
           {/* 段の帯。線より先に描く（下に敷く）。 */}
@@ -158,17 +178,34 @@ export function MiniRetentionGraph({
               fill="var(--primary)"
               stroke="var(--card)"
               strokeWidth={3}
-              label={{
-                value: t("curve.todayPct", { pct: today }),
-                position: "top",
-                fill: "var(--foreground)",
-                fontSize: 12,
-                fontWeight: 700,
-              }}
+              label={
+                !scrubbing
+                  ? {
+                      value: t("curve.todayPct", { pct: today }),
+                      position: "top",
+                      fill: "var(--foreground)",
+                      fontSize: 12,
+                      fontWeight: 700,
+                    }
+                  : undefined
+              }
             />
           )}
+          <Customized
+            component={(props: ScrubLayerProps) => <ScaleProbe {...props} into={geo} />}
+          />
         </LineChart>
       </ResponsiveContainer>
+      {known.length > 1 && (
+        <CurveScrubber
+          geo={geo}
+          domain={[Math.max(lo, known[0].d), Math.min(hi, known[known.length - 1].d)]}
+          valueAt={(d) => seriesValueAt(known, d)}
+          color={() => "var(--primary)"}
+          whenLabel={whenLabel}
+          onActive={setScrubbing}
+        />
+      )}
     </div>
   );
 }
@@ -207,4 +244,20 @@ export function axisTicks(yMin: number): number[] {
   if (kept[kept.length - 1] - yMin < minGap) kept.pop();
   kept.push(yMin);
   return kept.sort((a, b) => a - b);
+}
+
+/**
+ * 日ごとの点の間を**直線で補う**（辿る点の高さ）。線は `monotone` でなめらかに描くが、
+ * 点の間の差は 1 ポイント前後なので、直線で補っても指の点は線からほとんど離れない。
+ * 端より外は端の値。
+ */
+export function seriesValueAt(known: ReadonlyArray<{ d: number; r: number }>, d: number): number {
+  if (known.length === 0) return 0;
+  if (d <= known[0].d) return known[0].r;
+  for (let i = 1; i < known.length; i++) {
+    const a = known[i - 1];
+    const b = known[i];
+    if (d <= b.d) return a.r + ((b.r - a.r) * (d - a.d)) / Math.max(1e-9, b.d - a.d);
+  }
+  return known[known.length - 1].r;
 }

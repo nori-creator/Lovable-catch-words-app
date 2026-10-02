@@ -5288,8 +5288,13 @@ describe("記憶のグラフ（オーナー指摘 2026-09-22「記憶のグラ�
   const review = codeOnly(read("routes/_authenticated/review.tsx"));
 
   it("**横に辿り始めたら縦の巻き取りに指を取られない**（R11「押したまま横に滑らせると引っかかる」）", () => {
-    expect(chart).toMatch(/addEventListener\("touchmove", move, \{ passive: false \}\)/);
-    expect(chart).toMatch(/if \(lock === "x" && e\.cancelable\) e\.preventDefault\(\);/);
+    // 辿る部品は全体のグラフと共用になった（2026-10-02、`CurveScrubber.tsx`）。
+    const scrub = codeOnly(read("components/CurveScrubber.tsx"));
+    expect(scrub).toMatch(/addEventListener\("touchmove", move, \{ passive: false \}\)/);
+    expect(scrub).toMatch(/if \(lock === "x" && e\.cancelable\) e\.preventDefault\(\);/);
+    // 単語ごとの曲線と、復習の上の全体のグラフの**両方**で辿れる。
+    expect(chart).toMatch(/<CurveScrubber/);
+    expect(codeOnly(read("components/MiniRetentionGraph.tsx"))).toMatch(/<CurveScrubber/);
   });
 
   it("**復習した回数は履歴の行数**（SM-2 の「続けて正解した回数」ではない）", () => {
