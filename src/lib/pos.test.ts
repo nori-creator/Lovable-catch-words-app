@@ -1,5 +1,16 @@
 import { describe, expect, it } from "vitest";
-import { POS_TABLE, chunkLegendFor, chunkStyle, posGroup, isNounLike } from "./pos";
+import {
+  GROUP_LABEL,
+  POS_TABLE,
+  chunkLegendFor,
+  chunkStyle,
+  posDisplay,
+  posGroup,
+  posGroupLabel,
+  isNounLike,
+  type PosGroup,
+} from "./pos";
+import { DICT } from "./i18n";
 
 describe("詞類表の記号 → 色の群", () => {
   it("表に在る記号は全部どこかの群に入る(取りこぼしが無い)", () => {
@@ -97,5 +108,56 @@ describe("isNounLike", () => {
 
   it("知らない札は通す(勝手に落とさない)", () => {
     expect(isNounLike("なにか新しい札")).toBe(true);
+  });
+});
+
+/**
+ * 品詞の名前を表示言語で（オーナー報告 2026-10-02「英語・繁體中文の表示でも
+ * 名詞 / 動詞 / 状態動詞(形容詞) が日本語のまま」）。
+ */
+describe("品詞の名前は表示言語で", () => {
+  it("**日本語は前と1字も変わらない**（表の日本語と辞書の日本語が同じ）", () => {
+    for (const [g, ja] of Object.entries(GROUP_LABEL)) {
+      expect(DICT[`pos.g.${g}`]?.ja, g).toBe(ja);
+      expect(posGroupLabel(g as PosGroup)).toBe(ja);
+      expect(posGroupLabel(g as PosGroup, "ja")).toBe(ja);
+    }
+    for (const [code, ja] of Object.entries(POS_TABLE)) {
+      expect(DICT[`pos.c.${code}`]?.ja, code).toBe(ja);
+    }
+    expect(posDisplay("Vs")).toBe("Vs · 状態動詞(形容詞)");
+    expect(posDisplay("Vs", "ja")).toBe("Vs · 状態動詞(形容詞)");
+    expect(chunkLegendFor(["N", "V"], "ja").map((i) => i.style.label)).toEqual(["名詞", "動詞"]);
+  });
+
+  it("英語", () => {
+    expect(
+      chunkLegendFor(["N", "V", "Vs", "Adv", "Ptc", "Det"], "en").map((i) => i.style.label),
+    ).toEqual(["Noun", "Verb", "Stative verb (adj.)", "Adverb", "Particle", "Determiner"]);
+    expect(chunkStyle("M", "en").label).toBe("Measure word");
+    expect(posDisplay("Vs", "en")).toBe("Vs · Stative verb (adj.)");
+    expect(posDisplay("N", "en")).toBe("N · Noun");
+  });
+
+  it("繁體中文（日本の字形・かなを出さない）", () => {
+    const zh = chunkLegendFor(["N", "V", "Vs", "Conj"], "zh-TW").map((i) => i.style.label);
+    expect(zh).toEqual(["名詞", "動詞", "狀態動詞(形容詞)", "連接詞"]);
+    expect(posDisplay("Vp", "zh-TW")).toBe("Vp · 變化動詞");
+    for (const l of zh) expect(l).not.toMatch(/[ぁ-ゟァ-ヺ]/);
+  });
+
+  it("どの記号も、どの言語でも名前が付く", () => {
+    for (const lang of ["ja", "en", "zh-TW"] as const) {
+      for (const code of Object.keys(POS_TABLE)) {
+        expect(posDisplay(code, lang)).toMatch(new RegExp(`^${code} · .+`));
+      }
+    }
+  });
+
+  it("日本語で書かれた古い品詞（「名詞」）は、日本語以外の人には訳す。知らない綴りはそのまま", () => {
+    expect(posDisplay("名詞", "en")).toBe("Noun");
+    expect(posDisplay("名詞", "ja")).toBe("名詞");
+    expect(posDisplay("noun", "en")).toBe("noun");
+    expect(posDisplay("い形容詞", "en")).toBe("い形容詞");
   });
 });

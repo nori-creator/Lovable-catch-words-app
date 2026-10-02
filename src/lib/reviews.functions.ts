@@ -28,12 +28,7 @@ import {
 export { nextSrs } from "@/lib/srs";
 // 4択を組む所も同じ理由で外に出してある(「必ず4つ」を試せるように)。
 import { FALLBACK_MEANINGS_BY_LANG, buildChoices, shuffle } from "@/lib/quiz-choices";
-import {
-  fitsReaderLanguage,
-  keepReaderLanguage,
-  quizMeaningLanguage,
-} from "@/lib/meaning-language";
-import type { UiLang } from "@/lib/i18n";
+import { fitsReaderLanguage, quizMeaningLanguage } from "@/lib/meaning-language";
 import {
   generateStructured,
   getAi,
@@ -42,7 +37,8 @@ import {
   getExplanationLanguage,
 } from "./ai-provider.server";
 import { ttsObjectPath, TTS_VOICE_DEFAULT } from "./tts-cache";
-import { normalizeExtras, refineUsageChunks, type ChunkPart } from "./extras";
+import { normalizeExtras, refineUsageChunks } from "./extras";
+import { explainOf, type ReviewExplain } from "./review-explain";
 
 /**
  * Review card modes escalate with SRS maturity (repetitions):
@@ -54,17 +50,8 @@ import { normalizeExtras, refineUsageChunks, type ChunkPart } from "./extras";
  */
 export type ReviewMode = "recognition" | "listening" | "reverse" | "production";
 
-/** 答え合わせに出す解説(スピーキングで使える塊を優先して並べる)。 */
-export type ReviewExplain = {
-  /** ネイティブがよく使う型。parts は品詞つきなので色分けして見せる。 */
-  chunks: Array<{ parts: ChunkPart[]; ja: string }>;
-  /** 一緒に/近い意味で使う語。 */
-  related: Array<{ word: string; kind: "syn" | "ant" | "rel"; note: string }>;
-  /** 量詞(名詞のときだけ)。 */
-  measures: Array<{ word: string; note: string }>;
-  /** 知っておくと得な一言。 */
-  note: string;
-};
+/** 答え合わせに出す解説。組む所は `review-explain.ts`（画面も同じ物を使う）。 */
+export type { ReviewExplain } from "./review-explain";
 
 export type DueReviewCard = {
   review_id: string;
@@ -142,50 +129,6 @@ function topChunkOf(
   const legacy = ex.collocations?.[0];
   if (legacy?.trim()) return { zh: legacy, ja: "" };
   return null;
-}
-
-/**
- * 答え合わせで見せる解説一式。
- *
- * 復習の目的は「その場で口から出せるようになる」ことなので、辞書的な説明では
- * なく**そのまま言える塊**を先に出す:
- *  - chunks   : ネイティブがよく使う型(品詞で色分けして見せる)
- *  - related  : 一緒に/近い意味で使う語
- *  - measures : 量詞(名詞のときだけ)
- *  - note     : 知っておくと得な一言
- * 量は絞る — 4択の答え合わせは一瞬で読めることが最優先。
- */
-function explainOf(
-  rawExtras: unknown,
-  headword: string,
-  language?: string | null,
-  /**
-   * 読み手の言語。**合わない訳・注記は落とす**（オーナー報告 2026-09-27
-   * 「解説に別の言語が混ざる」）。表示言語を変える前に作った語は、
-   * 訳と注記が前の言語のまま残っている。
-   */
-  reader?: UiLang,
-): ReviewExplain | null {
-  const ex = normalizeExtras(rawExtras);
-  if (!ex) return null;
-  const fit = (s: string | null | undefined) =>
-    reader ? keepReaderLanguage(s, reader) : (s ?? "");
-  // 量詞は measures の行で読むので、そこと重なるだけの型は落とす。
-  const chunks = refineUsageChunks(ex.usage_chunks, ex.measure_words, headword, language)
-    .filter((c) => (c.parts?.length ?? 0) > 0)
-    .slice(0, 3)
-    .map((c) => ({ parts: c.parts, ja: fit(c.ja) }));
-  const related = (ex.related_words ?? [])
-    .filter((r) => !!r.word?.trim())
-    .slice(0, 4)
-    .map((r) => ({ word: r.word, kind: r.kind, note: fit(r.note) }));
-  const measures = (ex.measure_words ?? [])
-    .filter((m) => !!m.word?.trim())
-    .slice(0, 2)
-    .map((m) => ({ word: m.word, note: fit(m.note) }));
-  const note = fit((ex.taiwan_note || ex.usage_context || "").trim());
-  if (!chunks.length && !related.length && !measures.length && !note) return null;
-  return { chunks, related, measures, note };
 }
 
 /** ローカル日付の 0:00 を ISO で返す(「今日の復習枚数」の起点)。 */

@@ -71,6 +71,8 @@ export function ChunkPills({
   /** いま並べている札（▾ を上向きに）。 */
   openSlot?: number | null;
 }) {
+  // 品詞の名前（札の title）は表示言語で（2026-10-02「英語の表示でも品詞が日本語」）。
+  const reader = useUiLang();
   if (!parts.length) return null;
   // lg: 復習のヒント用。中国語そのものを一番大きく見せる(周りの説明文より上)。
   const pad =
@@ -87,7 +89,7 @@ export function ChunkPills({
     // 札の型: 既定は**語ごとの四角を＋でつなぐ**。本文の型は字だけで並べる。
     <div className={pill ? "chunk-set chunk-set--boxes" : "flex flex-wrap gap-x-1.5 gap-y-1"}>
       {parts.map((c, i) => {
-        const st = chunkStyle(c.pos);
+        const st = chunkStyle(c.pos, reader);
         // チャンク本体は**学習言語の語**。品詞ラベル(名詞など)は解説語なので、
         // こちらだけ言語を宣言して字形を固定する。
         // **`lang="zh-Hant"` の決め打ちにしない** — 英語の型に中国語の
@@ -176,7 +178,12 @@ export function ChunkPills({
  * 下にも凡例だけが残っていた。
  */
 export function ChunkLegend({ parts }: { parts?: ChunkPart[] }) {
-  const items = chunkLegendFor((parts ?? []).map((p) => p.pos));
+  // 凡例の名前も表示言語で（英語の人に「名詞 / 動詞」を出さない。2026-10-02）。
+  const reader = useUiLang();
+  const items = chunkLegendFor(
+    (parts ?? []).map((p) => p.pos),
+    reader,
+  );
   if (!items.length) return null;
   return (
     <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-caption text-muted-foreground">

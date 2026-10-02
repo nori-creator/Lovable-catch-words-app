@@ -1,5 +1,6 @@
 import { memo, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { ReaderMeaning } from "@/components/ReaderMeaning";
+import { useReaderMeaningText } from "@/lib/reader-meanings";
 import { ZhuyinWord, useZhuyinUnits } from "@/components/ZhuyinWord";
 import type React from "react";
 import { MapPin } from "lucide-react";
@@ -505,12 +506,15 @@ const CoverCard = memo(function CoverCard({
   onPress: (i: number, id: string) => void;
   setRef: (i: number, el: HTMLDivElement | null) => void;
 }) {
+  // 読み上げの名前も、札に出す意味と同じ（読む人の言語。英語・繁體中文の人に日本語の
+  // 意味を読ませない — 2026-10-02）。
+  const meaning = useReaderMeaningText(s.word.meaning_ja, s.word_id, useUiLang());
   return (
     <div ref={(el) => setRef(i, el)} className="dex-cf__slot">
       <button
         type="button"
         onClick={() => onPress(i, s.id)}
-        aria-label={`${s.word.headword} ${s.word.meaning_ja}`}
+        aria-label={meaning ? `${s.word.headword} ${meaning}` : s.word.headword}
         aria-current={isCenter || undefined}
         className="dex-cf__card flex h-full w-full flex-col overflow-hidden rounded-[22px] bg-card text-left ring-1 ring-border"
       >

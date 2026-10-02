@@ -360,6 +360,37 @@ const q = new URLSearchParams(location.search);
  * 「これを見てください」と差し出すことになる。
  */
 const REVIEW_SCENES: Array<{ scene: string; label: string }> = [
+  // 2026-10-02「表示言語が英語（繁體中文も）だと、復習の4択の意味が日本語・答え合わせに訳が
+  // 無い・品詞が日本語・図鑑のスライドに意味が出ない」。日本語で作った語を英語・繁體中文で
+  // 読む人の画面。答え合わせは開いてすぐ押して出す（`answer=right`）。
+  {
+    scene: "review-choice&lang=en&mixed=1&photo=1",
+    label: "復習（英語の表示）: 4択の問いの意味が英語",
+  },
+  {
+    scene: "review-choice&lang=en&mixed=1&photo=1&answer=right",
+    label: "復習（英語）: 答え合わせの訳・品詞が英語",
+  },
+  {
+    scene: "review-choice&lang=zh-TW&mixed=1&photo=1",
+    label: "復習（繁體中文の表示）: 4択の問いの意味が中文",
+  },
+  {
+    scene: "review-choice&lang=zh-TW&mixed=1&photo=1&answer=right",
+    label: "復習（繁體中文）: 答え合わせの訳・品詞が中文",
+  },
+  {
+    scene: "review-choice&lang=en&mixed=1&photo=1&pending=1&answer=wrong",
+    label: "復習（英語）: その人向けの解説がまだ無い間（写真で問う・日本語を出さない）",
+  },
+  {
+    scene: "review-choice&lang=ja&mixed=1&photo=1&answer=right",
+    label: "復習（日本語の表示）: 今までと同じ（比べる用）",
+  },
+  { scene: "dex-cards&lang=en&reader=1", label: "図鑑のスライド（英語）: 見出しの下に意味" },
+  { scene: "dex-cards&lang=zh-TW&reader=1", label: "図鑑のスライド（繁體中文）: 見出しの下に意味" },
+  { scene: "word-card&lang=en", label: "単語の詳細（英語）: 品詞の札とチャンクの凡例が英語" },
+  { scene: "word-card&lang=zh-TW", label: "単語の詳細（繁體中文）: 品詞の札とチャンクの凡例" },
   // 2026-10-02「記憶のグラフ: 現行をベースに改良」— 見出しの数を出さない・線は1色で
   // 地を記憶の段の帯に分ける・撮っただけの語は 0%。本番の `ReviewSessionHeader` そのもの。
   { scene: "review-header", label: "復習: 上部（数なし・段の帯のグラフ）" },

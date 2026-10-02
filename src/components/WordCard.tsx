@@ -914,6 +914,8 @@ function HeaderRow({
   guided?: boolean;
 }) {
   const t = useT();
+  // 品詞の札の名前を表示言語で出す（2026-10-02「英語の表示でも品詞が日本語」）。
+  const uiLang = useUiLang();
   const autoplayedRef = useRef(false);
   // **その語の言語で読む。** 渡さないと台湾華語として合成されるので、
   // 英語の語が中国語の声で読まれ、しかもその音は保存される。
@@ -1053,7 +1055,7 @@ function HeaderRow({
               <div className="mt-2 flex flex-wrap items-start gap-1.5">
                 {word.part_of_speech && (
                   <span className="rounded-full bg-secondary px-2 py-0.5 text-caption font-medium text-foreground ring-1 ring-border">
-                    {posDisplay(word.part_of_speech)}
+                    {posDisplay(word.part_of_speech, uiLang)}
                   </span>
                 )}
                 {/* 言葉の性質は**言葉だけ**で出す（オーナー指示 2026-09-24。メーターは出さない）。 */}

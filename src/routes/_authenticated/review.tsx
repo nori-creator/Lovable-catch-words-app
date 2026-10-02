@@ -80,7 +80,13 @@ import {
   BookOpen,
 } from "lucide-react";
 import { tStatic } from "@/lib/i18n";
-import { readerText } from "@/lib/note-language";
+import { readerMeaning, readerText } from "@/lib/note-language";
+import { pickReviewExplain, quizPromptMeaning } from "@/lib/review-explain";
+import { useReaderMeaningFor } from "@/lib/reader-meanings";
+import {
+  useReviewReaderExplanations,
+  type ReaderReviewView,
+} from "@/lib/use-review-reader-explanations";
 
 // ---- speech helpers --------------------------------------------------------
 // **この画面が自前の `speakZhTW` を持っていた。** 条件が `/^zh/` だったので
@@ -372,6 +378,11 @@ function ReviewPage() {
   const [memModal, setMemModal] = useState<MemoryWord | null>(null);
   const [memListOpen, setMemListOpen] = useState(false);
   const current: DueReviewCard | undefined = cards?.[idx];
+  /**
+   * その人向けの解説（単語の詳細と同じ行）。表示言語が英語・繁體中文で、語の意味が別の言語で
+   * 作られていたとき、問いの意味と答え合わせの訳をこちらから出す（オーナー報告 2026-10-02）。
+   */
+  const readerViews = useReviewReaderExplanations(cards, idx, REVIEW_PRACTICE_ENABLED);
   const done = cards && idx >= cards.length;
 
   /**
@@ -532,7 +543,11 @@ function ReviewPage() {
         <ReviewPreparing />
       ) : current ? (
         <>
-          <ReviewQuestion card={current} onNext={advance} />
+          <ReviewQuestion
+            card={current}
+            onNext={advance}
+            reader={readerViews.get(current.word_id)}
+          />
         </>
       ) : null}
 
@@ -615,10 +630,13 @@ export function ReviewQuestion({
   card,
   onNext,
   practice = false,
+  reader,
 }: {
   card: DueReviewCard;
   onNext: (correct?: boolean) => void;
   practice?: boolean;
+  /** その人向けの解説（`useReviewReaderExplanations`）。 */
+  reader?: ReaderReviewView;
 }) {
   const [memoryOpen, setMemoryOpen] = useState(false);
   return (
@@ -629,6 +647,7 @@ export function ReviewQuestion({
         onNext={onNext}
         onOpenMemory={() => setMemoryOpen(true)}
         practice={practice}
+        reader={reader}
       />
       {memoryOpen && (
         <ForgettingCurveModal
@@ -1015,10 +1034,23 @@ export function ForgettingCurveModal({
  * 下部パネルなので、中身が増えても「次へ」が押せなくならないよう
  * ここだけを高さ上限つきでスクロールさせる。
  */
-export function AnswerExplain({ card }: { card: DueReviewCard }) {
+export function AnswerExplain({
+  card,
+  meaning,
+}: {
+  card: DueReviewCard;
+  /**
+   * 読む人の言語の意味（4択の問いと同じ物 — `quizPromptMeaning`）。渡さなければ共有の意味を
+   * 読む人の言語のときだけ出す（英語・繁體中文の人に日本語の意味を出さない。2026-10-02）。
+   */
+  meaning?: string;
+}) {
   const t = useT();
   const uiLang = useUiLang();
   const ex = card.explain;
+  const shownMeaning = meaning ?? readerMeaning(card.meaning_ja, uiLang);
+  // よく使う形の訳も読む人の言語の物だけ（古い語は作った日の言語のまま残っている）。
+  const topChunkGloss = readerMeaning(card.top_chunk?.ja, uiLang);
   const chunks = ex?.chunks ?? [];
   const related = ex?.related ?? [];
   const measures = ex?.measures ?? [];
@@ -1034,7 +1066,7 @@ export function AnswerExplain({ card }: { card: DueReviewCard }) {
    */
   if (!ex) {
     const hasExample = Boolean(card.example_sentence);
-    if (!card.top_chunk && !card.meaning_ja && !hasExample) return null;
+    if (!card.top_chunk && !shownMeaning && !hasExample) return null;
     return (
       <div className="mb-1 space-y-1.5">
         {card.top_chunk && (
@@ -1043,15 +1075,15 @@ export function AnswerExplain({ card }: { card: DueReviewCard }) {
             <span lang="zh-Hant" className="ml-2 text-body font-semibold">
               {card.top_chunk.zh}
             </span>
-            {card.top_chunk.ja && (
-              <span className="ml-2 text-footnote text-muted-foreground">{card.top_chunk.ja}</span>
+            {topChunkGloss && (
+              <span className="ml-2 text-footnote text-muted-foreground">{topChunkGloss}</span>
             )}
           </div>
         )}
-        {card.meaning_ja && (
+        {shownMeaning && (
           <div className="rounded-xl bg-secondary/60 px-3 py-2">
             <ExplainLabel>{t("rv.meaning")}</ExplainLabel>
-            <span className="ml-2 text-body">{card.meaning_ja}</span>
+            <span className="ml-2 text-body">{shownMeaning}</span>
           </div>
         )}
         {hasExample && (
@@ -1174,15 +1206,44 @@ export function LightModeCard({
   onNext,
   onOpenMemory,
   practice = false,
+  reader,
 }: {
   card: DueReviewCard;
   onNext: (correct?: boolean) => void;
   onOpenMemory?: () => void;
   /** Local first-run exercise: never writes a scheduled review. */
   practice?: boolean;
+  /** その人向けの解説（単語の詳細と同じ行。`useReviewReaderExplanations`）。 */
+  reader?: ReaderReviewView;
 }) {
   const grade = useServerFn(gradeReview);
   const t = useT();
+  const uiLang = useUiLang();
+  /**
+   * 問いの「」に入れる意味（オーナー報告 2026-10-02、絵つき「Which one means
+   * “グラタンマカロニ”?」— 英語・繁體中文の表示で日本語の意味が出ていた）。
+   * 共有の意味が読む人の言語ならそのまま（日本語の表示は今と同じ）、違えばその人向けの
+   * 解説の意味 → 図鑑と同じ覚え置き（無ければ埋めに行く）。どれも無ければ写真で問う。
+   */
+  // 共有の意味が読む人の言語なら引かない（日本語の表示で日本語の語は、今と同じく問い合わせない）。
+  const sharedFits = !!readerMeaning(card.meaning_ja, uiLang).trim();
+  const cachedMeaning = useReaderMeaningFor(
+    practice || sharedFits ? null : card.word_id,
+    uiLang,
+    card.meaning_ja,
+  );
+  const promptMeaning = quizPromptMeaning({
+    shared: card.meaning_ja,
+    headword: card.headword,
+    explanation: reader?.meaning,
+    cached: cachedMeaning,
+    lang: uiLang,
+  });
+  /** 答え合わせに出す解説。その人向けの解説に中身があればそちら（`pickReviewExplain`）。 */
+  const answerCard: DueReviewCard = {
+    ...card,
+    explain: pickReviewExplain(card.explain, reader?.explain),
+  };
   const phonetic = usePhoneticPref();
   /** 注音を字の右に縦に組むか（注音を選んでいて、学習言語に注音があるとき）。 */
   const zhuyinBeside =
@@ -1192,6 +1253,11 @@ export function LightModeCard({
   const photoPref = usePhotoPref();
   /** 4択の表に出す1枚。設定で主役を選んでいれば、そちらを先に見る。 */
   const heroUrl = stickerPhotoUrl(card, { prefer: resolvePrefer(photoPref, "cutout") });
+  /**
+   * 写真も読む人の言語の意味も無い札は、写真で問うこともできない（文字で入れた語）。
+   * そのときだけ共有の意味をそのまま出す — 問題として成り立たないよりはまし。
+   */
+  const promptText = promptMeaning || (heroUrl ? "" : card.meaning_ja);
   const [picked, setPicked] = useState<string | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
   const startedAt = useRef<number>(Date.now());
@@ -1303,9 +1369,15 @@ export function LightModeCard({
         )}
         <div className="mb-1.5 shrink-0 text-center">
           <div className="text-body font-semibold leading-snug">
-            {t("rv.whichIsBefore")}
-            {card.meaning_ja}
-            {t("rv.whichIsAfter")}
+            {promptText ? (
+              <>
+                {t("rv.whichIsBefore")}
+                {promptText}
+                {t("rv.whichIsAfter")}
+              </>
+            ) : (
+              t("rv.whichIsThis")
+            )}
           </div>
         </div>
         {/**
@@ -1549,7 +1621,7 @@ export function LightModeCard({
                   )}
                 </div>
 
-                <AnswerExplain card={card} />
+                <AnswerExplain card={answerCard} meaning={promptMeaning} />
 
                 <div className="mt-2 flex gap-2">
                   {/* **図鑑のその語へ**（オーナー指示 2026-09-28「復習の4択の正解、不正解の欄に

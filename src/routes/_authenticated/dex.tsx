@@ -33,7 +33,8 @@ import {
   Pencil,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
-import { useT, TARGET_LANG_LABEL_KEYS } from "@/lib/i18n";
+import { getUiLang, useT, TARGET_LANG_LABEL_KEYS } from "@/lib/i18n";
+import { readerMeaningCached } from "@/lib/reader-meanings";
 import { formatCount } from "@/lib/count";
 import { normalizeTargetLanguage } from "@/lib/target-lang";
 import { Zh } from "@/components/Zh";
@@ -372,6 +373,7 @@ function DexPage() {
             word: s.word,
             headword: s.word.headword,
             meaning: s.word.meaning_ja,
+            wordId: s.word_id,
             thumb: s.cutout_thumb_url ?? s.cutout_url ?? s.object_thumb_url ?? s.object_url,
           }))}
           onApply={cats.setMembers}
@@ -399,6 +401,9 @@ export function filterDexStickers(
   const q = search.trim().toLowerCase();
   const byFilter = applyDexFilter(captured, filter);
   if (!q) return byFilter;
+  // 意味は**画面に出ている物でも**引けるようにする（英語・繁體中文の人は、その人の言語の
+  // 意味を見て打つ。共有の意味は別の言語のことがある — 2026-10-02）。
+  const lang = getUiLang();
   return byFilter.filter((s) => {
     const w = s.word;
     // カテゴリーは**表示名でも**引けるようにする(NORI指定)。
@@ -411,6 +416,7 @@ export function filterDexStickers(
       w.reading_zhuyin?.toLowerCase().includes(q) ||
       w.pinyin?.toLowerCase().includes(q) ||
       w.meaning_ja?.toLowerCase().includes(q) ||
+      readerMeaningCached(s.word_id, lang).toLowerCase().includes(q) ||
       catKey.toLowerCase().includes(q) ||
       catLabel.toLowerCase().includes(q)
     );

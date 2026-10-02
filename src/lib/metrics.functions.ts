@@ -38,6 +38,8 @@ const APP_EVENTS = [
   "bg_failed_photo_upload",
   "bg_failed_thumb_upload",
   "bg_failed_review_grade",
+  "bg_failed_reader_meaning",
+  "bg_failed_reader_explain",
 ] as const;
 export type AppEventKind = (typeof APP_EVENTS)[number];
 

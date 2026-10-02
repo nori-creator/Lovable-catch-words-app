@@ -122,3 +122,13 @@ The minimum review experience should be intentionally small.
 - Diary book, left page: keeps the book's own paper look (white mount, masking tape, bold word, brown handwritten note ≤3 lines) but photos sit where the home album puts them (size / angle / stacking), from the single layout function `lib/album-day-layout.ts`. Since 2026-10-02 home and book share one page-shaped board (1 : 1.35): every photo of a day fits inside it (1–4 columns), the book paints the same board scaled to the page, no "— N枚" suffix, date headings in the app sans font. Nothing is laid over the book (an overlay drifted from the page). Long-pressing the book's left page opens the same arrange screen as home (`BookAlbumEditor`, full-screen); Done saves like home and the open book repaints (`refreshDays`). Photos hidden from the home album are not pasted. When touching the layout function, compare `home-vs-book` (7/4/2/1 photos): home and book must show the same placement, nothing clipped, and saved placements below the page must still be visible (board grows).
 - Note (ひと言) can be edited from word detail and the home album (arrange mode) — not from the diary book; owner only (`updateStickerCaption`), empty saves as removed.
 - Account delete confirmation accepts 削除 / DELETE / 刪除 in every UI language. Auth failures are shown in the UI language (`authErrorText`); raw server messages are never toasted (`readableError`).
+
+## Reader-language checks (2026-10-02)
+
+With words collected in Japanese, switch the display language to English and then 繁體中文 (learning Taiwanese Mandarin):
+
+- Review quiz: the prompt never shows a Japanese meaning ("Which one means “notebook”?" / 「記事用的本子」是哪一個？); while no reader-language meaning exists yet it asks "Which one is this?" with the photo.
+- Answer sheet: pattern, related-word and measure-word glosses appear in the display language once the reader explanation exists (generated in the background for the current and next card); the POS legend reads Noun / Verb / … (名詞 / 動詞 / 狀態動詞(形容詞) in 繁體中文).
+- Dex cover-flow, grid, list, calendar and map day cards show a meaning under the headword in the display language; dex search also matches that meaning.
+- Word card: the 品詞 chip reads "N · Noun" / "N · 名詞" in the display language.
+- Japanese UI with Japanese words looks exactly as before (harness `review-choice&lang=ja&mixed=1&photo=1&answer=right`).

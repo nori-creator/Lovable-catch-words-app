@@ -7,6 +7,8 @@ import {
   sameKey,
   resolveDisplayWord,
   shouldWriteSharedColumns,
+  readerMeaningWriteTarget,
+  reviewNeedsReaderExplanation,
   type ExplanationRow,
 } from "./word-explanation";
 import { emptyExtras } from "./extras";
@@ -287,5 +289,75 @@ describe("意味も読む人の言語の物だけ（2026-09-29 の言語の検�
         "en",
       ).meaning,
     ).toBe("bubble tea");
+  });
+});
+
+describe("readerMeaningWriteTarget — 足りない意味をどの行に書くか（2026-10-02）", () => {
+  const row = (lang: string, l1: string, source = "ai"): ExplanationRow => ({
+    explain_lang: lang,
+    l1,
+    meaning: "ノート",
+    extras: null,
+    source,
+  });
+  const want = explanationKey("en", "en");
+
+  it("その言語の行が1つも無ければ、新しく作る", () => {
+    expect(readerMeaningWriteTarget([], want)).toEqual({ kind: "insert" });
+    expect(readerMeaningWriteTarget([row("ja", "ja")], want)).toEqual({ kind: "insert" });
+  });
+
+  it("ぴったり合う行があれば、その行の意味を書き換える", () => {
+    const exact = row("en", "en");
+    expect(readerMeaningWriteTarget([row("en", "ja"), exact], want)).toEqual({
+      kind: "update",
+      row: exact,
+    });
+  });
+
+  it("言語だけ合う行しか無ければ、**画面が出している方**へ（新しい空の行で解説を隠さない）", () => {
+    const other = row("en", "ja");
+    expect(readerMeaningWriteTarget([other], want)).toEqual({ kind: "update", row: other });
+  });
+
+  it("**人が確かめた行には書かない**", () => {
+    expect(readerMeaningWriteTarget([row("en", "en", "verified")], want)).toEqual({
+      kind: "skip",
+    });
+  });
+});
+
+describe("reviewNeedsReaderExplanation — 復習で解説を作りに行くか（2026-10-02）", () => {
+  const want = explanationKey("en", "en");
+  const full: ExplanationRow = {
+    explain_lang: "en",
+    l1: "en",
+    meaning: "notebook",
+    extras: { ...emptyExtras(), usage_context: "at school", explain_lang: "en" },
+    source: "ai",
+  };
+  const base = { loaded: true, unavailable: false, picked: null, want, sharedMeaning: "ノート" };
+
+  it("英語の人で、その人向けの解説が無く、共有の意味が日本語なら作る", () => {
+    expect(reviewNeedsReaderExplanation(base)).toBe(true);
+  });
+
+  it("繁體中文の人も同じ", () => {
+    expect(reviewNeedsReaderExplanation({ ...base, want: explanationKey("zh-TW", "zh-TW") })).toBe(
+      true,
+    );
+  });
+
+  it("**日本語の表示で日本語の語は作らない**（共有の解説のまま。今の見え方を変えない）", () => {
+    expect(reviewNeedsReaderExplanation({ ...base, want: explanationKey("ja", "ja") })).toBe(false);
+  });
+
+  it("その人向けの解説に中身があれば作らない", () => {
+    expect(reviewNeedsReaderExplanation({ ...base, picked: full })).toBe(false);
+  });
+
+  it("問い合わせが返る前・表が無い環境では作らない", () => {
+    expect(reviewNeedsReaderExplanation({ ...base, loaded: false })).toBe(false);
+    expect(reviewNeedsReaderExplanation({ ...base, unavailable: true })).toBe(false);
   });
 });
