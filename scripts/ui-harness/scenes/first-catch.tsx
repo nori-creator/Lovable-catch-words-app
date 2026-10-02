@@ -157,6 +157,9 @@ export function FirstCatchScene({ q }: { q: URLSearchParams }) {
           persist={async (next) => {
             if (q.get("fail") === "storage" && next.stage === "added")
               throw new Error("Storage full");
+            // 最初の画面の「はじめる」で保存できない端末（`?fail=start`）。理由と再試行が出るか。
+            if (q.get("fail") === "start" && next.stage === "questions")
+              throw new Error("Storage full");
             setDraft(next);
           }}
           onAccount={() => setAccount(true)}

@@ -94,6 +94,20 @@ export function FirstCatchEntry() {
   );
 }
 
+function freshFirstCatch(): FirstCatch {
+  return {
+    version: 1,
+    id: crypto.randomUUID(),
+    uiLanguage: getUiLang(),
+    targetLanguage: getTargetLang(),
+    dailyMinutes: 10,
+    stage: "intro",
+    photo: null,
+    card: null,
+    capturedAt: null,
+  };
+}
+
 export function FirstCatchFlow({
   services,
   onAccount,
@@ -155,23 +169,21 @@ export function FirstCatchFlow({
               ? handoff
               : saved?.stage !== "done" && saved
                 ? saved
-                : {
-                    version: 1,
-                    id: crypto.randomUUID(),
-                    uiLanguage: getUiLang(),
-                    targetLanguage: getTargetLang(),
-                    dailyMinutes: 10,
-                    stage: "intro",
-                    photo: null,
-                    card: null,
-                    capturedAt: null,
-                  };
+                : freshFirstCatch();
           applyFirstCatchLanguage(next);
           setDraft(next);
           if (handoff && fresh) void writeFirstCatch(next).catch(() => {});
         })
         .catch(() => {
-          if (mounted.current) setError(t("first.storage"));
+          // 読めない下書き（古い形・壊れた保存・端末の保存が使えない）でも、最初の画面は出す。
+          // 前は「保存できません」と「もう一度試す」だけの画面で止まり、しかもその
+          // ボタンは何もしなかった（再試行の中身が空のまま）。初めての人が最初に見る
+          // 画面が行き止まりにならないよう、新しい下書きで始める。保存が本当に
+          // 使えない端末では、「はじめる」を押した時に理由と再試行が最初の画面に出る。
+          if (!mounted.current) return;
+          const next = freshFirstCatch();
+          applyFirstCatchLanguage(next);
+          setDraft(next);
         });
     return () => {
       mounted.current = false;
@@ -191,8 +203,17 @@ export function FirstCatchFlow({
     else return;
     window.history.replaceState(window.history.state, "", url);
   }, [draft]);
+  /**
+   * 下書きを端末に保存してから画面を進める。保存の失敗は**保存の失敗として**伝える
+   * （`first.storage`）。前は汎用の文（「写真を残したまま、もう一度試せます」）になり、
+   * 写真をまだ撮っていない最初の画面・質問でも「写真」と出ていた。
+   */
   async function commit(next: FirstCatch) {
-    await persist(next);
+    try {
+      await persist(next);
+    } catch {
+      throw new Error("FIRST_CATCH_STORAGE");
+    }
     if (mounted.current) setDraft(next);
   }
   /**
@@ -330,6 +351,7 @@ export function FirstCatchFlow({
       FIRST_CATCH_LIMIT: "first.busy",
       FIRST_CATCH_NO_WORDS: "first.noWords",
       FIRST_CATCH_AI_FORMAT: "first.aiFormat",
+      FIRST_CATCH_STORAGE: "first.storage",
     };
     const key = known[code];
     if (key) return t(key);
@@ -359,6 +381,16 @@ export function FirstCatchFlow({
         </button>
       )}
     </div>
+  );
+  /**
+   * 最初の画面・準備の画面の失敗は、理由の1行だけ。ここの「次へ」（はじめる）が
+   * そのまま再試行なので、同じ形の青いボタンを2つ並べない（並べると「はじめる」が
+   * 背の低い画面の外へ押し出された）。
+   */
+  const inlineError = error && (
+    <p role="alert" className="first-error first-error--inline">
+      {error}
+    </p>
   );
   if (!draft) return <div className="first-questions">{errors ?? <p role="status">…</p>}</div>;
   /** いま走っている処理を捨てる（分析中でもメニューから抜けられるように）。 */
@@ -444,7 +476,14 @@ export function FirstCatchFlow({
     </TutorialSettingsContext.Provider>
   );
   if (draft.stage === "intro")
-    return <FirstCatchIntro draft={draft} busy={!!busy} onStart={() => move("questions")} />;
+    return (
+      <FirstCatchIntro
+        draft={draft}
+        busy={!!busy}
+        error={inlineError}
+        onStart={() => move("questions")}
+      />
+    );
   if (draft.stage === "questions")
     return withMenu(
       <FirstCatchQuestions
@@ -476,6 +515,7 @@ export function FirstCatchFlow({
       <FirstCatchReady
         draft={draft}
         busy={!!busy}
+        error={inlineError}
         onBack={() => move("notifications")}
         onStart={() => move("home")}
       />,

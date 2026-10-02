@@ -98,7 +98,7 @@ export function AlbumPrint({
         </span>
         <span className="collage__margin">
           {plainWord ? (
-            <span className="collage__margin-word">{word}</span>
+            <span className="collage__margin-word album-print__label">{word}</span>
           ) : (
             <Term lang={lang} className="collage__margin-word">
               {word}

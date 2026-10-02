@@ -6422,18 +6422,49 @@ describe("R25（2026-09-30: ベータテストの指摘・最初の画面の4枚
     expect(focus).toMatch(/if \(!supported\.pointsOfInterest\) return null;/);
   });
 
-  it("初回の画面の写真には留め具を付けず、最初の画面は3つの並べ方から選べる", () => {
+  it("初回の画面の写真には留め具を付けず、最初の画面は6つの並べ方から選べる（本番は1か所で決まる）", () => {
     const pages = codeOnly(read("components/onboarding/FirstCatchPages.tsx"));
-    expect(pages).toMatch(/WELCOME_LAYOUTS = \["mosaic", "frame", "bouquet"\]/);
+    expect(pages).toMatch(
+      /WELCOME_LAYOUTS = \[\s*"mosaic",\s*"frame",\s*"bouquet",\s*"scatter",\s*"hero",\s*"cascade",?\s*\]/,
+    );
     expect(pages).toMatch(/layout=\{DEFAULT_WELCOME_LAYOUT\}/);
+    // 本番はオーナーが選ぶまで C のまま。確認用ページだけが新しい案のおすすめを先に見せる。
     expect(pages).toMatch(/DEFAULT_WELCOME_LAYOUT: WelcomeLayout = "bouquet"/);
+    expect(pages).toMatch(/RECOMMENDED_WELCOME_LAYOUT: WelcomeLayout = "scatter"/);
     expect(pages.match(/fasteners=\{false\}/g)?.length).toBe(2);
     expect(codeOnly(read("components/onboarding/FirstCatchQuestions.tsx"))).toMatch(
       /fasteners=\{false\}/,
     );
     const css = read("components/onboarding/first-catch.css");
-    for (const l of ["mosaic", "frame", "bouquet"])
+    for (const l of ["mosaic", "frame", "bouquet", "scatter", "hero", "cascade"])
       expect(css).toContain(`.first-print-stack--${l}`);
+  });
+
+  it("最初の画面は束が残りの高さを取り、ログインの入口は押せる高さで少し離す", () => {
+    const css = read("components/onboarding/first-catch.css");
+    // 束の高さを決め打ちすると、背の高い画面で「はじめる」の上に大きな空白が残る。
+    expect(css).toMatch(/\.first-polaroids \{[^}]*flex: 1 1 0;/);
+    expect(css).toMatch(/\.first-intro \{[^}]*height: max\(var\(--first-viewport-height/);
+    expect(css).toMatch(/\.first-secondary \{[^}]*display: flex;[^}]*min-height: 44px;/);
+    expect(css).toMatch(/\.first-standalone-footer \.first-secondary \{[^}]*margin: 6px auto/);
+    // 新しい3案は写真の比のまま（紙の縁のぶんも足して切らない）。
+    expect(css).toMatch(/height: calc\(var\(--print-ratio\) \* \(var\(--pw\) - 10px\) \+ 5px\)/);
+    // 最初の画面で先読みするのは、最初の画面に出る4枚だけ。
+    const welcome = codeOnly(read("routes/welcome.tsx"));
+    expect(welcome).toMatch(/WELCOME_IMAGES\.map/);
+    const images = codeOnly(read("lib/first-catch-images.ts"));
+    for (const photo of ["cafe", "flower", "cat", "ready"])
+      expect(images).toMatch(new RegExp(`"/first-catch-${photo}\\.webp"`));
+  });
+
+  it("最初の画面・準備の画面でも保存の失敗を出し、読めない下書きで行き止まりにしない", () => {
+    const flow = codeOnly(read("components/onboarding/FirstCatchFlow.tsx"));
+    expect(flow).toMatch(/<FirstCatchIntro[^>]*error=\{inlineError\}/);
+    expect(flow).toMatch(/<FirstCatchReady[^>]*error=\{inlineError\}/);
+    expect(flow).toMatch(/FIRST_CATCH_STORAGE: "first\.storage"/);
+    expect(flow).not.toMatch(
+      /\.catch\(\(\) => \{\s*if \(mounted\.current\) setError\(t\("first\.storage"\)\);/,
+    );
   });
 
   it("量詞の「個」は、見出し・量詞の欄・一覧のどこでも輕聲で出す", () => {
