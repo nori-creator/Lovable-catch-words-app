@@ -26,7 +26,9 @@ const KNOWN: Record<string, number> = {
   "src/routes/_authenticated/admin.metrics.tsx": 36,
   // 利用者ごとの情報（開発者だけ、2026-09-27）。全体のグラフと比較を足した（2026-09-28）。
   // 写真の保存の失敗の回数（2026-09-30、開発者だけ）。裏の処理の失敗の回数（2026-10-01、開発者だけ）。
-  "src/routes/_authenticated/admin.users.tsx": 72,
+  // 2026-10-02 グラフを細かくした（日ごと・週ごと・記憶の段・予定・時間帯・曜日・滞在・AI の
+  // 種類の見出しと単位、一覧の「最後に使った順」の注）。開発者だけが見る画面のまま。
+  "src/routes/_authenticated/admin.users.tsx": 139,
   "src/routes/_authenticated/scan.tsx": 4,
   // 設定の開発者欄「文字検索のAI画像」（管理者だけが見る。2026-09-28 main から）。
   "src/routes/_authenticated/settings.tsx": 12,

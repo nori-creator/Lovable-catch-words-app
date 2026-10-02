@@ -3,12 +3,20 @@ import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import {
   aiCostEstimate,
+  dailyActivity,
   dailyCounts,
+  dueSchedule,
+  latestIso,
   median,
+  memoryLevelCounts,
   percentileRank,
   retention,
+  sessionLengthBuckets,
   sessionMinutes,
+  sessionSpans,
   streaks,
+  weekdayCounts,
+  weeklyReviews,
 } from "@/lib/admin-user-stats";
 import { taipeiDay } from "./taipei-day";
 
@@ -45,6 +53,11 @@ export type AdminUserRow = {
   ui_language: string | null;
   plan: string | null;
   stickers: number;
+  /**
+   * 最後に使った時刻: アプリを開いた（`app_open` / `session_start`）・撮った・復習した、の
+   * いちばん新しいもの。開いた記録は 2026-09 からしか無いので、それより前の人も撮った・
+   * 復習した時刻で並ぶ。一覧はこの新しい順（`adminUserList`）。
+   */
   last_active: string | null;
 };
 
@@ -53,24 +66,36 @@ export const listAdminUsers = createServerFn({ method: "GET" })
   .handler(async ({ context }): Promise<AdminUserRow[]> => {
     await requireAdmin(context);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const [profiles, stickers, events] = await Promise.all([
+    // 並びは「最後に使った順」（2026-10-02）。登録の新しい300人だけを読むと、前から使い
+    // 続けている人が一覧から落ちるので、上限を上げた（読むのは短い列だけ）。
+    const [profiles, stickers, events, reviewed] = await Promise.all([
       supabaseAdmin
         .from("profiles")
         .select("id, display_name, created_at, target_language, ui_language, plan")
         .order("created_at", { ascending: false })
-        .limit(300),
-      supabaseAdmin.from("stickers").select("user_id").limit(50000),
+        .limit(2000),
+      supabaseAdmin.from("stickers").select("user_id, created_at").limit(50000),
       supabaseAdmin
         .from("usage_events")
         .select("user_id, created_at")
         .in("kind", ["app_open", "session_start"])
         .order("created_at", { ascending: false })
         .limit(20000),
+      supabaseAdmin
+        .from("review_history")
+        .select("user_id, reviewed_at")
+        .order("reviewed_at", { ascending: false })
+        .limit(20000),
     ]);
     const count = new Map<string, number>();
-    for (const s of stickers.data ?? []) count.set(s.user_id, (count.get(s.user_id) ?? 0) + 1);
-    const last = new Map<string, string>();
-    for (const e of events.data ?? []) if (!last.has(e.user_id)) last.set(e.user_id, e.created_at);
+    const last = new Map<string, string | null>();
+    const bump = (uid: string, iso: string) => last.set(uid, latestIso(last.get(uid), iso));
+    for (const s of stickers.data ?? []) {
+      count.set(s.user_id, (count.get(s.user_id) ?? 0) + 1);
+      bump(s.user_id, s.created_at);
+    }
+    for (const e of events.data ?? []) bump(e.user_id, e.created_at);
+    for (const r of reviewed.data ?? []) bump(r.user_id, r.reviewed_at);
     return (profiles.data ?? []).map((p) => ({
       id: p.id,
       display_name: p.display_name,
@@ -128,7 +153,11 @@ async function buildDetail(userId: string) {
       .eq("user_id", userId)
       .gte("reviewed_at", since)
       .limit(10000),
-    db.from("reviews").select("due_at, interval_days").eq("user_id", userId).limit(10000),
+    db
+      .from("reviews")
+      .select("due_at, interval_days, ease, last_reviewed_at, created_at")
+      .eq("user_id", userId)
+      .limit(10000),
     db
       .from("usage_events")
       .select("kind, created_at")
@@ -181,7 +210,13 @@ async function buildDetail(userId: string) {
   type Rh = { reviewed_at: string; correct: boolean | null; response_ms: number | null };
   const rh = (history.data ?? []) as Rh[];
   const last30 = Date.now() - 30 * 86400 * 1000;
-  type Rv = { due_at: string | null; interval_days: number | null };
+  type Rv = {
+    due_at: string | null;
+    interval_days: number | null;
+    ease: number | null;
+    last_reviewed_at: string | null;
+    created_at: string | null;
+  };
   const rv = (reviews.data ?? []) as Rv[];
   const now = Date.now();
 
@@ -209,8 +244,47 @@ async function buildDetail(userId: string) {
   type Ar = { tokens_in: number | null; tokens_out: number | null };
   const ar = (runs.data ?? []) as Ar[];
 
+  // **グラフ用の細かい数**（2026-10-02「もっと詳しく、細かく、見やすく」）。どれも上で
+  // 読んだ記録から作る（新しい問い合わせは足さない）。
+  const today = dayKey(new Date().toISOString());
+  const rhAt = rh.map((r) => ({
+    at: r.reviewed_at,
+    correct: r.correct,
+    response_ms: r.response_ms,
+  }));
+  const spans = sessionSpans(ue);
+
   return {
     profile: profile.data as Record<string, string | number | boolean | null>,
+    /** 最後に使った時刻（開いた・撮った・復習した、の新しい方。一覧の並びと同じ考え方）。 */
+    // 記録は数万件になりうるので、関数の引数に広げず1件ずつ比べる。
+    lastActive: [
+      st[0]?.created_at,
+      ...rh.map((r) => r.reviewed_at),
+      ...ue.map((e) => e.created_at),
+    ].reduce<string | null>((a, b) => latestIso(a, b), null),
+    /** 日ごとの動き（90日、古い順）。画面で 14 / 30 / 90 日に切って出す。 */
+    daily: dailyActivity({
+      today,
+      days: 90,
+      dayOf: dayKey,
+      catches: st.map((s) => s.created_at),
+      reviews: rhAt,
+      usage: ue,
+    }),
+    /** 週ごとの復習の正答率と答えるまでの秒（26週 = 読んでいる180日）。 */
+    weekly: weeklyReviews(rhAt, today, 26, dayKey),
+    memory: {
+      /** 記憶の段0〜5の札の数（アプリの画面と同じ計算）。 */
+      levels: memoryLevelCounts(rv, now),
+      /** 期限切れと、これから14日の期限。 */
+      schedule: dueSchedule(
+        rv.map((r) => r.due_at),
+        today,
+        14,
+        dayKey,
+      ),
+    },
     catches: {
       total: st.length,
       first: st.length ? st[st.length - 1].created_at : null,
@@ -248,6 +322,14 @@ async function buildDetail(userId: string) {
     },
     usage: {
       sessions: sessionMinutes(ue),
+      /** 1回の滞在の長さの分布。 */
+      sessionBuckets: sessionLengthBuckets(spans.map((s) => s.min)),
+      /** 開いた曜日（月〜日、台湾時間）。 */
+      weekdays: weekdayCounts(
+        ue
+          .filter((e) => e.kind === "session_start" || e.kind === "app_open")
+          .map((e) => dayKey(e.created_at)),
+      ),
       openDays: new Set(ue.filter((e) => e.kind === "app_open").map((e) => dayKey(e.created_at)))
         .size,
       hours,

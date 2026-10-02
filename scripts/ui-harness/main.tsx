@@ -348,16 +348,19 @@ const q = new URLSearchParams(location.search);
  * 「これを見てください」と差し出すことになる。
  */
 const REVIEW_SCENES: Array<{ scene: string; label: string }> = [
-  // 2026-09-30「パスワード忘れた時にパスワードリセットできるようにして」。
-  { scene: "auth&email=1", label: "ログイン: パスワード欄の下に「パスワードを忘れた方」" },
+  // 2026-10-02「利用者ごとの情報のチャートやグラフをもっと詳しく、細かく、見やすいように
+  // アップデートして。…名前なしのユーザーは消して、一覧は最も最近利用した人順に」。
   {
-    scene: "reset-password",
-    label: "再設定: メールアドレスを入れて送る（ログインで打った物を引き継ぐ）",
+    scene: "admin-users&view=user",
+    label: "ひとりの画面: 日ごとの動き（期間切替・触れると値）・復習・使い方・AI",
   },
-  { scene: "reset-password&state=sent", label: "再設定: 送った後（画面に残る案内・もう一度送る）" },
   {
-    scene: "reset-password&state=update",
-    label: "再設定: メールのリンクから戻って新しいパスワード",
+    scene: "admin-users&view=user&theme=dark",
+    label: "ひとりの画面（暗いテーマ）",
+  },
+  {
+    scene: "admin-users&view=list",
+    label: "一覧: 名前なしを外し、最後に使った順（上に全体のグラフ）",
   },
 ];
 
@@ -438,6 +441,12 @@ document.documentElement.style.setProperty(
     }
   }
 }
+/**
+ * 暗いテーマで見る(`?theme=dark`)。本番は `__root.tsx` が `<html>` に `.dark` を付ける。
+ * 端末の設定を変えずに、Deploy Preview の帯から明るい・暗いを見比べられるようにする
+ * （2026-10-02 管理画面のグラフ。色はトークンだけなので、両方で読めるかを目で確かめる）。
+ */
+if (q.get("theme") === "dark") document.documentElement.classList.add("dark");
 /**
  * 単語の詳細で、既定では畳んである節を先頭に出して撮る(`?show=real_usage`)。
  * 節の並びと表示は localStorage から読むので、これも React の前に書く。
