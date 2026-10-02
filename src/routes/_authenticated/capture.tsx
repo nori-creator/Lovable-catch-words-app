@@ -41,7 +41,7 @@ import {
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { suggestWords, generateCard, suggestWordCandidates } from "@/lib/ai.functions";
-import { isTargetHeadword } from "@/lib/target-language";
+import { isTargetHeadword, keepTargetHeadwords } from "@/lib/target-language";
 import { TARGET_LANG_LABEL_KEYS } from "@/lib/i18n";
 import { listMyStickers, saveSticker, type StickerWithWord } from "@/lib/stickers.functions";
 import { prependSticker, type StickerListCache } from "@/lib/optimistic-sticker";
@@ -436,7 +436,10 @@ function CapturePage() {
   useEffect(() => {
     if (!wordParam || handledParamRef.current === `w:${wordParam}`) return;
     handledParamRef.current = `w:${wordParam}`;
-    void confirmWord(wordParam);
+    // 打った語と同じ道（`searchWord`）を通す。学習言語の語ならそのまま
+    // `confirmWord` へ進み、そうでなければ学習言語の語に直してから進む。
+    // 直に `confirmWord` へ渡すと、渡された語が何語でも見出しになる。
+    void searchWord(wordParam);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [wordParam]);
 
@@ -467,10 +470,15 @@ function CapturePage() {
       setPendingId(q.id);
       pendingIdRef.current = q.id;
     });
-    const first: Suggestion = { headword: h.headword, ...h.hint };
-    if (h.alternatives.length > 0) {
-      setSuggestions([
-        first,
+    /**
+     * **学習言語の語だけを受け取る**（オーナー報告 2026-10-02「英語の図鑑に
+     * ノート」「英語の復習に拿鐵」）。スキャンの側でも絞っているが、
+     * 受け渡しは前の版の画面が置いた物かもしれない。1つも残らなければ、
+     * 渡された写真をこの画面の解析にかけ直す（撮り直させない）。
+     */
+    const offered = keepTargetHeadwords(
+      [
+        { headword: h.headword, ...h.hint },
         ...h.alternatives.map((alt) => ({
           headword: alt,
           reading_zhuyin: "",
@@ -478,10 +486,16 @@ function CapturePage() {
           meaning_ja: "",
           category_key: h.hint.category_key,
         })),
-      ]);
+      ],
+      targetLanguage,
+    );
+    if (offered.length === 0) {
+      void runAi(h.image);
+    } else if (offered.length > 1) {
+      setSuggestions(offered);
       setStep("select");
     } else {
-      void confirmWord(h.headword, first);
+      void confirmWord(offered[0].headword, offered[0]);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -633,7 +647,9 @@ function CapturePage() {
         ),
       ]);
       if (runTokenRef.current !== token) return;
-      setSuggestions(suggestRes.suggestions);
+      // **学習言語の語だけを並べる**（サーバも絞るが、ここが保存の入口なので
+      // もう一度。オーナー報告 2026-10-02「英語の図鑑にノート」）。
+      setSuggestions(keepTargetHeadwords(suggestRes.suggestions, targetLanguage));
       showAnalysisStep("select");
     } catch (e) {
       console.error(e);
@@ -1080,6 +1096,17 @@ function CapturePage() {
    */
   async function handleSave() {
     if (!card || !selectedHead || saving) return;
+    /**
+     * **学習言語の語でなければ保存しない**（オーナー報告 2026-10-02
+     * 「英語の図鑑にノート」— 英語を学んでいる人の写真のキャッチが、
+     * カタカナの「ノート」を `en` の語として保存していた）。
+     * サーバの関所（`upsertWord`）も同じ判定で止めるが、そこまで行くと
+     * 祝いの演出が始まってから謝ることになる。押した時点で理由を出す。
+     */
+    if (!isTargetHeadword(selectedHead, targetLanguage)) {
+      toast.error(t("err.notTargetLanguage"));
+      return;
+    }
     pronounce.prepare();
     const hero = objectImg;
     // 文字で入れた語には写真が無い。**飛ぶ物が無いのだから飛ばさない。**

@@ -1237,6 +1237,15 @@ export const DICT: Record<string, Record<UiLang, string>> = {
     "zh-TW": "已經加進圖鑑了（動畫途中出了點狀況）。",
   },
   "cap.saveFailed": { ja: "保存に失敗しました", en: "Couldn't save", "zh-TW": "儲存失敗" },
+  /**
+   * 保存の関所が、学習言語の字でない見出し語を止めたとき（オーナー報告
+   * 2026-10-02「英語の図鑑にノート」）。**何が起きたか**と**次に何をするか**を言う。
+   */
+  "err.notTargetLanguage": {
+    ja: "学習している言語の単語ではないため、図鑑に入れられませんでした。別の候補を選んでください。",
+    en: "This isn't a word in the language you're learning, so it wasn't added. Pick another word.",
+    "zh-TW": "這不是你正在學的語言的單字，所以沒有加入圖鑑。請選擇其他單字。",
+  },
   "cap.recordFailed": { ja: "記録に失敗しました", en: "Couldn't record that", "zh-TW": "紀錄失敗" },
   "cap.photoTaken": { ja: "撮った写真", en: "The photo you took", "zh-TW": "拍下的照片" },
   // 撮った後の候補（2段、オーナー指示 2026-09-27）。

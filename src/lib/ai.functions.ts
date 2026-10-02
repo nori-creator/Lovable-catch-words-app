@@ -39,7 +39,7 @@ import { CardSchema, CardShapeError, type GeneratedCard } from "./card-schema";
 // 5箇所が `@/lib/ai.functions` から型を取っている。移した都合を
 // 呼ぶ側に押し付けない。
 export type { GeneratedCard };
-import { coerceTargetHeadword, isTargetHeadword } from "./target-language";
+import { coerceTargetHeadword, isTargetHeadword, keepTargetHeadwords } from "./target-language";
 import { taiwanUsageFrom } from "./taiwan-usage";
 import {
   REGEN_SECTIONS,
@@ -240,8 +240,24 @@ ${distinctionRule(profile.promptName, profile.capture.distinctionExamples)}
 
     try {
       const parsed = SuggestionSchema.parse(parseJsonFromAiText(content));
+      /**
+       * **学習言語の語だけを返す**（オーナー報告 2026-10-02「英語の図鑑に
+       * ノートが入っている」）。指示文に「他の言語の語を混ぜない」と書いても、
+       * 返ってくる物は別。ここは打った語の候補（`suggestWordCandidates`）と
+       * 違って**関所が無く**、英語を学ぶ人の候補に「ノート」がそのまま出て、
+       * 選ぶと `en` の語として保存されていた。直せる物は直し（注釈を落とす）、
+       * 直せない物は捨てる（`keepTargetHeadwords`）。
+       */
+      const usable = keepTargetHeadwords(parsed.suggestions, data.targetLanguage);
+      if (usable.length === 0 && parsed.suggestions.length > 0) {
+        // 全部が別の言語だった回。**黙って0件にしない** — 画面は「候補が無い」としか言えない。
+        console.warn("suggestWords: 学習言語の候補が1つも無い", {
+          target: data.targetLanguage,
+          heads: parsed.suggestions.map((x) => x.headword).slice(0, 6),
+        });
+      }
       return {
-        suggestions: orderByRegister(parsed.suggestions).map((s) => ({
+        suggestions: orderByRegister(usable).map((s) => ({
           ...s,
           // 候補の意味も語の長さに（R17「湯咖哩の英語の単語の候補…が長すぎる」）。
           meaning_ja: shortMeaning(s.meaning_ja),

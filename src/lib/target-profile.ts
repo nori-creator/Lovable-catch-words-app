@@ -372,16 +372,45 @@ export type TargetProfile = {
  * (実際、最初の版のここは `[A-Za-z]` だけだった)。**正は1つ。**
  */
 const KANA = /[ぁ-ゟァ-ヺヽヾ]/;
-/** 漢字(CJK統合漢字 + 拡張A + 繰り返し記号 々)。 */
-const HAN = /[㐀-䶿一-鿿々]/;
+/**
+ * 漢字(CJK統合漢字 + 拡張A + 繰り返し記号 々 + 漢数字のゼロ 〇)。
+ *
+ * 〇 は 2026-10-02 に足した（「二〇二六年」の 〇 は漢字の仲間として書かれる。
+ * 足さないと 〇 だけの所で判定が漢字を見失う）。
+ */
+const HAN = /[㐀-䶿一-鿿々〇]/;
 /** ラテン文字とキリル文字、ハングル。 */
 const NON_CJK_LETTER = /[A-Za-zЀ-ӿ가-힯]/;
+
+/** 英語の見出し語に使ってよい字(ラテン文字・アクセント付き・数字・&)。 */
+const EN_HEADWORD = /^[A-Za-z0-9À-ÖØ-öø-ɏ&]+$/;
+/** 英語の文字(数字だけの物を見出し語にしない)。 */
+const EN_LETTER = /[A-Za-zÀ-ÖØ-öø-ɏ]/;
+
+/**
+ * 漢字に**じかに**くっついた大文字1〜3字(「T恤」の T、「卡拉OK」の OK)を落とす。
+ *
+ * 落とすのはこの形だけ。「烤肉 (BBQ)」の BBQ は漢字との間に空白と括弧が
+ * 挟まる注釈なので残す（残ると落ちる → `coerceTargetHeadword` が「烤肉」に直す）。
+ * 小文字の語（「文旦juice」）・4字以上（「文旦JUICE」）も残す。
+ *
+ * 後読み `(?<=…)` は使わない — 古い iPhone の Safari(16.4 未満)は
+ * 正規表現そのものを読めず、**この表を読み込んだ画面が丸ごと動かなくなる**。
+ */
+function dropHanLatinAffixes(raw: string): string {
+  return raw.replace(/[A-Za-z]+/g, (run, at: number, whole: string) => {
+    if (run.length > 3 || !/^[A-Z]+$/.test(run)) return run;
+    const before = whole[at - 1] ?? "";
+    const after = whole[at + run.length] ?? "";
+    return HAN.test(before) || HAN.test(after) ? "" : run;
+  });
+}
 
 /** 見た目だけの飾り(空白・約物・記号)を落とす。 */
 export function headwordCore(text: string): string {
   return (text ?? "")
     .replace(/\s+/g, "")
-    .replace(/[，、。．・…！？!?,.:;：；「」『』（）()【】〔〕[\]{}"'’”—–\-~〜]/g, "");
+    .replace(/[，、。．・…！？!?,.:;：；「」『』（）()【】〔〕[\]{}"'‘’“”—–\-~〜]/g, "");
 }
 
 const core = headwordCore;
@@ -540,7 +569,10 @@ export const ZH_TW_PROFILE: TargetProfile = {
       "（✗ 滷味＋入味 → ○ 滷味＋很＋入味、✗ 珍珠奶茶＋好喝 → ○ 珍珠奶茶＋超＋好喝）。",
   },
   headwordOk: (raw) => {
-    const s = core(raw);
+    // 「T恤」「卡拉OK」「Q彈」のような**漢字にくっついた大文字1〜3字**は、
+    // 台湾華語の語の一部として普通に書く（候補の指示文も「短袖」より「T恤」と
+    // 言っている）。そこだけ欧文を許し、ほかは落とす（下の注）。
+    const s = core(dropHanLatinAffixes(raw ?? ""));
     if (!s) return false;
     // かなを含む(「シャーペン」)、欧文を含む(「pencil」)は通さない。
     // 通すと**自分の母語を台湾華語の単語として覚える**ことになる。
@@ -716,7 +748,12 @@ export const EN_PROFILE: TargetProfile = {
     // 「안녕」も「Привет」も英語の見出し語ではない。飾り(空白・約物・
     // アポストロフィ・ハイフン)は `core` が既に落としているので、
     // "night market" は "nightmarket"、"don't" は "dont" になって通る。
-    return /^[A-Za-z]+$/.test(s);
+    //
+    // 2026-10-02: 数字・アクセント付きのラテン文字・& も通す
+    // （"7-Eleven" "café" "jalapeño" "R&B"）。保存の関所（`upsertWord`）が
+    // この判定を使うようになったので、英語として正しい語を落とすと
+    // その語が図鑑に入れられなくなる。**文字が1つも無い物（"123"）は落とす。**
+    return EN_HEADWORD.test(s) && EN_LETTER.test(s);
   },
 };
 
@@ -769,7 +806,7 @@ const JA_COACH: CoachPhrases = {
 };
 
 /** 日本語の文字(かな・漢字・長音符・々・〆・ヶ)だけでできているか。 */
-const JA_ONLY = /^[ぁ-ゟァ-ヺー・ヽヾ㐀-䶿一-鿿々〆ヶ]+$/;
+const JA_ONLY = /^[ぁ-ゟァ-ヺー・ヽヾ㐀-䶿一-鿿々〇〆ヶ]+$/;
 
 export const JA_PROFILE: TargetProfile = {
   code: "ja",

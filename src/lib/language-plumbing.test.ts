@@ -456,7 +456,8 @@ describe("中身の無いプロフィールで端末の言語を上書きしな�
     expect(src).toMatch(/localStorage\.removeItem\(REVIEW_CACHE_KEY\)/);
     expect(src).toMatch(/resetQueries\(\{ queryKey: \["reviews-due"\] \}\)/);
     const review = codeOnly(read("routes/_authenticated/review.tsx"));
-    expect(review).toMatch(/matchesTargetLanguage\(c\.language, target\)/);
+    // 2026-10-02 から見出しの字も見る（`wordBelongsToTarget` は言語の列の判定を含む）。
+    expect(review).toMatch(/wordBelongsToTarget\(c, target\)/);
   });
 
   it("設定の画面も同じ規則で突き合わせ、揃えるために書き戻す", () => {
@@ -1213,7 +1214,8 @@ describe("2026-08-26 の2度目の報告", () => {
     const src = codeOnly(read("lib/reviews.functions.ts"));
     const fn = src.slice(src.indexOf("export const getMemoryOverview"));
     expect(fn).toMatch(/words\(headword, language\)/);
-    expect(fn).toMatch(/matchesTargetLanguage\(r\.stickers\?\.words\?\.language, targetLanguage\)/);
+    // 言語の列と見出しの字の両方（2026-10-02、`wordBelongsToTarget`）。
+    expect(fn).toMatch(/wordBelongsToTarget\(r\.stickers\?\.words, targetLanguage\)/);
   });
 
   it("4択の**受け皿**もその言語のもの", () => {
@@ -1523,7 +1525,7 @@ describe("2026-08-26: 見出し語を直せる", () => {
   it("**母語のまま通さない**（直したのにまた母語になる）", () => {
     const src = codeOnly(read("lib/stickers.functions.ts"));
     const fn = src.slice(src.indexOf("export const setStickerHeadword"));
-    expect(fn.slice(0, 2000)).toMatch(/if \(!isTargetHeadword\(headword, language\)\)/);
+    expect(fn.slice(0, 2000)).toMatch(/assertTargetHeadword\(headword, language\)/);
   });
 
   it("**自分の札だけ**", () => {
@@ -1600,7 +1602,8 @@ describe("2026-08-26（7件目）: 文字検索・言語の切り替え・記憶
     const deck = src.slice(src.indexOf("const { data: deckRows }"));
     const body = deck.slice(0, deck.indexOf("// A3"));
     expect(body).toMatch(/words\(id, headword, language,/);
-    expect(body).toMatch(/matchesTargetLanguage\(r\.words\.language, targetLanguage\)/);
+    // 言語の列と見出しの字の両方（2026-10-02、`wordBelongsToTarget`）。
+    expect(body).toMatch(/wordBelongsToTarget\(r\.words, targetLanguage\)/);
   });
 
   it("**全体の記憶率も学習言語で分ける**", () => {
@@ -4845,23 +4848,21 @@ describe("ホームは今日の誌面", () => {
     );
     // 2026-09-24「過去のものが多すぎで画面で確認できないから、過去のものは全て
     // 削除して」: 帯には**今回の依頼の面だけ**。
-    // 2026-10-02「記憶のグラフ: 現行をベースに改良」の回。先頭は本番の復習の上部そのもの
-    // （数なし・段の帯のグラフ）。見比べ（現在・A〜D）はその後ろ。
-    expect(list.slice(0, list.indexOf("},"))).toMatch(/scene: "review-header"/);
-    expect(list).toMatch(/scene: "review-header&theme=dark"/);
-    expect(list).toMatch(/scene: "memory-designs&v=current"/);
-    expect(main).toContain('"review-header": ReviewHeaderScene');
+    // 2026-10-02「英語の図鑑にノート」の回。先頭は撮った後のカードで、学習言語の語で
+    // ない見出しを保存せずに理由を出す所（`err.notTargetLanguage`）。
+    expect(list.slice(0, list.indexOf("},"))).toMatch(
+      /scene: "capture-card&variant=not-target&lang=ja"/,
+    );
+    expect(list).toMatch(/scene: "capture-card&variant=not-target&lang=en"/);
+    expect(main).toContain('"capture-card": CaptureCardScene');
+    // 前の回（記憶のグラフ・本の左ページ・管理画面）の面は残さない。
+    expect(list).not.toMatch(/scene: "review-header/);
+    expect(list).not.toMatch(/scene: "memory-designs/);
+    expect(list).not.toMatch(/scene: "admin-users/);
     // 前の回（パスワードの再設定）の面は残さない。
     expect(list).not.toMatch(/scene: "auth&email=1"/);
     expect(list).not.toMatch(/scene: "reset-password/);
-    // 同じ回の他の面（本の左ページ・4項目を外したカード・アニメーションのスイッチ）。
-    expect(list).toMatch(/scene: "book-page"/);
-    expect(list).toMatch(/scene: "word-card"/);
-    expect(list).toMatch(/scene: "settings-toggles"/);
     // 前の回（チュートリアルの4択）の面は残さない。
-    // 同じ回の管理画面（利用者ごとのグラフ・名前なしを外す・最後に使った順）。
-    expect(list).toMatch(/scene: "admin-users&view=user"/);
-    expect(list).toMatch(/scene: "admin-users&view=list"/);
     expect(list).not.toMatch(/scene: "first-catch&step=review"/);
     // 前の回（R26/R27）の面は残さない。
     expect(list).not.toMatch(/scene: "home-shelf"/);
@@ -5659,7 +5660,10 @@ describe("スキャンの候補を押したら撮影モードと同じ流れ（�
 
   it("撮影モードは受け取ったら、撮った後の段から始める（迷った語は語を選ぶ段）", () => {
     expect(cap).toMatch(/const h = takeScanHandoff\(\);/);
-    expect(cap).toMatch(/setStep\("select"\);[\s\S]{0,80}void confirmWord\(h\.headword, first\)/);
+    // 受け取った語は学習言語の語だけに絞ってから（2026-10-02、`keepTargetHeadwords`）。
+    expect(cap).toMatch(
+      /setStep\("select"\);[\s\S]{0,80}void confirmWord\(offered\[0\]\.headword, offered\[0\]\)/,
+    );
     // 渡された写真は、同じ描画のうちに ref から読む。
     expect(cap).toMatch(/const photo = objectImageRef\.current \?\? objectImg;/);
   });

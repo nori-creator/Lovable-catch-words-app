@@ -52,7 +52,7 @@ import { Term } from "@/components/Term";
 import { ZhuyinWord } from "@/components/ZhuyinWord";
 import { pairZhuyin } from "@/lib/zhuyin-layout";
 import { getTargetLang, useTargetLang } from "@/lib/target-lang-pref";
-import { matchesTargetLanguage } from "@/lib/language-filter";
+import { wordBelongsToTarget } from "@/lib/language-filter";
 import { targetProfile } from "@/lib/target-profile";
 import { stickerPhotoUrl } from "@/lib/sticker-photo";
 import { resolvePrefer, usePhotoPref } from "@/lib/photo-pref";
@@ -151,8 +151,13 @@ function ReviewPage() {
        * 端末に残るので、英語から台湾華語へ切り替えた後も英語の4択が出ていた。
        * 判定は `language-filter.ts` の1つだけ（サーバの絞りと同じ規則）。
        */
+      /*
+       * **見出しの字も見る**（オーナー報告 2026-10-02「拿鐵の繁體中文の4択が
+       * 3.5秒出てから英語に替わる」）。「拿鐵」は `language = 'en'` で保存
+       * されていたので、言語の列だけの確かめを素通りして束ごと出ていた。
+       */
       const target = getTargetLang();
-      if (batch && !batch.cards.every((c) => matchesTargetLanguage(c.language, target))) {
+      if (batch && !batch.cards.every((c) => wordBelongsToTarget(c, target))) {
         return null;
       }
       return batch;

@@ -13,6 +13,7 @@ import {
 import { listMyStickers } from "@/lib/stickers.functions";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useTargetLang } from "@/lib/target-lang-pref";
+import { isTargetHeadword } from "@/lib/target-language";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -169,6 +170,19 @@ function ScanPage() {
    * 行っていた。
    */
   const targetLanguage = useTargetLang();
+  /**
+   * **学習言語の語だけを候補に出す。**
+   *
+   * ここは「漢字を1字でも含む物」を残す決め打ちの正規表現だった。
+   * 台湾華語しか無かった頃の名残で、英語を学ぶ人には**英語の語を全部捨て、
+   * 漢字の語だけ**を見せていた。台湾の店でメニューを写すと「拿鐵」だけが残り、
+   * それを押すと英語の語として図鑑に入った（オーナー報告 2026-10-02）。
+   * 判定は保存の関所と同じ `isTargetHeadword` ただ1つ。
+   */
+  const isTarget = (it: DetectedItem) => isTargetHeadword(it.headword, targetLanguage);
+  /** 言い換えの候補も同じ関所に通す（迷った語の「語を選ぶ」に別の言語を出さない）。 */
+  const targetAlternatives = (it: DetectedItem) =>
+    it.alternatives.filter((a) => isTargetHeadword(a, targetLanguage));
   // **何語として読むかを必ず渡す**(`playAudio` の注)。
   const pronounce = usePronounce(targetLanguage);
   // 辞書の意味は**解説を書いた言語**で入っている(`meanings` の鍵)。
@@ -545,7 +559,10 @@ function ScanPage() {
             .catch(() => {});
         }
 
-        const { items } = await detectFn({ data: { imageBase64: frame, lat, lng } });
+        // **保存に使う学習言語で探してもらう**（`detectScan` の `targetLanguage` の注）。
+        const { items } = await detectFn({
+          data: { imageBase64: frame, lat, lng, targetLanguage },
+        });
         const dt = Math.round(performance.now() - t0);
         setDetectMs(dt);
         setItems(items);
@@ -593,7 +610,7 @@ function ScanPage() {
         }, 0);
       }
     },
-    [scanning, grabFrame, detectFn, lookupFn, logEvent, items, t, geocodeFn],
+    [scanning, grabFrame, detectFn, lookupFn, logEvent, items, t, geocodeFn, targetLanguage],
   );
 
   // Success chime when items arrive.
@@ -635,7 +652,8 @@ function ScanPage() {
     (item: DetectedItem) => {
       if (!snapshot) return;
       touchedRef.current = true;
-      const unsure = item.confidence < 0.75 && item.alternatives.length > 0;
+      const alternatives = targetAlternatives(item);
+      const unsure = item.confidence < 0.75 && alternatives.length > 0;
       putScanHandoff({
         image: snapshot,
         headword: item.headword,
@@ -645,12 +663,13 @@ function ScanPage() {
           meaning_ja: item.meaning_ja ?? "",
           category_key: "",
         },
-        alternatives: unsure ? item.alternatives : [],
+        alternatives: unsure ? alternatives : [],
         loc: scanLoc,
       });
       void navigate({ to: "/capture", search: { mode: "photo" } });
     },
-    [snapshot, scanLoc, navigate],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [snapshot, scanLoc, navigate, targetLanguage],
   );
 
   /**
@@ -774,9 +793,6 @@ function ScanPage() {
   const displayPos = chosenDict?.pos ?? chip?.item.pos ?? "";
   const verified = Boolean(chosenDict && chosenDict.source === "verified");
 
-  // Only surface target-language (Chinese) words as candidates — drop English
-  // and other non-learning-language detections from the dots and the list.
-  const isTarget = (it: DetectedItem) => /[㐀-鿿豈-﫿]/.test(it.headword);
   const visibleItems = useMemo(() => {
     const list = (items ?? []).filter(isTarget);
     if (!rankOrder) return list;
@@ -785,7 +801,8 @@ function ScanPage() {
       return i < 0 ? Number.MAX_SAFE_INTEGER : i;
     };
     return [...list].sort((a, b) => at(a.id) - at(b.id));
-  }, [items, rankOrder]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [items, rankOrder, targetLanguage]);
 
   /**
    * **Jev に「どれを調べたいか」を聞き、候補の並びを替える**（オーナー指示
@@ -981,7 +998,9 @@ function ScanPage() {
                 state={dotStateFor(displayHeadword, scanCtx)}
                 foundAt={scanCtx?.owned[normHead(displayHeadword)]?.found_at ?? null}
                 candidates={
-                  chip.showingCandidates ? [chip.item.headword, ...chip.item.alternatives] : []
+                  chip.showingCandidates
+                    ? [chip.item.headword, ...targetAlternatives(chip.item)]
+                    : []
                 }
                 onPickCandidate={(h) => pickCandidate(h, chip.item)}
                 onPlay={() => playAudio(displayHeadword, chip.item)}

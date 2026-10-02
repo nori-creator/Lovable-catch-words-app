@@ -14,7 +14,10 @@ import { readySpeech } from "../speech";
 /** 候補の発音ボタンを撮るために、支度が済んだことにする(上の注と同じ)。 */
 readySpeech(["衛生紙", "面紙", "濕紙巾", "捲筒紙", "珍珠奶茶"]);
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { toast } from "sonner";
+import { Toaster } from "@/components/ui/sonner";
+import { useT } from "@/lib/i18n";
 import {
   CaptureCardPanel,
   CaptureObjectPanel,
@@ -337,6 +340,14 @@ export function CaptureObjectScene({ q }: { q: URLSearchParams }) {
  * 表(写真)と裏(自撮り)の両方を撮る。自撮りが無い回も見る。
  */
 export function CaptureCardScene({ q }: { q: URLSearchParams }) {
+  return q.get("variant") === "not-target" ? (
+    <CaptureCardNotTargetScene />
+  ) : (
+    <CaptureCardDefaultScene q={q} />
+  );
+}
+
+function CaptureCardDefaultScene({ q }: { q: URLSearchParams }) {
   const v = q.get("variant");
   const [flipped, setFlipped] = useState(v === "back" || v === "noselfie");
   const [caption, setCaption] = useState(v === "back" ? "士林夜市で並んでいるときに" : "");
@@ -379,5 +390,56 @@ export function CaptureSavingScene({ q }: { q: URLSearchParams }) {
   const landing = q.get("landing") === "1";
   return (
     <CaptureSavingPanel image={shot(600, 600, "#b07a4a")} headword="珍珠奶茶" landing={landing} />
+  );
+}
+
+/**
+ * **学習言語の語でない見出しを保存しようとした時**（オーナー報告 2026-10-02
+ * 「英語の図鑑にノートが入っている」）。英語を学ぶ人のカードの見出しが
+ * カタカナの「ノート」のまま「図鑑に追加」を押した所。本番の
+ * `handleSave` は保存せずにこの文（`err.notTargetLanguage`）を出す。
+ * サーバの関所（`upsertWord`）が止めた時も、同じ文が出る（`errors.ts`）。
+ *
+ * 見本には通知の層（`Toaster`）が無いので、ここで置く。開いた時に1度出し、
+ * 「図鑑に追加」を押すともう1度出る。
+ */
+function CaptureCardNotTargetScene() {
+  const t = useT();
+  const [flipped, setFlipped] = useState(false);
+  const [caption, setCaption] = useState("");
+  const say = () => toast.error(t("err.notTargetLanguage"), { duration: 60_000 });
+  useEffect(() => {
+    const id = window.setTimeout(say, 300);
+    return () => window.clearTimeout(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  return (
+    <>
+      <Toaster position="top-center" richColors />
+      <CaptureCardPanel
+        card={
+          {
+            reading_zhuyin: "",
+            pinyin: "",
+            meaning_ja: "書き込み用の紙を綴じたもの。手帳。",
+            part_of_speech: "n",
+            level: "A1",
+            category_key: "stationery",
+            example_sentence: "",
+            example_translation: "",
+          } as never
+        }
+        selectedHead="ノート"
+        objectImg={shot(400, 400, "#c9b48a")}
+        selfieImg={null}
+        flipped={flipped}
+        setFlipped={setFlipped}
+        caption={caption}
+        setCaption={setCaption}
+        placeName="台北"
+        onRedo={() => {}}
+        onSave={say}
+      />
+    </>
   );
 }

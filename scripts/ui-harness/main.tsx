@@ -360,41 +360,19 @@ const q = new URLSearchParams(location.search);
  * 「これを見てください」と差し出すことになる。
  */
 const REVIEW_SCENES: Array<{ scene: string; label: string }> = [
-  // 2026-10-02「記憶のグラフ: 現行をベースに改良」— 見出しの数を出さない・線は1色で
-  // 地を記憶の段の帯に分ける・撮っただけの語は 0%。本番の `ReviewSessionHeader` そのもの。
-  { scene: "review-header", label: "復習: 上部（数なし・段の帯のグラフ）" },
-  { scene: "review-header&theme=dark", label: "復習: 上部（暗いテーマ）" },
-  { scene: "review-header&open=0", label: "復習: 上部（畳んだ形）" },
-  // 2026-10-02「２つのグラフのデザインと機能を統一して。いいところを取り合って」。
-  { scene: "curve", label: "単語ごとの忘却曲線（全体のグラフと同じ作り・点で辿れる）" },
-  { scene: "curve&theme=dark", label: "単語ごとの忘却曲線（暗いテーマ）" },
-  // 2026-10-02「記憶の状態のグラフのデザイン案を複数提案して。」
-  // 案の切り替え（現在・A〜D）と、開く/畳む・明暗は場面の中にある。
-  { scene: "memory-designs&v=current", label: "復習: 記憶の状態のデザイン案（現在・A〜D）" },
-  // 2026-10-02「本のアルバムの写真の配置とホームのアルバム画像の配置は同じにして」→
-  // 「台紙を本のページの形にそろえる」。ホームと本を同じ日で並べて見比べる。
-  { scene: "home-vs-book", label: "ホームと本棚の本: 同じ台紙・同じ配置（7・4・2・1枚）" },
-  { scene: "book-page", label: "本棚: 本の左ページだけ（7・4・2・1枚）" },
-  // 2026-10-02「ホームのアルバムのように本棚のアルバムでも長押しで配置を変換できるように」。
-  { scene: "book-album-edit", label: "本棚の本を長押し: 配置を変える面（開いた所から）" },
-  { scene: "home-shelf&open=left", label: "本棚の本（3D・左ページ）: 長押しで配置の面が開く" },
-  // 2026-10-02「ネットの画像、追加の例文、発音のコツ、覚え方、の項目を消して」。
-  { scene: "word-card", label: "単語: 4項目を外したカード" },
-  // 2026-10-02「アニメーションの設定…スライドでオンとオフになるボタンに」。
-  { scene: "settings-toggles", label: "設定: アニメーションのオン・オフ" },
-  // 2026-10-02「利用者ごとの情報のチャートやグラフをもっと詳しく、細かく、見やすいように
-  // アップデートして。…名前なしのユーザーは消して、一覧は最も最近利用した人順に」。
+  // 2026-10-02「英語の図鑑にノート」「英語の復習に拿鐵の4択」— 学習言語の語でない見出しは
+  // 保存せず、理由を出す（`err.notTargetLanguage`）。表示言語ごとの文も見られるようにする。
   {
-    scene: "admin-users&view=user",
-    label: "ひとりの画面: 日ごとの動き（期間切替・触れると値）・復習・使い方・AI",
+    scene: "capture-card&variant=not-target&lang=ja",
+    label: "撮った後: 学習言語の語でない見出しは保存せず理由を出す",
   },
   {
-    scene: "admin-users&view=user&theme=dark",
-    label: "ひとりの画面（暗いテーマ）",
+    scene: "capture-card&variant=not-target&lang=en",
+    label: "撮った後: 同じ（英語の表示）",
   },
   {
-    scene: "admin-users&view=list",
-    label: "一覧: 名前なしを外し、最後に使った順（上に全体のグラフ）",
+    scene: "capture-card&variant=not-target&lang=zh-TW",
+    label: "撮った後: 同じ（繁體中文の表示）",
   },
 ];
 
