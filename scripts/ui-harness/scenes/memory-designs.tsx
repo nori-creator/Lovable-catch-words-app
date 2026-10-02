@@ -22,7 +22,6 @@ import {
   MemoryDesignD,
   type MemoryDesignProps,
 } from "@/components/memory-designs";
-import { groupByDue } from "@/components/memory-designs/model";
 import { buildMemoryDesignsFixture, MEMORY_DESIGNS_NOW } from "./memory-designs-fixture";
 
 type Variant = "current" | "a" | "b" | "c" | "d";
@@ -31,8 +30,8 @@ const VARIANTS: Array<{ key: Variant; label: string; name: string; idea: string 
   {
     key: "current",
     label: "現在",
-    name: "現在（本番）",
-    idea: "段の色の帯＋語ごとの棒・%・札＋0〜100%の折れ線。情報は全部あるが、3つが同じ重さで並び、どこから読めばいいか分からない。",
+    name: "現在（本番・2026-10-02 改良）",
+    idea: "現行をベースに改良したもの。見出しの「0 / 10」などの数は出さない。全体の折れ線は1色のままで、地を記憶の段の帯（薄れぎみ・覚えている・はっきり）に分け、縦軸はデータのある所へ寄せる。過去の線は今までどおりなめらかに辿れる。",
   },
   {
     key: "a",
@@ -99,10 +98,6 @@ export function MemoryDesignsScene({ q }: { q: URLSearchParams }) {
     history.replaceState(null, "", url);
   }, [variant, open, dark]);
 
-  const todayCount = useMemo(
-    () => groupByDue(fixture.words, MEMORY_DESIGNS_NOW)[0].words.length,
-    [fixture],
-  );
   const props: MemoryDesignProps = {
     words: fixture.words,
     series: fixture.series,
@@ -111,7 +106,8 @@ export function MemoryDesignsScene({ q }: { q: URLSearchParams }) {
     onOpenWord: () => {},
     nowMs: MEMORY_DESIGNS_NOW,
   };
-  const header = { answered: 0, total: todayCount, progress: 0 };
+  // 見出しには数を出さない（オーナー指示 2026-10-02）。
+  const header = { progress: 0 };
   const current = VARIANTS.find((v) => v.key === variant)!;
 
   return (

@@ -1,8 +1,5 @@
 import { stabilityOf } from "./srs";
 
-/** ease が渡ってこないときの既定（SM-2 の初期値）。 */
-const DEFAULT_EASE = 2.5;
-
 /**
  * 記憶レベル(2026-07-25 再設計)。
  * 信号3色では「撮った直後に覚えている」と「1ヶ月後も覚えている」が
@@ -115,9 +112,13 @@ const LEVELS: MemoryLevelInfo[] = [
  *
  * | 語 | 定着度 = 画面の % | 段 |
  * |---|---|---|
+ * | 撮っただけでまだ復習していない | **0%** | 忘れかけ |
  * | 復習した直後（どの語も） | 100% | はっきり |
  * | 出題日（狙いどおり） | 90% | 覚えている |
  * | 出題日を大きく過ぎた | 60% | うろ覚え |
+ *
+ * 撮った直後が 0% なのはオーナー指示 2026-10-02「写真を撮ったときはまだ覚えてないから
+ * 0% になるように」。最初の復習で記憶が始まる（`srs.ts` の `retentionNow`）。
  */
 export function memoryPercent(retention: number): number {
   if (!Number.isFinite(retention)) return 0;
@@ -145,9 +146,9 @@ export type MemoryInput = {
   /** いまの定着度 0〜100。 */
   retention: number;
   interval_days: number;
-  /** 覚えやすさ。無ければ SM-2 の初期値で代用する。 */
+  /** 覚えやすさ（難しさ D を写した 1.3〜3.0）。並べ替えには効かない。 */
   ease?: number;
-  /** 安定度(日)。無ければ間隔と ease から出す。 */
+  /** 安定度(日)。無ければ `interval_days`（= 安定度）から出す。 */
   stability_days?: number;
 };
 
@@ -160,8 +161,7 @@ export function memoryOf(w: MemoryInput): { percent: number; level: MemoryLevelI
   return { percent, level: memoryLevel(percent) };
 }
 
-const stabilityFor = (w: MemoryInput) =>
-  w.stability_days ?? stabilityOf(w.interval_days, w.ease ?? DEFAULT_EASE);
+const stabilityFor = (w: MemoryInput) => w.stability_days ?? stabilityOf(w.interval_days, w.ease);
 
 export const MEMORY_LEVELS = LEVELS;
 

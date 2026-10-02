@@ -9,7 +9,14 @@ import { z } from "zod";
 // 復習の間隔と忘却曲線は src/lib/srs.ts(外の世界に触れない純粋な計算)。
 // このファイルは createServerFn と Supabase を読み込むので、ここに置くと
 // 計算だけを取り出して試すことができない。
-import { nextSrs, retentionNow, modeFor, stabilityOf, LAPSE_SCORE } from "@/lib/srs";
+import {
+  nextSrs,
+  retentionNow,
+  modeFor,
+  stabilityOf,
+  daysUntilRetention,
+  LAPSE_SCORE,
+} from "@/lib/srs";
 import { pickInterval } from "@/lib/jev-tasks";
 import { isAlreadyGraded } from "@/lib/review-grade-guard";
 import {
@@ -669,14 +676,9 @@ export const getDueReviews = createServerFn({ method: "GET" })
       )) {
         if (!readingByHead.has(h)) readingByHead.set(h, r);
       }
-      // 未復習カードは「出会った日(taken_at)」を記憶の起点にする。null のままだと
-      // retentionNow が 100% を返し、同じ画面の記憶リスト(getMemoryOverview は
-      // taken_at 起点)と矛盾する(カードは100%なのに一覧では「忘れかけ」)。
-      const lastMs = row.last_reviewed_at
-        ? new Date(row.last_reviewed_at).getTime()
-        : row.stickers!.taken_at
-          ? new Date(row.stickers!.taken_at).getTime()
-          : null;
+      // 記憶の起点は**最後の復習**だけ。未復習（null）の札は 0%（撮っただけではまだ
+      // 覚えていない — オーナー指示 2026-10-02）。一覧（getMemoryOverview）も同じ規則。
+      const lastMs = row.last_reviewed_at ? new Date(row.last_reviewed_at).getTime() : null;
 
       const cutoutPath = row.stickers!.cutout_image_url;
       const reviewCount = reviewCounts.get(row.sticker_id) ?? 0;
@@ -956,10 +958,12 @@ export const gradeReview = createServerFn({ method: "POST" })
     /**
      * **次の復習の日を誰が決めるか**（`jevIntervalMode`）。
      *
-     * 既定は SM-2（オーナー判断 2026-10-01「影の実行に戻す」）。Jev の答えは記録だけ
-     * （採点の後に聞くので、採点は Jev を待たない）。`live` のときだけ、SM-2 の日数を
-     * 基準にして Jev の日数を柵の中に収める（`pickInterval`: 思い出せなかった語は明日の
-     * まま、Jev の答えが無ければ SM-2 のまま、SM-2 の半分〜2倍まで）。
+     * 既定はアプリの式（FSRS、`srs.ts`。オーナー判断 2026-10-01「影の実行に戻す」）。
+     * Jev の答えは記録だけ（採点の後に聞くので、採点は Jev を待たない）。`live` のとき
+     * だけ、FSRS の日数を基準にして Jev の日数を柵の中に収める（`pickInterval`:
+     * 思い出せなかった語は FSRS の学び直しの日のまま、Jev の答えが無ければ FSRS のまま、
+     * FSRS の半分〜2倍まで）。`interval_days` 列は安定度 S そのもの（出す日 = S）なので、
+     * live で Jev の日数を入れると、その語の S は Jev の日数になる。
      */
     const lastMs = row.last_reviewed_at ? new Date(row.last_reviewed_at).getTime() : null;
     const now = nowMs;
@@ -1064,7 +1068,7 @@ export const gradeReview = createServerFn({ method: "POST" })
         mode,
       });
     } else if (mode === "shadow" && score >= LAPSE_SCORE) {
-      // 影の実行: 採点の後で Jev に聞き、答えを記録するだけ（予定は SM-2 のまま）。
+      // 影の実行: 採点の後で Jev に聞き、答えを記録するだけ（予定は FSRS のまま）。
       void jevScheduleDays(supabase as never, scheduleArgs).then((shadow) => {
         if (!shadow) return;
         return logScheduleDecision(supabase as never, {
@@ -1251,7 +1255,7 @@ export type MemoryWord = {
   long_term: boolean; // 長期定着(interval>=30日)
   /** 記憶の起点(最終復習 or 未復習ならキャッチ日)。曲線の描画に使う。 */
   anchor_at: string | null;
-  /** 現在の安定度(日) — 記憶率が 1/e に落ちるまでの時間。 */
+  /** 現在の安定度(日) — 記憶率が 90% に落ちるまでの日数（FSRS の S）。未復習は 0。 */
   stability_days: number;
   ease: number;
 };
@@ -1261,8 +1265,6 @@ export type MemoryOverview = {
   solid: number; // > 80
   words: MemoryWord[];
 };
-
-const LN2 = Math.log(2);
 
 export const getMemoryOverview = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
@@ -1302,18 +1304,19 @@ export const getMemoryOverview = createServerFn({ method: "GET" })
       // 判定は `language-filter.ts` の1つだけ(今日の列と同じ規則)。
       .filter((r) => matchesTargetLanguage(r.stickers?.words?.language, targetLanguage))
       .map((r) => {
-        // 未復習(last_reviewed_at が null)でも曲線を描く: 記憶の起点は
-        // 「その単語に出会った瞬間」= sticker.taken_at。学習直後の記憶は
-        // 1日前後で急速に落ちるので、初期安定度は interval_days(=1)ベース。
+        // 曲線の起点は最後の復習、無ければ「その単語に出会った瞬間」= sticker.taken_at。
+        // ただし % は**最後の復習からだけ**数える: 未復習の札は 0%（撮っただけでは
+        // まだ覚えていない — オーナー指示 2026-10-02）。出題の札（getDueReviews）も同じ規則。
         const anchorIso = r.last_reviewed_at ?? r.stickers?.taken_at ?? null;
         const anchorMs = anchorIso ? new Date(anchorIso).getTime() : null;
+        const lastMs = r.last_reviewed_at ? new Date(r.last_reviewed_at).getTime() : null;
         const stability = stabilityOf(r.interval_days, r.ease);
-        const retention = Math.round(retentionNow(r.interval_days, r.ease, anchorMs, now));
-        // 50%到達日: 100*exp(-dt/stability)=50 → dt = stability*ln2
+        const retention = Math.round(retentionNow(r.interval_days, r.ease, lastMs, now));
+        // 50% まで落ちる日（忘却曲線の逆。未復習なら 0）。
         let daysUntilForgot: number | null = null;
         if (anchorMs != null) {
           const dtNow = (now - anchorMs) / 86400_000;
-          daysUntilForgot = Math.max(0, Math.round(stability * LN2 - dtNow));
+          daysUntilForgot = Math.max(0, Math.round(daysUntilRetention(stability, 0.5) - dtNow));
         }
         return {
           sticker_id: r.sticker_id,

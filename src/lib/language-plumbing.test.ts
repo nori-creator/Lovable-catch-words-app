@@ -4308,25 +4308,77 @@ describe("N. 下のタブ帯と、札を開く動き", () => {
    * 写した先が古い式のまま残ると、同じ語が画面ごとに違う段になる
    * （実際、復習画面と曲線の2か所に写されていた）。
    */
-  it("安定度の式は1か所にあり、狙いは 90%", () => {
+  it("忘却曲線の式は1か所（`srs.ts`、FSRS）にあり、狙いは 90%、撮っただけの語は 0%", () => {
     const srs = codeOnly(read("lib/srs.ts"));
     expect(srs).toMatch(/export const TARGET_RETENTION = 0\.9;/);
-    expect(srs).toMatch(
-      /const STABILITY_K = 1 \/ \(BASE_EASE \* Math\.log\(1 \/ TARGET_RETENTION\)\);/,
-    );
-    expect(srs).toMatch(
-      /Math\.max\(0\.5, Math\.max\(1, interval_days\) \* Math\.max\(1, ease\) \* STABILITY_K\)/,
-    );
-    // 写しが残っていないこと。
+    // 2026-10-02: 式は `ts-fsrs` のもの（FSRS-6）。安定度は列の `interval_days` そのもの。
+    expect(srs).toMatch(/from "ts-fsrs"/);
+    expect(srs).toMatch(/request_retention: TARGET_RETENTION/);
+    expect(srs).toMatch(/export function forgettingCurve\(/);
+    // 未復習（起点が無い／安定度 0）は 0（オーナー指示 2026-10-02）。
+    expect(srs).toMatch(/if \(s <= 0 \|\| lastReviewMs == null\) return 0;/);
+    // 写しが残っていないこと（曲線の式を自前で書いた所が無い）。
     for (const file of [
       "routes/_authenticated/review.tsx",
       // 計算はグラフの部品から分けた（起動時に recharts を読まないため）。
       "lib/memory-curve-from.ts",
+      "lib/memory-curve.ts",
+      "lib/retention-series.ts",
+      "lib/reviews.functions.ts",
     ]) {
       const src = codeOnly(read(file));
+      expect([file, /Math\.exp\(-/.test(src)]).toEqual([file, false]);
       expect([file, /Math\.max\(0\.5,[^\n]*Math\.max\(1, ease\)/.test(src)]).toEqual([file, false]);
-      expect([file, src.includes("stabilityOf(")]).toEqual([file, true]);
     }
+    for (const file of ["routes/_authenticated/review.tsx", "lib/memory-curve-from.ts"]) {
+      expect([file, codeOnly(read(file)).includes("stabilityOf(")]).toEqual([file, true]);
+    }
+    // 出す札も一覧も、% の起点は**最後の復習だけ**（撮った日を起点にしない）。
+    const reviews = codeOnly(read("lib/reviews.functions.ts"));
+    expect(reviews).not.toMatch(/retentionNow\([^\n]*anchorMs/);
+    expect(reviews).toMatch(
+      /const lastMs = row\.last_reviewed_at \? new Date\(row\.last_reviewed_at\)\.getTime\(\) : null;/,
+    );
+  });
+
+  /**
+   * **見出しに数を出さない**（オーナー指示 2026-10-02「今日覚えるべき単語などの数字を
+   * 出すと、やるべきことがたまった時にやる気がなくなるから出さない」）。
+   * 「0 / 10」の数字と「あと N 語」の N をやめた。進み具合はバーだけ。
+   */
+  it("復習の見出しと束の終わりに、残りの数を出さない", () => {
+    const rv = codeOnly(read("routes/_authenticated/review.tsx"));
+    const head = rv.slice(
+      rv.indexOf("export function ReviewHeader("),
+      rv.indexOf("export function DoneState"),
+    );
+    expect(head).not.toMatch(/formatCount\(answered\)/);
+    expect(head).not.toMatch(/\{formatCount\(total\)\}/);
+    expect(head).toMatch(/width: `\$\{progress\}%`/);
+    expect(rv).toMatch(/\{t\("review\.moreHint"\)\}/);
+    const i18n = read("lib/i18n.tsx");
+    const at = i18n.indexOf('"review.moreHint": {');
+    expect(i18n.slice(at, i18n.indexOf("},", at))).not.toMatch(/\{n\}/);
+  });
+
+  /**
+   * **全体のグラフは線が1色で、地を記憶の段の帯に分ける**（オーナー指示 2026-10-02
+   * 「グラフ自体の色を変えるのではなく、グラフの域範囲で色を変える」）。
+   * 帯の色はトークン（`.mem-band`）で持ち、明暗で混ぜる割合を変える。
+   */
+  it("全体のグラフ: 線は1色、地は段の帯（トークンで明暗に追従）", () => {
+    const mini = codeOnly(read("components/MiniRetentionGraph.tsx"));
+    expect(mini).not.toMatch(/levelGradient\(/);
+    expect(mini).toMatch(/<ReferenceArea/);
+    expect(mini).toMatch(/className=\{`mem-lv-\$\{b\.level\} mem-band`\}/);
+    expect(mini).toMatch(/className=\{`mem-lv-\$\{b\.level\} mem-band-label`\}/);
+    expect((mini.match(/stroke="var\(--primary\)"/g) ?? []).length).toBe(2);
+    const css = read("styles.css");
+    expect(css).toMatch(
+      /\.mem-band \{\n\s*fill: color-mix\(in oklab, var\(--mem\) var\(--mem-band-mix\), var\(--card\)\);/,
+    );
+    const dark = css.slice(css.indexOf("--mem-band-mix: 26%"), css.indexOf(".mem-band {"));
+    expect(dark).toMatch(/\.dark,[\s\S]*--mem-band-mix: 34%/);
   });
 
   /**
@@ -4790,8 +4842,12 @@ describe("ホームは今日の誌面", () => {
     );
     // 2026-09-24「過去のものが多すぎで画面で確認できないから、過去のものは全て
     // 削除して」: 帯には**今回の依頼の面だけ**。
-    // 2026-10-02「記憶の状態のグラフのデザイン案を複数提案して」の回。先頭は見比べの場面。
-    expect(list.slice(0, list.indexOf("},"))).toMatch(/scene: "memory-designs"/);
+    // 2026-10-02「記憶のグラフ: 現行をベースに改良」の回。先頭は本番の復習の上部そのもの
+    // （数なし・段の帯のグラフ）。見比べ（現在・A〜D）はその後ろ。
+    expect(list.slice(0, list.indexOf("},"))).toMatch(/scene: "review-header"/);
+    expect(list).toMatch(/scene: "review-header&theme=dark"/);
+    expect(list).toMatch(/scene: "memory-designs&v=current"/);
+    expect(main).toContain('"review-header": ReviewHeaderScene');
     // 前の回（パスワードの再設定）の面は残さない。
     expect(list).not.toMatch(/scene: "auth&email=1"/);
     expect(list).not.toMatch(/scene: "reset-password/);

@@ -111,6 +111,7 @@ import {
   ReviewChoiceScene,
   ReviewEndScene,
   ReviewExplainScene,
+  ReviewHeaderScene,
   ReviewLoadingScene,
   ReviewMemoryScene,
   ReviewMemoryListScene,
@@ -237,6 +238,8 @@ const SCENES: Record<string, ((p: { q: URLSearchParams }) => ReactNode) | undefi
   "review-memory-list": ReviewMemoryListScene,
   "memory-curve": MemoryCurveScene,
   "memory-overall": MemoryOverallScene,
+  // 復習タブの上部そのもの（本番の `ReviewSessionHeader`。2026-10-02 の改良）。
+  "review-header": ReviewHeaderScene,
   // 記憶の状態のデザイン案（現在 + A〜D）。場面の中に切り替えがある。
   "memory-designs": MemoryDesignsScene,
   "review-loading": ReviewLoadingScene,
@@ -357,9 +360,14 @@ const q = new URLSearchParams(location.search);
  * 「これを見てください」と差し出すことになる。
  */
 const REVIEW_SCENES: Array<{ scene: string; label: string }> = [
+  // 2026-10-02「記憶のグラフ: 現行をベースに改良」— 見出しの数を出さない・線は1色で
+  // 地を記憶の段の帯に分ける・撮っただけの語は 0%。本番の `ReviewSessionHeader` そのもの。
+  { scene: "review-header", label: "復習: 上部（数なし・段の帯のグラフ）" },
+  { scene: "review-header&theme=dark", label: "復習: 上部（暗いテーマ）" },
+  { scene: "review-header&open=0", label: "復習: 上部（畳んだ形）" },
   // 2026-10-02「記憶の状態のグラフのデザイン案を複数提案して。」
   // 案の切り替え（現在・A〜D）と、開く/畳む・明暗は場面の中にある。
-  { scene: "memory-designs", label: "復習: 記憶の状態のデザイン案（現在・A〜D）" },
+  { scene: "memory-designs&v=current", label: "復習: 記憶の状態のデザイン案（現在・A〜D）" },
   // 2026-10-02「本のアルバムの写真の配置とホームのアルバム画像の配置は同じにして」→
   // 「台紙を本のページの形にそろえる」。ホームと本を同じ日で並べて見比べる。
   { scene: "home-vs-book", label: "ホームと本棚の本: 同じ台紙・同じ配置（7・4・2・1枚）" },

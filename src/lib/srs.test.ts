@@ -1,60 +1,165 @@
 import { describe, it, expect } from "vitest";
-import { nextSrs, retentionNow, stabilityOf, modeFor, MIN_EASE, type SrsState } from "./srs";
+import {
+  nextSrs,
+  retentionNow,
+  stabilityOf,
+  forgettingCurve,
+  daysUntilRetention,
+  easeToDifficulty,
+  difficultyToEase,
+  ratingOf,
+  modeFor,
+  MIN_EASE,
+  MAX_EASE,
+  TARGET_RETENTION,
+  type SrsState,
+} from "./srs";
 
 /**
- * 復習の間隔の計算。
+ * 復習の間隔の計算（FSRS。2026-10-02 に SM-2 から変えた）。
  *
  * ## なぜここから始めたか
  * このアプリで**間違えても誰も気づかない**計算がここ。画面が壊れれば
  * 見て分かるが、間隔の計算が狂っても「なんとなく復習が多い/来ない」に
  * しかならない。気づいたときには、その人の学習が何ヶ月ぶん歪んでいる。
+ *
+ * 式そのものは `ts-fsrs` のもの（写していない）。ここで守るのは**向き**:
+ * 正解を重ねるほど安定度が伸びて曲線がなだらかになる、間違えると縮んで急になる、
+ * 撮っただけの語は 0%、出題日は 90%。
  */
 
+const DAY = 86_400_000;
 const fresh: SrsState = { ease: 2.5, interval_days: 0, repetitions: 0 };
 
-describe("nextSrs", () => {
-  it("正解を重ねると 1日 → 3日 → ease倍 と伸びる", () => {
-    const a = nextSrs(fresh, 5);
-    expect(a).toMatchObject({ repetitions: 1, interval_days: 1 });
+/** 予定どおり（経過 = 安定度）に答え続ける。 */
+function chain(start: SrsState, score: number, n: number): SrsState[] {
+  const out: SrsState[] = [];
+  let s = start;
+  for (let i = 0; i < n; i++) {
+    s = nextSrs(s, score, { elapsedDays: s.interval_days });
+    out.push(s);
+  }
+  return out;
+}
 
-    const b = nextSrs(a, 5);
-    expect(b).toMatchObject({ repetitions: 2, interval_days: 3 });
+describe("採点 → 評価", () => {
+  it("3未満は Again、3・4 は Hard、5 は Good。Easy は使わない", () => {
+    expect([0, 1, 2].map(ratingOf)).toEqual([1, 1, 1]);
+    expect([3, 4].map(ratingOf)).toEqual([2, 2]);
+    expect(ratingOf(5)).toBe(3);
+  });
+});
 
-    const c = nextSrs(b, 5);
-    expect(c.repetitions).toBe(3);
-    // 3日 × そのときの ease(満点で少し上がっている)を四捨五入
-    expect(c.interval_days).toBe(Math.round(3 * b.ease));
-    expect(c.interval_days).toBeGreaterThan(3);
+describe("ease ↔ 難しさ D（列を増やさずに D を持つ）", () => {
+  it("ease 3.0 ↔ D 1、ease 1.3 ↔ D 10、往復で元に戻る", () => {
+    expect(easeToDifficulty(MAX_EASE)).toBeCloseTo(1, 9);
+    expect(easeToDifficulty(MIN_EASE)).toBeCloseTo(10, 9);
+    for (const e of [1.3, 1.8, 2.5, 2.9, 3.0]) {
+      expect(difficultyToEase(easeToDifficulty(e))).toBeCloseTo(e, 9);
+    }
+    for (const d of [1, 3.6, 5, 9, 10]) {
+      expect(easeToDifficulty(difficultyToEase(d))).toBeCloseTo(d, 9);
+    }
+  });
+  it("SM-2 時代の範囲外の ease（3.0 超）は端に寄せる", () => {
+    expect(easeToDifficulty(3.4)).toBeCloseTo(1, 9);
+    expect(easeToDifficulty(1.0)).toBeCloseTo(10, 9);
+    expect(easeToDifficulty(Number.NaN)).toBeGreaterThan(1);
+  });
+  it("出てくる ease は必ず 1.3〜3.0", () => {
+    let s = fresh;
+    for (const score of [5, 3, 1, 4, 5, 5, 1, 3, 3, 3, 3, 5]) {
+      s = nextSrs(s, score, { elapsedDays: s.interval_days });
+      expect(s.ease).toBeGreaterThanOrEqual(MIN_EASE);
+      expect(s.ease).toBeLessThanOrEqual(MAX_EASE);
+    }
+  });
+});
+
+describe("nextSrs — 向き（オーナー指示 2026-10-02）", () => {
+  it("正解を重ねるほど安定度（= 次までの日数）が伸び、曲線がなだらかになる", () => {
+    // 「復習を何回もして何回も正解することによって…より滑らかになって復習の頻度が落ちる」
+    const states = chain(fresh, 5, 6);
+    for (let i = 1; i < states.length; i++) {
+      expect(states[i].interval_days).toBeGreaterThan(states[i - 1].interval_days);
+      // 同じ経過日数での忘れ方がゆるくなる = 7日後の % が上がる。
+      expect(forgettingCurve(7, states[i].interval_days)).toBeGreaterThan(
+        forgettingCurve(7, states[i - 1].interval_days),
+      );
+    }
+    expect(states.map((s) => s.repetitions)).toEqual([1, 2, 3, 4, 5, 6]);
   });
 
-  it("思い出せなかったら明日また出す(連続回数は捨てる)", () => {
-    let s = nextSrs(fresh, 5);
-    s = nextSrs(s, 5);
-    s = nextSrs(s, 5);
-    expect(s.interval_days).toBeGreaterThan(3);
-
-    const lapsed = nextSrs(s, 1);
+  it("間違えると安定度が縮み（前より小さく）、次の復習が早く来る。連続回数は 0", () => {
+    // 「長期記憶でも復習で一度間違えたらその傾きがまた少し急になって復習する頻度が増える」
+    const mature = { ease: 2.5, interval_days: 90, repetitions: 6 };
+    const lapsed = nextSrs(mature, 1, { elapsedDays: 90 });
     expect(lapsed.repetitions).toBe(0);
-    expect(lapsed.interval_days).toBe(1);
+    expect(lapsed.interval_days).toBeLessThan(mature.interval_days);
+    expect(lapsed.interval_days).toBeGreaterThanOrEqual(1);
+    // 曲線は急になる。
+    expect(forgettingCurve(7, lapsed.interval_days)).toBeLessThan(
+      forgettingCurve(7, mature.interval_days),
+    );
+    // 長くもっていた語ほど学び直しも速い（明日ではなく数日）。若い語は明日。
+    const young = nextSrs({ ease: 2.5, interval_days: 2, repetitions: 1 }, 1, { elapsedDays: 2 });
+    expect(young.interval_days).toBe(1);
+    expect(lapsed.interval_days).toBeGreaterThan(young.interval_days);
   });
 
-  it("失敗しても ease は削らない", () => {
-    // 削ると、一度つまずいた語が二度と間隔を伸ばせなくなる。
-    const s = nextSrs(fresh, 0);
-    expect(s.ease).toBe(fresh.ease);
+  it("間違えると ease（覚えやすさ）が下がり、以後の伸びが鈍る", () => {
+    const before = { ease: 2.5, interval_days: 30, repetitions: 3 };
+    const lapsed = nextSrs(before, 1, { elapsedDays: 30 });
+    expect(lapsed.ease).toBeLessThan(before.ease);
+    // 同じ安定度から Good を1回: ease が低い方が伸びが小さい。
+    const a = nextSrs({ ease: lapsed.ease, interval_days: 10, repetitions: 1 }, 5, {
+      elapsedDays: 10,
+    });
+    const b = nextSrs({ ease: before.ease, interval_days: 10, repetitions: 1 }, 5, {
+      elapsedDays: 10,
+    });
+    expect(a.interval_days).toBeLessThan(b.interval_days);
   });
 
-  it("ぎりぎりの正解(3)でも間隔は進み、ease は下がる", () => {
-    const a = nextSrs(fresh, 3);
-    expect(a.repetitions).toBe(1);
-    expect(a.ease).toBeLessThan(fresh.ease);
+  it("Hard（ぼかし・時間切れ・ヒント）は Good より伸びが小さく、ease も下がる", () => {
+    const prev = { ease: 2.5, interval_days: 10, repetitions: 2 };
+    const hard = nextSrs(prev, 3, { elapsedDays: 10 });
+    const hard4 = nextSrs(prev, 4, { elapsedDays: 10 });
+    const good = nextSrs(prev, 5, { elapsedDays: 10 });
+    expect(hard).toEqual(hard4);
+    expect(hard.interval_days).toBeGreaterThanOrEqual(prev.interval_days);
+    expect(hard.interval_days).toBeLessThan(good.interval_days);
+    expect(hard.ease).toBeLessThan(prev.ease);
+    expect(hard.repetitions).toBe(3);
   });
 
-  it("ease は 1.3 を下回らない", () => {
-    // ここが効かないと間隔が縮み続け、同じ語が毎日出て復習が終わらなくなる。
-    let s: SrsState = { ease: 1.35, interval_days: 10, repetitions: 5 };
-    for (let i = 0; i < 50; i++) s = nextSrs(s, 3);
-    expect(s.ease).toBeGreaterThanOrEqual(MIN_EASE);
+  it("遅れて思い出せた分は数える（R が低いほど伸びる）。早すぎる・同じ日はほぼ伸びない", () => {
+    const prev = { ease: 2.5, interval_days: 30, repetitions: 3 };
+    const late = nextSrs(prev, 5, { elapsedDays: 60 }).interval_days;
+    const onTime = nextSrs(prev, 5, { elapsedDays: 30 }).interval_days;
+    const early = nextSrs(prev, 5, { elapsedDays: 3 }).interval_days;
+    const sameDay = nextSrs(prev, 5, { elapsedDays: 0 }).interval_days;
+    expect(late).toBeGreaterThan(onTime);
+    expect(onTime).toBeGreaterThan(early);
+    expect(sameDay).toBe(prev.interval_days);
+    // 経過が分からなければ予定どおりと見なす。
+    expect(nextSrs(prev, 5).interval_days).toBe(onTime);
+  });
+
+  it("最初の復習は評価だけで決まる（Good 2日・Hard 1日・Again 1日）", () => {
+    expect(nextSrs(fresh, 5).interval_days).toBe(2);
+    expect(nextSrs(fresh, 3).interval_days).toBe(1);
+    expect(nextSrs(fresh, 1)).toMatchObject({ interval_days: 1, repetitions: 0 });
+    expect(nextSrs(fresh, 5).repetitions).toBe(1);
+  });
+
+  it("列は整数の日・1 以上（DB の `interval_days integer`）", () => {
+    let s = fresh;
+    for (const score of [1, 3, 5, 1, 5, 5, 5, 1, 3]) {
+      s = nextSrs(s, score, { elapsedDays: s.interval_days });
+      expect(Number.isInteger(s.interval_days)).toBe(true);
+      expect(s.interval_days).toBeGreaterThanOrEqual(1);
+    }
   });
 
   it("渡された状態を書き換えない", () => {
@@ -64,52 +169,86 @@ describe("nextSrs", () => {
   });
 });
 
+describe("忘却曲線（FSRS のべき関数）", () => {
+  it("出題日（経過 = 安定度）の定着度は 90%（間隔・ease によらない）", () => {
+    for (const s of [1, 3, 7, 30, 90, 365]) {
+      expect(forgettingCurve(s, s)).toBeCloseTo(TARGET_RETENTION, 6);
+    }
+    expect(TARGET_RETENTION).toBe(0.9);
+  });
+  it("時間が経つほど下がり、安定度が大きいほどゆっくり", () => {
+    expect(forgettingCurve(0, 10)).toBe(1);
+    expect(forgettingCurve(5, 10)).toBeGreaterThan(forgettingCurve(20, 10));
+    expect(forgettingCurve(20, 30)).toBeGreaterThan(forgettingCurve(20, 10));
+    expect(forgettingCurve(100000, 1)).toBeGreaterThanOrEqual(0);
+  });
+  it("安定度が無ければ 0（撮っただけの語）", () => {
+    expect(forgettingCurve(0, 0)).toBe(0);
+    expect(forgettingCurve(3, 0)).toBe(0);
+  });
+  it("daysUntilRetention は forgettingCurve の逆", () => {
+    for (const s of [1, 10, 90]) {
+      for (const r of [0.95, 0.9, 0.7, 0.5]) {
+        const d = daysUntilRetention(s, r);
+        expect(forgettingCurve(d, s)).toBeCloseTo(r, 6);
+      }
+      expect(daysUntilRetention(s, 0.9)).toBeCloseTo(s, 6);
+    }
+    expect(daysUntilRetention(0, 0.9)).toBe(0);
+  });
+});
+
 describe("retentionNow", () => {
-  const DAY = 86_400_000;
   const now = Date.UTC(2026, 0, 10);
 
-  it("起点が分からないときは100%", () => {
-    expect(retentionNow(3, 2.5, null, now)).toBe(100);
+  it("**撮っただけの語は 0%**（未復習: 起点が無い／安定度が無い）", () => {
+    // オーナー指示 2026-10-02「写真を撮ったときはまだ覚えてないから 0% になるように」。
+    expect(retentionNow(0, 2.5, null, now)).toBe(0);
+    expect(retentionNow(0, 2.5, now - DAY, now)).toBe(0);
+    expect(retentionNow(3, 2.5, null, now)).toBe(0);
   });
 
-  it("まだ時間が経っていなければ100%", () => {
+  it("復習の直後は 100%", () => {
     expect(retentionNow(3, 2.5, now, now)).toBe(100);
     // 端末の時計がずれて未来を指しても100%を超えない
     expect(retentionNow(3, 2.5, now + DAY, now)).toBe(100);
   });
 
-  it("時間が経つほど下がり、0を下回らない", () => {
+  it("時間が経つほど下がり、出題日に 90%、0を下回らない", () => {
     const d1 = retentionNow(3, 2.5, now - DAY, now);
+    const d3 = retentionNow(3, 2.5, now - 3 * DAY, now);
     const d7 = retentionNow(3, 2.5, now - 7 * DAY, now);
-    expect(d1).toBeGreaterThan(d7);
+    expect(d1).toBeGreaterThan(d3);
+    expect(d3).toBeGreaterThan(d7);
+    expect(Math.round(d3)).toBe(90);
     expect(retentionNow(3, 2.5, now - 3650 * DAY, now)).toBeGreaterThanOrEqual(0);
   });
 
-  it("キャッチ直後の語が数時間で「忘れかけ」に落ちない", () => {
-    // 未復習カードは interval_days=0。下限を持ち上げていないと、安定度が
-    // 0.5日になって半日で50%を割る — 表示と実感が食い違う不具合だった。
-    const halfDay = retentionNow(0, 2.5, now - DAY / 2, now);
-    expect(halfDay).toBeGreaterThan(80);
+  /**
+   * **既存のデータは跳ばない。** SM-2 の間隔は「ease 2.5 の語が出題日に 90%」になるよう
+   * 安定度を合わせてあったので（2026-09-16）、間隔をそのまま安定度と読んでも出題日の値は
+   * 同じ 90%。ease 1.3 の語は 82% → 90%、3.0 の語は 92% → 90% と、数ポイントの差で収まる。
+   */
+  it("既存の間隔をそのまま安定度と読んでも、出題日の値は 90% 前後に収まる", () => {
+    const K = 1 / (2.5 * Math.log(1 / 0.9));
+    const oldR = (i: number, e: number) => 100 * Math.exp(-i / (Math.max(1, i) * e * K));
+    for (const interval of [1, 3, 7, 30, 90]) {
+      for (const ease of [1.3, 2.5, 3.0]) {
+        const now2 = now;
+        const neu = retentionNow(interval, ease, now2 - interval * DAY, now2);
+        expect(Math.abs(neu - oldR(interval, ease))).toBeLessThanOrEqual(8.5);
+        expect(Math.round(neu)).toBe(90);
+      }
+    }
   });
 });
 
 describe("stabilityOf", () => {
-  /** 係数は「ease 2.5 の語が出題日にちょうど 90%」から決まる（`srs.ts`）。 */
-  const K = 1 / (2.5 * Math.log(1 / 0.9));
-
-  it("未復習(interval 0)でも 1日 × ease ぶんは持つ", () => {
-    expect(stabilityOf(0, 2.5)).toBeCloseTo(2.5 * K, 6);
-  });
-  it("ease が 1 未満でも安定度を縮めない", () => {
-    expect(stabilityOf(10, 0.2)).toBeCloseTo(10 * K, 6);
-  });
-  /**
-   * **間隔にも ease にも比例する。** 片方だけに効く形にすると、
-   * 「覚えにくい語」の信号か「育った語」の信号のどちらかが消える。
-   */
-  it("間隔にも ease にも比例する", () => {
-    expect(stabilityOf(20, 2.5)).toBeCloseTo(2 * stabilityOf(10, 2.5), 6);
-    expect(stabilityOf(10, 3.0)).toBeGreaterThan(stabilityOf(10, 2.0));
+  it("安定度は `interval_days` そのもの（0 = 未復習）。ease は効かない", () => {
+    expect(stabilityOf(0, 2.5)).toBe(0);
+    expect(stabilityOf(10, 1.3)).toBe(10);
+    expect(stabilityOf(10, 3.0)).toBe(10);
+    expect(stabilityOf(0.4)).toBe(1);
   });
 });
 
@@ -123,99 +262,5 @@ describe("modeFor", () => {
     expect(modeFor(5)).toBe("reverse");
     expect(modeFor(6)).toBe("production");
     expect(modeFor(999)).toBe("production");
-  });
-});
-
-/**
- * **原典の SM-2 と一致していなければならない所**（点検 2026-09-15）。
- *
- * 間隔の計算は狂っても画面には出ない。「なんとなく復習が多い/来ない」に
- * しかならず、気づいたときにはその人の学習が何ヶ月ぶんか歪んでいる。
- * だから**出典と一致する所は、一致したまま動かないように留めておく**。
- */
-describe("SM-2 の原典との一致（動かしてはいけない所）", () => {
-  it("EF の更新式が原典どおり", () => {
-    // EF' = EF + (0.1 − (5−q)(0.08 + (5−q)0.02))
-    const ef = (prev: number, q: number) => prev + (0.1 - (5 - q) * (0.08 + (5 - q) * 0.02));
-    for (const q of [3, 4, 5]) {
-      const got = nextSrs({ ease: 2.5, interval_days: 10, repetitions: 5 }, q).ease;
-      expect([q, Number(got.toFixed(10))]).toEqual([q, Number(ef(2.5, q).toFixed(10))]);
-    }
-    // 満点は +0.10、4 は ±0、3 は −0.14（原典の値）。
-    expect(Number(ef(2.5, 5).toFixed(2))).toBe(2.6);
-    expect(Number(ef(2.5, 4).toFixed(2))).toBe(2.5);
-    expect(Number(ef(2.5, 3).toFixed(2))).toBe(2.36);
-  });
-
-  it("EF の下限は 1.3", () => {
-    expect(MIN_EASE).toBe(1.3);
-  });
-
-  it("失敗したら 連続回数0・間隔1日・EF は据え置き", () => {
-    const before = { ease: 2.1, interval_days: 40, repetitions: 7 };
-    for (const q of [0, 1, 2]) {
-      const after = nextSrs(before, q);
-      expect([q, after.repetitions, after.interval_days, after.ease]).toEqual([q, 0, 1, 2.1]);
-    }
-  });
-
-  it("3回目以降は 前の間隔 × ease（四捨五入）", () => {
-    const s = { ease: 2.5, interval_days: 6, repetitions: 2 };
-    expect(nextSrs(s, 4).interval_days).toBe(Math.round(6 * 2.5));
-  });
-
-  /**
-   * **2回目だけ原典と違う（原典 6日、ここは 3日）。**
-   * 意図して短くしたもの。うっかり戻したり、うっかり別の数に変えたりを
-   * 見つけるために留めておく。変えるなら、ここも一緒に変えること。
-   */
-  it("2回目の間隔は 3日（原典の 6日を意図して短くしている）", () => {
-    const a = nextSrs({ ease: 2.5, interval_days: 0, repetitions: 0 }, 5);
-    const b = nextSrs(a, 5);
-    expect(b.interval_days).toBe(3);
-  });
-
-  /**
-   * **出題日の定着度は 90%。**（オーナー指示 2026-09-16「アルゴリズムを
-   * 最適化して」／`srs.ts` の「ずれ ②」）
-   *
-   * SuperMemo / Anki / FSRS と同じ狙い。2026-09-16 までは `S = 間隔 × ease`
-   * だったので 67% — **出す日と、画面が言う「最適な日」が 18日ずれていた**。
-   * ここが落ちたら、狙いの定着度が動いたということ。
-   */
-  it("出題日の定着度は 90%（間隔によらない）", () => {
-    for (const interval of [1, 3, 7, 30, 90]) {
-      const s = stabilityOf(interval, 2.5);
-      const r = 100 * Math.exp(-interval / s);
-      expect([interval, Math.round(r)]).toEqual([interval, 90]);
-    }
-  });
-
-  /**
-   * **ease の効きは消さない。** 一律に `間隔 / ln(1/0.9)` にすると、どの語も
-   * 出題日ちょうど 90% になり、「覚えにくい語」という信号が消える。
-   */
-  it("覚えにくい語ほど、出題日の定着度が低い", () => {
-    const r = (ease: number) => 100 * Math.exp(-30 / stabilityOf(30, ease));
-    expect(Math.round(r(1.3))).toBe(82);
-    expect(Math.round(r(2.5))).toBe(90);
-    expect(Math.round(r(3.0))).toBe(92);
-  });
-});
-
-describe("遅れて思い出せた分を数える（2026-09-28 再点検）", () => {
-  const prev = { ease: 2.5, interval_days: 10, repetitions: 3 };
-  it("予定どおり（遅れなし）は今まで通り", () => {
-    expect(nextSrs(prev, 5, { elapsedDays: 10 }).interval_days).toBe(25);
-    expect(nextSrs(prev, 5).interval_days).toBe(25);
-  });
-  it("10日遅れて採点 5 なら遅れを全部、4 なら半分、3 なら足さない", () => {
-    expect(nextSrs(prev, 5, { elapsedDays: 20 }).interval_days).toBe(50);
-    expect(nextSrs(prev, 4, { elapsedDays: 20 }).interval_days).toBe(38);
-    expect(nextSrs(prev, 3, { elapsedDays: 20 }).interval_days).toBe(25);
-  });
-  it("早く復習した時・思い出せなかった時は遅れを足さない", () => {
-    expect(nextSrs(prev, 5, { elapsedDays: 4 }).interval_days).toBe(25);
-    expect(nextSrs(prev, 1, { elapsedDays: 40 }).interval_days).toBe(1);
   });
 });

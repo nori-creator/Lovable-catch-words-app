@@ -1,5 +1,5 @@
 import { memoryLevel } from "./memory";
-import { TARGET_RETENTION } from "./srs";
+import { TARGET_RETENTION, daysUntilRetention, forgettingCurve } from "./srs";
 
 /**
  * 忘却曲線の**形**を決める所。描画（recharts）からは切り離してある。
@@ -14,13 +14,15 @@ import { TARGET_RETENTION } from "./srs";
  *    （点線は1本だけ）を分けて返す。補助線の点線は描画側で全部やめた。
  *  ・**下の日付が多すぎる** — 目盛りは「今日・復習した日・復習どき」だけ。
  *
- * 保持率のモデルは従来どおり `R(t) = exp(-t / S)`。S（安定度）は
- * `lib/srs.ts` の `stabilityOf` から来た値を受け取る（式を写さない）。
+ * 保持率のモデルは `lib/srs.ts` の `forgettingCurve`（FSRS のべき関数。2026-10-02 に
+ * 指数から変えた）。S（安定度）は `stabilityOf` から来た値を受け取る（式を写さない）。
+ * **S が 0 の出来事は「出会っただけでまだ覚えていない」** — その区間は 0% の平らな線
+ * （オーナー指示 2026-10-02「写真を撮ったときはまだ覚えてないから 0% になるように」）。
  */
 
 const DAY = 86_400_000;
 
-/** 記憶の出来事 = 復習した瞬間（無ければ出会った瞬間）と、その後の安定度。 */
+/** 記憶の出来事 = 復習した瞬間（無ければ出会った瞬間）と、その後の安定度（0 = まだ覚えていない）。 */
 export type CurveEvent = { t: number; stability: number };
 
 /** d = 今日からの日数（小数）。r = 保持率 0〜100。 */
@@ -68,7 +70,16 @@ export const BEST_R = Math.round(TARGET_RETENTION * 100);
 
 const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
 const retention = (dtDays: number, stability: number) =>
-  clamp(100 * Math.exp(-Math.max(0, dtDays) / Math.max(0.1, stability)), 0, 100);
+  clamp(100 * forgettingCurve(Math.max(0, dtDays), stability), 0, 100);
+/** 出来事の直後の値。復習なら 100、撮っただけ（安定度 0）なら 0。 */
+const peak = (e: CurveEvent) => (e.stability > 0 ? 100 : 0);
+/**
+ * 予測の線を**どこまで描くか**を決める保持率。べき関数の曲線は尾が長く、半分（50%）まで
+ * 落ちる日は安定度の 90 倍も先なので、以前の「半分忘れる日」の決め方だと横軸が常に
+ * 半年になり、過去が潰れる。80%（「薄れぎみ」の真ん中）まで落ちる日 ≒ 安定度の 3.3 倍で、
+ * 指数の頃の横幅（間隔の 2.6 倍ほど）に近い。
+ */
+const FORECAST_R = 0.8;
 /** 表示は整数（記憶率は推定値なので小数は偽りの精度）。日は 0.01 日まで。 */
 const r0 = (v: number) => Math.round(v);
 /**
@@ -120,7 +131,7 @@ export function buildMemoryCurve(
       const prev = ev[i - 1];
       past.push({ d: d2(startD), r: r1(retention((e.t - prev.t) / DAY, prev.stability)) });
     }
-    past.push({ d: d2(startD), r: 100 });
+    past.push({ d: d2(startD), r: peak(e) });
     const endMs = i + 1 < ev.length ? ev[i + 1].t : nowMs;
     for (let k = 1; k <= SEG_STEPS; k++) {
       const ms = e.t + (endMs - e.t) * ease(k);
@@ -140,18 +151,18 @@ export function buildMemoryCurve(
   else past[past.length - 1] = { d: 0, r: todayR };
 
   // ---- 復習どき ----
-  const bestDay = d2(dOf(last.t) + last.stability * Math.log(100 / BEST_R));
+  const bestDay = d2(dOf(last.t) + daysUntilRetention(last.stability, BEST_R / 100));
 
   // ---- 横軸の範囲 ----
-  // 右端は「半分忘れる日」あたりまで — 復習しないと**どこまで落ちるか**が
-  // 見えないと、予測の点線を描く意味が無い。ただし復習どきより先は必ず含め、
-  // 最低1週間・最長半年に収める。
+  // 右端は「薄れぎみまで落ちる日」（`FORECAST_R`）あたりまで — 復習しないと
+  // **どこまで落ちるか**が見えないと、予測の点線を描く意味が無い。ただし復習どきより
+  // 先は必ず含め、最低1週間・最長半年に収める。
   //
   // さらに**未来に横幅の4割**は残す。復習の歴が長いと過去が軸を占め、
   // 肝心の「これから」が右端の数ミリに潰れる（実測: 過去69日・未来7日）。
-  const halfDay = dOf(last.t) + last.stability * Math.LN2;
+  const fadeDay = dOf(last.t) + daysUntilRetention(last.stability, FORECAST_R);
   const start = Math.floor(Math.min(0, dOf(ev[0].t)));
-  const end = Math.ceil(clamp(Math.max(halfDay, bestDay + 3, 7, -start * (2 / 3)), 7, 180));
+  const end = Math.ceil(clamp(Math.max(fadeDay, bestDay + 3, 7, -start * (2 / 3)), 7, 180));
 
   // ---- これから（点線・復習しなかった場合） ----
   const future: CurvePoint[] = [{ d: 0, r: todayR }];
@@ -179,7 +190,7 @@ const LEVEL_FLOOR = [0, 30, 50, 70, 85, 95] as const;
 
 /**
  * 次に段が下がる日。表示の % は四捨五入なので、`境目 − 0.5` を割る瞬間が
- * 「画面の段が変わる」瞬間。`R = 100·exp(−t/S)` を解いて出す。
+ * 「画面の段が変わる」瞬間。忘却曲線の逆（`daysUntilRetention`）で出す。
  */
 export function nextLevelDrop(
   todayR: number,
@@ -189,7 +200,7 @@ export function nextLevelDrop(
   const level = memoryLevel(todayR).level;
   if (level === 0) return null;
   const edge = LEVEL_FLOOR[level] - 0.5;
-  const t = Math.max(0.1, stability) * Math.log(100 / edge);
+  const t = daysUntilRetention(stability, edge / 100);
   const d = t - Math.max(0, sinceLastDays);
   return { d: d2(Math.max(0, d)), level: level - 1 };
 }

@@ -128,7 +128,8 @@ export function practiceCard(
     ease: 2.5,
     interval_days: 0,
     repetitions: 0,
-    retention: 100,
+    // 撮っただけの語はまだ覚えていない = 0%（本番の `retentionNow` と同じ。2026-10-02）。
+    retention: 0,
     mode: "reverse",
     choices: [],
     headword_choices: choices,
@@ -178,8 +179,6 @@ export function FirstCatchReview({
       <ReviewSessionHeader
         compact={!expanded}
         header={{
-          answered: index,
-          total: cards.length,
           progress: (index / cards.length) * 100,
         }}
         memOverview={{ danger: 0, fuzzy: 0, solid: memoryWords.length, words: memoryWords }}

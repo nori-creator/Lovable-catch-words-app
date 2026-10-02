@@ -134,7 +134,7 @@ export type RecallState = {
   daysSinceLastReview: number | null;
   intervalDays: number;
   ease: number;
-  /** SM-2 の連続正解数。 */
+  /** 連続正解数（間違えると 0）。 */
   repetitions: number;
   /** このアプリの式（`retentionNow`）が出している見込み 0〜1。比べる相手。 */
   baselineRecall: number;

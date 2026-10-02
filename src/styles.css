@@ -4718,6 +4718,35 @@ html[data-motion="reduce"] {
   background: color-mix(in oklab, var(--mem) 14%, var(--card));
   color: color-mix(in oklab, var(--mem) 60%, var(--foreground));
 }
+/* 全体の記憶率のグラフの**地の帯**（`MiniRetentionGraph`、2026-10-02）。線は1色で、
+   段は地で分ける（オーナー指示「グラフの域範囲で色を変える」）。案 D の 12% の透かしは
+   明るい画面で白に溶けて見えなかった（オーナー「範囲の色は見にくい」）ので、段の色を
+   地に**不透明に**混ぜ、帯どうしは地の色の細い線で区切る。混ぜる割合は明暗で変える —
+   暗い画面の段の色は淡い（`--mem-*` が明るい）ので、同じ割合だと地と差が付かない。
+   名前の字は `.mem-text` と同じ寄せ方（4.5:1）で、帯の色で縁取って線が通っても残す。 */
+:root {
+  --mem-band-mix: 26%;
+}
+.dark,
+:root[data-ui-theme="darkroom"],
+:root[data-ui-theme="nightmarket"],
+:root[data-ui-theme="ink"],
+:root[data-ui-theme="aurora"],
+:root[data-ui-theme="collection"] {
+  --mem-band-mix: 34%;
+}
+.mem-band {
+  fill: color-mix(in oklab, var(--mem) var(--mem-band-mix), var(--card));
+  stroke: var(--card);
+  stroke-width: 1px;
+}
+.mem-band-label {
+  fill: color-mix(in oklab, var(--mem) 60%, var(--foreground));
+  paint-order: stroke;
+  stroke: color-mix(in oklab, var(--mem) var(--mem-band-mix), var(--card));
+  stroke-width: 3px;
+  stroke-linejoin: round;
+}
 
 /* Deep-ocean body ambience (only in dark) */
 .dark body {
