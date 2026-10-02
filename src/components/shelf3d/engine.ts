@@ -155,6 +155,12 @@ export type ShelfEvents = {
   onBookTap?: (b: MonthBook, open: () => void) => void;
   /** 開いた本のページを押した（R14: 押すと片ページを大きく）。 */
   onPageTap?: (side: "left" | "right") => void;
+  /**
+   * 開いた本のページを**長押し**した（オーナー指示 2026-10-02「ホームのアルバムのように本棚の
+   * アルバムでも長押しで配置を変換できるようにして」）。受け取る側がホームと同じ並べ替えの
+   * 画面を**本の上ではなく別の面**に開く（本の上に DOM を重ねると本とページがずれる）。
+   */
+  onPageLongPress?: (side: "left" | "right") => void;
   /** 片ページで、指で払って隣のページ（同じ見開きの左右）へ横に移った（R20）。 */
   onFocusSide?: (side: "left" | "right") => void;
   /**
@@ -809,6 +815,35 @@ export class ShelfWorld {
   }
 
   private down: { x: number; y: number; t: number } | null = null;
+  /** 長押しの時計（ホームの札と同じ 550ms）と、成立した印（その指の「離す」は押したと数えない）。 */
+  private press: ReturnType<typeof setTimeout> | null = null;
+  private pressed = false;
+  private static readonly LONG_PRESS_MS = 550;
+  private static readonly PRESS_SLOP = 10;
+  private clearPress() {
+    if (this.press) clearTimeout(this.press);
+    this.press = null;
+  }
+  /**
+   * 長押しが成立した。掴んでいた紙は元の位置へ戻し（払いの途中ではない）、どちらのページを
+   * 押さえているかを知らせる。片ページで見ている時はそのページ。
+   */
+  private firePress(x: number) {
+    this.press = null;
+    this.pressed = true;
+    this.pending = null;
+    if (this.drag && this.active) {
+      const l = this.active.leaves[this.drag.leaf];
+      l.p.target = l.p.x > 0.5 ? 1 : 0;
+      this.kick();
+    }
+    this.drag = null;
+    const one = this.single;
+    const r = this.canvas.getBoundingClientRect();
+    const side =
+      one === "left" || one === "right" ? one : x > r.left + r.width / 2 ? "right" : "left";
+    this.events.onPageLongPress?.(side);
+  }
   /**
    * 片ページで押した所。**向きが決まるまで紙を掴まない**（R20「左ページにフォーカスすると
    * 右のページが見れない。左ページでスワイプしたら右にスライドするアニメーションで右ページに
@@ -845,9 +880,16 @@ export class ShelfWorld {
     this.down = { x: e.clientX, y: e.clientY, t: performance.now() };
     this.pending = null;
     this.pan = null;
+    this.clearPress();
+    this.pressed = false;
     if (this.active && this.open.x > 0.85) {
       const r = this.canvas.getBoundingClientRect();
       const one = this.single;
+      // 開いたページ（表紙ではない）を押さえたままなら長押し。指が遊びを越えて動いたら取り消す。
+      if (!this.coverShut && one !== "cover" && this.events.onPageLongPress) {
+        const x = e.clientX;
+        this.press = setTimeout(() => this.firePress(x), ShelfWorld.LONG_PRESS_MS);
+      }
       if (one === "left" || one === "right") {
         this.pending = { x: e.clientX, y: e.clientY };
         return;
@@ -859,6 +901,13 @@ export class ShelfWorld {
 
   pointerMove(e: PointerEvent) {
     this.wake();
+    if (this.pressed) return;
+    if (
+      this.press &&
+      this.down &&
+      Math.hypot(e.clientX - this.down.x, e.clientY - this.down.y) > ShelfWorld.PRESS_SLOP
+    )
+      this.clearPress();
     if (this.pending && this.active) {
       const dx = e.clientX - this.pending.x;
       const dy = e.clientY - this.pending.y;
@@ -913,6 +962,8 @@ export class ShelfWorld {
   /** 画面が縦に送られて指が取られた（押した・払ったとは数えない）。 */
   pointerCancel() {
     this.wake();
+    this.clearPress();
+    this.pressed = false;
     this.down = null;
     this.pending = null;
     if (this.pan) {
@@ -930,9 +981,15 @@ export class ShelfWorld {
 
   pointerUp(e: PointerEvent) {
     this.wake();
+    this.clearPress();
     const d = this.down;
     this.down = null;
     this.pending = null;
+    // 長押しが成立した指を離した: 押した・払ったとは数えない（受け取る側がもう画面を開いている）。
+    if (this.pressed) {
+      this.pressed = false;
+      return;
+    }
     if (this.pan) {
       // 離した速さも見て、隣のページへ移るか元へ戻るかを決める（残りは滑らかに寄る）。
       const pn = this.pan;
@@ -1583,6 +1640,7 @@ export class ShelfWorld {
 
   dispose() {
     this.disposed = true;
+    this.clearPress();
     cancelAnimationFrame(this.raf);
     this.renderer.dispose();
   }

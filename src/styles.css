@@ -6378,6 +6378,13 @@ html[data-motion="reduce"] .tabbar__lens--gone {
 .collage__margin > .collage__margin-time {
   color: oklch(0.55 0.02 60);
 }
+/* 台紙がページの形になり、写真が多い日は3〜4列の細い札になる（2026-10-02）。細い札では
+   時刻を添えると語が「紅…」と切れるので、語だけを書く（時刻は詳細に在る）。 */
+@container (max-width: 120px) {
+  .collage__margin > .collage__margin-time {
+    display: none;
+  }
+}
 /* **ホームの札と同じ1枚を、アルバムの外に単独で置く**（`AlbumPrint`。初回の画面・
    ログイン画面・興味の質問）。箱は写真の比のまま（`--print-ratio` = 高さ÷幅）で、
    語を書く下の白い余白はホームと同じく `--pol-strip` ぶん下へはみ出す。 */

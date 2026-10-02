@@ -52,7 +52,7 @@ import { PlaceNotifyDesignsScene } from "./scenes/place-notify-designs";
 import { RegenMagicScene } from "./scenes/regen-magic";
 import { AnalyzingDesignsScene } from "./scenes/analyzing-designs";
 import { Shelf3DScene } from "./scenes/shelf-3d";
-import { BookPageScene } from "./scenes/book-page";
+import { BookAlbumEditScene, BookPageScene, HomeVsBookScene } from "./scenes/book-page";
 import { ThreeFxScene } from "./scenes/three-fx";
 import { Object3DScene } from "./scenes/object-3d";
 import { DiaryPencilScene } from "./scenes/diary-pencil";
@@ -175,6 +175,8 @@ const SCENES: Record<string, ((p: { q: URLSearchParams }) => ReactNode) | undefi
   "analyzing-designs": AnalyzingDesignsScene,
   "shelf-3d": Shelf3DScene,
   "book-page": BookPageScene,
+  "home-vs-book": HomeVsBookScene,
+  "book-album-edit": BookAlbumEditScene,
   "three-fx": ThreeFxScene,
   "object-3d": Object3DScene,
   "diary-pencil": DiaryPencilScene,
@@ -335,6 +337,8 @@ const BARE = new Set([
   "reward-catch",
   // 押した札から詳細が広がる絵。全画面の面なので枠は要らない。
   "home-tap",
+  // 本の左ページを長押しして開く面は全画面。
+  "book-album-edit",
 ]);
 
 const q = new URLSearchParams(location.search);
@@ -356,8 +360,13 @@ const REVIEW_SCENES: Array<{ scene: string; label: string }> = [
   // 2026-10-02「記憶の状態のグラフのデザイン案を複数提案して。」
   // 案の切り替え（現在・A〜D）と、開く/畳む・明暗は場面の中にある。
   { scene: "memory-designs", label: "復習: 記憶の状態のデザイン案（現在・A〜D）" },
-  // 2026-10-02「本棚のアルバムの画像のバランス…大きさやバランスを自動的に調整して」。
-  { scene: "book-page", label: "本棚: 本の左ページ（写真 7・4・2 枚の日）" },
+  // 2026-10-02「本のアルバムの写真の配置とホームのアルバム画像の配置は同じにして」→
+  // 「台紙を本のページの形にそろえる」。ホームと本を同じ日で並べて見比べる。
+  { scene: "home-vs-book", label: "ホームと本棚の本: 同じ台紙・同じ配置（7・4・2・1枚）" },
+  { scene: "book-page", label: "本棚: 本の左ページだけ（7・4・2・1枚）" },
+  // 2026-10-02「ホームのアルバムのように本棚のアルバムでも長押しで配置を変換できるように」。
+  { scene: "book-album-edit", label: "本棚の本を長押し: 配置を変える面（開いた所から）" },
+  { scene: "home-shelf&open=left", label: "本棚の本（3D・左ページ）: 長押しで配置の面が開く" },
   // 2026-10-02「ネットの画像、追加の例文、発音のコツ、覚え方、の項目を消して」。
   { scene: "word-card", label: "単語: 4項目を外したカード" },
   // 2026-10-02「アニメーションの設定…スライドでオンとオフになるボタンに」。

@@ -2764,6 +2764,13 @@ export const DICT: Record<string, Record<UiLang, string>> = {
   "shelf.home.leftPage": { ja: "左のページ", en: "Left page", "zh-TW": "左頁" },
   "shelf.home.rightPage": { ja: "右のページ", en: "Right page", "zh-TW": "右頁" },
   "shelf.home.cover": { ja: "表紙", en: "Cover", "zh-TW": "封面" },
+  // 本の左ページを長押しして開く、ホームと同じ並べ替えの画面（2026-10-02）。
+  "shelf.home.arrange": { ja: "アルバムの配置", en: "Arrange the album", "zh-TW": "相簿的排法" },
+  "shelf.home.arrangeHint": {
+    ja: "ホームのアルバムと同じ置き方。「完了」で本にも反映されます。",
+    en: "Same layout as the home album. “Done” updates the book too.",
+    "zh-TW": "和首頁相簿同一種排法。按「完成」後書裡也會更新。",
+  },
   "object3d.open": { ja: "3Dにする", en: "Make it 3D", "zh-TW": "變成 3D" },
   "object3d.close": { ja: "写真に戻る", en: "Back to the photo", "zh-TW": "回到照片" },
   "object3d.making": {

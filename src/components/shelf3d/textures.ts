@@ -12,8 +12,14 @@
  */
 
 import { diaryFont, wrapDiaryLines, type DiaryFontId } from "@/lib/diary-fonts";
-import { clamp, COLLAGE_CAP_MIN, COLLAGE_CAP_W, sizePx, type Placement } from "@/lib/album-place";
-import { fitAlbumPage, keepHomeLayout, type PageFitItem } from "@/lib/album-page-fit";
+import {
+  ALBUM_PAGE_RATIO,
+  clamp,
+  COLLAGE_CAP_MIN,
+  COLLAGE_CAP_W,
+  sizePx,
+  type Placement,
+} from "@/lib/album-place";
 
 export type Canvas = HTMLCanvasElement;
 
@@ -502,6 +508,8 @@ export type DaySpread = {
 };
 
 const HAND = `"Zen Kurenaido", cursive`;
+/** アプリが書く字（日付・語）。ホームの札の語と同じゴシック。 */
+const SANS = `"Noto Sans TC", "PingFang TC", sans-serif`;
 const WEEK_JA = ["日", "月", "火", "水", "木", "金", "土"];
 
 function paper(ctx: CanvasRenderingContext2D, w: number, h: number, side: "left" | "right") {
@@ -543,6 +551,19 @@ function dateLabel(s: DaySpread) {
 }
 
 /**
+ * ページの頭の日付。**ホームのアルバムの日付（`DiaryDate`）と同じくアプリの字体**（太めの
+ * ゴシック。オーナー指示 2026-10-02「本棚アルバムの文字は統一して」）。前は左右で手書きの
+ * 太さが違い、語のゴシックと3つに割れていた。人が書いた字（一言・日記）だけが手書きで残る。
+ */
+function paintDateHeading(ctx: CanvasRenderingContext2D, text: string, x: number, y: number) {
+  ctx.fillStyle = "#2a231c";
+  ctx.font = `600 44px ${SANS}`;
+  ctx.textAlign = "left";
+  ctx.textBaseline = "alphabetic";
+  ctx.fillText(text, x, y);
+}
+
+/**
  * **左のページ: その日のアルバム。** 写真は重ならない位置に少し傾けて貼り（マスキング
  * テープ付き）、下に語、横に本人の一言を手書きで。落書きはその上に重ねる。
  */
@@ -552,10 +573,7 @@ export function paintAlbumDay(s: DaySpread): Canvas {
   const c = canvas(w, h);
   const ctx = c.getContext("2d")!;
   paper(ctx, w, h, "left");
-  ctx.fillStyle = "#2a231c";
-  ctx.font = `400 54px ${HAND}`;
-  ctx.textAlign = "left";
-  inkText(ctx, dateLabel(s), 70, 112, 54);
+  paintDateHeading(ctx, dateLabel(s), 70, 112);
   if (s.photos.length > 0 && s.photos.every((p) => p.place)) {
     paintPlacedPhotos(ctx, s, w, h);
     paintDoodles(ctx, s, w, h);
@@ -662,14 +680,15 @@ function paintDoodles(ctx: CanvasRenderingContext2D, s: DaySpread, w: number, h:
   }
 }
 
-// ── ホームのアルバムでの置き方（大きさ・向き・重なり）で貼る（オーナー指示 2026-09-30）───────
+// ── ホームのアルバムと同じ台紙（置き方・大きさ・向き・重なり）で貼る（オーナー指示 2026-09-30、
+//    決定 2026-10-02「台紙を本のページの形にそろえる」）─────────────────────────────
 // 見た目は**本の元の紙のまま**（白い台紙・マスキングテープ・太字の語・茶色の手書きの一言）。
 // ホームの `DayCollage` の操作画面を上に重ねるのはやめた（本とページがずれる）。置き方の計算は
-// `lib/album-day-layout.ts` の1本を共有するので、ホームで直した置き方・一言がそのまま本に出る。
+// `lib/album-day-layout.ts` の1本を共有し、台紙はページの形なので、ホームの並びがそのまま本に出る。
+// 本で並べ直す枝は無い（2つ持つと、片方を直した日に食い違う）。
 
 /** 置き方を計算した時の台紙の幅（CSS px）。字の大きさを canvas へ写す基準。 */
 const REF_BOARD_CSS = 340;
-const SANS = `"Noto Sans TC", "PingFang TC", sans-serif`;
 
 function roundedRect(
   ctx: CanvasRenderingContext2D,
@@ -716,27 +735,11 @@ function paintPlacedPhotos(ctx: CanvasRenderingContext2D, s: DaySpread, w: numbe
   const top = 150;
   const boardMaxW = w - 2 * M;
   const availH = h - top - 40;
-  // 台紙が縦に長い日は、ページに収まるまで全体を縮める（置き方の比は変えない）。
-  const fit = Math.min(1, availH / ((s.boardH ?? 1.3) * boardMaxW));
-  // **縮めると細い1本の列になる日・ページの下が大きく空く日は、ページに合わせて並べ直す**
-  // （オーナー指示 2026-10-02「縦に長になっていて変だから、大きさやバランスを自動的に調整して」、
-  // `lib/album-page-fit.ts`）。
-  // 台紙の高さ（`boardH`）には下限があるので、写真と字が**実際に届く一番下**で測る。
-  const k0 = boardMaxW / REF_BOARD_CSS;
-  const reach = Math.max(
-    0,
-    ...s.photos.map((p) => {
-      const { w: cw, h: ch } = sizePx(p.place!, boardMaxW, p.ratio ?? 1.2);
-      const t = cardText(cw, k0);
-      return p.place!.y * boardMaxW + ch / 2 + t.strip + (p.note ? 2 * t.lh : 0);
-    }),
-  );
-  const fill = (reach * fit) / availH;
-  if (!keepHomeLayout(fit, fill)) {
-    paintFlowedPhotos(ctx, s, { x: M, y: top, w: boardMaxW, h: availH });
-    return;
-  }
-  const bw = boardMaxW * fit;
+  // 台紙はページの形（`ALBUM_PAGE_RATIO`）なので、ふつうは紙の幅いっぱいにそのまま貼れる。
+  // 自分で置いた写真がページより下に在る日（台紙が伸びた日）だけ、収まるまで全体を縮める
+  // （置き方の比は変えない — ホームと同じ並びのまま小さくなるだけ）。
+  const boardH = s.boardH ?? ALBUM_PAGE_RATIO;
+  const bw = Math.min(boardMaxW, availH / boardH);
   const ox = M + (boardMaxW - bw) / 2;
   const k = bw / REF_BOARD_CSS;
   const order = s.photos.map((p, i) => ({ p, i })).sort((a, b) => (a.p.z ?? a.i) - (b.p.z ?? b.i));
@@ -753,60 +756,12 @@ function paintPlacedPhotos(ctx: CanvasRenderingContext2D, s: DaySpread, w: numbe
   }
 }
 
-/** 写真の下の字の大きさ（台紙の白い余白・語・一言）。並べ直しの高さの計算と描く所で同じ値。 */
+/** 写真の下の字の大きさ（台紙の白い余白・語・一言）。ホームの札と同じ割合。 */
 function cardText(cw: number, k: number) {
   const strip = Math.max(30 * k, cw * 0.2);
   const wordPx = clamp(cw * 0.12, 15 * k, 26 * k);
   const notePx = Math.max(13 * k, 20);
   return { strip, wordPx, notePx, lh: notePx * 1.3 };
-}
-
-/**
- * ページの幅と高さに合わせて、列の数と写真の幅を選び直して貼る（ホームの置き方では細い列に
- * なる日だけ）。傾きはホームで付いた角度をそのまま使う。
- */
-function paintFlowedPhotos(
-  ctx: CanvasRenderingContext2D,
-  s: DaySpread,
-  area: { x: number; y: number; w: number; h: number },
-) {
-  const k = area.w / REF_BOARD_CSS;
-  const gap = Math.max(14, area.w * 0.035);
-  // 一言の行数は字の幅で変わるので、写真の幅ごとに測る。
-  const noteLines = (note: string | undefined, width: number, notePx: number) => {
-    if (!note) return 0;
-    ctx.font = `400 ${notePx}px ${HAND}`;
-    return clampLines(ctx, note, width, 3).length;
-  };
-  const items: PageFitItem[] = s.photos.map((p) => ({
-    ratio: p.plain ? 0 : (p.ratio ?? 1.2),
-    below: (cw: number) => {
-      const t = cardText(cw, k);
-      const lines = noteLines(p.note, cw, t.notePx);
-      if (p.plain) return t.wordPx * 1.4 + lines * t.lh;
-      return t.strip + (lines ? lines * t.lh + t.lh * 0.2 : 0);
-    },
-  }));
-  const laid = fitAlbumPage(items, { w: area.w, h: area.h }, gap);
-  s.photos.forEach((p, i) => {
-    const b = laid.boxes[i];
-    if (!b) return;
-    const X = area.x + b.x + b.w / 2;
-    const Y = area.y + b.y + b.h / 2;
-    // 字だけの札は高さ 0 の枠の上端から書くので、中心をその位置に置く。
-    paintPhotoCard(ctx, p, {
-      X,
-      Y,
-      cw: b.w,
-      ch: b.h,
-      // 列が揃っているぶん、傾きは控えめに（ホームの角度の半分）。
-      rot: (p.place?.rot ?? 0) * 0.5,
-      k,
-      capW: b.w,
-      capDx: 0,
-      plainW: b.w,
-    });
-  });
 }
 
 /** 写真1枚（台紙・写真・テープ・語・一言）を、中心 (X, Y) に傾けて描く。 */
@@ -947,11 +902,8 @@ export function paintDiary(s: DaySpread, font: DiaryFontId): Canvas {
   ctx.moveTo(78, 60);
   ctx.lineTo(78, h - 40);
   ctx.stroke();
-  // 日付（左の写真のページと同じ手書き）
-  ctx.fillStyle = "#3a3128";
-  ctx.font = `400 42px ${HAND}`;
-  ctx.textAlign = "left";
-  inkText(ctx, dateLabel(s), left, 124, 42);
+  // 日付（左のアルバムのページと同じ字体・大きさ）
+  paintDateHeading(ctx, dateLabel(s), left, 124);
   // 本文
   ctx.fillStyle = "#1c2640";
   ctx.font = `400 ${px}px ${f.family}`;
@@ -977,13 +929,14 @@ export function paintTitlePage(title: string, subtitle: string): Canvas {
   const c = canvas(w, h);
   const ctx = c.getContext("2d")!;
   paper(ctx, w, h, "right");
+  // 扉もアルバム・日記のページと同じ字体（本の中の字は1つの系統に揃える）。
   ctx.fillStyle = "#3a3128";
   ctx.textAlign = "center";
-  ctx.font = `400 64px ${HAND}`;
+  ctx.font = `600 56px ${SANS}`;
   ctx.fillText(title, w / 2, h * 0.44);
-  ctx.fillStyle = "rgba(58,49,40,0.55)";
-  ctx.font = `400 30px ${HAND}`;
-  ctx.fillText(subtitle, w / 2, h * 0.44 + 64);
+  ctx.fillStyle = "rgba(58,49,40,0.6)";
+  ctx.font = `500 28px ${SANS}`;
+  ctx.fillText(subtitle, w / 2, h * 0.44 + 60);
   fibers(ctx, w, h, 3);
   return c;
 }

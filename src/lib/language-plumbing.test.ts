@@ -2172,7 +2172,7 @@ describe("独自ドメインへ移れる形になっているか", () => {
  * 名前が `ScrapbookAlbum` → `DayCollage` に変わった（オーナー指示
  * 2026-09-22「ホームを開いたら雑誌のように撮った画像が有機的に重なり合って
  * 写真が並ぶようにしたい」）。**中身は同じ台紙**で、置き方の計算だけが
- * 升目から誌面の石積み（`packCollage`）に変わっている。
+ * 升目から誌面の石積み、そして本のページの形の台紙（`album-page-fit.ts`）に変わっている。
  */
 function albumOnly(): string {
   const home = codeOnly(read("routes/_authenticated/home.tsx"));
@@ -2262,7 +2262,8 @@ describe("ホームのアルバムの長押し", () => {
     // そもそも表現できない。
     expect(home).toMatch(/pointers: Map<number, Pt>/);
     expect(home).toMatch(/gestureDelta\(g\.startGrip, gripOf\(g\.pointers\)\)/);
-    expect(home).toMatch(/applyDelta\(g\.startPlace, d, board\.w, boardH\)/);
+    // 下へはページの底まで（台紙はページの形。2026-10-02）。
+    expect(home).toMatch(/applyDelta\(g\.startPlace, d, board\.w, ALBUM_PAGE_RATIO\)/);
   });
 
   it("**指の数が変わったら握りを取り直す**（2本目を置いた瞬間に札が飛ばない）", () => {
@@ -2423,7 +2424,7 @@ describe("ホームのアルバムの長押し", () => {
     // 別々に出すと、積んだ高さと実際の高さがずれて字の上に札が乗る。
     // 計算は `lib/album-day-layout.ts` の1本（ホームと本の左ページが共有）。
     expect(home).toMatch(/const \{ frameRatio, settledById \} = useMemo/);
-    expect(layout.match(/ratio: frameRatio\(s\.id\)/g) ?? []).toHaveLength(3);
+    expect(layout.match(/ratio: frameRatio\(s\.id\)/g) ?? []).toHaveLength(2);
   });
 
   /**
@@ -4409,7 +4410,7 @@ describe("N. 下のタブ帯と、札を開く動き", () => {
  * > 1つの作品になるように。
  *
  * 縦一列の道（`DayTimeline`）は**消した**。置き方の計算は
- * `lib/album-place.ts` の `packCollage`（試験は `album-collage.test.ts`）。
+ * `lib/album-day-layout.ts` → `lib/album-page-fit.ts`（試験は `album-day-layout.test.ts`）。
  */
 describe("ホームは今日の誌面", () => {
   const collageOnly = () => {
@@ -4593,10 +4594,12 @@ describe("ホームは今日の誌面", () => {
     const home = codeOnly(read("routes/_authenticated/home.tsx"));
     const layout = codeOnly(read("lib/album-day-layout.ts"));
     expect(layout).toMatch(/export const MIN_TAP_PX = 44;/);
-    // 2026-09-27: 細い画面で時刻が次の行へ回るぶん（`timeLine`）も足す。
+    // 2026-09-27: 細い欄で時刻が次の行へ回るぶん（`timeLine`）も足す。2026-10-02 からは
+    // 欄の幅が列の数で変わるので、その札の幅（`plainCardPx`）から決める。
     expect(layout).toMatch(
-      /Math\.max\(\s*PLAIN_WORD_PX \+ timeLine \+ \(hasNote\.get\(id\) \? CAP_NOTE_PX : 0\),\s*MIN_TAP_PX,?\s*\)/,
+      /Math\.max\(\s*PLAIN_WORD_PX \+ timeLine \+ \(s\.caption \? CAP_NOTE_PX : 0\),\s*MIN_TAP_PX,?\s*\)/,
     );
+    expect(layout).toMatch(/export function plainCardPx\(/);
     expect(home).toMatch(/data-plain=\{heroUrl \? undefined : ""\}/);
     expect(cssBlock("[data-plain] {", "\n}")).toMatch(/min-height: 2\.75rem/);
   });
@@ -4613,7 +4616,7 @@ describe("ホームは今日の誌面", () => {
     // 余白 ＋ 一言との間 4px で 38px。
     expect(layout).toMatch(/export const CAP_ROW_PX = 38;/);
     expect(layout).toMatch(/export const CAP_NOTE_PX = 56;/);
-    // 台紙の幅で割って、`packCollage` が積む割合に直す。
+    // 台紙の幅で割って、置き方の計算（`album-page-fit.ts`）が積む割合に直す。
     expect(layout).toMatch(/\(CAP_ROW_PX \+ \(s\.caption \? CAP_NOTE_PX : 0\)\) \/ boardW/);
     // 一言の行数には CSS 側で上限が在る（どれだけ長くても越えない）。
     expect(cssBlock(".collage__note {", "\n}")).toMatch(/-webkit-line-clamp: 3/);
@@ -6383,6 +6386,8 @@ describe("R26（2026-09-30 の全体点検で見つけた不具合）", () => {
 /**
  * R27（オーナー指示 2026-09-30）: 日記の左ページ = ホームのアルバムをそのまま再現し、ホームと
  * 同じ操作。ひと言は単語の詳細・ホームのアルバム・日記のそれぞれから直せる。
+ * 2026-10-02 決定「台紙を本のページの形にそろえる」: 台紙は1枚（`ALBUM_PAGE_RATIO`）、本で
+ * 並べ直す枝は無い。本の左ページの長押しはホームと同じ並べ替えの面を**別の面**に開く。
  */
 describe("R27: 日記の左ページは元の紙のまま、置き方だけホームと同じ", () => {
   const layout = codeOnly(read("lib/album-day-layout.ts"));
@@ -6398,6 +6403,38 @@ describe("R27: 日記の左ページは元の紙のまま、置き方だけホ�
       /albumHeroUrl\(s, \{ surfaceRoles: roles, photoPref: pref, thumb: true \}\)/,
     );
     expect(layout).toMatch(/const byOrder/);
+    // 自動の置き方はページの形の台紙に全部収める（`album-page-fit.ts` の1本）。
+    expect(layout).toMatch(/fitAlbumPage\(/);
+    expect(layout).toMatch(/h: ALBUM_PAGE_RATIO - 2 \* PAGE_INSET_Y/);
+    expect(codeOnly(read("lib/album-place.ts"))).toMatch(
+      /export const MIN_BOARD_H = ALBUM_PAGE_RATIO;/,
+    );
+    expect(codeOnly(read("lib/album-place.ts"))).not.toMatch(/export function packCollage/);
+  });
+
+  it("本は同じ台紙をページに一様に縮めて貼るだけ（本だけ並べ直す枝は無い）", () => {
+    expect(tex).toMatch(/const bw = Math\.min\(boardMaxW, availH \/ boardH\);/);
+    expect(tex).not.toMatch(/paintFlowedPhotos|keepHomeLayout|fitAlbumPage/);
+    // 日付は左右のページともアプリの字体（手書きは人が書いた一言・日記だけ）。
+    expect(tex).toMatch(/function paintDateHeading\(/);
+    expect(tex).toMatch(/ctx\.font = `600 44px \$\{SANS\}`;/);
+    expect(tex).not.toMatch(/inkText\(ctx, dateLabel\(s\)/);
+  });
+
+  it("本の左ページの長押し → ホームと同じ並べ替えの面（本の上には重ねない）", () => {
+    expect(engine).toMatch(/onPageLongPress\?: \(side: "left" \| "right"\) => void;/);
+    expect(engine).toMatch(/private static readonly LONG_PRESS_MS = 550;/);
+    expect(shelf).toMatch(
+      /onAlbumLongPress\?: \(day: \{ y: number; m: number; d: number \}\) => void;/,
+    );
+    expect(shelf).toMatch(/if \(side !== "left" \|\| !d \|\| !longPressRef\.current\) return;/);
+    // 面はホームが持つ（`HomeShelf` はアルバムの UI を描かない）。
+    expect(shelf).not.toMatch(/DayCollage|BookAlbumEditor/);
+    expect(home).toMatch(/export function BookAlbumEditor\(/);
+    expect(home).toMatch(/<BookAlbumEditor/);
+    expect(home).toMatch(/startEditing\n\s+onDoneEditing=\{onClose\}/);
+    // 下へはページの底まで（台紙はページの形）。
+    expect(home).toMatch(/applyDelta\(g\.startPlace, d, board\.w, ALBUM_PAGE_RATIO\)/);
   });
 
   it("本の絵は置き方（大きさ・向き・重なり）で貼り、見た目は元の紙（白い台紙・マスキングテープ・手書きの一言3行）", () => {
