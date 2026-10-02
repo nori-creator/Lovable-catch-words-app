@@ -1,3 +1,5 @@
+import { DICT, type UiLang } from "./i18n";
+
 /**
  * 品詞(詞類表)ユーティリティ。
  *
@@ -29,12 +31,43 @@ export const POS_TABLE: Record<string, string> = {
   Det: "限定詞",
 };
 
-/** "Vs" → "Vs · 状態動詞(形容詞)"。表に無い表記(旧データの「名詞」等)はそのまま。 */
-export function posDisplay(pos: string | null | undefined): string {
+/**
+ * 品詞の名前を**表示言語で**引く（オーナー報告 2026-10-02「英語の表示でも
+ * 名詞 / 動詞 / 状態動詞(形容詞) が日本語のまま」）。
+ *
+ * 名前は `i18n.tsx` の表（`pos.c.*` / `pos.g.*`）が持つ。日本語は前と1字も変えない
+ * （下の `POS_TABLE` / `GROUP_LABEL` と同じ文言 — `pos.test.ts` が見張る）。
+ * 言語を渡さない呼び出しは日本語のまま（server や古い呼び出しを変えない）。
+ */
+function dictLabel(key: string, lang: UiLang | null | undefined, fallback: string): string {
+  const row = DICT[key];
+  return (lang && row?.[lang]) || row?.ja || fallback;
+}
+
+/**
+ * 日本語で書かれた品詞（旧データ・スキャンの「名詞」など）を、表示言語の名前へ。
+ * 表の日本語と**ぴったり同じ**ときだけ訳す（分からない綴りは書き換えない）。
+ */
+function translateJapanesePos(raw: string, lang: UiLang): string {
+  for (const [code, ja] of Object.entries(POS_TABLE)) {
+    if (ja === raw) return dictLabel(`pos.c.${code}`, lang, raw);
+  }
+  for (const [g, ja] of Object.entries(GROUP_LABEL)) {
+    if (ja === raw) return dictLabel(`pos.g.${g}`, lang, raw);
+  }
+  return raw;
+}
+
+/**
+ * "Vs" → "Vs · 状態動詞(形容詞)"（英語なら "Vs · Stative verb (adj.)"）。
+ * 表に無い表記はそのまま（日本語の「名詞」だけは日本語以外の人に訳して出す）。
+ */
+export function posDisplay(pos: string | null | undefined, lang?: UiLang | null): string {
   const p = (pos ?? "").trim();
   if (!p) return "";
   const label = POS_TABLE[p];
-  return label ? `${p} · ${label}` : p;
+  if (label) return `${p} · ${dictLabel(`pos.c.${p}`, lang, label)}`;
+  return lang && lang !== "ja" ? translateJapanesePos(p, lang) : p;
 }
 
 // ---------------------------------------------------------------------------
@@ -67,7 +100,7 @@ export type ChunkStyle = {
   label: string;
 };
 
-const GROUP_LABEL: Record<PosGroup, string> = {
+export const GROUP_LABEL: Record<PosGroup, string> = {
   n: "名詞",
   v: "動詞",
   vs: "状態動詞(形容詞)",
@@ -147,9 +180,14 @@ export function posGroup(pos: string): PosGroup {
   return "ptc";
 }
 
-export function chunkStyle(pos: string): ChunkStyle {
+/** 群の名前（表示言語。言語を渡さなければ日本語）。 */
+export function posGroupLabel(g: PosGroup, lang?: UiLang | null): string {
+  return dictLabel(`pos.g.${g}`, lang, GROUP_LABEL[g]);
+}
+
+export function chunkStyle(pos: string, lang?: UiLang | null): ChunkStyle {
   const g = posGroup(pos);
-  return { pill: `chunk-pill pos-${g}`, dot: `pos-dot pos-${g}`, label: GROUP_LABEL[g] };
+  return { pill: `chunk-pill pos-${g}`, dot: `pos-dot pos-${g}`, label: posGroupLabel(g, lang) };
 }
 
 /**
@@ -158,11 +196,18 @@ export function chunkStyle(pos: string): ChunkStyle {
  */
 const GROUP_ORDER: PosGroup[] = ["n", "v", "vs", "vaux", "adv", "m", "conj", "prep", "ptc", "det"];
 
-export function chunkLegendFor(poses: string[]): Array<{ key: PosGroup; style: ChunkStyle }> {
+export function chunkLegendFor(
+  poses: string[],
+  lang?: UiLang | null,
+): Array<{ key: PosGroup; style: ChunkStyle }> {
   const seen = new Set(poses.map(posGroup));
   return GROUP_ORDER.filter((g) => seen.has(g)).map((g) => ({
     key: g,
-    style: { pill: `chunk-pill pos-${g}`, dot: `pos-dot pos-${g}`, label: GROUP_LABEL[g] },
+    style: {
+      pill: `chunk-pill pos-${g}`,
+      dot: `pos-dot pos-${g}`,
+      label: posGroupLabel(g, lang),
+    },
   }));
 }
 

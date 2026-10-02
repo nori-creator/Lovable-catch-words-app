@@ -851,6 +851,8 @@ const DAILY_CAPS: Record<string, number> = {
   suggest: 300,
   removebg: 100, // paid per image — tighter than the free-tier guards
   native_text: 200, // iOS 版の添削・例文など（/api/native-ai の text）
+  // 読む人の言語の意味だけを埋める（`fillReaderMeanings`。1回で最大24語、辞書に無い語だけ）。
+  reader_meaning: 100,
 };
 
 export async function assertWithinDailyCap(userId: string, kind: string): Promise<void> {

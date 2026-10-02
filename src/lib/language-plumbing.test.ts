@@ -4848,11 +4848,24 @@ describe("ホームは今日の誌面", () => {
     );
     // 2026-09-24「過去のものが多すぎで画面で確認できないから、過去のものは全て
     // 削除して」: 帯には**今回の依頼の面だけ**。
-    // 2026-10-02「英語の単語の見出しのなかの配置がバランス悪い…報告ボタンは一番下の削除の横に」の回。
-    // 先頭は単語の詳細（英語）。
-    expect(list.slice(0, list.indexOf("},"))).toMatch(/scene: "sticker-sheet&word=en"/);
+    // 2026-10-02「表示言語が英語・繁體中文だと復習の意味が日本語・訳が無い・品詞が日本語・
+    // 図鑑のスライドに意味が無い」の回。先頭は英語の表示の4択（本番の `LightModeCard`）。
+    // 英語と繁體中文の両方、答え合わせ・図鑑のスライド・単語の詳細の品詞を並べる。
+    expect(list.slice(0, list.indexOf("},"))).toMatch(
+      /scene: "review-choice&lang=en&mixed=1&photo=1"/,
+    );
+    for (const lang of ["en", "zh-TW"]) {
+      expect(list).toContain(`scene: "review-choice&lang=${lang}&mixed=1&photo=1"`);
+      expect(list).toContain(`scene: "review-choice&lang=${lang}&mixed=1&photo=1&answer=right"`);
+      expect(list).toContain(`scene: "dex-cards&lang=${lang}&reader=1"`);
+      expect(list).toContain(`scene: "word-card&lang=${lang}"`);
+    }
+    // 日本語の表示は今と同じことを並べて確かめる。
+    expect(list).toMatch(/scene: "review-choice&lang=ja&mixed=1&photo=1&answer=right"/);
+    // 前の回（単語の詳細の見出しの並び）の面はその後ろに残す。
+    expect(list).toMatch(/scene: "sticker-sheet&word=en"/);
     expect(list).toMatch(/scene: "sticker-sheet"/);
-    // 前の回（記憶のグラフ・アルバム・管理画面・パスワードの再設定）の面は残さない。
+    // それより前の回（記憶のグラフ・アルバム・管理画面・パスワードの再設定）の面は残さない。
     expect(list).not.toMatch(/scene: "review-header/);
     expect(list).not.toMatch(/scene: "memory-designs/);
     expect(list).not.toMatch(/scene: "admin-users/);
@@ -4872,6 +4885,7 @@ describe("ホームは今日の誌面", () => {
     expect(list).not.toMatch(/scene: "home-shelf"/);
     expect(list).not.toMatch(/scene: "dex-map"/);
     expect(list).not.toMatch(/scene: "dex-cards&swap=1&n=12"/);
+    // 写真なし・日本語だけの古い4択の面（`review-choice` の名前だけ）は残さない。
     expect(list).not.toMatch(/scene: "review-choice"/);
     expect(list).not.toMatch(/scene: "candidate-picker"/);
     expect(list).not.toMatch(/scene: "install-app"/);
@@ -6129,11 +6143,19 @@ describe("ホームのアルバムの赤いバツ＝アルバムからだけ外�
 describe("単語の詳細が開いた直後に別の文へ入れ替わらない（2026-09-28）", () => {
   const sheet = codeOnly(read("components/StickerSheet.tsx"));
   it("解説は端末に覚えた物を先に出し、返事待ちの間は古い共有解説を出さない。埋め直しは見えている項目を残す", () => {
-    expect(sheet).toMatch(/initialData: cachedExplanation/);
-    expect(sheet).toMatch(/writeCachedExplanation\(cacheKey, r\)/);
+    // 問い合わせと保存の形は復習と同じ1か所（`reader-explanation.ts`、2026-10-02）。
+    // 詳細はそこを通し、覚え置き・見えている項目を残す約束はそこで守る。
+    const shared = codeOnly(read("lib/reader-explanation.ts"));
+    expect(sheet).toMatch(
+      /wordExplanationQuery\(fetchExplanation, s\?\.word_id, wantKey, cachedExplanation\)/,
+    );
+    expect(sheet).toMatch(/readExplanationCache\(s\?\.word_id, wantKey\)/);
+    expect(shared).toMatch(/initialData: cached,/);
+    expect(shared).toMatch(/writeCachedExplanation\(cacheKey, r\)/);
     expect(sheet).toMatch(/explanationPending=\{explanation === undefined\}/);
     expect(sheet).toMatch(/extras: explanationPending \? null : s\.word\.extras/);
-    expect(sheet).toMatch(/extras: keepShownFields\(/);
+    expect(sheet).toMatch(/data: readerExplanationSaveInput\(\{/);
+    expect(shared).toMatch(/extras: keepShownFields\(/);
   });
 });
 

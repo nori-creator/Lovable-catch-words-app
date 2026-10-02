@@ -7,8 +7,10 @@ import { supabase } from "@/integrations/supabase/client";
 import { LoadFailed } from "@/components/LoadFailed";
 import { useServerFn } from "@tanstack/react-start";
 import { getMyProfile } from "@/lib/profile.functions";
-import { getReaderMeanings } from "@/lib/word-explanation.functions";
-import { setReaderMeaningLoader } from "@/lib/reader-meanings";
+import { fillReaderMeanings, getReaderMeanings } from "@/lib/word-explanation.functions";
+import { setReaderMeaningFiller, setReaderMeaningLoader } from "@/lib/reader-meanings";
+import { reportBackgroundFailure } from "@/lib/background-failure";
+import { normalizeUiLang } from "@/lib/i18n";
 import { getDueReviews } from "@/lib/reviews.functions";
 import { packBatch, readBatch, REVIEW_CACHE_KEY, REVIEW_CACHE_USER_KEY } from "@/lib/review-cache";
 import { warmCachedImages } from "@/lib/image-cache";
@@ -45,13 +47,22 @@ function AuthenticatedLayout() {
   const navigate = useNavigate();
   const fetchProfile = useServerFn(getMyProfile);
   const fetchMeanings = useServerFn(getReaderMeanings);
+  const fillMeanings = useServerFn(fillReaderMeanings);
   // 図鑑などの意味を、読む人の言語の解説から引けるようにする（`ReaderMeaning`）。
+  // 無い語は意味だけを埋めに行く（2026-10-02「英語・繁體中文の表示で図鑑に意味が出ない」）。
   useEffect(() => {
     setReaderMeaningLoader((ids, lang) =>
       fetchMeanings({ data: { word_ids: ids, explain_lang: lang } }),
     );
-    return () => setReaderMeaningLoader(null);
-  }, [fetchMeanings]);
+    setReaderMeaningFiller(
+      (ids, lang) => fillMeanings({ data: { word_ids: ids, explain_lang: normalizeUiLang(lang) } }),
+      (e) => reportBackgroundFailure("reader_meaning", e),
+    );
+    return () => {
+      setReaderMeaningLoader(null);
+      setReaderMeaningFiller(null);
+    };
+  }, [fetchMeanings, fillMeanings]);
   const [state, setState] = useState<"checking" | "ready" | "failed">("checking");
   const [attempt, setAttempt] = useState(0);
   const [pending, setPending] = useState<{ draft: FirstCatch; userId: string } | null>(null);

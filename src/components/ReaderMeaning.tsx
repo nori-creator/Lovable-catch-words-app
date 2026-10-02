@@ -20,6 +20,8 @@ export function ReaderMeaning({
   wordId?: string | null;
 }) {
   const lang = useUiLang();
-  const own = useReaderMeaningFor(wordId, lang);
+  // 共有の意味も渡す — それが読む人の言語でない語は、意味だけを埋めに行く
+  // （2026-10-02「英語・繁體中文の表示で図鑑のスライドに意味が出ない」）。
+  const own = useReaderMeaningFor(wordId, lang, text ?? "");
   return <>{shortMeaning(own || readerMeaning(text, lang))}</>;
 }
