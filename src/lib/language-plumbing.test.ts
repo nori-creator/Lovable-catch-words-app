@@ -4848,39 +4848,40 @@ describe("ホームは今日の誌面", () => {
     );
     // 2026-09-24「過去のものが多すぎで画面で確認できないから、過去のものは全て
     // 削除して」: 帯には**今回の依頼の面だけ**。
-    // 2026-10-02「表示言語が英語・繁體中文だと復習の意味が日本語・訳が無い・品詞が日本語・
-    // 図鑑のスライドに意味が無い」の回。先頭は英語の表示の4択（本番の `LightModeCard`）。
-    // 英語と繁體中文の両方、答え合わせ・図鑑のスライド・単語の詳細の品詞を並べる。
-    expect(list.slice(0, list.indexOf("},"))).toMatch(
-      /scene: "review-choice&lang=en&mixed=1&photo=1"/,
-    );
-    for (const lang of ["en", "zh-TW"]) {
-      expect(list).toContain(`scene: "review-choice&lang=${lang}&mixed=1&photo=1"`);
-      expect(list).toContain(`scene: "review-choice&lang=${lang}&mixed=1&photo=1&answer=right"`);
-      expect(list).toContain(`scene: "dex-cards&lang=${lang}&reader=1"`);
-      expect(list).toContain(`scene: "word-card&lang=${lang}"`);
+    // 2026-10-02「ウェルカム画面の画像の配置…デザイン案を私に」「カメラの許可の画面がダサい…
+    // どこからでも体験できるように」「チュートリアルの枠・コマ割り・説明・流れ」の回。
+    // 先頭はウェルカム画面のおすすめ案 D。
+    expect(list.slice(0, list.indexOf("},"))).toMatch(/scene: "first-catch&layout=scatter"/);
+    for (const layout of ["scatter", "hero", "cascade", "bouquet"]) {
+      expect(list).toContain(`scene: "first-catch&layout=${layout}"`);
     }
-    // 日本語の表示は今と同じことを並べて確かめる。
-    expect(list).toMatch(/scene: "review-choice&lang=ja&mixed=1&photo=1&answer=right"/);
-    // 前の回（単語の詳細の見出しの並び）の面はその後ろに残す。
-    expect(list).toMatch(/scene: "sticker-sheet&word=en"/);
-    expect(list).toMatch(/scene: "sticker-sheet"/);
-    // それより前の回（記憶のグラフ・アルバム・管理画面・パスワードの再設定）の面は残さない。
+    // カメラの許可の前の一枚（A/B/C）と、断った時・LINE の中の時。
+    expect(list).toContain('scene: "first-catch&step=camera&cam=prompt"');
+    expect(list).toContain('scene: "first-catch&step=camera&cam=prompt&primer=b"');
+    expect(list).toContain('scene: "first-catch&step=camera&cam=prompt&primer=c"');
+    for (const cam of ["denied", "android", "brave", "line"]) {
+      expect(list).toContain(`scene: "first-catch&step=camera&cam=${cam}"`);
+    }
+    // チュートリアルを最初から流す面（3言語）。
+    expect(list).toContain('scene: "first-catch&step=home&tour=1"');
+    expect(list).toContain('scene: "first-catch&step=home&tour=1&lang=en"');
+    expect(list).toContain('scene: "first-catch&step=home&tour=1&lang=zh-TW"');
+    // 前の回（表示言語の復習・図鑑、単語の詳細の見出し、学習言語でない見出し）の面は残さない。
+    expect(list).not.toMatch(/scene: "review-choice&lang=/);
+    expect(list).not.toMatch(/scene: "dex-cards&lang=/);
+    expect(list).not.toMatch(/scene: "sticker-sheet/);
+    expect(list).not.toMatch(/scene: "capture-card&variant=not-target/);
+    // それより前の回（記憶のグラフ・アルバム・管理画面・パスワードの再設定）の面も残さない。
     expect(list).not.toMatch(/scene: "review-header/);
     expect(list).not.toMatch(/scene: "memory-designs/);
     expect(list).not.toMatch(/scene: "admin-users/);
     expect(list).not.toMatch(/scene: "auth&email=1"/);
     expect(list).not.toMatch(/scene: "reset-password/);
     expect(main).toContain('"review-header": ReviewHeaderScene');
-    // 2026-10-02「英語の図鑑にノート」の回。先頭は撮った後のカードで、学習言語の語で
-    // ない見出しを保存せずに理由を出す所（`err.notTargetLanguage`）。
-    expect(list).toMatch(/scene: "capture-card&variant=not-target&lang=ja"/);
-    expect(list).toMatch(/scene: "capture-card&variant=not-target&lang=en"/);
     expect(main).toContain('"capture-card": CaptureCardScene');
     // 前の回（記憶のグラフ・本の左ページ・管理画面）の面は残さない。
     // 前の回（パスワードの再設定）の面は残さない。
-    // 前の回（チュートリアルの4択）の面は残さない。
-    expect(list).not.toMatch(/scene: "first-catch&step=review"/);
+    // （チュートリアルの4択 `first-catch&step=review` は 2026-10-02 の回でまた並べる。）
     // 前の回（R26/R27）の面は残さない。
     expect(list).not.toMatch(/scene: "home-shelf"/);
     expect(list).not.toMatch(/scene: "dex-map"/);

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import ts from "typescript";
+import { RING_GAP, TOUR_TIMING } from "@/components/onboarding/Spotlight";
 
 const source = (path: string) => readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
 function components(path: string) {
@@ -93,5 +94,60 @@ describe("first-catch rendering boundary", () => {
     expect(css).not.toMatch(
       /^\s*--(card|foreground|border|muted-foreground|primary|primary-ink|background):/m,
     );
+  });
+});
+
+/**
+ * 案内の枠とコマ割り（オーナー指示 2026-10-02「青の囲う枠をもう少し正確にして、時間を
+ * コマ割りをしっかりして」）。数字は QA.md と CSS と同じでなければならない。
+ */
+describe("tutorial guide frame and beats", () => {
+  const spot = source("components/onboarding/Spotlight.tsx");
+  const css = source("components/onboarding/first-catch.css");
+  const qa = readFileSync(new URL("../../QA.md", import.meta.url), "utf8");
+  it("the beat durations in code, CSS and QA.md agree", () => {
+    expect(TOUR_TIMING.screenHold).toBe(1000);
+    expect(TOUR_TIMING.ringIn).toBe(700);
+    expect(TOUR_TIMING.ringMove).toBe(480);
+    expect(TOUR_TIMING.reducedHold).toBe(400);
+    expect(qa).toMatch(/at least 1\.0 s/);
+    expect(qa).toMatch(/over 700ms/);
+    expect(qa).toMatch(/over 480ms/);
+    expect(qa).toMatch(/0\.4 s/);
+    expect(css).toMatch(/\.tour-ring--expand \{\s*animation: tour-focus-expand 700ms/);
+    expect(css).toMatch(/\.tour-ring--move \{\s*transition:\s*top 480ms/);
+    // 広がりは対象の真ん中から（画面の真ん中から飛んで来ない）。
+    expect(css).toMatch(/top: calc\(var\(--ring-cy\) - 12px\)/);
+  });
+  it("the frame hugs the target with one even gap and concentric corners", () => {
+    expect(RING_GAP).toBe(4);
+    expect(spot).toMatch(/borderRadius: box\.radius \? box\.radius \+ RING_GAP : RING_GAP/);
+    expect(qa).toMatch(/4px outside on every side/);
+  });
+  it("text never shows before its frame: the phase belongs to one target", () => {
+    expect(spot).toMatch(/stage\.for === target \? stage\.phase : "wait"/);
+  });
+  it("one frame per guide, around the control itself, and every coach shows its chapter", () => {
+    expect(spot).not.toMatch(/tour-tap/);
+    expect(css).not.toMatch(/\.tour-tap\b/);
+    for (const path of [
+      "components/onboarding/FirstCatchFlow.tsx",
+      "components/onboarding/FirstCatchPractice.tsx",
+    ]) {
+      const code = source(path);
+      const guides = code.match(/<Spotlight\b[\s\S]*?\/>/g) ?? [];
+      expect(guides.length).toBeGreaterThan(0);
+      for (const guide of guides) expect(guide).toMatch(/\bstep=/);
+    }
+    expect(source("components/onboarding/FirstCatchPractice.tsx")).not.toMatch(
+      /target='\[data-tour="dex"\]'/,
+    );
+  });
+  it("the real-app driver reads the gesture the guide asks for", () => {
+    expect(spot).toMatch(/data-tour-gesture=/);
+    const driver = readFileSync(new URL("../../e2e/real-app/run.mjs", import.meta.url), "utf8");
+    expect(driver).toMatch(/getAttribute\("data-tour-gesture"\)/);
+    expect(driver).toMatch(/ring\.gesture === "swipe"/);
+    expect(driver).toMatch(/ring\.gesture === "peel"/);
   });
 });

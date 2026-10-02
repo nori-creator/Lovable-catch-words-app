@@ -1372,7 +1372,7 @@ export function LightModeCard({
             />
           </div>
         )}
-        <div className="mb-1.5 shrink-0 text-center">
+        <div className="mb-1.5 shrink-0 text-center" data-tour="review-prompt">
           <div className="text-body font-semibold leading-snug">
             {promptText ? (
               <>
@@ -1566,6 +1566,7 @@ export function LightModeCard({
           createPortal(
             <div
               ref={panelRef}
+              data-tour="review-answer"
               className="fixed inset-x-0 bottom-[calc(4.5rem+env(safe-area-inset-bottom))] z-40"
             >
               {/* 半透明(app-sheet)だと後ろの選択肢が透けて読みにくかった

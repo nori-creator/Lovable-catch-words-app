@@ -361,56 +361,32 @@ const q = new URLSearchParams(location.search);
  * 「これを見てください」と差し出すことになる。
  */
 const REVIEW_SCENES: Array<{ scene: string; label: string }> = [
-  // 2026-10-02「表示言語が英語（繁體中文も）だと、復習の4択の意味が日本語・答え合わせに訳が
-  // 無い・品詞が日本語・図鑑のスライドに意味が出ない」。日本語で作った語を英語・繁體中文で
-  // 読む人の画面。答え合わせは開いてすぐ押して出す（`answer=right`）。
-  {
-    scene: "review-choice&lang=en&mixed=1&photo=1",
-    label: "復習（英語の表示）: 4択の問いの意味が英語",
-  },
-  {
-    scene: "review-choice&lang=en&mixed=1&photo=1&answer=right",
-    label: "復習（英語）: 答え合わせの訳・品詞が英語",
-  },
-  {
-    scene: "review-choice&lang=zh-TW&mixed=1&photo=1",
-    label: "復習（繁體中文の表示）: 4択の問いの意味が中文",
-  },
-  {
-    scene: "review-choice&lang=zh-TW&mixed=1&photo=1&answer=right",
-    label: "復習（繁體中文）: 答え合わせの訳・品詞が中文",
-  },
-  {
-    scene: "review-choice&lang=en&mixed=1&photo=1&pending=1&answer=wrong",
-    label: "復習（英語）: その人向けの解説がまだ無い間（写真で問う・日本語を出さない）",
-  },
-  {
-    scene: "review-choice&lang=ja&mixed=1&photo=1&answer=right",
-    label: "復習（日本語の表示）: 今までと同じ（比べる用）",
-  },
-  { scene: "dex-cards&lang=en&reader=1", label: "図鑑のスライド（英語）: 見出しの下に意味" },
-  { scene: "dex-cards&lang=zh-TW&reader=1", label: "図鑑のスライド（繁體中文）: 見出しの下に意味" },
-  { scene: "word-card&lang=en", label: "単語の詳細（英語）: 品詞の札とチャンクの凡例が英語" },
-  { scene: "word-card&lang=zh-TW", label: "単語の詳細（繁體中文）: 品詞の札とチャンクの凡例" },
-  // 2026-10-02「英語の単語の見出しのなかの配置がバランス悪い。整理して。単語、品詞、発音ボタン。
-  // 報告ボタンは一番下の削除の横に配置して」。
-  { scene: "sticker-sheet&word=en", label: "単語の詳細（英語）: 見出しの並び・一番下に報告と削除" },
-  { scene: "sticker-sheet", label: "単語の詳細（台湾華語）: 見出しの並び・一番下に報告と削除" },
-  { scene: "sticker-sheet&word=en&theme=dark", label: "単語の詳細（英語・暗いテーマ）" },
-  // 2026-10-02「英語の図鑑にノート」「英語の復習に拿鐵の4択」— 学習言語の語でない見出しは
-  // 保存せず、理由を出す（`err.notTargetLanguage`）。表示言語ごとの文も見られるようにする。
-  {
-    scene: "capture-card&variant=not-target&lang=ja",
-    label: "撮った後: 学習言語の語でない見出しは保存せず理由を出す",
-  },
-  {
-    scene: "capture-card&variant=not-target&lang=en",
-    label: "撮った後: 同じ（英語の表示）",
-  },
-  {
-    scene: "capture-card&variant=not-target&lang=zh-TW",
-    label: "撮った後: 同じ（繁體中文の表示）",
-  },
+  // 2026-10-02「ウェルカム画面の画像の配置を美しくして。デザイン案を私に。縦横無機質には
+  // 並べないで」「はじめる…ログインが近いから少しだけ離して」。上の帯で C〜F を切り替えられる。
+  { scene: "first-catch&layout=scatter", label: "ウェルカム D 散らす（おすすめ）" },
+  { scene: "first-catch&layout=hero", label: "ウェルカム E 主役" },
+  { scene: "first-catch&layout=cascade", label: "ウェルカム F 流れ" },
+  { scene: "first-catch&layout=bouquet", label: "ウェルカム C 今の本番（比べる用）" },
+  { scene: "first-catch&layout=scatter&theme=dark", label: "ウェルカム D（暗いテーマ）" },
+  { scene: "first-catch&fail=start", label: "ウェルカム: 保存できない時の一言（はじめるを押す）" },
+  // 2026-10-02「カメラの許可の画面がダサい…iPhone でも Android でもブラウザからでも
+  // どこからでも、登録前に体験できるように」。ブラウザ自身の許可の画面は変えられないので、
+  // その前に出すアプリの一枚（A/B/C は右上で切り替え）と、スマホのカメラで撮る道。
+  { scene: "first-catch&step=camera&cam=prompt", label: "カメラの許可の前の一枚 A（おすすめ）" },
+  { scene: "first-catch&step=camera&cam=prompt&primer=b", label: "カメラの許可の前の一枚 B" },
+  { scene: "first-catch&step=camera&cam=prompt&primer=c", label: "カメラの許可の前の一枚 C" },
+  { scene: "first-catch&step=camera&cam=denied", label: "カメラを断った時（iPhone）" },
+  { scene: "first-catch&step=camera&cam=android", label: "カメラを断った時（Android）" },
+  { scene: "first-catch&step=camera&cam=brave", label: "カメラを断った時（Brave）" },
+  { scene: "first-catch&step=camera&cam=line", label: "LINE の中で開いた時" },
+  // 2026-10-02「チュートリアルの青の囲う枠をもう少し正確に、時間をコマ割りをしっかり。
+  // 説明をもっと正確に簡潔に…便利さを伝えて。流れを確認して完成度を上げて」。
+  // 右上で章を選べる・「もう一度」で同じ章を流し直せる。
+  { scene: "first-catch&step=home&tour=1", label: "チュートリアル（最初から・章を選べる）" },
+  { scene: "first-catch&step=home&tour=1&lang=en", label: "チュートリアル（英語）" },
+  { scene: "first-catch&step=home&tour=1&lang=zh-TW", label: "チュートリアル（繁體中文）" },
+  { scene: "first-catch&step=pick", label: "チュートリアル: 撮った後の候補" },
+  { scene: "first-catch&step=review", label: "チュートリアル: 自分の写真で復習" },
 ];
 
 /**
