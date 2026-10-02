@@ -59,8 +59,7 @@ Known WebKit traps the code already guards against (keep the guards):
 2. Same with location permission prompt left unanswered.
 3. Scan mode: frame → detected words.
 4. Five photos in a row without reloading.
-5. Review: speaking video records and plays back inline.
-6. Place reminder permission flow (home-screen app only; Safari tabs cannot receive web notifications).
+5. Place reminder permission flow (home-screen app only; Safari tabs cannot receive web notifications).
 
 ## Performance checks
 

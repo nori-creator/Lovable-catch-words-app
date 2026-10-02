@@ -842,7 +842,6 @@ export async function logUsage(supabase: unknown, userId: string, kind: string):
 const DAILY_CAPS: Record<string, number> = {
   scan_detect: 300,
   scan_parts: 300,
-  speaking_feedback: 200,
   tts: 500,
   correction: 100,
   journal_prompt: 60,

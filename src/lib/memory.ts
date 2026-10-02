@@ -163,34 +163,6 @@ export function memoryOf(w: MemoryInput): { percent: number; level: MemoryLevelI
 const stabilityFor = (w: MemoryInput) =>
   w.stability_days ?? stabilityOf(w.interval_days, w.ease ?? DEFAULT_EASE);
 
-/**
- * **出題の形を選ぶためだけの、内部の「育ち具合」。画面には出さない。**
- *
- * 画面の % は復習の直後にどの語も 100% になる。その数で出題の形
- * （4択 → 発音 → 作文）を決めると、**今日キャッチした語にいきなり作文**が
- * 来る。形は「どれだけ長くもつ語か」も見て決めたいので、定着度に
- * 熟し（安定度）を掛けた数を使う（2026-09-16 の「記憶の強さ」と同じ式）。
- *
- * ```
- *   熟し     = 安定度 / (安定度 + RIPE_HALF)
- *   育ち具合 = 定着度 × (RIPE_FLOOR + (1−RIPE_FLOOR) × 熟し)
- * ```
- */
-const RIPE_HALF = 60;
-const RIPE_FLOOR = 0.6;
-
-export function maturityScore(retention: number, stabilityDays: number): number {
-  const s = Math.max(0, stabilityDays);
-  const ripe = s / (s + RIPE_HALF);
-  const v = retention * (RIPE_FLOOR + (1 - RIPE_FLOOR) * ripe);
-  return Math.max(0, Math.min(100, Math.round(v)));
-}
-
-/** 出題の形に使う段（0〜5）。**バッジの段とは別**（上の注）。 */
-export function maturityLevel(w: MemoryInput): number {
-  return memoryLevel(maturityScore(w.retention, stabilityFor(w))).level;
-}
-
 export const MEMORY_LEVELS = LEVELS;
 
 /** 並べ替えに要る所だけ。画面ごとに持っている型が違うので、必要な形で受ける。 */

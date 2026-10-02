@@ -744,7 +744,7 @@ ${data.hintCategory ? `カテゴリのヒント: ${data.hintCategory}` : ""}`;
         .maybeSingle();
       if (!dictErr && entry) {
         dictStep = entry.level_step ?? null;
-        // 級が空の語に**級の代わりに**出す事実(`exam-tags.ts` の注)。
+        // その語が出る検定の印(辞書の行に入っている事実。`extras.ts` の注)。
         examTags = (entry.exam_tags as string[] | null) ?? [];
       }
     } catch (e) {

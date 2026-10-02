@@ -15,7 +15,6 @@ import { readySpeech } from "../speech";
 readySpeech(["衛生紙", "面紙", "濕紙巾", "捲筒紙", "珍珠奶茶"]);
 
 import { useRef, useState } from "react";
-import type { RecordedNote } from "@/components/VoiceCaptionButton";
 import {
   CaptureCardPanel,
   CaptureObjectPanel,
@@ -341,11 +340,6 @@ export function CaptureCardScene({ q }: { q: URLSearchParams }) {
   const v = q.get("variant");
   const [flipped, setFlipped] = useState(v === "back" || v === "noselfie");
   const [caption, setCaption] = useState(v === "back" ? "士林夜市で並んでいるときに" : "");
-  // 声で吹き込んだ一言の**録れた後**も撮る(オーナー指示 2026-08-26)。
-  // 録っている最中はマイクが要るので足場からは出せない。
-  const [voiceNote, setVoiceNote] = useState<RecordedNote | null>(
-    v === "voice" ? { blob: new Blob([]), mime: "audio/webm" } : null,
-  );
   return (
     <CaptureCardPanel
       card={
@@ -367,8 +361,6 @@ export function CaptureCardScene({ q }: { q: URLSearchParams }) {
       setFlipped={setFlipped}
       caption={caption}
       setCaption={setCaption}
-      voiceNote={voiceNote}
-      setVoiceNote={setVoiceNote}
       placeName="士林夜市"
       onRedo={() => {}}
       onSave={() => {}}

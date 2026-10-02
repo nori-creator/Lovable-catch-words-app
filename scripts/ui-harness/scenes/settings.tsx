@@ -1,4 +1,3 @@
-import { REVIEW_MODE_CHOICE_ENABLED, REVIEW_PRACTICE_ENABLED } from "@/lib/product-features";
 /**
  * 設定画面の場面。**ルートに書かれている本物の部品を、本物の文言で描く。**
  *
@@ -49,7 +48,6 @@ import { useState } from "react";
  * 学習の束。丸いボタンの列が2列・3列・5列で並び、末尾にスイッチが2つ付く。
  */
 export function SettingsChoicesScene() {
-  const [mode, setMode] = useState("hybrid");
   const [photo, setPhoto] = useState("object");
   const [strict, setStrict] = useState("normal");
   const [limit, setLimit] = useState(20);
@@ -57,25 +55,6 @@ export function SettingsChoicesScene() {
   return (
     <SettingsCard title={t("settings.study")}>
       <div className="space-y-3">
-        {/* **実物と同じ3択にする。**
-            3つ目を足したとき、ここは2択のまま写しが残っていて、
-            下の説明文だけが3択を語る絵になっていた
-            (検査の絵で気づいた)。選択肢を手で写している限り、
-            実物が変わっても絵は変わらない — このハーネスが避けようとして
-            いる形そのものなので、写しは増やさず本物と同じ並びを保つ。 */}
-        {REVIEW_PRACTICE_ENABLED && REVIEW_MODE_CHOICE_ENABLED && (
-          <ChoiceRow
-            cols={3}
-            label={t("settings.reviewMode")}
-            value={mode}
-            onChange={setMode}
-            options={[
-              { value: "hybrid", label: t("settings.modeHybrid") },
-              { value: "speaking", label: t("settings.modeSpeaking") },
-              { value: "choice", label: t("settings.modeChoice") },
-            ]}
-          />
-        )}
         {/* 要望 #16 の設定。**4つ並ぶ**ので、狭い画面で札が潰れないかを見る。 */}
         <ChoiceRow
           cols={3}

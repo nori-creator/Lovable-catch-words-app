@@ -617,12 +617,6 @@ export const DICT: Record<string, Record<UiLang, string>> = {
   // --- 共通 ---
   "common.back": { ja: "戻る", en: "Back", "zh-TW": "返回" },
   // --- ページタイトル・復習 ---
-  "rv.hearModel": { ja: "お手本を聞く", en: "Listen to the model answer", "zh-TW": "聽示範答案" },
-  "rv.hearAlt": {
-    ja: "別の言い方を聞く",
-    en: "Listen to the alternative",
-    "zh-TW": "聽另一種說法",
-  },
   "page.home": { ja: "ホーム — CatchWords", en: "Home — CatchWords", "zh-TW": "首頁 — CatchWords" },
   "page.dex": { ja: "図鑑 — CatchWords", en: "Dex — CatchWords", "zh-TW": "圖鑑 — CatchWords" },
   "page.review": {
@@ -711,74 +705,13 @@ export const DICT: Record<string, Record<UiLang, string>> = {
     "zh-TW": "使用條款 — CatchWords",
   },
   // --- 復習・単語カード ---
-  "rv.modeAria": { ja: "復習モード", en: "Review mode", "zh-TW": "複習模式" },
-  "rv.quietMode": {
-    ja: "声を出せない場所用の4択モード",
-    en: "Multiple-choice mode for when you can't speak out loud",
-    "zh-TW": "不方便出聲時用的四選一模式",
-  },
   // --- 日記の足場(要望 #88) ---
-  "rv.autoMode": {
-    ja: "AI が記憶の段階を見て、出題の形を選びます",
-    en: "AI reads how well you remember and picks the task format",
-    "zh-TW": "AI 會看你記得多牢，再挑出題的形式",
-  },
-  "rv.formatSay": {
-    ja: "写真を見て、声に出す",
-    en: "Look at the photo and say it",
-    "zh-TW": "看照片，唸出來",
-  },
-  "rv.formatSayHint": {
-    ja: "いまは1語だけ。文を作るのは、もう少し覚えてから。",
-    en: "Just the word for now — sentences come once it sticks.",
-    "zh-TW": "現在只唸單字。等記牢一點再造句。",
-  },
-  "rv.promptSay": {
-    ja: "この単語を声に出して",
-    en: "Say this word out loud",
-    "zh-TW": "把這個單字唸出來",
-  },
-  "rv.sayCheck": { ja: "言えたか見る", en: "Check it", "zh-TW": "看看唸對了嗎" },
-  "rv.sayRetry": { ja: "言い直す", en: "Say it again", "zh-TW": "再唸一次" },
   "rv.streakLine": {
     ja: "復習が{n}日続いています",
     en: "{n}-day review streak",
     "zh-TW": "已經連續複習 {n} 天",
   },
   // --- 単語帳の取り込み(src/lib/wordbook.ts) ---
-  // --- TOCFL の段々(src/lib/tocfl.ts) ---
-  "tocfl.levelInBand": {
-    ja: "{n}級（Band {band}）",
-    en: "Level {n} · Band {band}",
-    "zh-TW": "{n}級（Band {band}）",
-  },
-  // TOCFL は6級を2つずつ3つの帯にまとめる。帯の名前は公式のもの。
-  "tocfl.bandA": { ja: "A", en: "A", "zh-TW": "A" },
-  "tocfl.bandB": { ja: "B", en: "B", "zh-TW": "B" },
-  "tocfl.bandC": { ja: "C", en: "C", "zh-TW": "C" },
-  "tocfl.out": { ja: "級外の語", en: "Not in the lists", "zh-TW": "級外的字" },
-  "tocfl.outShort": { ja: "外", en: "—", "zh-TW": "外" },
-  // 段々は既定で畳む(オーナー指摘「バーが大きすぎる。レベルとバンドだけ
-  // 表示して、タップでバーを出して」)。押せることが分かる言葉を添える。
-  "tocfl.showLadder": { ja: "段階を見る", en: "Show the scale", "zh-TW": "看等級表" },
-  "tocfl.hideLadder": { ja: "段階を閉じる", en: "Hide the scale", "zh-TW": "收起等級表" },
-  // CEFR の言い方(2026-08-24 の二言語化)。
-  // **「A1級」と書かない** — 級は TOCFL の数え方で、CEFR の段は
-  // それ自体が名前(A1)。数え方の言葉を足すと別の体系に見える。
-  "cefr.levelInBand": {
-    ja: "{n}（Band {band}）",
-    en: "{n} · Band {band}",
-    "zh-TW": "{n}（Band {band}）",
-  },
-  "cefr.out": { ja: "CEFR の外の語", en: "Outside the CEFR bands", "zh-TW": "CEFR 之外的字" },
-  // JLPT の言い方(2026-10-01、日本語を学習言語に足した日)。段の名前(N5〜N1)は
-  // それ自体が名前なので、CEFR と同じく「級」を足さない。
-  "jlpt.levelInBand": {
-    ja: "{n}（Band {band}）",
-    en: "{n} · Band {band}",
-    "zh-TW": "{n}（Band {band}）",
-  },
-  "jlpt.out": { ja: "JLPT の外の語", en: "Outside the JLPT levels", "zh-TW": "JLPT 之外的字" },
   // **取り込みではない。** 許可を取っていないので、見に行く先だけを出す。
   // --- 英語のコーパス(第4段) -----------------------------------------------
   // --- もう一度撮る提案(src/lib/retake.ts) ---
@@ -802,31 +735,7 @@ export const DICT: Record<string, Record<UiLang, string>> = {
     "zh-TW": "點一下可以看每個字的遺忘曲線，以及「什麼時候會忘記」的預測",
   },
   "rv.today": { ja: "今日", en: "Today", "zh-TW": "今天" },
-  "rv.noAsr": {
-    ja: "このブラウザは音声認識に非対応です。テキスト欄に直接入力してください。",
-    en: "This browser doesn't support speech recognition. Please type in the box instead.",
-    "zh-TW": "這個瀏覽器不支援語音辨識，請直接在文字欄輸入。",
-  },
-  "rv.notHeard": {
-    ja: "音声を聞き取れませんでした。もう一度話すか、下の欄に直接入力してください。",
-    en: "Couldn't catch that. Try speaking again, or type in the box below.",
-    "zh-TW": "沒有聽清楚。請再說一次，或直接在下面的欄位輸入。",
-  },
-  "rv.feedbackFailed": {
-    ja: "AIフィードバックに失敗しました",
-    en: "AI feedback failed",
-    "zh-TW": "AI 回饋失敗",
-  },
   "rv.targetAlt": { ja: "復習対象", en: "The word being reviewed", "zh-TW": "正在複習的字" },
-  "rv.readQuestion": { ja: "質問を読み上げ", en: "Read the question aloud", "zh-TW": "唸出題目" },
-  "rv.stop": { ja: "停止", en: "Stop", "zh-TW": "停止" },
-  "rv.record": { ja: "録音", en: "Record", "zh-TW": "錄音" },
-  "rv.hearCorrection": {
-    ja: "添削文を聞く",
-    en: "Listen to the correction",
-    "zh-TW": "聽修改後的句子",
-  },
-  "rv.nextArrow": { ja: "次へ", en: "Next", "zh-TW": "下一個" },
   "rv.topChunk": { ja: "よく使う形", en: "Most-used pattern", "zh-TW": "最常用的形式" },
   // 解説がまだ生成されていない語でも、答え合わせを空にしないための見出し
   // （オーナー報告 2026-09-15「復習の時に解説がない」）。
@@ -2006,10 +1915,6 @@ export const DICT: Record<string, Record<UiLang, string>> = {
   "title.capture": { ja: "集める", en: "Catch", "zh-TW": "收集" },
   // --- review ---
   "review.today": { ja: "きょうの復習", en: "Today's review", "zh-TW": "今天的複習" },
-  // オーナー指示 2026-08-26「復習モードの AI が選ぶという名前、自動に変えて」。
-  "review.auto": { ja: "自動", en: "Auto", "zh-TW": "自動" },
-  "review.speak": { ja: "話す", en: "Speak", "zh-TW": "開口說" },
-  "review.choice": { ja: "4択", en: "Quiz", "zh-TW": "四選一" },
   // --- dex ---
   "dex.yours": { ja: "あなたの図鑑", en: "Your dex", "zh-TW": "你的圖鑑" },
   "dex.search": {
@@ -2261,16 +2166,8 @@ export const DICT: Record<string, Record<UiLang, string>> = {
     en: "Switch front / back camera",
     "zh-TW": "切換前後鏡頭",
   },
-  "scan.listening": { ja: "聞き取り中…", en: "Listening…", "zh-TW": "聆聽中…" },
   "scan.speakNow": { ja: "話しかけてください", en: "Speak now", "zh-TW": "請開始說話" },
   // --- review extras ---
-  // 端末では効いているが、他の端末へ持っていく控えが取れなかったとき。
-  // **失敗ではないので赤くしない。**
-  "review.modeLocalOnly": {
-    ja: "この端末では変わりました。ほかの端末には引き継がれません。",
-    en: "Changed on this device. It won't carry to your other devices.",
-    "zh-TW": "這台裝置上已經改好了，但不會同步到其他裝置。",
-  },
   // アルバムの編集を終えて保存する。**画面の下に固定**してある
   // （台紙に貼ると、下の札をいじっている人の画面から外れて押せない）。
   /**
@@ -2357,22 +2254,9 @@ export const DICT: Record<string, Record<UiLang, string>> = {
   "review.toDex": { ja: "図鑑を見る", en: "Open the shelf", "zh-TW": "看圖鑑" },
   "review.quizTag": { ja: "4択クイズ", en: "Multiple choice", "zh-TW": "四選一測驗" },
   "review.correct": { ja: "正解！", en: "Correct!", "zh-TW": "答對了！" },
-  // 言い直して当てた回。**言えたのは事実なので「正解」と出す**が、
-  // 記録は失念（オーナー指示 2026-08-27 ⑦）。明日また出る理由を
-  // その場で言わないと「正解したのになぜ？」になる。
-  "review.retriedCountsAsLapse": {
-    ja: "言い直したので、明日また出します",
-    en: "You needed another go — this one comes back tomorrow",
-    "zh-TW": "重說了一次，明天會再出現",
-  },
   "review.tryAgain": { ja: "もう一度覚えよう", en: "Let's learn it again", "zh-TW": "再記一次吧" },
   "review.next": { ja: "次へ", en: "Next", "zh-TW": "下一題" },
   "review.openInDex": { ja: "図鑑で見る", en: "Open in Dex", "zh-TW": "在圖鑑查看" },
-  "review.speakTag": { ja: "はなす", en: "Speak", "zh-TW": "開口說" },
-  "review.roleplayTag": { ja: "ロールプレイ", en: "Role-play", "zh-TW": "角色扮演" },
-  "review.skip": { ja: "スキップ", en: "Skip", "zh-TW": "跳過" },
-  "review.submit": { ja: "送信してフィードバック", en: "Get feedback", "zh-TW": "送出並取得回饋" },
-  "review.grading": { ja: "AIが添削中…", en: "AI is reviewing…", "zh-TW": "AI 批改中…" },
   // --- memory ---
   "memory.badgeAria": {
     ja: "記憶の状態: {label}（{n}%）",
@@ -2948,38 +2832,8 @@ export const DICT: Record<string, Record<UiLang, string>> = {
   // 本棚(オーナー指摘 2026-08-21「リアルな本の本棚を作って、背表紙の
   //  タイトルが見えるように」)。読み上げ用の棚の名前。
   "shelf.books": { ja: "単語帳の本棚", en: "Wordbook shelf", "zh-TW": "單字本的書架" },
-  // 一言の自撮り動画(オーナー決定 2026-08-21 = B案)。
   // 見込みの幅(オーナー指摘 2026-08-21「適当すぎる」)。
   // **点だけを信じさせない** — 人が増えれば幅は狭くなる。
-  // 一言は**音声だけ**(オーナー指示 2026-08-26)。列の名前は
-  // `voice_video_url` のままだが、中身も文言も「録音」になった。
-  "voice.play": { ja: "一言を聞く", en: "Play the voice note", "zh-TW": "播放一句話" },
-  // キャッチの最中に声で吹き込む(オーナー指示 2026-08-26)。
-  "voice.speak": { ja: "声で一言を残す", en: "Say your note out loud", "zh-TW": "用聲音留一句話" },
-  "voice.recorded": { ja: "録れました", en: "Recorded", "zh-TW": "已錄好" },
-  "voice.discard": { ja: "録った一言を捨てる", en: "Discard the recording", "zh-TW": "捨棄錄音" },
-  "voice.attachFailed": {
-    ja: "声の一言だけ保存できませんでした",
-    en: "Only the voice note could not be saved",
-    "zh-TW": "只有語音的一句話沒能儲存",
-  },
-  "voice.pause": { ja: "一言を止める", en: "Pause the voice note", "zh-TW": "暫停一句話" },
-  "voice.stop": { ja: "止める（あと{n}秒）", en: "Stop ({n}s left)", "zh-TW": "停止（剩 {n} 秒）" },
-  "voice.noMic": {
-    ja: "マイクを使えませんでした",
-    en: "Couldn't use the microphone",
-    "zh-TW": "無法使用麥克風",
-  },
-  "voice.unsupported": {
-    ja: "この端末では録音できません",
-    en: "This device can't record audio",
-    "zh-TW": "這個裝置無法錄音",
-  },
-  "voice.needsMigration": {
-    ja: "まだ保存先の準備ができていません（移行待ち）",
-    en: "Storage isn't ready yet (migration pending)",
-    "zh-TW": "儲存的地方還沒準備好（等待轉移）",
-  },
   // ホームの本棚と見開き(オーナー指摘 2026-08-21 ⑬⑭)。
   "dex.filterCategory": { ja: "カテゴリー", en: "Category", "zh-TW": "分類" },
   "dex.filterDay": { ja: "日付", en: "Date", "zh-TW": "日期" },
@@ -3444,7 +3298,6 @@ export const DICT: Record<string, Record<UiLang, string>> = {
     en: "Record video (front camera)",
     "zh-TW": "錄影（前鏡頭）",
   },
-  "settings.reviewMode": { ja: "復習モード", en: "Review mode", "zh-TW": "複習模式" },
   "settings.avatar": { ja: "プロフィール写真", en: "Profile photo", "zh-TW": "大頭貼" },
   "settings.avatarPick": { ja: "写真を選ぶ", en: "Choose photo", "zh-TW": "選照片" },
   "settings.avatarChange": { ja: "変更", en: "Change", "zh-TW": "更換" },
@@ -3579,15 +3432,8 @@ export const DICT: Record<string, Record<UiLang, string>> = {
   "dex.timelineTitle": { ja: "この日の記録", en: "This day's captures", "zh-TW": "這一天的紀錄" },
   "settings.photoObject": { ja: "元の写真", en: "Photo", "zh-TW": "原本的照片" },
   "settings.photoSelfie": { ja: "自撮り", en: "Selfie", "zh-TW": "自拍" },
-  // **絵文字は付けない**(オーナー指示 2026-08-28 ⑥)。3つ並ぶ札で、
-  // 選ばれているかどうかは地の色が言っている。絵は同じ仕事を二重に
-  // していただけで、しかも端末ごとに違う絵が出る。
-  "settings.modeHybrid": { ja: "自動", en: "Auto", "zh-TW": "自動" },
-  "settings.modeSpeaking": { ja: "話す", en: "Speak", "zh-TW": "開口說" },
-  "settings.modeChoice": { ja: "4択", en: "Quiz", "zh-TW": "四選一" },
   "settings.zhuyin": { ja: "ㄅㄆㄇ 注音", en: "ㄅㄆㄇ Zhuyin", "zh-TW": "ㄅㄆㄇ 注音" },
   "settings.pinyin": { ja: "abc ピンイン", en: "abc Pinyin", "zh-TW": "abc 拼音" },
-  // 英語版の読みの表記。既定はアメリカ英語(オーナー決定 2026-08-24)。
   // --- 出典（商用利用の条件。`src/lib/data-sources.ts` と対で持つ） ---
   "settings.sources": { ja: "データの出典", en: "Data sources", "zh-TW": "資料來源" },
   "settings.sourcesHint": {
@@ -3621,8 +3467,6 @@ export const DICT: Record<string, Record<UiLang, string>> = {
     en: "Simplified to Taiwanese traditional Chinese",
     "zh-TW": "簡體字轉台灣正體字",
   },
-  "settings.ipaUs": { ja: "IPA アメリカ", en: "IPA (US)", "zh-TW": "IPA 美式" },
-  "settings.ipaUk": { ja: "IPA イギリス", en: "IPA (UK)", "zh-TW": "IPA 英式" },
   // 日本語の読み(2026-10-01)。学ぶ人は英語か繁體中文で読むので、その2つが本番の文言。
   "settings.kana": { ja: "ふりがな", en: "Kana (furigana)", "zh-TW": "假名（振假名）" },
   "settings.romaji": { ja: "ローマ字", en: "Romaji", "zh-TW": "羅馬拼音" },
@@ -3688,7 +3532,7 @@ export const DICT: Record<string, Record<UiLang, string>> = {
     en: "Open the KPI dashboard →",
     "zh-TW": "開啟 KPI 儀表板 →",
   },
-  // --- review (speaking / memory details) ---
+  // --- review (memory details) ---
   "review.preparing": {
     ja: "今日の出題を準備中…",
     en: "Preparing today's set…",
@@ -3706,92 +3550,6 @@ export const DICT: Record<string, Record<UiLang, string>> = {
     en: "Preparing memory data…",
     "zh-TW": "正在準備記憶資料。",
   },
-  "review.scene": { ja: "シーン: ", en: "Scene: ", "zh-TW": "場景：" },
-  "review.todaysPattern": { ja: "今日の型", en: "Today's pattern", "zh-TW": "今天的句型" },
-  "review.usePattern": {
-    ja: "この型を入れて一文話してみよう",
-    en: "Use this pattern in one sentence",
-    "zh-TW": "用這個句型說一句話看看",
-  },
-  "review.teacherQ": { ja: "先生の質問", en: "Your teacher asks", "zh-TW": "老師的問題" },
-  "review.hintsLabel": {
-    ja: "ヒント（型・チャンク・文法）",
-    en: "Hints (patterns, chunks, grammar)",
-    "zh-TW": "提示（句型、組塊、文法）",
-  },
-  "review.buildYourOwn": {
-    ja: "これを使って自分の一文を組み立ててみよう（答えはまだ見せません）",
-    en: "Build your own sentence with these (the answer stays hidden)",
-    "zh-TW": "用這些組出自己的一句話看看（答案還先不給）",
-  },
-  "review.yourNote": { ja: "💭 あなたのメモ:", en: "💭 Your note:", "zh-TW": "💭 你的筆記：" },
-  "review.mixFeeling": {
-    ja: "— この気持ちも混ぜてみよう",
-    en: "— work this feeling in too",
-    "zh-TW": "— 也把這個心情放進去看看",
-  },
-  "review.promptSpeak": {
-    ja: "この時のことを、単語を使って一文で",
-    en: "Say one sentence about this moment",
-    "zh-TW": "用這個單字，說一句當時的事",
-  },
-  "review.promptPhrase": {
-    ja: "この場面、どう返す？",
-    en: "How would you reply here?",
-    "zh-TW": "這個場面，你會怎麼回？",
-  },
-  "review.recognitionHint": {
-    ja: "音声認識のミスはここで直せます(直接入力もOK)",
-    en: "Fix any speech-recognition slips here (or just type)",
-    "zh-TW": "語音辨識的錯誤可以在這裡改（直接輸入也可以）",
-  },
-  "review.partKind.chunk": { ja: "チャンク", en: "Chunk", "zh-TW": "組塊" },
-  "review.partKind.phrase": { ja: "フレーズ", en: "Phrase", "zh-TW": "片語" },
-  "review.partKind.grammar": { ja: "文法", en: "Grammar", "zh-TW": "文法" },
-  "review.playHint": { ja: "このヒントを読み上げ", en: "Play this hint", "zh-TW": "唸出這個提示" },
-  "review.watchYourself": {
-    ja: "自分の発話を見返す",
-    en: "Watch yourself",
-    "zh-TW": "回看自己說的樣子",
-  },
-  "review.videoNoAudio": {
-    ja: "録画は映像のみです（マイクは音声認識が使うため）。話した内容は下のテキストで確認できます。",
-    en: "Video only — the mic is reserved for speech recognition. Your words appear as text below.",
-    "zh-TW": "錄影只有影像（麥克風給語音辨識用）。說的內容可以看下面的文字。",
-  },
-  "review.you": { ja: "あなた", en: "You", "zh-TW": "你" },
-  "review.corrected": { ja: "添削", en: "Corrected", "zh-TW": "修改" },
-  "review.sentenceBuild": { ja: "文の組み立て", en: "Sentence structure", "zh-TW": "句子的組成" },
-  "review.whyOrder": {
-    ja: "なぜこの語順？",
-    en: "Why this word order?",
-    "zh-TW": "為什麼是這個語序？",
-  },
-  "review.nativeFeel": {
-    ja: "ネイティブの気持ち",
-    en: "How natives feel it",
-    "zh-TW": "母語者的感覺",
-  },
-  "review.model": { ja: "お手本", en: "Model answer", "zh-TW": "示範" },
-  "review.altWay": { ja: "別の言い方: ", en: "Another way: ", "zh-TW": "另一種說法：" },
-  "review.retryPattern": {
-    ja: "型を使ってもう一度",
-    en: "Try again with the pattern",
-    "zh-TW": "用句型再說一次",
-  },
-  "review.newBranch": {
-    ja: "🌿 新しい枝が解禁",
-    en: "🌿 New branch unlocked",
-    "zh-TW": "🌿 新的樹枝解鎖了",
-  },
-  "review.natural": { ja: "自然！", en: "Natural!", "zh-TW": "很自然！" },
-  "review.almost": {
-    ja: "通じるけど、もう一歩",
-    en: "Understandable — one step to go",
-    "zh-TW": "聽得懂，但還差一點",
-  },
-  "review.useTarget": { ja: "を使ってみよう", en: "— try using this word", "zh-TW": "試著用用看" },
-  "review.naturalness": { ja: "自然さ", en: "Naturalness", "zh-TW": "自然度" },
   // --- capture flow ---
   "capture.selfieTitle": {
     ja: "ステップ 2: 自撮りを撮る（任意）",

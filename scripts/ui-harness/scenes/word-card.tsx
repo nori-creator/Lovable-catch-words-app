@@ -19,8 +19,6 @@ readySpeech(["珍珠奶茶", "腳踏車", "一杯", "一張", "奶茶", "飲料"
 readySpeech(["喝珍珠奶茶", "點一杯", "喝", "點"]);
 readySpeech(["umbrella", "bicycle"], "en");
 import { WordCard, WordCardSectionsEditor } from "@/components/WordCard";
-import { TocflLadder } from "@/components/TocflLadder";
-import { CEFR_SCALE, TOCFL_SCALE } from "@/lib/level-scale";
 import {
   BackToDexLink,
   StickerDetailBody,
@@ -447,47 +445,6 @@ export function StickerHeroScene() {
         } as never
       }
     />
-  );
-}
-
-/**
- * TOCFL の段々。**6級ぶんと級外**を並べて、どの段が立っているかを見る。
- *
- * 級だけを変えた同じ図を並べるのは、**段の高さと色が級ごとに違う**こと
- * そのものが情報だから。1枚だけ撮ると「立っている段が正しいか」しか
- * 分からず、順番が壊れていても気づけない。
- */
-export function TocflLadderScene({ q }: { q: URLSearchParams }) {
-  /**
-   * 体系を切り替えて撮る(2026-08-24 の二言語化)。
-   *
-   * TOCFL も CEFR も「6段 + 3帯」で形が同じなので、**同じ部品**で描ける。
-   * ただし「同じ形のはず」は思い込みかもしれないので、**両方撮って
-   * 並べて確かめる**。CEFR 側には TOEFL / IELTS の目盛りが添う。
-   */
-  const cefr = q.get("scale") === "cefr";
-  const scale = cefr ? CEFR_SCALE : TOCFL_SCALE;
-  // 最後の2つは**級外**。`Z9` / `TOCFL-9` は古い形、`scale.outStored` は
-  // いまキャッチが実際に書く形(オーナー指示 2026-08-26「CEFR-J に無い語は
-  // 級外にして」)。**実際に保存する形が級外として描かれること**を絵で
-  // 確かめる — ここが「分からない」に落ちると段々ごと消える。
-  const levels = (
-    cefr
-      ? ["A1", "A2", "B1", "B2", "C1", "C2", "Z9"]
-      : ["TOCFL-1", "TOCFL-2", "TOCFL-3", "TOCFL-4", "TOCFL-5", "TOCFL-6", "TOCFL-9"]
-  ).concat(scale.outStored);
-  return (
-    <div className="space-y-3">
-      {levels.map((l) => (
-        <div key={l} className="rounded-2xl border border-border bg-card p-3">
-          <TocflLadder level={l} scale={scale} />
-        </div>
-      ))}
-      {/* 分からない語は**何も描かない**のが正しい(空の枠だけが残る)。 */}
-      <div className="rounded-2xl border border-border bg-card p-3">
-        <TocflLadder level={null} scale={scale} />
-      </div>
-    </div>
   );
 }
 

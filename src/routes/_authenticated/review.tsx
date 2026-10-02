@@ -1,11 +1,9 @@
 import { reportBackgroundFailure } from "@/lib/background-failure";
-import { useReadableError } from "@/lib/errors";
-import { REVIEW_MODE_CHOICE_ENABLED, REVIEW_PRACTICE_ENABLED } from "@/lib/product-features";
+import { REVIEW_PRACTICE_ENABLED } from "@/lib/product-features";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { batchKey, readMark, writeMark, EMPTY_MARK } from "@/lib/review-session";
 import { packBatch, readBatch, REVIEW_CACHE_KEY, REVIEW_CACHE_USER_KEY } from "@/lib/review-cache";
-import { countsAsRemembered, speakingResult } from "@/lib/speaking-grade";
 import { useServerFn } from "@tanstack/react-start";
 import { Suspense, useEffect, useId, useMemo, useRef, useState } from "react";
 import { lazyWithRetry } from "@/lib/chunk-reload";
@@ -31,10 +29,7 @@ import {
   getOverallMemoryStats,
   getMemoryOverview,
   getStickerMemoryHistory,
-  getSpeakingFeedback,
-  getSpeakingScaffold,
   type DueReviewCard,
-  type SpeakingFeedback,
   type MemoryWord,
   getReviewCapState,
 } from "@/lib/reviews.functions";
@@ -51,7 +46,6 @@ const MemoryCurveChart = lazyWithRetry(() =>
 const MiniRetentionGraph = lazyWithRetry(() =>
   import("@/components/MiniRetentionGraph").then((m) => ({ default: m.MiniRetentionGraph })),
 );
-import { getMyProfile, updateMyProfile } from "@/lib/profile.functions";
 import { compareByMemory, memoryOf, MEMORY_LEVELS } from "@/lib/memory";
 import { usePhoneticPref, pickReadingOf, Reading, neutralReadings } from "@/lib/phonetic";
 import { Term } from "@/components/Term";
@@ -62,21 +56,14 @@ import { matchesTargetLanguage } from "@/lib/language-filter";
 import { targetProfile } from "@/lib/target-profile";
 import { stickerPhotoUrl } from "@/lib/sticker-photo";
 import { resolvePrefer, usePhotoPref } from "@/lib/photo-pref";
-import {
-  normalizeReviewMode,
-  reviewFormatFor,
-  saidTarget,
-  type ReviewModePref,
-} from "@/lib/review-format";
-import { ChunkPills, ChunkLegend, ChunkLine } from "@/components/ChunkPills";
+import { ChunkLegend, ChunkLine } from "@/components/ChunkPills";
 import { chunkSpeechText, chunkTranslation } from "@/lib/extras";
 import { CachedImg } from "@/lib/image-cache";
 import { toast } from "sonner";
-import { localeOf, useT, useUiLang } from "@/lib/i18n";
+import { useT, useUiLang } from "@/lib/i18n";
 import { formatCount } from "@/lib/count";
 import { SwipeCard } from "@/components/SwipeCard";
 import { LoadFailed } from "@/components/LoadFailed";
-import { useReviewMode, setStoredReviewMode } from "@/lib/review-mode-pref";
 // このファイルには復習用の `EmptyState` が既にあるので別名で受ける。
 import { EmptyState as EmptyStateCard } from "@/components/EmptyState";
 import { batchEndKind, type ReviewBatchState } from "@/lib/review-batch";
@@ -86,33 +73,14 @@ import {
   CheckCircle2,
   Check,
   X,
-  Volume2,
   Brain,
-  Mic,
-  Square,
-  Loader2,
   Video,
-  Repeat,
-  ArrowRight,
-  Clock,
-  MapPin,
   CalendarCheck,
   ChevronDown,
   BookOpen,
 } from "lucide-react";
 import { tStatic } from "@/lib/i18n";
 import { readerText } from "@/lib/note-language";
-
-// ---- prefs -------------------------------------------------------------------
-// Review mode (speaking/choice) lives in profiles.review_mode (DB) so it
-// follows the user across devices. Video recording stays per-device
-// (localStorage) since camera availability is a device property.
-const VIDEO_KEY = "review-video-v1";
-function readBool(key: string, def = false) {
-  if (typeof window === "undefined") return def;
-  const v = localStorage.getItem(key);
-  return v == null ? def : v === "1";
-}
 
 // ---- speech helpers --------------------------------------------------------
 // **この画面が自前の `speakZhTW` を持っていた。** 条件が `/^zh/` だったので
@@ -148,7 +116,7 @@ export const Route = createFileRoute("/_authenticated/review")({
       { title: tStatic("page.review") },
       {
         name: "description",
-        content: "自分の写真を見て、その単語で一言。AIが添削と型を返します。",
+        content: "自分の写真を見て、4択でその単語を思い出します。",
       },
     ],
   }),
@@ -160,8 +128,6 @@ function ReviewPage() {
   const navigate = useNavigate();
   const fetchDue = useServerFn(getDueReviews);
   const fetchStats = useServerFn(getOverallMemoryStats);
-  const fetchProfile = useServerFn(getMyProfile);
-  const updateProfileFn = useServerFn(updateMyProfile);
   const qc = useQueryClient();
   // 場所の知らせから来たときは、その1枚を先頭に置いて始める。
   const { sticker: wantedSticker } = Route.useSearch();
@@ -261,11 +227,6 @@ function ReviewPage() {
   const { data: memOverview, isPending: memOverviewPending } = useQuery({
     queryKey: ["memory-overview"],
     queryFn: () => fetchMemOverview(),
-    staleTime: 60_000,
-  });
-  const { data: profile } = useQuery({
-    queryKey: ["profile"],
-    queryFn: () => fetchProfile(),
     staleTime: 60_000,
   });
   /**
@@ -410,32 +371,6 @@ function ReviewPage() {
   };
   const [memModal, setMemModal] = useState<MemoryWord | null>(null);
   const [memListOpen, setMemListOpen] = useState(false);
-  // §6/§10-3: speaking is the default; 4択 stays as "light mode".
-  //
-  // **`hybrid` は「1枚ずつ形が変わる」ので真偽値に潰せない。**
-  // ここを boolean にしていたせいで、サーバが毎回送っている `card.mode` を
-  // 画面が受け取る場所そのものが無かった(`lib/review-format.ts` の注釈)。
-  //
-  // **選んだ形は端末が持つ**(オーナー報告「AIが選ぶを押したらエラーが出た」)。
-  // DB の列には `'hybrid'` を許す移行が要るので、当たっていない間は保存が
-  // 制約違反で落ち、つまみが戻っていた。DB は他の端末へ持っていくための
-  // 控えに格下げして、控えが失敗しても選んだ形はこの端末で効くようにする
-  // (`src/lib/review-mode-pref.ts`)。
-  const mode = useReviewMode((profile as { review_mode?: string } | null | undefined)?.review_mode);
-  function setMode(next: ReviewModePref) {
-    if (mode === next) return;
-    // まず端末に書く。**ここが本命**なので、この先が全部失敗しても効く。
-    setStoredReviewMode(next);
-    qc.setQueryData(["profile"], (old: unknown) =>
-      old ? { ...(old as Record<string, unknown>), review_mode: next } : old,
-    );
-    // 控えの保存。**失敗しても選択は戻さない** — 戻すと「押したのに戻った」
-    // になる。移行がまだ当たっていない場合だけ、その旨を静かに知らせる。
-    void updateProfileFn({ data: { review_mode: next } }).catch(() =>
-      toast(t("review.modeLocalOnly")),
-    );
-  }
-
   const current: DueReviewCard | undefined = cards?.[idx];
   const done = cards && idx >= cards.length;
 
@@ -513,28 +448,6 @@ function ReviewPage() {
     urls: choiceAudio.urls,
   });
 
-  /**
-   * **この1枚をどの形で出すか。** 「AIが選ぶ」のときだけ札ごとに変わる。
-   * 根拠は記憶レベル — すぐ隣に出ているバッジと同じ関数から決まるので、
-   * 「忘れかけ」と赤で出ている札にいちばん難しい作文発話が来ることはない。
-   */
-  const format = current
-    ? // **場所の知らせから来た1枚は、必ず4択にする**(オーナー指摘 2026-08-20)。
-      //
-      // 知らせの文面は「『タピオカミルクティー』は台湾華語で?」という
-      // 問いなので、押した先が発話や作文だと問いと答えが噛み合わない。
-      // 4択は既に「写真+意味 → 台湾華語を選ぶ」向きなので、形だけ揃える。
-      wantedSticker && current.sticker_id === wantedSticker
-      ? "choice"
-      : reviewFormatFor({
-          pref: mode,
-          retention: current.retention,
-          intervalDays: current.interval_days,
-          repetitions: current.repetitions,
-          entryType: current.entry_type,
-        })
-    : null;
-
   const progress = useMemo(() => {
     if (!cards?.length) return 0;
     return Math.round((idx / cards.length) * 100);
@@ -545,22 +458,15 @@ function ReviewPage() {
       title={t("title.review")}
       headerless
       fixedViewport={
-        REVIEW_PRACTICE_ENABLED &&
-        format === "choice" &&
-        !memListOpen &&
-        !done &&
-        !isLoading &&
-        !isError
+        REVIEW_PRACTICE_ENABLED && !!current && !memListOpen && !done && !isLoading && !isError
       }
     >
       <ReviewSessionHeader
-        compact={format === "choice" && !memListOpen}
+        compact={!!current && !memListOpen}
         header={{
           answered: REVIEW_PRACTICE_ENABLED && cards ? Math.min(idx, cards.length) : null,
           total: REVIEW_PRACTICE_ENABLED ? (cards?.length ?? null) : null,
           progress: REVIEW_PRACTICE_ENABLED ? progress : 0,
-          mode,
-          onMode: setMode,
           reviewStreak: myStats?.review_streak ?? null,
           streakPending: myStatsPending,
         }}
@@ -628,11 +534,7 @@ function ReviewPage() {
         <ReviewPreparing />
       ) : current ? (
         <>
-          <ReviewQuestion
-            card={current}
-            format={format === "choice" ? "choice" : format === "say" ? "say" : "compose"}
-            onNext={advance}
-          />
+          <ReviewQuestion card={current} onNext={advance} />
         </>
       ) : null}
 
@@ -651,7 +553,6 @@ export function ReviewSessionHeader({
   series,
   compact,
   practiceEnabled = true,
-  lockMode = false,
   memPending = false,
 }: {
   header: React.ComponentProps<typeof ReviewHeader>;
@@ -664,14 +565,11 @@ export function ReviewSessionHeader({
   series?: React.ComponentProps<typeof MiniRetentionGraph>["series"];
   compact: boolean;
   practiceEnabled?: boolean;
-  lockMode?: boolean;
 }) {
   const t = useT();
   return (
     <section className={`${compact ? "mb-2" : "mb-4"} shrink-0`}>
-      <div inert={lockMode}>
-        <ReviewHeader {...header} />
-      </div>
+      <ReviewHeader {...header} />
       {/* 記憶レベルの全体サマリー: 開いた瞬間に色分けと件数が見え、
             バーをタップすると単語ごとの状態リストが開く(下部の別ブロックは廃止)。
             帯自体は28pxしかないので、見た目は変えずに before で指の当たり判定
@@ -717,35 +615,23 @@ export function ReviewSessionHeader({
 /** One question and memory-detail interaction, shared with local first-catch data. */
 export function ReviewQuestion({
   card,
-  format,
   onNext,
   practice = false,
 }: {
   card: DueReviewCard;
-  format: "choice" | "say" | "compose";
   onNext: (correct?: boolean) => void;
   practice?: boolean;
 }) {
   const [memoryOpen, setMemoryOpen] = useState(false);
   return (
     <>
-      {format === "choice" ? (
-        <LightModeCard
-          key={card.review_id}
-          card={card}
-          onNext={onNext}
-          onOpenMemory={() => setMemoryOpen(true)}
-          practice={practice}
-        />
-      ) : (
-        <SpeakingCard
-          key={card.review_id}
-          card={card}
-          format={format}
-          onNext={onNext}
-          onOpenMemory={() => setMemoryOpen(true)}
-        />
-      )}
+      <LightModeCard
+        key={card.review_id}
+        card={card}
+        onNext={onNext}
+        onOpenMemory={() => setMemoryOpen(true)}
+        practice={practice}
+      />
       {memoryOpen && (
         <ForgettingCurveModal
           word={memWordOf(card)}
@@ -1118,882 +1004,14 @@ export function ForgettingCurveModal({
 }
 
 // ============================================================================
-// Speaking-output card (§6)
-// ============================================================================
-export function SpeakingCard({
-  card,
-  format = "compose",
-  onNext,
-  onOpenMemory,
-}: {
-  card: DueReviewCard;
-  /**
-   * `say` = 写真を見てその1語を声に出すだけ(型も足場も出さない)。
-   * `compose` = 型を提示して一文を作る(これまでの姿)。
-   * 決めているのは `lib/review-format.ts`。
-   */
-  format?: "say" | "compose";
-  onNext: (correct?: boolean) => void;
-  onOpenMemory?: () => void;
-}) {
-  const grade = useServerFn(gradeReview);
-  const feedbackFn = useServerFn(getSpeakingFeedback);
-  const scaffoldFn = useServerFn(getSpeakingScaffold);
-  const t = useT();
-  const readable = useReadableError();
-  // 鳴らす道は1本(`use-pronounce.tsx`)。作り置きの音は `urls` から
-  // 端末へ流し込むので、サーバ関数を1回も呼ばずにそろう。
-  const pronounce = usePronounce(card.language ?? undefined);
-  usePrefetchSpeech([card.headword], {
-    language: card.language ?? undefined,
-    urls: { [card.headword]: card.audio_url },
-  });
-  // 設定で主役を選んでいれば、復習の意図(切り抜き)より優先する。
-  const photoPref = usePhotoPref();
-
-  // B4: 「白紙で話して」を避ける足場。写真の下にAIの質問+組み立てパーツを出す。
-  // フレーズカードはロールプレイなので対象外。lazyに取得し失敗は無視。
-  // 「言うだけ」の段では足場を**取りに行かない**。
-  // 見せない物のためにAIを呼ぶのは、費用も待ち時間も丸ごと無駄。
-  const isSay = format === "say";
-  const { data: scaffold } = useQuery({
-    queryKey: ["speaking-scaffold", card.sticker_id],
-    queryFn: () => scaffoldFn({ data: { sticker_id: card.sticker_id } }),
-    enabled: card.entry_type !== "phrase" && !isSay,
-    staleTime: 60 * 60 * 1000,
-    retry: false,
-  });
-
-  const [transcript, setTranscript] = useState("");
-  const [listening, setListening] = useState(false);
-  const [feedback, setFeedback] = useState<SpeakingFeedback | null>(null);
-  /** `say` の段の判定。まだ答えていなければ null。 */
-  const [saidOk, setSaidOk] = useState<boolean | null>(null);
-  /**
-   * **この問題で外した回数**(オーナー指示 2026-08-27 ⑦)。
-   *
-   * > 「言い直して合ってるのは覚えてない、忘れたとしてカウントし直して。」
-   *
-   * 画面は最後の1回しか見ていなかった（`setSaidOk` / `setFeedback` が
-   * 上書きする）ので、3回外して4回目に言えた語も、1回で言えた語と
-   * まったく同じ「正解」として記録されていた。判断は
-   * `speaking-grade.ts` に置いてあるが、**何回外したかを憶えるのは
-   * 画面の仕事**なので、ここで数える。
-   */
-  const [failedAttempts, setFailedAttempts] = useState(0);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [videoOn, setVideoOn] = useState(false);
-  const [round, setRound] = useState<1 | 2>(1);
-  const [graded, setGraded] = useState(false);
-  const startedAt = useRef<number>(Date.now());
-  const recogRef = useRef<{ stop: () => void } | null>(null);
-  const videoRef = useRef<HTMLVideoElement | null>(null);
-  const streamRef = useRef<MediaStream | null>(null);
-  const recorderRef = useRef<MediaRecorder | null>(null);
-  const videoStartTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const chunksRef = useRef<Blob[]>([]);
-  const [videoUrl, setVideoUrl] = useState<string | null>(null);
-
-  const isPhrase = card.entry_type === "phrase";
-  // Ghost cards (§5.3): the placeholder stands in until a real photo exists.
-  // **切り抜き優先だが、無ければ撮った元の写真に落ちる。**
-  // ここは `cutout ?? placeholder` だけを見ていたので、切り抜きの無い札
-  // (かざして撮った札)は写真なしで出題されていた。
-  const heroUrl = stickerPhotoUrl(card, { prefer: resolvePrefer(photoPref, "cutout") });
-  const takenLocale = localeOf(useUiLang());
-  const takenLabel = card.taken_at
-    ? new Date(card.taken_at).toLocaleDateString(takenLocale, { month: "short", day: "numeric" })
-    : null;
-
-  useEffect(() => {
-    setVideoOn(readBool(VIDEO_KEY, false));
-  }, []);
-  useEffect(
-    () => () => {
-      stopVideo();
-      recogRef.current?.stop();
-    },
-    // アンマウント時の後片付けだけなので依存は無し。
-    [],
-  );
-
-  // Phrase roleplay (§5.2): the partner line IS the question — play it.
-  useEffect(() => {
-    if (!isPhrase) return;
-    const t = setTimeout(() => void pronounce(card.headword), 400);
-    return () => clearTimeout(t);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [card.review_id]);
-
-  async function startVideo() {
-    if (!videoOn) return;
-    try {
-      // **audio: false が必須**(2026-07-28)。
-      // getUserMedia でマイクを掴むと Android Chrome / iOS Safari では
-      // SpeechRecognition が結果を1文字も返さなくなり、「録画だけされて
-      // 文字が出ない」状態になっていた。開始順を入れ替えても直らなかった。
-      // 音声認識(=学習の本体)を優先し、録画は映像だけにする。
-      // 発音は認識結果のテキストとAI添削で確認できる。
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: "user" },
-        audio: false,
-      });
-      streamRef.current = stream;
-      if (videoRef.current) videoRef.current.srcObject = stream;
-      const rec = new MediaRecorder(stream);
-      chunksRef.current = [];
-      rec.ondataavailable = (e) => e.data.size && chunksRef.current.push(e.data);
-      rec.onstop = () => {
-        // **録れた形のまま名札を付ける。** iPhone の Safari は webm ではなく
-        // mp4 で録るので、決め打ちの "video/webm" を付けると再生できなかった。
-        const type = rec.mimeType || chunksRef.current[0]?.type || "video/mp4";
-        const blob = new Blob(chunksRef.current, { type });
-        setVideoUrl(URL.createObjectURL(blob));
-      };
-      rec.start();
-      recorderRef.current = rec;
-    } catch {
-      /* denied */
-    }
-  }
-  function stopVideo() {
-    if (videoStartTimer.current) {
-      clearTimeout(videoStartTimer.current);
-      videoStartTimer.current = null;
-    }
-    if (recorderRef.current?.state === "recording") recorderRef.current.stop();
-    streamRef.current?.getTracks().forEach((t) => t.stop());
-    streamRef.current = null;
-    recorderRef.current = null;
-  }
-
-  function startListen() {
-    if (listening) return;
-    const w = window as unknown as {
-      SpeechRecognition?: new () => unknown;
-      webkitSpeechRecognition?: new () => unknown;
-    };
-    const SR = w.SpeechRecognition ?? w.webkitSpeechRecognition;
-    if (!SR) {
-      setError(t("rv.noAsr"));
-      return;
-    }
-    setError(null);
-    const rec = new SR() as {
-      lang: string;
-      interimResults: boolean;
-      maxAlternatives: number;
-      continuous: boolean;
-      onresult: (e: {
-        results: ArrayLike<ArrayLike<{ transcript: string }>> & { length: number };
-      }) => void;
-      onend: () => void;
-      onerror: () => void;
-      start: () => void;
-      stop: () => void;
-    };
-    rec.lang = "cmn-Hant-TW";
-    rec.interimResults = true;
-    rec.maxAlternatives = 1;
-    rec.continuous = false;
-    let finalText = "";
-    rec.onresult = (e) => {
-      let interim = "";
-      for (let i = 0; i < e.results.length; i++) {
-        const r = e.results[i] as unknown as { 0: { transcript: string }; isFinal: boolean };
-        if (r.isFinal) finalText += r[0].transcript;
-        else interim += r[0].transcript;
-      }
-      setTranscript((finalText + interim).trim());
-    };
-    rec.onend = () => {
-      setListening(false);
-      stopVideo();
-      // 1文字も取れなかった時は黙って終わらせない(録画だけ回って
-      // 気づかない、が一番困る)。テキスト欄で直せることを伝える。
-      if (!finalText.trim()) {
-        setError(t("rv.notHeard"));
-      }
-    };
-    rec.onerror = () => {
-      setListening(false);
-      stopVideo();
-    };
-    recogRef.current = rec;
-    startedAt.current = Date.now();
-    setListening(true);
-    // 音声認識が先。マイクは認識だけが使う。
-    rec.start();
-    // 録画は音声トラックを取らない(startVideo 参照)ので、マイクの
-    // 取り合いは起きない。待たずに同時に始めて録り逃しを無くす。
-    if (videoOn) void startVideo();
-  }
-
-  function stopListen() {
-    if (videoStartTimer.current) {
-      clearTimeout(videoStartTimer.current);
-      videoStartTimer.current = null;
-    }
-    recogRef.current?.stop();
-    setListening(false);
-    stopVideo();
-  }
-
-  async function submit() {
-    if (!transcript.trim() || loading) return;
-    // 1語言うだけの段は**その場で判定する**(理由は `saidTarget` の注釈)。
-    if (isSay) {
-      setError(null);
-      const ok = saidTarget(transcript, card.headword);
-      if (!ok) setFailedAttempts((n) => n + 1);
-      setSaidOk(ok);
-      return;
-    }
-    setLoading(true);
-    setError(null);
-    try {
-      const fb = await feedbackFn({
-        data: { sticker_id: card.sticker_id, transcript: transcript.trim(), hint_used: false },
-      });
-      // **通らなかった回もここで数える。** 「もう一度」を押した回だけを
-      // 数えると、通らないまま次へ送った回が抜ける。
-      if (!fb.used_target || fb.natural_score < 3) setFailedAttempts((n) => n + 1);
-      setFeedback(fb);
-    } catch (e) {
-      setError(readable(e, t("rv.feedbackFailed")));
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  async function commitAndNext(kind: "success" | "skip") {
-    if (graded) {
-      // 既に採点済み(2回目の「次へ」)。**数え直さない** —
-      // 同じ問題を2回数えると成績が実際より良く見える。
-      onNext();
-      return;
-    }
-    setGraded(true);
-    // §6 3-level SRS: success=5 / hint=2 (失念) / skip・不成立=1.
-    // "Success" additionally requires the AI's objective check (used the
-    // target word, natural enough) — the honest-grading idea from main.
-    const objectiveOk = isSay
-      ? saidOk === true
-      : !!feedback && feedback.used_target && feedback.natural_score >= 3;
-    /**
-     * **言い直して当てた語は「覚えていた」に数えない**（オーナー指示
-     * 2026-08-27 ⑦）。決め方は `speaking-grade.ts` に1つだけ置いてある —
-     * ここに書くと、記憶の状態のグラフが読む `correct` と食い違う。
-     */
-    const result = speakingResult({ kind, objectiveOk, failedAttempts });
-    /**
-     * **採点の返事を待たずに次へ進む**（4択と同じ）。採点の中で Jev に
-     * 次の復習の日を聞くので、返事まで最大 2.5 秒かかることがある
-     * （オーナー指示 2026-09-23「jevにすぐに切り替えて」）。
-     */
-    void grade({
-      data: {
-        review_id: card.review_id,
-        // グラフが読む値も同じ所から出す。`result === "success"` と
-        // 別々に書くと、SRS は失念として扱うのにグラフだけが正解と
-        // 数える、が起きる。
-        correct: countsAsRemembered(result),
-        blur_seen: false,
-        response_ms: Date.now() - startedAt.current,
-        result,
-      },
-    }).catch((e: unknown) => {
-      // Keep the session flowing, but don't let the user believe it was saved —
-      // an unrecorded review simply comes up again next time.
-      toast.error(t("review.gradeFailed"));
-      reportBackgroundFailure("review_grade", e, { mode: "speaking" });
-    });
-    onNext(countsAsRemembered(result));
-  }
-
-  // 横スワイプは**答え合わせのあとだけ**。回答前に払うと黙って「skip」
-  // (最低評価)で記録され、写真をなぞっただけの人が記憶度を落としていた。
-  // 4択の札と同じく、結果が出てから次へ送る。
-  /** 答え終わったか。**形が2つあるので、真偽の出所を1つに絞る。** */
-  const answered = isSay ? saidOk !== null : !!feedback;
-
-  return (
-    <SwipeCard enabled={!loading && answered} onSwipe={() => commitAndNext("success")}>
-      <article className="rounded-3xl border border-border bg-card p-5 shadow-lg shadow-primary/10">
-        <div className="mb-3 flex items-center justify-between">
-          <span className="inline-flex items-center gap-1.5 rounded-full bg-primary/10 px-3 py-1 text-caption font-semibold text-primary-ink">
-            <Mic className="h-3.5 w-3.5" />{" "}
-            {isPhrase ? t("review.roleplayTag") : t("review.speakTag")}
-          </span>
-          <div className="flex items-center gap-2">
-            {/* **求めている物を2つ書かない。** 下に「写真を見て、声に出す」と
-                出しているのに、ここが「単語を使って一文で」のままだった
-                (検査の絵で気づいた)。同じ画面で違う指示が2つ出ていたら、
-                人はどちらに従えばいいか分からない。 */}
-            <span className="text-caption text-muted-foreground">
-              {isPhrase
-                ? t("review.promptPhrase")
-                : isSay
-                  ? t("rv.promptSay")
-                  : t("review.promptSpeak")}
-            </span>
-            <CardMemoryBadge card={card} onOpen={onOpenMemory} />
-          </div>
-        </div>
-
-        {/* Photo — the word itself stays hidden until hint */}
-        <div className="relative mx-auto mb-2 grid aspect-square w-full max-w-xs place-items-center overflow-hidden rounded-2xl bg-secondary">
-          {heroUrl ? (
-            <CachedImg
-              src={heroUrl}
-              alt={t("rv.targetAlt")}
-              className="h-full w-full object-contain p-4"
-            />
-          ) : (
-            <span className="px-3 text-center text-headline font-semibold text-muted-foreground">
-              {card.meaning_ja}
-            </span>
-          )}
-        </div>
-
-        {/* When & where the memory was made (§6-1: 場所・日時つき) */}
-        {(takenLabel || card.location_name) && (
-          <div className="mb-3 flex items-center justify-center gap-3 text-caption text-muted-foreground">
-            {takenLabel && (
-              <span className="inline-flex items-center gap-1">
-                <Clock className="h-3 w-3" /> {takenLabel}
-              </span>
-            )}
-            {card.location_name && (
-              <span className="inline-flex items-center gap-1">
-                <MapPin className="h-3 w-3" /> {card.location_name}
-              </span>
-            )}
-          </div>
-        )}
-
-        {/* Phrase cards: the scene is the front of the card (§5.2) */}
-        {isPhrase && card.caption && (
-          <p className="mb-3 rounded-xl bg-secondary/60 p-3 text-center text-body">
-            <span className="text-footnote text-muted-foreground">{t("review.scene")}</span>
-            {card.caption}
-          </p>
-        )}
-
-        {/* 今日の型 (§6/B7): ゼロから例文を作るのは難しい — ネイティブがよく
-          使う型を1つ指定して、その型で言わせる。単語部分は伏せ字のまま
-          (答えを見せない)。答え合わせは添削画面で。 */}
-        {!isPhrase && !isSay && card.prompt_pattern && (
-          <div className="mb-3 rounded-xl bg-primary/5 p-3 text-center ring-1 ring-primary/15">
-            <div className="text-caption font-semibold label-caps text-primary-ink">
-              {t("review.todaysPattern")}
-            </div>
-            <div lang="zh-Hant" className="mt-1 text-title font-bold leading-snug tracking-wide">
-              {card.prompt_pattern.zh
-                .split(card.headword)
-                .join("◯".repeat(Math.max(1, card.headword.length)))}
-            </div>
-            {card.prompt_pattern.ja && (
-              <div className="mt-0.5 text-caption text-muted-foreground">
-                {card.prompt_pattern.ja}
-              </div>
-            )}
-            <div className="mt-1 text-caption text-muted-foreground">{t("review.usePattern")}</div>
-          </div>
-        )}
-
-        {/* 「言うだけ」の段。**何を求められているかを1行で言う** —
-          型も質問も出ていない面で、いきなり録音ボタンだけ在ると
-          「何を話せばいいのか」が分からない。 */}
-        {isSay && !answered && (
-          <div className="mb-3 rounded-xl bg-primary/5 p-3 text-center ring-1 ring-primary/15">
-            <div className="text-body font-semibold text-primary-ink">{t("rv.formatSay")}</div>
-            <div className="mt-0.5 text-caption text-muted-foreground">{t("rv.formatSayHint")}</div>
-          </div>
-        )}
-
-        {isSay && saidOk !== null && (
-          <SayResult
-            card={card}
-            ok={saidOk}
-            heard={transcript}
-            retried={failedAttempts > 0}
-            onRetry={() => {
-              setSaidOk(null);
-              setTranscript("");
-              setVideoUrl(null);
-            }}
-            onNext={() => commitAndNext(saidOk ? "success" : "skip")}
-          />
-        )}
-
-        {/* B4 足場: 先生からの質問 + 組み立てパーツ(MTC式)。真っ白から作らず、
-          パーツを組み合わせて質問に答える。 */}
-        {!isPhrase && scaffold && !answered && (
-          <div className="mb-3 rounded-2xl border border-sky-200 bg-sky-50/70 p-3">
-            <div className="text-caption font-semibold label-caps text-sky-800">
-              {t("review.teacherQ")}
-            </div>
-            <div className="mt-0.5 flex items-start gap-2">
-              <p className="flex-1 text-body font-semibold text-sky-950">{scaffold.question_zh}</p>
-              <button
-                onClick={() => void pronounce(scaffold.question_zh)}
-                className="speak-button relative mt-0.5 inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full before:absolute before:-inset-2 before:content-[''] active:scale-95 motion-reduce:active:scale-100"
-                aria-label={t("rv.readQuestion")}
-              >
-                <Volume2 className="h-3 w-3" />
-              </button>
-            </div>
-            <p className="text-caption text-sky-800/80">{scaffold.question_ja}</p>
-
-            <div className="mt-2 text-caption font-semibold label-caps text-sky-800">
-              {t("review.hintsLabel")}
-            </div>
-            {/* ①②③ で1つずつ。中国語は大きく、品詞ごとの色分けは
-              単語詳細のチャンクと同じ体系(ChunkPills)で統一する。 */}
-            <ol className="mt-1.5 space-y-2">
-              {scaffold.parts.map((p, i) => (
-                <li key={i} className="rounded-xl bg-white/90 p-2.5 shadow-sm ring-1 ring-sky-200">
-                  <div className="flex items-center gap-2">
-                    <span className="grid h-5 w-5 shrink-0 place-items-center rounded-full bg-sky-500 text-caption font-bold text-white">
-                      {i + 1}
-                    </span>
-                    <span className="text-caption font-semibold label-caps text-sky-700">
-                      {t(`review.partKind.${p.kind}`)}
-                    </span>
-                    <button
-                      onClick={() => void pronounce(p.zh)}
-                      className="speak-button relative ml-auto grid h-7 w-7 shrink-0 place-items-center rounded-full before:absolute before:-inset-2 before:content-[''] active:scale-95 motion-reduce:active:scale-100"
-                      aria-label={t("review.playHint")}
-                    >
-                      <Volume2 className="h-3.5 w-3.5" />
-                    </button>
-                  </div>
-                  <div className="mt-1.5">
-                    {p.chunks.length > 0 ? (
-                      <ChunkPills
-                        parts={p.chunks.map((c) => ({ text: c.text, pos: c.pos }))}
-                        size="lg"
-                        lang={card.language}
-                      />
-                    ) : (
-                      <Term
-                        lang={card.language}
-                        className="text-headline font-bold leading-snug tracking-wide"
-                      >
-                        {p.zh}
-                      </Term>
-                    )}
-                  </div>
-                  {p.ja && (
-                    <p className="mt-1 text-caption leading-relaxed text-sky-900/70">{p.ja}</p>
-                  )}
-                </li>
-              ))}
-            </ol>
-            <ChunkLegend
-              parts={scaffold.parts.flatMap((p) =>
-                p.chunks.map((c) => ({ text: c.text, pos: c.pos })),
-              )}
-            />
-            {scaffold.caption_seed && (
-              <p className="mt-2 rounded-lg bg-white/70 px-2 py-1 text-caption text-sky-900/80">
-                {t("review.yourNote")}「{scaffold.caption_seed}」{t("review.mixFeeling")}
-              </p>
-            )}
-            <p className="mt-1.5 text-caption text-sky-800/70">{t("review.buildYourOwn")}</p>
-          </div>
-        )}
-
-        {/* 「ヒント(答えを見る)」ボタンは廃止(2026-07-28)。
-          答えが出てしまうと思い出す練習にならない。代わりに上の①②③の
-          足場(型・コロケーション・文法)だけで自分の言葉を組み立てる。 */}
-
-        {/* Video preview (opt-in) */}
-        {videoOn && listening && (
-          <video
-            ref={videoRef}
-            autoPlay
-            muted
-            playsInline
-            className="mx-auto mb-3 h-24 w-24 rounded-full object-cover ring-2 ring-primary"
-          />
-        )}
-        {videoUrl && !listening && (
-          <video
-            src={videoUrl}
-            controls
-            playsInline
-            className="mx-auto mb-3 h-32 rounded-xl bg-black"
-          />
-        )}
-
-        {/* Recording controls */}
-        {!answered && (
-          <div className="space-y-3">
-            <div className="flex items-center justify-center gap-4">
-              <button
-                onClick={listening ? stopListen : startListen}
-                disabled={loading}
-                className={`lift flex h-20 w-20 items-center justify-center rounded-full shadow-xl transition-colors ${
-                  listening
-                    ? "bg-bad text-white shadow-bad/30 animate-pulse"
-                    : "bg-primary text-primary-foreground shadow-primary/30"
-                }`}
-                aria-label={listening ? t("rv.stop") : t("rv.record")}
-              >
-                {listening ? <Square className="h-7 w-7" /> : <Mic className="h-8 w-8" />}
-              </button>
-            </div>
-
-            <textarea
-              value={transcript}
-              onChange={(e) => setTranscript(e.target.value)}
-              placeholder={listening ? t("scan.listening") : t("review.recognitionHint")}
-              className="min-h-[72px] w-full resize-y rounded-2xl border border-border bg-background p-3 text-field"
-              dir="auto"
-            />
-            {error && <p className="text-footnote text-bad-ink">{error}</p>}
-
-            <div className="flex gap-2">
-              <button
-                onClick={submit}
-                disabled={!transcript.trim() || loading}
-                className="lift flex-1 rounded-xl bg-primary py-3 text-body font-semibold text-primary-foreground disabled:bg-secondary disabled:text-muted-foreground disabled:shadow-none"
-              >
-                {loading ? (
-                  <span className="inline-flex items-center gap-2">
-                    <Loader2 className="h-4 w-4 animate-spin" /> {t("review.grading")}
-                  </span>
-                ) : isSay ? (
-                  // ここは AI に投げない(`saidTarget` がその場で見る)ので、
-                  // 「送信してフィードバック」とは名乗らない。
-                  t("rv.sayCheck")
-                ) : (
-                  t("review.submit")
-                )}
-              </button>
-              <button
-                onClick={() => commitAndNext("skip")}
-                className="rounded-xl border border-border bg-background px-3 text-footnote text-muted-foreground"
-              >
-                {t("review.skip")}
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* AI feedback */}
-        {!isSay && feedback && (
-          <FeedbackView
-            card={card}
-            feedback={feedback}
-            round={round}
-            transcript={transcript}
-            videoUrl={videoUrl}
-            onRetry={() => {
-              setRound(2);
-              setFeedback(null);
-              setTranscript("");
-              setVideoUrl(null);
-            }}
-            onNext={() => commitAndNext("success")}
-          />
-        )}
-      </article>
-    </SwipeCard>
-  );
-}
-
-/**
- * 「言うだけ」の段の答え合わせ。
- *
- * 添削の面(`FeedbackView`)を使い回さない。あちらは**文**を直す画面で、
- * 1語しか言っていない人に「自然さ 2/5」「語順の決まり」を並べても、
- * 直す所が無いことを長く説明されるだけになる。
- *
- * ここで見せるのは3つだけ — 通じたか、正しい語と読み、そして音。
- */
-export function SayResult({
-  card,
-  ok,
-  heard,
-  retried = false,
-  onRetry,
-  onNext,
-}: {
-  card: DueReviewCard;
-  ok: boolean;
-  heard: string;
-  /**
-   * この問題で一度でも外したか。**言えたことは言えたので「正解」と
-   * 出すが、記録は失念**（オーナー指示 2026-08-27 ⑦）なので、
-   * 明日また出る理由をその場で言う。黙って明日出すと、
-   * 「正解したのになぜ？」になる。
-   */
-  retried?: boolean;
-  onRetry: () => void;
-  onNext: () => void;
-}) {
-  const t = useT();
-  // 作り置きの音を端末へ流し込む(サーバ関数は呼ばない)。
-  usePrefetchSpeech([card.headword], {
-    language: card.language ?? undefined,
-    urls: { [card.headword]: card.audio_url },
-  });
-  return (
-    <div className="rounded-2xl border border-border bg-card p-4 shadow-sm">
-      {/* 判定は**面で伝える**。色が読めない人にも文字で伝わるようにする
-          (4択の面で直したのと同じ理由)。 */}
-      <div className={`-mx-4 mb-2 px-4 py-1.5 ${ok ? "bg-ok/12" : "bg-bad/12"}`} role="status">
-        <span className={`text-body font-bold ${ok ? "text-ok-ink" : "text-bad-ink"}`}>
-          {ok ? t("review.correct") : t("review.tryAgain")}
-        </span>
-        {ok && retried && (
-          <span className="ml-2 text-caption text-muted-foreground">
-            {t("review.retriedCountsAsLapse")}
-          </span>
-        )}
-      </div>
-
-      <div className="mb-1.5 flex items-center gap-2">
-        <Term
-          lang={card.language}
-          className="shrink-0 whitespace-nowrap text-title font-bold tracking-tight"
-        >
-          {card.headword}
-        </Term>
-        {/* **読みは `Reading` だけが出す**(オーナー報告 2026-08-26)。 */}
-        <Reading
-          lang={card.language ?? undefined}
-          zhuyin={card.reading_zhuyin}
-          pinyin={card.pinyin}
-          className="min-w-0 truncate text-footnote text-foreground/70"
-        />
-        {/* **鳴らせるようになってから出る**(オーナー指摘 2026-08-26)。 */}
-        <PronounceButton
-          text={card.headword}
-          language={card.language ?? undefined}
-          className="ml-auto"
-          label={t("card.playPron")}
-        />
-      </div>
-
-      {/* **通じなかったときだけ、聞こえた音を見せる。**
-          合っているときに「あなた: 面紙」と出しても何も足さない。 */}
-      {!ok && heard.trim() && (
-        <p className="mb-2 rounded-xl bg-secondary/60 p-2 text-footnote text-muted-foreground">
-          {t("review.you")}「{heard.trim()}」
-        </p>
-      )}
-
-      {/* **塗ってあるボタンは「次にやるべきこと」を指す。**
-          通じなかった回に「次へ」を塗ると、画面が「もう一度覚えよう」と
-          言った直後に、いちばん目立つボタンが立ち去る側になる
-          (完了の面で一度直したのと同じ自己矛盾)。
-          外したときは言い直す側を、通じたときは進む側を塗る。 */}
-      <div className="mt-2 flex gap-2">
-        <button
-          onClick={onRetry}
-          className={`min-h-11 flex-1 rounded-xl py-3 text-body font-semibold active:scale-[0.98] motion-reduce:active:scale-100 ${
-            ok ? "border border-border bg-background" : "bg-primary text-primary-foreground"
-          }`}
-        >
-          <Repeat className="mr-1 inline h-4 w-4" />
-          {t("rv.sayRetry")}
-        </button>
-        <button
-          onClick={onNext}
-          className={`min-h-11 flex-1 rounded-xl py-3 text-body font-semibold active:scale-[0.98] motion-reduce:active:scale-100 ${
-            ok ? "bg-primary text-primary-foreground" : "border border-border bg-background"
-          }`}
-        >
-          {t("review.next")}
-        </button>
-      </div>
-    </div>
-  );
-}
-
-function FeedbackView({
-  card,
-  feedback,
-  round,
-  transcript,
-  videoUrl,
-  onRetry,
-  onNext,
-}: {
-  card: DueReviewCard;
-  feedback: SpeakingFeedback;
-  round: 1 | 2;
-  transcript: string;
-  videoUrl: string | null;
-  onRetry: () => void;
-  onNext: (correct?: boolean) => void;
-}) {
-  const t = useT();
-  /**
-   * 添削文・手本・言い換えも**カードの読み上げと同じ声**で聞かせる。
-   *
-   * **その語の学習言語を渡す。** 渡さないと既定(台湾華語)の声で合成
-   * されるので、英語を学んでいる人の添削文が中国語の声で読まれ、
-   * しかもその音は保存されるので誰かが聞くまで気づけない。
-   */
-  const pronounceLang = card.language ?? undefined;
-  const goodTarget = feedback.used_target;
-  const score = feedback.natural_score;
-  return (
-    <div className="mt-5 space-y-4">
-      {/* Header verdict */}
-      <div
-        className={`rounded-2xl p-3 ${goodTarget && score >= 4 ? "bg-ok/10 ring-1 ring-ok/35" : goodTarget && score >= 3 ? "bg-warn/10 ring-1 ring-warn/35" : "bg-bad/10 ring-1 ring-bad/35"}`}
-      >
-        <div className="flex items-center justify-between">
-          <span className="text-body font-semibold">
-            {goodTarget && score >= 4
-              ? t("review.natural")
-              : goodTarget
-                ? t("review.almost")
-                : `「${card.headword}」${t("review.useTarget")}`}
-          </span>
-          <span className="text-footnote text-muted-foreground">
-            {t("review.naturalness")} {score}/5
-          </span>
-        </div>
-      </div>
-
-      {/* Your recording — video only; the mic belongs to speech recognition */}
-      {videoUrl && (
-        <div className="rounded-2xl bg-secondary/50 p-3">
-          <div className="mb-2 text-caption font-semibold label-caps text-muted-foreground">
-            {t("review.watchYourself")}
-          </div>
-          <video src={videoUrl} controls playsInline className="w-full rounded-xl bg-black" />
-          <p className="mt-1.5 text-caption leading-relaxed text-muted-foreground">
-            {t("review.videoNoAudio")}
-          </p>
-        </div>
-      )}
-
-      {/* Your line vs corrected */}
-      <div className="space-y-2 rounded-2xl bg-secondary/50 p-3">
-        <div className="text-caption font-semibold label-caps text-muted-foreground">
-          {t("review.you")}
-        </div>
-        <div className="text-body">{transcript}</div>
-        <div className="mt-2 text-caption font-semibold label-caps text-muted-foreground">
-          {t("review.corrected")}
-        </div>
-        <div lang="zh-Hant" className="flex items-start gap-2">
-          <div className="flex-1 text-body font-medium">{feedback.corrected}</div>
-          {/* **鳴らせるようになってから出る**(オーナー指摘 2026-08-26)。
-              40px は指の下限を割っていたので、そこも 44px に直る。 */}
-          <PronounceButton
-            text={feedback.corrected}
-            language={pronounceLang}
-            label={t("rv.hearCorrection")}
-          />
-        </div>
-        <p className="text-footnote text-muted-foreground">{feedback.correction_note}</p>
-      </div>
-
-      {/* 文の組み立て: 添削文をパーツ分解(V1/V2等の詳しい役割つき)+語順ルール */}
-      <div className="rounded-2xl bg-card p-3 ring-1 ring-border">
-        <div className="mb-2 flex flex-wrap items-center gap-2">
-          <span className="text-caption font-semibold label-caps text-muted-foreground">
-            {t("review.sentenceBuild")}
-          </span>
-          {feedback.unlocked_branch && (
-            <span
-              lang="zh-Hant"
-              className="rounded-full bg-primary/10 px-2 py-0.5 text-caption font-semibold text-primary"
-            >
-              {t("review.newBranch")}
-            </span>
-          )}
-          <span className="text-footnote text-muted-foreground">{feedback.chunk_note}</span>
-        </div>
-        <ChunkPills parts={feedback.chunk} lang={card.language} />
-        <ChunkLegend parts={feedback.chunk} />
-        {feedback.word_order_rule && (
-          <div className="mt-2.5 rounded-xl bg-secondary/60 p-2.5">
-            <div className="text-caption font-semibold label-caps text-muted-foreground">
-              {t("review.whyOrder")}
-            </div>
-            <p className="mt-0.5 text-footnote leading-relaxed">{feedback.word_order_rule}</p>
-          </div>
-        )}
-      </div>
-
-      {/* Native feel */}
-      <div className="rounded-2xl bg-indigo-50 p-3 ring-1 ring-indigo-200 dark:bg-indigo-500/10 dark:ring-indigo-400/30">
-        <div className="mb-1 text-caption font-semibold label-caps text-indigo-900 dark:text-indigo-200">
-          {t("review.nativeFeel")}
-        </div>
-        <p className="text-body text-indigo-950 dark:text-indigo-100">{feedback.native_note}</p>
-      </div>
-
-      {/* Model answers */}
-      <div className="space-y-2 rounded-2xl bg-emerald-50 p-3 ring-1 ring-emerald-200 dark:bg-emerald-500/10 dark:ring-emerald-400/30">
-        <div className="text-caption font-semibold label-caps text-emerald-900 dark:text-emerald-200">
-          {t("review.model")}
-        </div>
-        <div className="flex items-center gap-2">
-          <div className="flex-1 text-body">{feedback.model_answer}</div>
-          <PronounceButton
-            text={feedback.model_answer}
-            language={pronounceLang}
-            tone="quiet"
-            label={t("rv.hearModel")}
-          />
-        </div>
-        <div className="flex items-center gap-2">
-          <div className="flex-1 text-body text-emerald-900/80 dark:text-emerald-200/80">
-            {t("review.altWay")}
-            {feedback.alt_answer}
-          </div>
-          <PronounceButton
-            text={feedback.alt_answer}
-            language={pronounceLang}
-            tone="quiet"
-            label={t("rv.hearAlt")}
-          />
-        </div>
-      </div>
-
-      <div className="flex gap-2">
-        {round === 1 && (
-          <button
-            onClick={onRetry}
-            className="flex-1 rounded-xl border border-primary/40 bg-primary/5 py-3 text-body font-semibold text-primary"
-          >
-            <Repeat className="mr-1 inline h-4 w-4" /> {t("review.retryPattern")}
-          </button>
-        )}
-        <button
-          // 引数を渡さない。ここは話す側の面で、正誤は `commitAndNext` が
-          // 既に数えている(二重に数えない)。
-          onClick={() => onNext()}
-          className="lift flex-1 rounded-xl bg-primary py-3 text-body font-semibold text-primary-foreground"
-        >
-          {t("rv.nextArrow")} <ArrowRight className="ml-1 inline h-4 w-4" />
-        </button>
-      </div>
-    </div>
-  );
-}
-
-// ============================================================================
-// Light-mode: original 4-choice card (kept for silent situations)
+// 4択の札
 // ============================================================================
 /**
  * 4択の答え合わせに出す解説。
  *
  * 目的は「意味が分かった」で終わらせず、**その場で口から出せる形**を持ち帰らせる
  * こと。だから順番は「そのまま言える塊 → 一緒に使う語 → 量詞 → 一言」。
- * 塊は品詞で色分け(ChunkPills)して、単語詳細・添削と同じ色体系で見せる —
+ * 塊は品詞で色分け(ChunkPills)して、単語詳細と同じ色体系で見せる —
  * 同じ色は同じ役割、という感覚が画面をまたいで育つ(apple-design §Consistency)。
  *
  * 下部パネルなので、中身が増えても「次へ」が押せなくならないよう
@@ -2643,7 +1661,7 @@ export function EmptyState() {
 }
 
 /**
- * 復習の見出し — 「今日の復習」・**いま何問目か**・出題の型の切替・進捗バー。
+ * 復習の見出し — 「今日の復習」・**いま何問目か**・進捗バー。
  *
  * ## なぜ切り出したか
  * 検査の場面が**札だけ**を描いていて、この見出しが入っていなかった。
@@ -2654,26 +1672,10 @@ export function EmptyState() {
  * ルートに直書きのままでは場面から描けないので、ここへ出す。
  * (復習・ホーム・設定で同じことを何度もやっている。)
  */
-/**
- * 見出しの切替の並び。**設定画面と同じ順**にしておく —
- * 同じ選択肢が画面ごとに違う順で出ると、押し間違いを誘う。
- */
-const MODE_TABS: ReadonlyArray<{
-  id: ReviewModePref;
-  labelKey: string;
-  titleKey?: string;
-}> = [
-  { id: "hybrid", labelKey: "review.auto", titleKey: "rv.autoMode" },
-  { id: "speaking", labelKey: "review.speak" },
-  { id: "choice", labelKey: "review.choice", titleKey: "rv.quietMode" },
-];
-
 export function ReviewHeader({
   answered,
   total,
   progress,
-  mode,
-  onMode,
   reviewStreak,
   streakPending = false,
 }: {
@@ -2682,9 +1684,6 @@ export function ReviewHeader({
   total: number | null;
   /** 0〜100。 */
   progress: number;
-  /** いま選ばれている出題モード。`hybrid` は札ごとに形が変わる。 */
-  mode: ReviewModePref;
-  onMode: (m: ReviewModePref) => void;
   /**
    * 復習した日が何日続いているか。まだ届いていなければ null。
    * **0 のときは出さない** — 「0日続いている」は続いていないことの遠回しな
@@ -2695,20 +1694,9 @@ export function ReviewHeader({
   streakPending?: boolean;
 }) {
   const t = useT();
-  /**
-   * **切替は畳んでおく**(オーナー指示 2026-08-26「復習の4択、話す、自動は
-   * 単語の項目の順番を選ぶのと同様に右上に表示してたたんで」)。
-   *
-   * 3つの札が横いっぱいに並んでいて、この画面でいちばん目を引く塊が
-   * 「どの形で出すか」になっていた。**開いた理由は復習であって、
-   * 形を選ぶことではない。** 単語の詳細の並べ替えと同じ形にする —
-   * 右上の小さなボタン、押したときだけ開く。
-   */
-  const [modeOpen, setModeOpen] = useState(false);
   // 一度でも「読み込み中」で場所を取ったら、0日と分かっても畳まない（畳むと写真が伸び縮みする）。
   const streakReserved = useRef(false);
   if (streakPending) streakReserved.current = true;
-  const current = MODE_TABS.find((m) => m.id === mode);
   return (
     <>
       <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2">
@@ -2736,72 +1724,7 @@ export function ReviewHeader({
               {formatCount(answered)} / {formatCount(total)}
             </span>
           )}
-          {/* いま選ばれている形を**名前で**出す。印だけにすると、
-              押すまで何が選ばれているのか分からない。
-              当たり判定は 44px（`::before` ではなく箱そのもの）。 */}
-          {/* 形を選ぶ所は止めてある（`REVIEW_MODE_CHOICE_ENABLED` の注）。 */}
-          {REVIEW_PRACTICE_ENABLED && REVIEW_MODE_CHOICE_ENABLED && (
-            <button
-              onClick={() => setModeOpen((v) => !v)}
-              aria-expanded={modeOpen}
-              aria-label={t("rv.modeAria")}
-              className={`lift-soft inline-flex min-h-11 items-center gap-1 rounded-full border border-border px-3 text-caption font-semibold ${
-                modeOpen ? "bg-primary text-primary-foreground" : "bg-card text-foreground"
-              }`}
-            >
-              {current ? t(current.labelKey) : t("rv.modeAria")}
-              <ChevronDown
-                className={`h-3.5 w-3.5 transition-transform ${modeOpen ? "rotate-180" : ""}`}
-                aria-hidden
-              />
-            </button>
-          )}
         </div>
-      </div>
-
-      {/* **切替は見出しと同じ行に置かない。**
-          2つのときは見出しの隣に収まっていたが、3つ目を足した絵では
-          「おまか / せ」と札の中で折れ、押し出された見出しまで
-          「きょうの復 / 習」と割れた(検査の絵で気づいた)。
-          日本語と英語で語の幅が違う以上、**固定幅に賭けない** —
-          行を分けて、3つで等分する。
-
-          滑る丸は「今どれか」を**位置で**示すので、札の数と分母を必ず
-          一致させる。2つ用の `w-1/2` のまま3つ目を足すと、
-          丸が最後の札の半分しか覆わない。 */}
-      <div
-        hidden={!REVIEW_PRACTICE_ENABLED || !REVIEW_MODE_CHOICE_ENABLED || !modeOpen}
-        className="relative mt-2 flex rounded-full border border-border bg-secondary p-0.5 text-caption font-semibold"
-        role="tablist"
-        aria-label={t("rv.modeAria")}
-      >
-        <span
-          aria-hidden
-          className="mode-thumb absolute inset-y-0.5 left-0.5 rounded-full bg-background shadow transition-transform duration-200"
-          style={{
-            width: `calc((100% - 0.25rem) / ${MODE_TABS.length})`,
-            transform: `translateX(${MODE_TABS.findIndex((m) => m.id === mode) * 100}%)`,
-          }}
-        />
-        {/* 当たり判定は 44px を下回らせない。この画面の主要な切替なのに、
-            雛形が見出しを描いていなかったので**一度も測られていなかった**
-            ことがある(実測 72×25px)。 */}
-        {MODE_TABS.map((m) => (
-          <button
-            key={m.id}
-            role="tab"
-            aria-selected={mode === m.id}
-            onClick={() => {
-              onMode(m.id);
-              // 選んだら畳む。開いたままだと、押した結果が見えない。
-              setModeOpen(false);
-            }}
-            title={m.titleKey ? t(m.titleKey) : undefined}
-            className={`mode-tab relative z-10 min-h-11 flex-1 rounded-full px-1 text-center leading-tight transition-colors ${mode === m.id ? "text-foreground" : "text-muted-foreground"}`}
-          >
-            {t(m.labelKey)}
-          </button>
-        ))}
       </div>
       <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-secondary">
         <div

@@ -3,17 +3,18 @@ import {
   pickReading,
   pickReadingOf,
   readReadingPref,
+  readingChoices,
   writeReadingPref,
   showsReading,
   type ReadingStore,
 } from "./phonetic";
-import { EN_PROFILE, ZH_TW_PROFILE } from "./target-profile";
+import { EN_PROFILE, JA_PROFILE, ZH_TW_PROFILE } from "./target-profile";
 
 /**
  * 読みの表記の切替の門。
  *
- * ここで一番怖いのは**言語をまたいだ漏れ** — 英語を学んでいる間に選んだ
- * `ipa-uk` が台湾華語の設定として残ると、その言語に存在しない表記を
+ * ここで一番怖いのは**言語をまたいだ漏れ** — 日本語を学んでいる間に選んだ
+ * `romaji` が台湾華語の設定として残ると、その言語に存在しない表記を
  * 指したまま画面が動く(読みの欄がずっと空になる)。
  *
  * 2番目に怖いのは**古い選択の消失**。拼音を選んでいた人がこの変更で
@@ -40,9 +41,14 @@ describe("readReadingPref", () => {
   });
 
   it("憶えた表記を返す", () => {
-    const s = makeStore({ "reading-pref-v1": '{"zh-TW":"pinyin","en":"ipa-uk"}' });
+    const s = makeStore({ "reading-pref-v1": '{"zh-TW":"pinyin","ja":"romaji"}' });
     expect(readReadingPref(s, ZH_TW_PROFILE)).toBe("pinyin");
-    expect(readReadingPref(s, EN_PROFILE)).toBe("ipa-uk");
+    expect(readReadingPref(s, JA_PROFILE)).toBe("romaji");
+  });
+
+  it("**英語には選ぶ表記が無い**(前に憶えた IPA 英式も読まない)", () => {
+    const s = makeStore({ "reading-pref-v1": '{"en":"ipa-uk"}' });
+    expect(readReadingPref(s, EN_PROFILE)).toBe("ipa-us");
   });
 
   it("**古い鍵の選択を捨てない**(拼音の人が注音に戻らない)", () => {
@@ -97,9 +103,16 @@ describe("writeReadingPref", () => {
   it("**言語ごとに別に憶える**(片方を変えても他方が動かない)", () => {
     const s = makeStore();
     writeReadingPref(s, ZH_TW_PROFILE, "pinyin");
-    writeReadingPref(s, EN_PROFILE, "ipa-uk");
+    writeReadingPref(s, JA_PROFILE, "romaji");
     expect(readReadingPref(s, ZH_TW_PROFILE)).toBe("pinyin");
-    expect(readReadingPref(s, EN_PROFILE)).toBe("ipa-uk");
+    expect(readReadingPref(s, JA_PROFILE)).toBe("romaji");
+  });
+
+  it("**英語の表記は憶えない**(選ぶ物が無い)", () => {
+    const s = makeStore();
+    writeReadingPref(s, EN_PROFILE, "ipa-uk");
+    expect(s.data.size).toBe(0);
+    expect(readReadingPref(s, EN_PROFILE)).toBe("ipa-us");
   });
 
   it("台湾華語の分は古い鍵にも書く(古い版に戻っても残る)", () => {
@@ -108,15 +121,15 @@ describe("writeReadingPref", () => {
     expect(s.data.get("phonetic-pref-v1")).toBe("pinyin");
   });
 
-  it("**英語の選択を古い鍵に書かない**(台湾華語の設定を壊さない)", () => {
+  it("**日本語の選択を古い鍵に書かない**(台湾華語の設定を壊さない)", () => {
     const s = makeStore({ "phonetic-pref-v1": "pinyin" });
-    writeReadingPref(s, EN_PROFILE, "ipa-uk");
+    writeReadingPref(s, JA_PROFILE, "romaji");
     expect(s.data.get("phonetic-pref-v1")).toBe("pinyin");
   });
 
   it("**その言語に無い表記は憶えない**", () => {
     const s = makeStore();
-    writeReadingPref(s, ZH_TW_PROFILE, "ipa-uk");
+    writeReadingPref(s, ZH_TW_PROFILE, "romaji");
     expect(readReadingPref(s, ZH_TW_PROFILE)).toBe("zhuyin");
   });
 
@@ -128,6 +141,17 @@ describe("writeReadingPref", () => {
       },
     };
     expect(() => writeReadingPref(s, ZH_TW_PROFILE, "pinyin")).not.toThrow();
+  });
+});
+
+describe("readingChoices — 設定に並べる表記", () => {
+  it("台湾華語は注音・拼音、日本語はかな・ローマ字(並びは `readings` の順)", () => {
+    expect(readingChoices(ZH_TW_PROFILE).map((c) => c.value)).toEqual(["zhuyin", "pinyin"]);
+    expect(readingChoices(JA_PROFILE).map((c) => c.value)).toEqual(["kana", "romaji"]);
+  });
+
+  it("**英語には選ぶ物が無い**(IPA の米式／英式の切り替えは出さない)", () => {
+    expect(readingChoices(EN_PROFILE)).toEqual([]);
   });
 });
 

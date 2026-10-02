@@ -85,11 +85,10 @@ export type ProfileSection =
 export type ReadingKind = "zhuyin" | "pinyin" | "ipa-us" | "ipa-uk" | "kana" | "romaji";
 
 /**
- * 話す練習・日記・スキャンの指示文で、**その言語ごとに変わる言い回し**。
+ * 日記・スキャンの指示文で、**その言語ごとに変わる言い回し**。
  *
  * ## なぜ別の束にしたか
- * 復習の添削(`getSpeakingFeedback`)・話す足場(`getSpeakingScaffold`)・日記の添削と
- * 書き出し(`journal.functions.ts`)・写真の検出(`scan.functions.ts`)は、指示文が
+ * 日記の添削と書き出し(`journal.functions.ts`)・写真の検出(`scan.functions.ts`)は、指示文が
  * 「台湾華語(zh-TW)のネイティブ講師」「繁体字」「量詞」と**直に書かれていた**。
  * 日本語を学習言語に足した日(2026-10-01)に、日本語を学ぶ人へ「繁体字で添削して」と
  * 頼むことになる。言い回しの差だけをここに集め、指示文の骨組みは1つのまま回す。
@@ -98,28 +97,6 @@ export type ReadingKind = "zhuyin" | "pinyin" | "ipa-us" | "ipa-uk" | "kana" | "
  * 持っていないので、今回は台湾華語と同じ値を使う(振る舞いを変えない — 直すのは別の回)。
  */
 export type CoachPhrases = {
-  /** 「あなたは◯◯です」の◯◯(話した文の添削)。 */
-  nativeTeacher: string;
-  /** 「あなたは◯◯です」の◯◯(話す足場)。 */
-  scaffoldTeacher: string;
-  /** 文の中でその言語を呼ぶ名前(「自然な◯◯の添削文」「◯◯の語順ルール」)。 */
-  languageName: string;
-  /** 書く字の決まり(「(繁体字)」の中身)。 */
-  scriptName: string;
-  /** 話した文を分けるときの品詞の記号の一覧。 */
-  feedbackPos: string;
-  /** 語順の説明の例(「」付きで2つ)。 */
-  wordOrderExamples: string;
-  /** 一緒によく使う語の例(ネイティブの一言)。 */
-  collocationNote: string;
-  /** 足場の「chunk」の中身の言い方(「」の語のあとに続く)。 */
-  scaffoldChunk: string;
-  /** 足場の「phrase」の例。 */
-  scaffoldPhraseExample: string;
-  /** 足場の「grammar」の例。 */
-  scaffoldGrammarExample: string;
-  /** 足場の chunks の品詞の決まり。 */
-  scaffoldPosRule: string;
   /** 日記の添削者・先生の呼び名に付く言語名(「台湾華語(繁體字)」)。 */
   journalLanguage: string;
   /** 日記で「◯◯のネイティブ」と呼ぶ人(「台湾のネイティブ」)。 */
@@ -197,7 +174,7 @@ export type TargetProfile = {
    * ここに書いてあることで生成まで届く。
    */
   promptName: string;
-  /** 話す練習・日記・スキャンの言い回し(`CoachPhrases` の注)。 */
+  /** 日記・スキャンの言い回し(`CoachPhrases` の注)。 */
   coach: CoachPhrases;
   /** 単語帳の読み取りの言い回し。 */
   wordbook: WordbookPhrases;
@@ -406,28 +383,12 @@ export function headwordCore(text: string): string {
 const core = headwordCore;
 
 /**
- * 台湾華語の話す練習・日記・スキャンの言い回し。
+ * 台湾華語の日記・スキャンの言い回し。
  *
  * **指示文に直に書かれていた文を1文字も変えずに写した物。** 英語も今回はこれを使う
  * (`EN_PROFILE.coach` の注)。
  */
 const ZH_TW_COACH: CoachPhrases = {
-  nativeTeacher: "台湾華語(zh-TW)のネイティブ講師",
-  scaffoldTeacher: "台湾華語(zh-TW)のMTC(國語教學中心)方式の先生",
-  languageName: "台湾華語",
-  scriptName: "繁体字",
-  feedbackPos: "S(主語)/V(動詞)/O(目的語)/M(修飾・量詞)/Adv(副詞)/C(接続)/Prep(介詞)/Ptc(助詞)",
-  wordOrderExamples:
-    '「中国語は S+時間+場所+V+O の順。学習者の母語と違い動詞が目的語の前に来る」「"用+道具+V" のように手段が動詞の前」',
-  collocationNote:
-    "一緒によく使う動詞や量詞、定番チャンク(例:「擦護唇膏」「一條護唇膏」のように繁体字で)",
-  scaffoldChunk: "動詞・量詞のコロケーション(例「喝一杯◯◯」)",
-  scaffoldPhraseExample: "(例「我要用◯◯…」)",
-  scaffoldGrammarExample: "(例「用+道具+動詞」)",
-  scaffoldPosRule:
-    "pos は台湾の詞類表の\n" +
-    "    役割記号: S(主語) V(動詞) O(目的語) N(名詞) M(量詞・修飾) Adv(副詞)\n" +
-    "    Conj/Prep(接続・介詞) Ptc(助詞) Det(限定詞)。",
   journalLanguage: "台湾華語(繁體字)",
   journalNatives: "台湾のネイティブ",
   journalScript: "繁體字",
@@ -593,7 +554,7 @@ export const ZH_TW_PROFILE: TargetProfile = {
  * 英語(アメリカ英語を既定)。
  *
  * オーナー決定 2026-08-24: 「**アメリカ英語を既定**」
- * (台湾の学習者の多数派で、TOEFL もアメリカ英語。UK 式は第二の読みとして併記)
+ * (台湾の学習者の多数派で、TOEFL もアメリカ英語)
  *
  * ## 台湾華語と項目が違う所
  * - `measure_words` **無し** … 英語に量詞は無い
@@ -609,6 +570,8 @@ export const EN_PROFILE: TargetProfile = {
   code: "en",
   speechLang: "en-US",
   scriptLang: "en",
+  // 読み1・読み2の列に入る IPA(生成と辞書が書く)。**画面には出さない**
+  // (オーナー指示 2026-09-30・2026-10-02「英語の発音記号」は消す。`phonetic.tsx`)。
   readings: ["ipa-us", "ipa-uk"],
   sections: [
     "meaning",
@@ -630,7 +593,7 @@ export const EN_PROFILE: TargetProfile = {
   levels: CEFR_SCALE,
   // オーナー決定 2026-08-24「アメリカ英語を既定」。生成にもそう言う。
   promptName: "英語(アメリカ英語)",
-  // 英語向けの話す練習・日記の文はまだ無い。**今回は台湾華語の文のまま**にして
+  // 英語向けの日記の文はまだ無い。**今回は台湾華語の文のまま**にして
   // 振る舞いを変えない(英語の人に「繁体字で」と頼んでいるのは前からの課題)。
   coach: ZH_TW_COACH,
   // 単語帳はオーナー方針で学習言語に付いていく(2026-10-01)。
@@ -787,22 +750,6 @@ export const EN_PROFILE: TargetProfile = {
  * - `measure_words` / `forms` / `stress` **無し**
  */
 const JA_COACH: CoachPhrases = {
-  nativeTeacher: "日本語(現代の標準語)のネイティブ講師",
-  scaffoldTeacher: "日本語(現代の標準語)を教える、会話中心の授業の先生",
-  languageName: "日本語",
-  scriptName: "漢字かな交じり。常用漢字で書くのが普通の語は漢字、外来語はカタカナ",
-  feedbackPos: "S(主語)/O(目的語)/V(述語・動詞)/M(修飾)/Adv(副詞)/Ptc(助詞)/Aux(助動詞)",
-  wordOrderExamples:
-    "「日本語は S+O+V の順で、動詞が最後に来る」「場所の「で」・行き先の「に」のように、役割は語順ではなく助詞で決まる」",
-  collocationNote:
-    "一緒によく使う動詞・助詞の組み合わせ、定番チャンク(例:「リップクリームを塗る」「傘をさす」のように日本語で)",
-  scaffoldChunk: "動詞と助詞の組み合わせ(例「◯◯を塗る」「◯◯に乗る」)",
-  scaffoldPhraseExample: "(例「◯◯を使って…」)",
-  scaffoldGrammarExample: "(例「名詞+で+動詞(手段・場所)」)",
-  scaffoldPosRule:
-    "pos は日本語の品詞の\n" +
-    "    記号: S(主語) O(目的語) V(動詞・述語) N(名詞) M(修飾) Adv(副詞)\n" +
-    "    Ptc(助詞) Aux(助動詞) Conj(接続詞)。",
   journalLanguage: "日本語(現代の標準語)",
   journalNatives: "日本のネイティブ",
   journalScript: "日本語(漢字かな交じり)",
@@ -1015,7 +962,7 @@ export function defaultReading(profile: TargetProfile): ReadingKind {
 /**
  * **AI への指示文の中で、その表記を何と呼ぶか。**
  *
- * 画面の名前(`readingLabelKey`)は読む人の言語で書くが、指示文は日本語で
+ * 画面の名前(`readingChoices`)は読む人の言語で書くが、指示文は日本語で
  * 書いているので別に持つ(`UI_LANG_LABEL_KEYS` と `UI_LANG_PROMPT_NAMES`
  * が別なのと同じ理由)。
  */

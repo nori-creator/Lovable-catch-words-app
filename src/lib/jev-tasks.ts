@@ -340,22 +340,7 @@ export function pickInterval(
   return { days: Math.max(lo, Math.min(hi, Math.round(jevDays))), source: "jev" };
 }
 
-// --- 6) 話す練習の判定（**影の実行**）・7) 例文の自然さ（**影の実行**）------
-
-export function speakingQuestion(
-  headword: string,
-  utterance: string,
-): { state: JevEntry; questions: Record<string, JevQuestion> } {
-  return {
-    state: { target_word: headword, learner_utterance: utterance },
-    questions: {
-      used: noul(
-        "Did the learner use the target word correctly and naturally in Taiwan Mandarin?",
-        { true: "correct and natural use", false: "missing, wrong, or unnatural" },
-      ),
-    },
-  };
-}
+// --- 6) 例文の自然さ（**影の実行**）------
 
 export function exampleQuestion(
   headword: string,

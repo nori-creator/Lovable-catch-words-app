@@ -16,7 +16,7 @@ import type { StickerWithWord } from "./stickers.functions";
  * **持っている物を出さずに待たせるのは、遅いのではなく無駄。**
  *
  * ## 取り直しはやめない
- * 詳細にしか無いもの（一言の動画 `voice_video_url`、語の枝 `branch_plan`、
+ * 詳細にしか無いもの（語の枝 `branch_plan`、
  * 復習した回数）は一覧に入っていない。だから**出しながら裏で取り直す** —
  * `initialDataUpdatedAt` に大昔を渡すと、React Query はこの種を
  * 「古い」と見なして即座に取りに行く。画面は最初から埋まっていて、

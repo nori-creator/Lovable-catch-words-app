@@ -597,8 +597,6 @@ export function FirstCatchFlow({
             setFlipped={setFlipped}
             caption=""
             setCaption={() => {}}
-            voiceNote={null}
-            setVoiceNote={() => {}}
             placeName={null}
             onRedo={() => move("camera")}
             onSave={catchWord}

@@ -242,18 +242,6 @@ const MODES = [
   ["review-choice-photo", "", false, { scene: "review-choice", photo: "1" }],
   ["review-choice-photo-dark", 'class="dark"', false, { scene: "review-choice", photo: "1" }],
   ...crossThemes("review-wrong", { scene: "review-choice", click: "ul li:nth-child(2) button" }),
-  // 記憶の段階で形が変わる所(要望 #32)。**3つの形が全部出ることを見る** —
-  // ★の段を確率で切って3段しか使っていなかったのと同じ取りこぼしを避ける。
-  ...crossThemes("review-say", { scene: "review-say" }),
-  ...crossThemes("review-say-ok", { scene: "review-say-result" }),
-  ...crossThemes("review-say-ng", { scene: "review-say-result", variant: "ng" }),
-  // 言い直して当てた回(オーナー指示 2026-08-27 ⑦)。画面は「正解！」と
-  // 出すが記録は失念なので、**その断りが「正解！」に埋もれていないか**を絵で見る。
-  ["review-say-retried", "", false, { scene: "review-say-result", variant: "retried" }],
-  ...crossThemes("review-mode-tabs", { scene: "review-mode-tabs" }),
-  // **既定は畳んだ形**(オーナー指摘「バーが大きすぎる。レベルとバンドだけ
-  // 表示して、タップでバーを出して」)。畳んだ絵と開いた絵の**両方**を撮る —
-  // 片方しか撮らないと、片方は一度も見ていないことになる。
   // 項目の並べ替え。**掴んでいる絵**は長押ししたままでないと写らない。
   ...crossThemes("sections-editor", { scene: "sections-editor" }),
   // **開いた並べ替えパネルそのもの**(オーナー指示 2026-08-28 ⑤)。
@@ -261,25 +249,6 @@ const MODES = [
   // 届くかは一度も絵に映っていなかった。
   ...crossThemes("sections-panel", { scene: "sections-panel" }),
   ["sections-editor-dragging", "", false, { scene: "sections-editor", hold: "ul li:nth-child(2)" }],
-  ...crossThemes("tocfl-ladder", { scene: "tocfl-ladder" }),
-  [
-    "tocfl-ladder-open",
-    "",
-    false,
-    { scene: "tocfl-ladder", click: "button[aria-expanded='false']" },
-  ],
-  [
-    "cefr-ladder-open",
-    "",
-    false,
-    { scene: "tocfl-ladder", scale: "cefr", click: "button[aria-expanded='false']" },
-  ],
-  // **CEFR も同じ部品で描けているか**を絵で確かめる(2026-08-24 の二言語化)。
-  // 「6段 + 3帯で形が同じはず」は思い込みかもしれないので、両方撮って並べる。
-  // CEFR 側には TOEFL / IELTS の目盛りが添う。
-  ...crossThemes("cefr-ladder", { scene: "tocfl-ladder", scale: "cefr" }),
-  ["review-mode-speaking", "", false, { scene: "review-mode-tabs", variant: "speaking" }],
-  ["review-mode-choice", "", false, { scene: "review-mode-tabs", variant: "choice" }],
   ...crossThemes("review-empty", { scene: "review-end" }),
   ...crossThemes("review-done", { scene: "review-end", variant: "done" }),
   // 束を出し切っただけの面(10枚ごとに出る)と、上限で止まった面。
@@ -385,9 +354,6 @@ const MODES = [
   ...crossThemes("cap-card", { scene: "capture-card" }),
   ...crossThemes("cap-card-back", { scene: "capture-card", variant: "back" }),
   ["cap-card-noselfie", "", false, { scene: "capture-card", variant: "noselfie" }],
-  // 声で吹き込んだ一言が録れた後(オーナー指示 2026-08-26)。
-  // 文字の欄の隣にボタンが立っていること・指が届く大きさかを見る。
-  ...crossThemes("cap-card-voice", { scene: "capture-card", variant: "voice" }),
   // 語を選ぶ札。**打ち込んだ語の側は場面が1つも無かった。**
   // 打ち込みキャッチ。**2度「機能してない」と言われた画面**なのに、
   // ここまで場面が1つも無く、壊れた姿を機械が一度も見ていなかった。
@@ -464,9 +430,6 @@ const MODES = [
   ...crossThemes("dex-no-match", { scene: "dex-no-match" }),
   // 絞り込みのボタン(オーナー指摘 2026-08-21)。**開いた絵まで撮る** —
   // 閉じたボタンだけでは、選択肢が右端で切れていないか分からない。
-  // 一言の自撮り動画(オーナー決定 2026-08-21 = B案)。撮る前と撮った後。
-  // 聞くボタンそのもの(オーナー指示 2026-08-26)。指が届く大きさを見る。
-  ...crossThemes("voice-player", { scene: "voice-player" }),
   ["dex-filter", "", false, { scene: "dex-filter" }],
   ["dex-filter-chosen", "", false, { scene: "dex-filter", day: "1" }],
   ["dex-filter-open", "", false, { scene: "dex-filter", click: "section [aria-haspopup]" }],

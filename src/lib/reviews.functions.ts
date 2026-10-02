@@ -28,23 +28,13 @@ import {
 } from "@/lib/meaning-language";
 import type { UiLang } from "@/lib/i18n";
 import {
-  assertWithinDailyCap,
   generateStructured,
   getAi,
   getAiFor,
   getUserLevelGoal,
-  levelInstruction,
-  explanationLanguageRule,
   getExplanationLanguage,
-  explanationLanguageName,
-  l1Rule,
-  getLearnerL1Code,
-  isProUser,
-  logUsage,
 } from "./ai-provider.server";
 import { ttsObjectPath, TTS_VOICE_DEFAULT } from "./tts-cache";
-import { readScaffoldBox, scaffoldCacheKey } from "./scaffold-cache";
-import { buildBranchPlan, parseBranchPlan, resolveBranches, type Branch } from "./wordtree";
 import { normalizeExtras, refineUsageChunks, type ChunkPart } from "./extras";
 
 /**
@@ -108,12 +98,6 @@ export type DueReviewCard = {
   lapses: number;
   /** この語でこれまでに撮った写真の枚数(最初の1枚 + 再会)。 */
   photo_count: number;
-  /**
-   * §6/B7: the pattern (branch) THIS review teaches — shown as the task
-   * ("この型を使って一文") instead of the harder free-form 例文作れ.
-   * Same branch the feedback call will unlock, so task and feedback agree.
-   */
-  prompt_pattern: { type: string; zh: string; ja?: string } | null;
   blur_seen: boolean;
   ease: number;
   interval_days: number;
@@ -352,7 +336,7 @@ export const getDueReviews = createServerFn({ method: "GET" })
       readings: targetProfile(targetLanguage).capture.quizFallbackReadings,
     };
     const dueSelect = (withGhost: boolean) =>
-      `id, sticker_id, ease, interval_days, repetitions, blur_seen, last_reviewed_at, stickers!inner(cutout_image_url, object_image_url, caption, location_name, taken_at${withGhost ? ", placeholder_image_url, branch_plan" : ""}, words!inner(id, headword, language, reading_zhuyin, pinyin, meaning_ja, example_sentence, example_translation, category_key, entry_type, extras))`;
+      `id, sticker_id, ease, interval_days, repetitions, blur_seen, last_reviewed_at, stickers!inner(cutout_image_url, object_image_url, caption, location_name, taken_at${withGhost ? ", placeholder_image_url" : ""}, words!inner(id, headword, language, reading_zhuyin, pinyin, meaning_ja, example_sentence, example_translation, category_key, entry_type, extras))`;
     // 記憶段階の優先度(設定):
     //   weak = 忘れかけ(ease が低い=何度も間違えた語)から先に
     //   new  = 覚えたて(復習回数が少ない語)から先に
@@ -379,7 +363,7 @@ export const getDueReviews = createServerFn({ method: "GET" })
       console.warn("[reviews] 学習言語で絞れないので絞りを外す:", error.message);
       ({ data, error } = await runDue(false));
     }
-    if (error && /placeholder_image_url|entry_type|branch_plan/.test(error.message)) {
+    if (error && /placeholder_image_url|entry_type/.test(error.message)) {
       ({ data, error } = (await supabase
         .from("reviews")
         .select(
@@ -407,7 +391,6 @@ export const getDueReviews = createServerFn({ method: "GET" })
         location_name: string | null;
         taken_at: string | null;
         placeholder_image_url?: string | null;
-        branch_plan?: unknown;
         words: {
           id: string;
           headword: string;
@@ -696,14 +679,7 @@ export const getDueReviews = createServerFn({ method: "GET" })
           : null;
 
       const cutoutPath = row.stickers!.cutout_image_url;
-      // The branch this review will unlock = today's designated pattern.
-      // Mirrors getSpeakingFeedback's selection so task and feedback agree.
       const reviewCount = reviewCounts.get(row.sticker_id) ?? 0;
-      const plan = parseBranchPlan(row.stickers!.branch_plan) ?? [];
-      const promptPattern: Branch | null = resolveBranches(
-        plan,
-        Math.max(1, reviewCount + 1),
-      ).justUnlocked;
       return {
         review_id: row.id,
         sticker_id: row.sticker_id,
@@ -735,7 +711,6 @@ export const getDueReviews = createServerFn({ method: "GET" })
         review_count: reviewCount,
         lapses: lapseCounts.get(row.sticker_id) ?? 0,
         photo_count: 1 + (encounterCounts.get(row.sticker_id) ?? 0),
-        prompt_pattern: promptPattern,
         blur_seen: row.blur_seen,
         ease: row.ease,
         interval_days: row.interval_days,
@@ -855,14 +830,6 @@ const GradeInput = z.object({
   correct: z.boolean(),
   blur_seen: z.boolean().default(false),
   response_ms: z.number().int().nonnegative().default(0),
-  /**
-   * Speaking review result (§6): success = said it without help (5),
-   * hint = needed the word revealed = lapse (2), skip = couldn't say it (1).
-   * When omitted, the classic correct/blur scoring applies (choice mode).
-   */
-  result: z.enum(["success", "hint", "skip"]).optional(),
-  /** Convenience flag: same as result="hint" (a lapse, score 2). */
-  hint_used: z.boolean().default(false),
 });
 
 /**
@@ -969,18 +936,11 @@ export const gradeReview = createServerFn({ method: "POST" })
     }
 
     // Score: correct=5 base; blur penalty -1; slow (>8s) -1; wrong=1.
-    // Speaking mode sends `result` (or hint_used): success=5 / hint=2 (lapse,
-    // §6「ヒント使用=失念」 — resets SM-2 but is gentler on ease than a fail) / skip=1.
     let score = 1;
-    const result = data.result ?? (data.hint_used ? "hint" : undefined);
-    if (result) {
-      score = result === "success" ? 5 : result === "hint" ? 2 : 1;
-    } else if (data.correct) {
+    if (data.correct) {
       score = 5;
       if (data.blur_seen) score -= 1;
       if (data.response_ms > 8000) score -= 1;
-    } else {
-      score = 1;
     }
     score = Math.max(0, Math.min(5, score));
 
@@ -1378,375 +1338,6 @@ export const getMemoryOverview = createServerFn({ method: "GET" })
       solid: words.filter((w) => w.retention > 80).length,
       words,
     };
-  });
-
-// --- Speaking-output review feedback (§6) -----------------------------------
-
-const FeedbackInput = z.object({
-  sticker_id: z.string().uuid(),
-  transcript: z.string().min(1).max(500),
-  hint_used: z.boolean().default(false),
-});
-
-// 詳しい役割: 動詞・目的語は V1/V2, O1/O2 のように区別できる(連動文など)。
-const PosEnum = z.enum(["S", "V", "V1", "V2", "O", "O1", "O2", "M", "Adv", "C", "Prep", "Ptc"]);
-export type SpeakingPos = z.infer<typeof PosEnum>;
-
-const FeedbackSchema = z.object({
-  corrected: z.string(),
-  natural_score: z.number().int().min(1).max(5),
-  used_target: z.boolean(),
-  correction_note: z.string(),
-  chunk: z
-    .array(z.object({ text: z.string(), pos: PosEnum }))
-    .min(1)
-    .max(12),
-  chunk_note: z.string(),
-  /** なぜこの語順になるのか — 台湾華語の語順ルールの短い解説(日本語)。 */
-  word_order_rule: z.string(),
-  native_note: z.string(),
-  model_answer: z.string(),
-  alt_answer: z.string(),
-});
-export type SpeakingFeedback = z.infer<typeof FeedbackSchema> & {
-  headword: string;
-  reading_zhuyin: string | null;
-  pinyin: string | null;
-  meaning_ja: string;
-  /** §6 word tree: the branch this review presents/unlocks as「今日の型」. */
-  unlocked_branch: Branch | null;
-};
-
-export const getSpeakingFeedback = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => FeedbackInput.parse(input))
-  .handler(async ({ context, data }): Promise<SpeakingFeedback> => {
-    const { supabase, userId } = context;
-    await assertWithinDailyCap(userId, "speaking_feedback");
-    // branch_plan/entry_type/extras may predate the Phase A migration —
-    // retry without them so feedback never breaks on a stale schema.
-    let { data: st, error } = await supabase
-      .from("stickers")
-      .select(
-        "id, caption, location_name, branch_plan, words(headword, reading_zhuyin, pinyin, meaning_ja, example_sentence, entry_type, extras)",
-      )
-      .eq("id", data.sticker_id)
-      .eq("user_id", userId)
-      .maybeSingle();
-    if (error && /branch_plan|entry_type/.test(error.message)) {
-      ({ data: st, error } = (await supabase
-        .from("stickers")
-        .select(
-          "id, caption, location_name, words(headword, reading_zhuyin, pinyin, meaning_ja, example_sentence, extras)",
-        )
-        .eq("id", data.sticker_id)
-        .eq("user_id", userId)
-        .maybeSingle()) as unknown as { data: typeof st; error: typeof error });
-    }
-    if (error || !st?.words) throw new Error("カードが見つかりません");
-    const row = st as unknown as {
-      id: string;
-      caption: string | null;
-      location_name: string | null;
-      branch_plan?: unknown;
-      words: {
-        headword: string;
-        reading_zhuyin: string | null;
-        pinyin: string | null;
-        meaning_ja: string;
-        example_sentence: string | null;
-        entry_type?: string | null;
-        extras?: unknown;
-      };
-    };
-    const w = row.words;
-    const isPhrase = w.entry_type === "phrase";
-
-    // §6 word tree: the pattern we teach IS the branch this review unlocks —
-    // one branch per completed review, no extra AI call for the selection.
-    const { count } = await supabase
-      .from("review_history")
-      .select("id", { count: "exact", head: true })
-      .eq("user_id", userId)
-      .eq("sticker_id", data.sticker_id);
-    const plan =
-      parseBranchPlan(row.branch_plan) ??
-      buildBranchPlan(w.extras as Parameters<typeof buildBranchPlan>[0]);
-    const branch = resolveBranches(plan, Math.max(1, (count ?? 0) + 1)).justUnlocked;
-
-    const ai = await getAiFor("review");
-    const levelRule = await levelInstruction(userId);
-    const langRule = await explanationLanguageRule(userId);
-    // 本文の「日本語で」という指示が langRule と矛盾しないよう言語名を差し替える。
-    // **3言語すべてを名前で引く**（`=== "en" ? "英語" : "日本語"` だと繁體中文の人の
-    // 解説が日本語で作られる。`ai-provider.server.ts` の注と同じ話）。
-    const NL = explanationLanguageName(await getExplanationLanguage(userId));
-    // 母語ごとの干渉(語順・アスペクト・発音)を添削の観点に入れる。
-    const l1 = await l1Rule(userId, "both");
-    const levelGoal = await getUserLevelGoal(userId);
-    // 講師の呼び名・字・品詞の記号は学習言語の表から(`target-profile.ts` の `coach`)。
-    // 台湾華語の値はいままでの文そのもの。
-    const coach = targetProfile(await getUserTargetLanguage(userId)).coach;
-    const prompt = `あなたは${coach.nativeTeacher}です。${langRule}学習者が自分の写真を見て「${w.headword}(${w.meaning_ja})」を使って一文話しました。以下を厳密なJSONで返してください。
-
-学習者の発話: 「${data.transcript}」
-${levelRule}
-${l1}
-${data.hint_used ? "※学習者は単語を思い出せずヒントを見ました。\n" : ""}${row.caption ? `撮影時のメモ: 「${row.caption}」\n` : ""}${row.location_name ? `撮影場所: ${row.location_name}\n` : ""}${isPhrase ? "これはフレーズカードです。返答として自然か、トーンも見てください。\n" : ""}${branch ? `今回教える「型」: 「${branch.zh}」${branch.ja ? `(${branch.ja})` : ""} — chunk と chunk_note は必ずこの表現を使って組み立ててください。\n` : ""}
-要件:
-- corrected: 学習者の意図を尊重した自然な${coach.languageName}の添削文(${coach.scriptName})。ほぼ正しければそのまま。
-- natural_score: 1〜5。5=ネイティブそのまま、3=通じるが不自然、1=通じない/対象語を使っていない。
-- used_target: 「${w.headword}」を(活用形含め)使っているか。
-- correction_note: 何をどう直したか、なぜ不自然だったかを${NL}で1〜2文。
-- chunk: ${branch ? `「${branch.zh}」を含む自然な一文` : "corrected"}を語順パーツに分解。posは ${coach.feedbackPos}。動詞や目的語が複数ある文(連動文・二重目的語)は V1,V2 / O1,O2 と番号で区別する。3〜8個程度。
-- chunk_note: この構文の使いどころを${NL}で1文。
-- word_order_rule: **なぜこの語順になるのか**、${coach.languageName}の語順ルールを${NL}1〜2文で解説。**学習者の母語と違う点**があればそこを名指しで説明する(例:${coach.wordOrderExamples}など、この文に当てはまるルールを具体的に)。
-- native_note: モノの一般的な説明(「リップクリームは乾燥した時に使う」等)は**禁止**。書くのは(a)ネイティブが「${w.headword}」を実際に口にする典型的なタイミング・状況・その時の気持ち、(b)${coach.collocationNote}。${NL}2〜3文。
-- model_answer: この写真の状況で「${w.headword}」を使ったお手本(自然な${coach.languageName}1文、${coach.scriptName}、${levelGoal}以下の語彙)。
-- alt_answer: 別の言い方1つ(${coach.scriptName})。`;
-
-    const pro = await isProUser(userId);
-    const feedback = await generateStructured({
-      model: ai.gateway(pro ? ai.modelRichPremium : ai.modelRich),
-      prompt,
-      schema: FeedbackSchema,
-      // Proモデルが使えない環境でも添削が止まらないように
-      fallbackModel: ai.gateway(ai.modelFast),
-    });
-
-    // KPI (roadmap §3): speaking reviews feed the admin dashboard.
-    await logUsage(supabase, userId, "speaking_feedback");
-    await supabase.from("ai_runs").insert({
-      user_id: userId,
-      loop: "speaking_feedback",
-      iterations: 1,
-      accepted: 1,
-      meta: { headword: w.headword, score: feedback.natural_score },
-    });
-
-    // **Jev の判定を影で記録**（画面の判定は変えない。添削 AI との一致を後で見る）。
-    void import("./jev-tasks.server").then(({ recordSpeakingShadow }) =>
-      recordSpeakingShadow(supabase as never, {
-        userId,
-        headword: w.headword,
-        utterance: data.transcript,
-        llmOk: feedback.used_target && feedback.natural_score >= 3,
-      }),
-    );
-
-    return {
-      ...feedback,
-      headword: w.headword,
-      reading_zhuyin: w.reading_zhuyin,
-      pinyin: w.pinyin,
-      meaning_ja: w.meaning_ja,
-      unlocked_branch: branch,
-    };
-  });
-
-// --- B4 スピーキングの足場(MTC式) ------------------------------------------
-// 「白紙で話して」は厳しい。MTCの授業と同じく「習った型を使わせる先生の質問」
-// +「自分の言いたいことに対応する文のパーツ」を提示し、組み合わせて作文させる。
-// 単語レベルの足場(質問+パーツ)は words.extras.speaking_scaffold にキャッシュ
-// して2回目以降ゼロコスト。キャプション(その人の気持ち・思い出)はスティッカー
-// 固有なので毎回そのまま「言いたいことの種」として添える。
-
-/** ヒント1つの種類。表示の見出し(チャンク/フレーズ/文法)に使う。 */
-export type SpeakingPartKind = "chunk" | "phrase" | "grammar";
-
-export type SpeakingPart = {
-  zh: string;
-  /** 母語訳・説明。UI言語(日本語/英語)で書かれる。 */
-  ja: string;
-  kind: SpeakingPartKind;
-  /** 品詞色分け用の分解(単語詳細のチャンクと同じ体系)。空なら zh をそのまま出す。 */
-  chunks: { text: string; pos: string }[];
-};
-export type SpeakingScaffold = {
-  question_zh: string;
-  question_ja: string;
-  parts: SpeakingPart[];
-  caption_seed: string | null;
-};
-
-const ScaffoldSchema = z.object({
-  question_zh: z.string(),
-  question_ja: z.string(),
-  parts: z
-    .array(
-      z.object({
-        zh: z.string(),
-        ja: z.string(),
-        kind: z.enum(["chunk", "phrase", "grammar"]).catch("chunk"),
-        chunks: z.array(z.object({ text: z.string(), pos: z.string().catch("") })).catch([]),
-      }),
-    )
-    .min(2)
-    .max(5),
-});
-
-/** 撮った日を「8月1日」の形に。読めなければ何も言わない。 */
-function takenLabel(iso: string | null | undefined): string | null {
-  if (!iso) return null;
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return null;
-  return `撮った日: ${d.getMonth() + 1}月${d.getDate()}日`;
-}
-
-const ScaffoldInput = z.object({ sticker_id: z.string().uuid() });
-
-export const getSpeakingScaffold = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => ScaffoldInput.parse(input))
-  .handler(async ({ context, data }): Promise<SpeakingScaffold> => {
-    const { supabase, userId } = context;
-    // `speaking_scaffold` は 2026-08-20 に足した列。**無い環境でも読める形**を
-    // 残す(この app では新しい列を足すたびにこの形にしている)。
-    const cols = (withScaffold: boolean) =>
-      `id, caption, location_name, taken_at, created_at, object_image_url, cutout_image_url, branch_plan, word_id${
-        withScaffold ? ", speaking_scaffold" : ""
-      }, words(headword, meaning_ja, extras)`;
-    let res = await supabase
-      .from("stickers")
-      .select(cols(true))
-      .eq("id", data.sticker_id)
-      .eq("user_id", userId)
-      .maybeSingle();
-    // **列が無いときは `data: null` ではなくエラーが返る。**
-    // 「読めなかった」を「カードが無い」と取り違えると、
-    // 列を足す前の環境で復習が丸ごと開かなくなる。
-    let hasScaffoldColumn = true;
-    if (res.error && /speaking_scaffold/.test(res.error.message)) {
-      hasScaffoldColumn = false;
-      res = (await supabase
-        .from("stickers")
-        .select(cols(false))
-        .eq("id", data.sticker_id)
-        .eq("user_id", userId)
-        .maybeSingle()) as unknown as typeof res;
-    }
-    const st = res.data;
-    const row = st as unknown as {
-      caption: string | null;
-      location_name: string | null;
-      taken_at: string | null;
-      created_at: string | null;
-      object_image_url: string | null;
-      cutout_image_url: string | null;
-      branch_plan?: unknown;
-      word_id: string;
-      speaking_scaffold?: unknown;
-      words: {
-        headword: string;
-        meaning_ja: string;
-        extras?: Record<string, unknown> | null;
-      } | null;
-    } | null;
-    if (!row?.words) throw new Error("カードが見つかりません");
-    const w = row.words;
-    const captionSeed = row.caption?.trim() || null;
-
-    // ## 控えは**語ではなく、その1枚**に置く
-    //
-    // 前は `words.extras` に語単位で置いていた。`words` は利用者どうしで
-    // 共有される表なので、そこへ「その人が撮ったときの一言」から作った質問を
-    // 書き込むと、**同じ語を持つ別の利用者にその人の思い出が出る**。
-    // 個人の記憶を混ぜてよい場所ではない(だから `stickers` に列を足した)。
-    //
-    // 鍵は 表示言語 × 母語 × **一言の指紋**。
-    // 表示言語: 英語設定なら英語の足場を出す。
-    // 母語: grammar のヒントが母語の弱点に合わせて変わる。
-    // 一言: 書き直したら質問も作り直す — 古い一言から作った問いが残ると、
-    //       本人にとって身に覚えのないことを聞かれる。
-    const lang = await getExplanationLanguage(userId);
-    const l1Code = await getLearnerL1Code(userId);
-    const cacheKey = scaffoldCacheKey({ lang, l1: l1Code, caption: captionSeed });
-    const cachedParsed = readScaffoldBox(row.speaking_scaffold, cacheKey, (v) =>
-      ScaffoldSchema.parse(v),
-    );
-    if (cachedParsed) {
-      return { ...cachedParsed, caption_seed: captionSeed };
-    }
-
-    const ai = await getAiFor("review");
-    const levelRule = await levelInstruction(userId);
-    const langRule = await explanationLanguageRule(userId);
-    // 足場の "grammar" ヒントは、その母語話者が実際に崩す所を突くほど効く。
-    // 英語話者には「時間・場所は動詞の前」、日本語話者には「了は過去形ではない」。
-    const l1Order = await l1Rule(userId, "wordorder");
-    const plan =
-      parseBranchPlan(row.branch_plan) ??
-      buildBranchPlan(w.extras as Parameters<typeof buildBranchPlan>[0]);
-    const pattern = resolveBranches(plan, 1).justUnlocked;
-    // 先生の呼び名・字・例・品詞の記号は学習言語の表から(`coach`)。
-    const coach = targetProfile(await getUserTargetLanguage(userId)).coach;
-
-    // ## その人の思い出をプロンプトに渡す
-    //
-    // ここが本題(要望 2026-08-18:「質問はユーザーの内面の気持ち、思い出、
-    // 感情、個人的な情報を引き出すようにAIが考える。そのうえで自分の撮った
-    // 時の感想、一言をもとに型やフレーズ、語法のヒントを表示」)。
-    //
-    // **前は一言も場所も日付も渡していなかった。** それでいて
-    // 「写真の状況に沿った質問」と書いてあったので、ずっと空振りしていた。
-    const memory = [
-      captionSeed ? `撮ったときの一言:「${captionSeed}」` : null,
-      row.location_name ? `撮った場所: ${row.location_name}` : null,
-      takenLabel(row.taken_at ?? row.created_at),
-      row.cutout_image_url || row.object_image_url ? "自分で撮った写真がある" : null,
-    ]
-      .filter(Boolean)
-      .join(" / ");
-
-    const scaffold = await generateStructured({
-      model: ai.gateway(ai.modelFast),
-      schema: ScaffoldSchema,
-      prompt: `あなたは${coach.scaffoldTeacher}です。${langRule}学習者に「${w.headword}(${w.meaning_ja})」を実際に使わせたい。${levelRule}
-${pattern ? `今日の型:「${pattern.zh}」${pattern.ja ? `(${pattern.ja})` : ""}\n` : ""}
-${memory ? `この学習者がこの言葉を拾ったときの記録 — ${memory}\n` : ""}
-次を厳密なJSONで返してください:
-- question_zh: 「${w.headword}」を使って答えたくなる自然な質問1つ(${coach.scriptName}、レベル以下の語彙)。
-${
-  captionSeed
-    ? `  **上の「一言」に書かれた気持ち・出来事を受けて聞く。** 学習者が自分で書いたことなので、
-  そこから広げると答えが自分の中に既にある状態になる。
-  例:「美味しかった」→ また食べたいか / 誰と行きたいか。「疲れた」→ どんなときにそう感じるか。
-  一言をそのまま繰り返さない。**その先を聞く。**`
-    : `  一言が書かれていないので、**その物を見たときの気持ち・思い出・したいこと**を
-  引き出す質問にする(例: いつ使うか / 誰を思い出すか / 次はどうしたいか)。
-  「これは何ですか」のような、見れば分かることは聞かない。`
-}
-  場所や日付が分かっているなら、それを手がかりにしてよい(「〜で見たとき」)。
-- question_ja: その質問の訳(解説言語で)
-- parts: 答えを組み立てる**ヒント**を2〜3個だけ。各パーツは {zh, ja, kind, chunks}。
-  **重要: 答えの文をそのまま分解して渡してはいけない。** 並べるだけで答えが完成する組み合わせは禁止。
-  完成文(「。」で終わる文)や、質問への答えそのものになるパーツは入れない — 学習者に考える余地を残す。
-  - kind は次のどれか:
-    "chunk" =「${w.headword}」とよく一緒に使う${coach.scaffoldChunk}
-    "phrase" = スロット付きの型・言い回し${coach.scaffoldPhraseExample}
-    "grammar" = 文法・語法のポイント${coach.scaffoldGrammarExample}。
-      **この学習者の母語で実際に崩れる所**を優先して選ぶ:
-${l1Order}
-  - zh は${coach.scriptName}。ja はその訳・使いどころを1行で(解説言語で)。
-  - chunks は zh を意味のかたまりに分けた配列 [{text, pos}]。${coach.scaffoldPosRule}◯や…のスロットは pos を "" にする。
-    chunks の text を順に繋ぐと zh に一致すること。`,
-    });
-
-    // 控えは**その1枚**へ。列がまだ無い環境では保存を諦めるだけで、
-    // 足場そのものは返す(毎回作り直しになるが、間違った物は出ない)。
-    if (hasScaffoldColumn) {
-      const { error } = await supabase
-        .from("stickers")
-        // 型定義は生成物で、`speaking_scaffold` はそれより新しい列。
-        // `shelf_key` のときと同じで、緩いクライアントとして扱う。
-        .update({ speaking_scaffold: { key: cacheKey, scaffold } } as never)
-        .eq("id", data.sticker_id)
-        .eq("user_id", userId);
-      if (error) console.warn("scaffold cache write failed", error.message);
-    }
-    await logUsage(supabase, userId, "speaking_feedback");
-
-    return { ...scaffold, caption_seed: captionSeed };
   });
 
 /**
