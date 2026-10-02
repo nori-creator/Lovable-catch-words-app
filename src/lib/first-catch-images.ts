@@ -1,20 +1,24 @@
 import { FIRST_CATCH_INTERESTS } from "@/lib/learning-preferences";
 
 /**
- * 最初の画面（`/welcome`）に出る4枚。`<head>` で先読みするのはこの4枚だけ
- * （2026-10-02）。前は興味の質問の9枚も一緒に先読みしていたので、最初の画面の
- * 写真と帯域を取り合い、Chrome は「先読みしたのに数秒使われていない」と警告し得た。
- * 9枚は画面を開いた直後に `preloadFirstCatchImages` が温める。
+ * 最初の画面（`/welcome`）に出る写真と手（2026-10-03 の空と手の1枚）。`<head>` で
+ * 先読みするのはこれだけ。興味の質問の残りの写真は、画面を開いた直後に
+ * `preloadFirstCatchImages` が温める（一緒に先読みすると最初の画面の写真と帯域を
+ * 取り合い、Chrome は「先読みしたのに数秒使われていない」と警告し得た）。
  */
 export const WELCOME_IMAGES = [
-  "/first-catch-cafe.webp",
+  "/first-catch-ready.webp",
+  "/first-catch-hand.webp",
   "/first-catch-flower.webp",
   "/first-catch-cat.webp",
-  "/first-catch-ready.webp",
+  "/first-catch-cafe.webp",
+  "/first-catch-interest-nature.webp",
 ];
 export const FIRST_CATCH_IMAGES = [
-  ...WELCOME_IMAGES,
-  ...FIRST_CATCH_INTERESTS.map((value) => `/first-catch-interest-${value}.webp`),
+  ...new Set([
+    ...WELCOME_IMAGES,
+    ...FIRST_CATCH_INTERESTS.map((value) => `/first-catch-interest-${value}.webp`),
+  ]),
 ];
 let loading: Promise<void> | undefined;
 /** Warm the same HTTP/decode cache used by Home, questions, Dex and review. */

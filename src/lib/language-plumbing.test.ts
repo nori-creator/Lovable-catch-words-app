@@ -6423,38 +6423,65 @@ describe("R25（2026-09-30: ベータテストの指摘・最初の画面の4枚
     expect(focus).toMatch(/if \(!supported\.pointsOfInterest\) return null;/);
   });
 
-  it("初回の画面の写真には留め具を付けず、最初の画面は6つの並べ方から選べる（本番は1か所で決まる）", () => {
+  it("初回の画面の写真には留め具を付けない", () => {
     const pages = codeOnly(read("components/onboarding/FirstCatchPages.tsx"));
-    expect(pages).toMatch(
-      /WELCOME_LAYOUTS = \[\s*"mosaic",\s*"frame",\s*"bouquet",\s*"scatter",\s*"hero",\s*"cascade",?\s*\]/,
-    );
-    expect(pages).toMatch(/layout=\{DEFAULT_WELCOME_LAYOUT\}/);
-    // 本番はオーナーが選ぶまで C のまま。確認用ページだけが新しい案のおすすめを先に見せる。
-    expect(pages).toMatch(/DEFAULT_WELCOME_LAYOUT: WelcomeLayout = "bouquet"/);
-    expect(pages).toMatch(/RECOMMENDED_WELCOME_LAYOUT: WelcomeLayout = "scatter"/);
+    // ログイン画面の束と、準備の画面の1枚。
     expect(pages.match(/fasteners=\{false\}/g)?.length).toBe(2);
     expect(codeOnly(read("components/onboarding/FirstCatchQuestions.tsx"))).toMatch(
       /fasteners=\{false\}/,
     );
-    const css = read("components/onboarding/first-catch.css");
-    for (const l of ["mosaic", "frame", "bouquet", "scatter", "hero", "cascade"])
-      expect(css).toContain(`.first-print-stack--${l}`);
   });
 
-  it("最初の画面は束が残りの高さを取り、ログインの入口は押せる高さで少し離す", () => {
+  /**
+   * **最初の画面はオーナーの見本「A. シンプルモダン」**（2026-10-03「ウェルカム画面はAの
+   * デザインを再現して。キャッチフレーズは日常のすべてが学びになる。海の写真の下には
+   * 海邊という台湾華語を書き入れて」「アニメーションを入れて、祝福する、画面に動きを」）。
+   */
+  it("最初の画面は空と手の1枚（海邊）・キャッチフレーズ・動き、点は付けない", () => {
+    const pages = codeOnly(read("components/onboarding/FirstCatchPages.tsx"));
+    const intro = pages.slice(pages.indexOf("export function FirstCatchIntro("));
+    const body = intro.slice(0, intro.indexOf("export function FirstCatchNotifications("));
+    expect(body).toMatch(/t\("first\.introTagline"\)/);
+    expect(body).toMatch(/src="\/first-catch-ready\.webp"/);
+    expect(body).toMatch(/src="\/first-catch-hand\.webp"/);
+    expect(pages).toMatch(/seaside: \["seaside", "海邊"\]/);
+    expect(body).toMatch(/welcomeWord\("seaside", en\)/);
+    // 横に送れない画面なので、送れるように見せる点は出さない。
+    expect(body).not.toMatch(/dot|first-dots/);
+    // 「ログイン」だけが押せる青い文字。押せる高さは .first-secondary（44px）。
+    expect(body).toMatch(
+      /\{t\("first\.signinPrompt"\)\}\s*<a className="first-secondary" href="\/auth">/,
+    );
+    expect(fs.existsSync(path.join(root, "../public/first-catch-hand.webp"))).toBe(true);
+    const dict = read("lib/i18n.tsx");
+    expect(dict).toMatch(/"first\.introTagline": \{\s*ja: "日常のすべてが学びになる"/);
+    // 並べ方の見比べ（C〜F）は畳んだ。
+    expect(pages).not.toMatch(/WELCOME_LAYOUTS|setWelcomeLayoutPreview/);
     const css = read("components/onboarding/first-catch.css");
-    // 束の高さを決め打ちすると、背の高い画面で「はじめる」の上に大きな空白が残る。
-    expect(css).toMatch(/\.first-polaroids \{[^}]*flex: 1 1 0;/);
+    expect(css).not.toMatch(/first-print-stack--(mosaic|frame|bouquet|scatter|hero|cascade)/);
+    // 舞台が残りの高さを取る（背の高い画面で「はじめる」の上に大きな空白を残さない）。
+    expect(css).toMatch(/\.first-welcome-stage \{[^}]*flex: 1 1 0;[^}]*container-type: size;/);
     expect(css).toMatch(/\.first-intro \{[^}]*height: max\(var\(--first-viewport-height/);
     expect(css).toMatch(/\.first-secondary \{[^}]*display: flex;[^}]*min-height: 44px;/);
-    expect(css).toMatch(/\.first-standalone-footer \.first-secondary \{[^}]*margin: 6px auto/);
-    // 新しい3案は写真の比のまま（紙の縁のぶんも足して切らない）。
-    expect(css).toMatch(/height: calc\(var\(--print-ratio\) \* \(var\(--pw\) - 10px\) \+ 5px\)/);
-    // 最初の画面で先読みするのは、最初の画面に出る4枚だけ。
+    // 雲が流れ・写真が舞い込み・手の1枚が揺れ・光と星。動きを減らす設定では止める。
+    for (const motion of [
+      "first-cloud-drift",
+      "first-welcome-float-in",
+      "first-welcome-sway",
+      "first-welcome-shine",
+      "first-welcome-spark",
+    ])
+      expect(css).toContain(`@keyframes ${motion}`);
+    expect(css).toMatch(
+      /html\[data-motion="reduce"\] \.first-welcome \*,[^{]*\{\s*animation: none !important;/,
+    );
+    // 暗いテーマの空もある。
+    expect(css).toMatch(/\.dark \.first-welcome \{/);
+    // 最初の画面で先読みするのは、最初の画面に出る写真と手だけ。
     const welcome = codeOnly(read("routes/welcome.tsx"));
     expect(welcome).toMatch(/WELCOME_IMAGES\.map/);
     const images = codeOnly(read("lib/first-catch-images.ts"));
-    for (const photo of ["cafe", "flower", "cat", "ready"])
+    for (const photo of ["cafe", "flower", "cat", "ready", "hand", "interest-nature"])
       expect(images).toMatch(new RegExp(`"/first-catch-${photo}\\.webp"`));
   });
 

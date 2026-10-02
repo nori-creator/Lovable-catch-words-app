@@ -1,10 +1,4 @@
 import { FirstCatchScene } from "./scenes/first-catch";
-import {
-  RECOMMENDED_WELCOME_LAYOUT,
-  setWelcomeLayoutPreview,
-  WELCOME_LAYOUTS,
-  type WelcomeLayout,
-} from "@/components/onboarding/FirstCatchPages";
 import { HomeShelfScene } from "./scenes/home-shelf";
 import { InstallAppScene } from "./scenes/install-app";
 import { ChunkDesignsScene } from "./scenes/chunk-designs";
@@ -512,20 +506,9 @@ if (!explicitScene) {
   });
 }
 const wanted = q.get("scene") ?? "";
-/**
- * **最初の画面の並べ方を、画面の上の帯で選ぶ**（2026-10-02 オーナー指示「デザイン案を私に」）。
- * 見比べの帯から開いた最初の画面（`first-catch` の intro）にだけ出す。名指しの検査では出さない。
- */
-const showWelcomeLayoutBar =
-  showReviewBar &&
-  (wanted === "first-catch" || wanted === "onboarding") &&
-  (q.get("step") ?? "intro") === "intro";
-const WELCOME_LAYOUT_BAR_PX = 44;
 document.documentElement.style.setProperty(
   "--first-viewport-height",
-  showReviewBar
-    ? `calc(100dvh - 42px${showWelcomeLayoutBar ? ` - ${WELCOME_LAYOUT_BAR_PX}px` : ""})`
-    : "100dvh",
+  showReviewBar ? "calc(100dvh - 42px)" : "100dvh",
 );
 
 /**
@@ -564,17 +547,6 @@ if (q.get("theme") === "dark") document.documentElement.classList.add("dark");
     }
   }
 }
-/**
- * 最初の画面の4枚の並べ方を見比べる（`?layout=bouquet|scatter|hero|cascade|mosaic|frame`）。
- * 付けずに開いたら、2026-10-02 の新しい案のおすすめ（`RECOMMENDED_WELCOME_LAYOUT`）を見せる
- * — 本番の並べ方（`DEFAULT_WELCOME_LAYOUT`）はオーナーが選ぶまで変えない。
- */
-const welcomeLayout: WelcomeLayout = (WELCOME_LAYOUTS as readonly string[]).includes(
-  q.get("layout") ?? "",
-)
-  ? (q.get("layout") as WelcomeLayout)
-  : RECOMMENDED_WELCOME_LAYOUT;
-setWelcomeLayoutPreview(welcomeLayout);
 const Scene = SCENES[wanted];
 // 知らない場面は**印を残して落とす**。以前は静かに `unknown scene` と
 // 描くだけだったので、一覧の綴りを間違えると「文字も押せるものも無い
@@ -651,66 +623,10 @@ function ReviewBar() {
   );
 }
 
-/** 見比べる並べ方。C は今の本番、D・E・F は 2026-10-02 の新しい案。 */
-const WELCOME_LAYOUT_CHOICES: Array<{ layout: WelcomeLayout; label: string }> = [
-  { layout: "bouquet", label: "C 今の本番" },
-  { layout: "scatter", label: "D 散らす" },
-  { layout: "hero", label: "E 主役" },
-  { layout: "cascade", label: "F 流れ" },
-];
-function WelcomeLayoutBar() {
-  return (
-    <div
-      role="group"
-      aria-label="最初の画面の写真の並べ方"
-      style={{
-        height: WELCOME_LAYOUT_BAR_PX,
-        boxSizing: "border-box",
-        display: "flex",
-        alignItems: "center",
-        gap: 6,
-        padding: "0 10px",
-        overflowX: "auto",
-        whiteSpace: "nowrap",
-        background: "#1e293b",
-        color: "#fff",
-        fontSize: 12,
-      }}
-    >
-      <span style={{ opacity: 0.75, marginRight: 2 }}>並べ方</span>
-      {WELCOME_LAYOUT_CHOICES.map(({ layout, label }) => {
-        const next = new URLSearchParams(location.search);
-        next.set("layout", layout);
-        next.set("review", "1");
-        const on = layout === welcomeLayout;
-        return (
-          <a
-            key={layout}
-            href={`?${next.toString()}`}
-            aria-current={on ? "true" : undefined}
-            style={{
-              padding: "6px 10px",
-              borderRadius: 999,
-              background: on ? "#f59e0b" : "rgba(255,255,255,0.14)",
-              color: on ? "#111827" : "#fff",
-              textDecoration: "none",
-              fontWeight: on ? 700 : 500,
-            }}
-          >
-            {label}
-            {layout === RECOMMENDED_WELCOME_LAYOUT ? " ★" : ""}
-          </a>
-        );
-      })}
-    </div>
-  );
-}
-
 createRoot(document.getElementById("root")!).render(
   Scene ? (
     <QueryClientProvider client={qc}>
       {showReviewBar && <ReviewBar />}
-      {showWelcomeLayoutBar && <WelcomeLayoutBar />}
       {BARE.has(wanted) ? (
         <Scene q={q} />
       ) : (
