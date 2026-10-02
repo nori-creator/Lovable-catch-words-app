@@ -9,7 +9,9 @@ import {
   type MemberChange,
   type MemberItem,
 } from "@/lib/category-members";
-import { useT } from "@/lib/i18n";
+import { useT, useUiLang } from "@/lib/i18n";
+import { readerMeaningCached } from "@/lib/reader-meanings";
+import { ReaderMeaning } from "@/components/ReaderMeaning";
 import { useDragDismiss } from "@/hooks/use-drag-dismiss";
 import { usePrefersReducedMotion } from "@/hooks/use-reduced-motion";
 import { Button } from "@/components/ui/button";
@@ -18,6 +20,8 @@ import { Input } from "@/components/ui/input";
 export type MemberRow = MemberItem & {
   headword: string;
   meaning?: string | null;
+  /** 語の id。意味を読む人の言語で出すため（`ReaderMeaning`）。 */
+  wordId?: string | null;
   thumb?: string | null;
 };
 
@@ -57,6 +61,7 @@ export function CategoryMembersSheet({
   );
   const [selected, setSelected] = useState<Set<string>>(() => new Set(initial));
   const [q, setQ] = useState("");
+  const uiLang = useUiLang();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const name = categoryDisplay(categoryKey, userCategories, labelOf);
@@ -68,11 +73,12 @@ export function CategoryMembersSheet({
     const hit = (r: MemberRow) =>
       !needle ||
       r.headword.toLowerCase().includes(needle) ||
-      (r.meaning ?? "").toLowerCase().includes(needle);
+      (r.meaning ?? "").toLowerCase().includes(needle) ||
+      readerMeaningCached(r.wordId, uiLang).toLowerCase().includes(needle);
     return [...items]
       .filter(hit)
       .sort((a, b) => Number(initial.has(b.id)) - Number(initial.has(a.id)));
-  }, [items, q, initial]);
+  }, [items, q, initial, uiLang]);
 
   const changes = useMemo(
     () => membershipChanges(items, categoryKey, selected, userKeys),
@@ -185,7 +191,8 @@ export function CategoryMembersSheet({
                     {r.headword}
                   </span>
                   <span className="block truncate text-caption text-muted-foreground">
-                    {r.meaning}
+                    {/* 意味は読む人の言語で（英語・繁體中文の人に日本語の意味を出さない。2026-10-02）。 */}
+                    <ReaderMeaning text={r.meaning} wordId={r.wordId} />
                     {where && ` · ${t("catEdit.membersFrom", { name: where.label })}`}
                   </span>
                 </span>

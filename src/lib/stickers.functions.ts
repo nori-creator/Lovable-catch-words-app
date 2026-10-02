@@ -1067,6 +1067,13 @@ const UpdateExtrasInput = z.object({
       meaning_ja: z.string().optional(),
     })
     .optional(),
+  /**
+   * **その人の言語で作った意味**（`generateCard` の `meaning_ja` は表示言語で書かれる）。
+   * 共有の列（`patch`）は欠けているときしか送らないので、ここが無いとその人向けの解説の
+   * 行に**共有の意味（別の言語）が写っていた** — 英語・繁體中文の人の図鑑と復習に意味が
+   * 出なかった原因（オーナー報告 2026-10-02）。共有の列には書かない。
+   */
+  reader_meaning: z.string().max(200).optional(),
 });
 
 export const updateWordExtras = createServerFn({ method: "POST" })
@@ -1152,7 +1159,10 @@ export const updateWordExtras = createServerFn({ method: "POST" })
         l1: String(ex.explain_l1 ?? ""),
         // 意味は共有の列にも在るが、**読む人の言語の物**なのでこちらが正。
         meaning: String(
-          data.patch?.meaning_ja || (word as { meaning_ja?: string | null }).meaning_ja || "",
+          data.reader_meaning?.trim() ||
+            data.patch?.meaning_ja ||
+            (word as { meaning_ja?: string | null }).meaning_ja ||
+            "",
         ),
         example_translation:
           data.patch?.example_translation ??

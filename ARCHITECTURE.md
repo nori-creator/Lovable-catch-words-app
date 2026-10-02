@@ -126,6 +126,15 @@ Shared `words` rows are written only by the server (service role). Browser `UPDA
 
 A background failure that the UI deliberately survives (TTS falling back to the device voice, optional photo uploads, review grading) still reports through `reportBackgroundFailure` (`src/lib/background-failure.ts`) or `reportSaveFailure`, which count in the admin per-user screen and Lovable error reporting. Do not add new silent `catch {}` / `.catch(() => {})` on user data paths.
 
+## Reader-language meanings and explanations (2026-10-02)
+
+`words.meaning_ja` / `words.extras` are written in the language of whoever created the word. Every surface shows the reader's (display language's) text from `word_explanations` instead, keyed `(word, explain_lang, l1)`:
+
+- `updateWordExtras` stores the generated reader-language meaning (`reader_meaning`) in the reader row; it used to copy the shared meaning (another language) there.
+- Dex views (`ReaderMeaning`, `reader-meanings.ts`) batch-read reader meanings; for words whose shared meaning is not in the reader's language and that have none, `fillReaderMeanings` fills **only the meaning**: shared meaning if it fits → `dictionary_entries.meanings[lang]` → one batched AI call (cap `reader_meaning`, logged). It never touches extras or `verified` rows (`readerMeaningWriteTarget`).
+- Review uses the same explanation query and save shape as the word card (`reader-explanation.ts`, `useReviewReaderExplanations`): the quiz prompt meaning is `quizPromptMeaning` (shared if it fits → reader explanation → dex cache → photo prompt "Which one is this?"), and the answer sheet is built from the reader row with `explainOf`. Missing reader explanations are generated through the word card's path (`generateCard` → `updateWordExtras`) for the current and next card only.
+- Words whose shared meaning is already in the reader's language (Japanese UI with Japanese words) take none of these paths, so they look exactly as before.
+
 ## Day boundaries
 
 User-facing "today" counts use Taiwan time (`Asia/Taipei`; `startOfAppDay` for plan limits). AI abuse caps (`assertWithinDailyCap`) are a rolling 24 hours on purpose, and their message says so.

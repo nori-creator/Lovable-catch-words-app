@@ -224,3 +224,54 @@ export function resolveDisplayWord<E extends { explain_lang?: string } | null | 
     extras: wrongLanguage ? (null as E) : extras,
   };
 }
+
+/**
+ * 読む人の言語の意味を**どの行に書くか**（オーナー報告 2026-10-02、英語と繁體中文の両方
+ * 「図鑑のスライドに意味が出ない・復習の問いが『Which one means “グラタンマカロニ”?』」）。
+ *
+ * その人の言語の解説の行が無い語、在っても意味が別の言語（共有の `meaning_ja` を写した物）
+ * の語は、図鑑にも復習にも意味が出せない。足りない意味だけを埋めるとき、
+ *
+ * 1. **ぴったり合う行**（言語も母語も同じ）があれば、その行の意味だけを書き換える
+ * 2. 無ければ**言語だけ合う行**（画面が出している方 — 人が確かめた物を先に）
+ * 3. その言語の行が1つも無ければ、新しく行を作る
+ *
+ * **人が確かめた行（`verified`）には書かない**（読むときだけ使う）。解説（extras）は
+ * 触らない — 意味を埋めるだけで、別の行の解説を空で上書きしない。
+ */
+export function readerMeaningWriteTarget(
+  rows: readonly ExplanationRow[] | null | undefined,
+  want: ExplanationKey,
+): { kind: "update"; row: ExplanationRow } | { kind: "insert" } | { kind: "skip" } {
+  const sameLang = (rows ?? []).filter((r) => r.explain_lang === want.explainLang);
+  if (sameLang.length === 0) return { kind: "insert" };
+  const picked = pickExplanation(sameLang, want);
+  if (!picked || picked.source === "verified") return { kind: "skip" };
+  return { kind: "update", row: picked };
+}
+
+/**
+ * 復習の札で、**その人向けの解説を作りに行くか**（単語の詳細と同じ生成の道を使う）。
+ *
+ * - その人向けの解説（言語も母語も合う行）に中身があれば作らない（`needsGeneration`）
+ * - 共有の意味が読む人の言語で書かれていれば作らない — 共有の解説も同じ日に同じ言語で
+ *   作られているので、今まで通りそれを出す（**日本語の表示で日本語の語は何も変わらない**）
+ * - 解説の問い合わせがまだ返っていない・表がまだ無い環境では作らない（作っても置けない）
+ */
+export function reviewNeedsReaderExplanation(opts: {
+  /** 解説の問い合わせが返ったか。 */
+  loaded: boolean;
+  /** 表がまだ無い（移行待ち）。 */
+  unavailable: boolean;
+  picked: ExplanationRow | null;
+  want: ExplanationKey;
+  /** 共有の意味（`words.meaning_ja`）。 */
+  sharedMeaning: string | null | undefined;
+}): boolean {
+  if (!opts.loaded || opts.unavailable) return false;
+  if (!needsGeneration(opts.picked, opts.want)) return false;
+  const shared = (opts.sharedMeaning ?? "").trim();
+  const sharedFits =
+    !!shared && !looksWrongForReader(shared, opts.want.explainLang, null, { hanOnlyOk: true });
+  return !sharedFits;
+}

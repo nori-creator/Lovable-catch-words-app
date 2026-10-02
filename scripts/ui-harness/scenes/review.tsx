@@ -24,6 +24,10 @@ import {
   ReviewSessionHeader,
 } from "@/routes/_authenticated/review";
 import type { DueReviewCard } from "@/lib/reviews.functions";
+import { explainOf } from "@/lib/review-explain";
+import type { ReaderReviewView } from "@/lib/use-review-reader-explanations";
+import { getUiLang, type UiLang } from "@/lib/i18n";
+import { readerMeaning } from "@/lib/note-language";
 import { MiniRetentionGraph } from "@/components/MiniRetentionGraph";
 import { buildMemoryDesignsFixture } from "./memory-designs-fixture";
 
@@ -219,7 +223,57 @@ export function ReviewChoiceScene({ q }: { q: URLSearchParams }) {
    * 4件増えた**。場面を足すときは、既にある絵を動かさない。
    */
   const withPhoto = q.get("photo") === "1";
-  const card: DueReviewCard = withPhoto ? { ...CARD, object_url: PHOTO } : CARD;
+  /**
+   * `?mixed=1` … **日本語で作られた語を、英語・繁體中文で読む人**（オーナー報告 2026-10-02、
+   * 絵つき「Which one means “グラタンマカロニ”?」・答え合わせに訳が無い）。共有の意味と解説は
+   * 日本語（`MIXED_SHARED_EXTRAS`）で、server はそこから読む人の言語の訳だけを残して組む
+   * （英語・繁體中文では訳が全部落ちる — 直す前の姿）。その人向けの解説（単語の詳細と同じ行）
+   * は `READER_VIEWS` の物を渡す（本番は `useReviewReaderExplanations` が引く）。
+   * 日本語の表示では共有の意味がそのまま読めるので、その人向けの解説は使わない（本番と同じ）。
+   * `&pending=1` … その人向けの解説がまだ無い間（問いは写真で問う・訳は無い）。
+   * `&answer=right|wrong` … 開いてすぐ答えて、答え合わせの面を出す。
+   */
+  const mixed = q.get("mixed") === "1";
+  const lang = getUiLang();
+  const base: DueReviewCard = mixed
+    ? {
+        ...CARD,
+        headword: "筆記本",
+        reading_zhuyin: "ㄅㄧˇ ㄐㄧˋ ㄅㄣˇ",
+        pinyin: "bǐ jì běn",
+        meaning_ja: "ノート",
+        example_sentence: "我買了一本新的筆記本。",
+        example_translation: "新しいノートを一冊買った。",
+        top_chunk: null,
+        explain: explainOf(MIXED_SHARED_EXTRAS, "筆記本", DEFAULT_TARGET_LANGUAGE, lang),
+        headword_choices: ["筆記本", "鉛筆", "書包", "雨傘"],
+        headword_choice_infos: [
+          { headword: "筆記本", zhuyin: "ㄅㄧˇ ㄐㄧˋ ㄅㄣˇ", pinyin: "bǐ jì běn" },
+          { headword: "鉛筆", zhuyin: "ㄑㄧㄢ ㄅㄧˇ", pinyin: "qiān bǐ" },
+          { headword: "書包", zhuyin: "ㄕㄨ ㄅㄠ", pinyin: "shū bāo" },
+          { headword: "雨傘", zhuyin: "ㄩˇ ㄙㄢˇ", pinyin: "yǔ sǎn" },
+        ],
+      }
+    : CARD;
+  const card: DueReviewCard = withPhoto ? { ...base, object_url: PHOTO } : base;
+  const reader =
+    mixed && q.get("pending") !== "1" && !readerMeaning(base.meaning_ja, lang)
+      ? READER_VIEWS[lang]
+      : undefined;
+  const answer = q.get("answer");
+  useEffect(() => {
+    if (answer !== "right" && answer !== "wrong") return;
+    // 描き終わってから押す（実物と同じボタンを押す。答え合わせの面はそのボタンが開く）。
+    const id = window.setTimeout(() => {
+      const buttons = document.querySelectorAll<HTMLButtonElement>(
+        '[data-tour="review-choices"] li > button',
+      );
+      const want = [...buttons].findIndex((b) => b.textContent?.includes(card.headword));
+      const at = answer === "right" ? want : want === 0 ? 1 : 0;
+      buttons[at]?.click();
+    }, 300);
+    return () => window.clearTimeout(id);
+  }, [answer, card.headword]);
   useEffect(() => {
     const frame = window.requestAnimationFrame(() => {
       const root = document.getElementById("root");
@@ -257,10 +311,87 @@ export function ReviewChoiceScene({ q }: { q: URLSearchParams }) {
       <section className="mb-2 shrink-0">
         <ReviewHeader progress={25} />
       </section>
-      <LightModeCard card={card} onNext={() => {}} onOpenMemory={() => {}} />
+      <LightModeCard card={card} onNext={() => {}} onOpenMemory={() => {}} reader={reader} />
     </>
   );
 }
+
+/**
+ * 日本語で作られた語の共有の解説（`words.extras`）。英語・繁體中文で読む人には、server が
+ * この訳を全部落とす（読む人の言語でないため）。
+ */
+const MIXED_SHARED_EXTRAS = {
+  explain_lang: "ja",
+  usage_chunks: [
+    {
+      parts: [
+        { text: "寫", pos: "V" },
+        { text: "在", pos: "Prep" },
+        { text: "筆記本", pos: "N" },
+        { text: "上", pos: "N" },
+      ],
+      ja: "ノートに書く",
+    },
+    {
+      parts: [
+        { text: "一", pos: "Det" },
+        { text: "本", pos: "M" },
+        { text: "筆記本", pos: "N" },
+      ],
+      ja: "ノート一冊",
+    },
+  ],
+  related_words: [
+    { word: "本子", kind: "syn", note: "ノート（くだけた言い方）" },
+    { word: "筆", kind: "rel", note: "ペン" },
+  ],
+  measure_words: [{ word: "本", note: "本やノートなど綴じた物" }],
+  taiwan_note: "台湾では「筆電」はノートパソコン。筆記本と混ぜない。",
+};
+
+/**
+ * その人向けの解説（単語の詳細と同じ `word_explanations` の行）から組んだ物。
+ * 本番は `useReviewReaderExplanations` が引いて `explainOf` で組む。ここも同じ関数で組む。
+ */
+const READER_EXTRAS: Record<"en" | "zh-TW", Record<string, unknown>> = {
+  en: {
+    explain_lang: "en",
+    usage_chunks: [
+      { parts: MIXED_SHARED_EXTRAS.usage_chunks[0].parts, ja: "write in a notebook" },
+      { parts: MIXED_SHARED_EXTRAS.usage_chunks[1].parts, ja: "a notebook" },
+    ],
+    related_words: [
+      { word: "本子", kind: "syn", note: "notebook (casual)" },
+      { word: "筆", kind: "rel", note: "pen" },
+    ],
+    measure_words: [{ word: "本", note: "for bound things like books" }],
+    taiwan_note: "In Taiwan, 筆電 means a laptop — don't mix it up with 筆記本.",
+  },
+  "zh-TW": {
+    explain_lang: "zh-TW",
+    usage_chunks: [
+      { parts: MIXED_SHARED_EXTRAS.usage_chunks[0].parts, ja: "把東西記在本子裡" },
+      { parts: MIXED_SHARED_EXTRAS.usage_chunks[1].parts, ja: "數本子用「本」" },
+    ],
+    related_words: [
+      { word: "本子", kind: "syn", note: "口語的說法" },
+      { word: "筆", kind: "rel", note: "用來寫字的工具" },
+    ],
+    measure_words: [{ word: "本", note: "書、本子等裝訂成冊的東西" }],
+    taiwan_note: "在台灣，「筆電」是筆記型電腦，別和筆記本搞混。",
+  },
+};
+
+const READER_VIEWS: Partial<Record<UiLang, ReaderReviewView>> = {
+  en: {
+    meaning: "notebook",
+    explain: explainOf(READER_EXTRAS.en, "筆記本", DEFAULT_TARGET_LANGUAGE, "en"),
+  },
+  "zh-TW": {
+    meaning: "記事用的本子",
+    explain: explainOf(READER_EXTRAS["zh-TW"], "筆記本", DEFAULT_TARGET_LANGUAGE, "zh-TW"),
+  },
+};
 
 /** 答え合わせの解説。 */
 export function ReviewExplainScene() {

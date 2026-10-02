@@ -816,6 +816,59 @@ export const DICT: Record<string, Record<UiLang, string>> = {
   "dex.allDays": { ja: "すべての日", en: "All days", "zh-TW": "所有日期" },
   "rv.whichIsBefore": { ja: "「", en: "Which one means “", "zh-TW": "「" },
   "rv.whichIsAfter": { ja: "」はどれ？", en: "”?", "zh-TW": "」是哪一個？" },
+  /**
+   * 読む人の言語の意味がまだ無い語の問い（オーナー報告 2026-10-02、絵つき
+   * 「Which one means “グラタンマカロニ”?」）。別の言語の意味を「」に入れるより、
+   * 写真で問う方が問題として成り立つ。意味は裏で作り、届けば上の形に戻る。
+   */
+  "rv.whichIsThis": { ja: "これはどれ？", en: "Which one is this?", "zh-TW": "這是哪一個？" },
+  /**
+   * 品詞の名前（チャンクの凡例と色の札）。**表示言語で出す**（オーナー報告 2026-10-02
+   * 「英語の表示でも 名詞 / 動詞 / 状態動詞(形容詞) が日本語のまま」）。
+   * 日本語は `pos.ts` の前の文言と1字も変えない。
+   */
+  "pos.g.n": { ja: "名詞", en: "Noun", "zh-TW": "名詞" },
+  "pos.g.v": { ja: "動詞", en: "Verb", "zh-TW": "動詞" },
+  "pos.g.vs": { ja: "状態動詞(形容詞)", en: "Stative verb (adj.)", "zh-TW": "狀態動詞(形容詞)" },
+  "pos.g.vaux": { ja: "助動詞", en: "Auxiliary", "zh-TW": "助動詞" },
+  "pos.g.adv": { ja: "副詞", en: "Adverb", "zh-TW": "副詞" },
+  "pos.g.m": { ja: "量詞", en: "Measure word", "zh-TW": "量詞" },
+  "pos.g.conj": { ja: "接続詞", en: "Conjunction", "zh-TW": "連接詞" },
+  "pos.g.prep": { ja: "介詞", en: "Preposition", "zh-TW": "介詞" },
+  "pos.g.ptc": { ja: "助詞", en: "Particle", "zh-TW": "助詞" },
+  "pos.g.det": { ja: "限定詞", en: "Determiner", "zh-TW": "限定詞" },
+  // 詞類表の記号ごとの名前（単語の詳細の品詞の札「Vs · 状態動詞(形容詞)」）。
+  "pos.c.N": { ja: "名詞", en: "Noun", "zh-TW": "名詞" },
+  "pos.c.V": { ja: "動詞(及物)", en: "Verb (transitive)", "zh-TW": "動詞(及物)" },
+  "pos.c.Vi": { ja: "動詞(不及物)", en: "Verb (intransitive)", "zh-TW": "動詞(不及物)" },
+  "pos.c.V-sep": { ja: "離合詞", en: "Separable verb", "zh-TW": "離合詞" },
+  "pos.c.Vs": { ja: "状態動詞(形容詞)", en: "Stative verb (adj.)", "zh-TW": "狀態動詞(形容詞)" },
+  "pos.c.Vst": {
+    ja: "状態動詞(及物)",
+    en: "Stative verb (transitive)",
+    "zh-TW": "狀態動詞(及物)",
+  },
+  "pos.c.Vs-attr": {
+    ja: "状態動詞(限定用法のみ)",
+    en: "Stative verb (attributive only)",
+    "zh-TW": "狀態動詞(只作定語)",
+  },
+  "pos.c.Vs-pred": {
+    ja: "状態動詞(述語用法のみ)",
+    en: "Stative verb (predicative only)",
+    "zh-TW": "狀態動詞(只作謂語)",
+  },
+  "pos.c.Vs-sep": { ja: "状態離合詞", en: "Separable stative verb", "zh-TW": "狀態離合詞" },
+  "pos.c.Vaux": { ja: "助動詞", en: "Auxiliary", "zh-TW": "助動詞" },
+  "pos.c.Vp": { ja: "変化動詞", en: "Process verb", "zh-TW": "變化動詞" },
+  "pos.c.Vpt": { ja: "変化動詞(及物)", en: "Process verb (transitive)", "zh-TW": "變化動詞(及物)" },
+  "pos.c.Vp-sep": { ja: "変化離合詞", en: "Separable process verb", "zh-TW": "變化離合詞" },
+  "pos.c.Adv": { ja: "副詞", en: "Adverb", "zh-TW": "副詞" },
+  "pos.c.Conj": { ja: "接続詞", en: "Conjunction", "zh-TW": "連接詞" },
+  "pos.c.Prep": { ja: "介詞(前置詞)", en: "Preposition", "zh-TW": "介詞" },
+  "pos.c.M": { ja: "量詞", en: "Measure word", "zh-TW": "量詞" },
+  "pos.c.Ptc": { ja: "助詞", en: "Particle", "zh-TW": "助詞" },
+  "pos.c.Det": { ja: "限定詞", en: "Determiner", "zh-TW": "限定詞" },
   "rv.pronOf": { ja: "{c}の発音", en: "Pronunciation of {c}", "zh-TW": "{c}的發音" },
   /**
    * 並べ替えの取っ手。**▲▼ を1つにまとめた**(オーナー報告 2026-08-26、

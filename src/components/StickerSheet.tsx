@@ -38,18 +38,16 @@ import { resolveSurfaceRole, setSurfaceRole, useSurfaceRole } from "@/lib/photo-
 import { useAutoHero } from "@/hooks/use-auto-hero";
 import { generateCard } from "@/lib/ai.functions";
 import { getMyProfile } from "@/lib/profile.functions";
-import { getWordExplanation, type WordExplanationResult } from "@/lib/word-explanation.functions";
+import { getWordExplanation } from "@/lib/word-explanation.functions";
 import {
-  explanationCacheKey,
-  keepShownFields,
-  readCachedExplanation,
-  writeCachedExplanation,
-} from "@/lib/explanation-cache";
+  readerExplanationSaveInput,
+  readExplanationCache,
+  wordExplanationQuery,
+} from "@/lib/reader-explanation";
 import {
   explanationKey,
   needsGeneration,
   resolveDisplayWord,
-  shouldWriteSharedColumns,
   type ExplanationRow,
 } from "@/lib/word-explanation";
 import { readerL1 } from "@/lib/reader-language";
@@ -283,28 +281,14 @@ export function StickerSheet({ stickerId, onClose, openPhotoPicker, from, local 
    * **差し替えて**いた — それが「ぱっと消えて入れ替わる」の正体。
    * 覚えた物があれば最初からそれを出し（`initialData`）、裏で確かめ直す。
    */
-  const cacheKey = s?.word_id
-    ? explanationCacheKey(s.word_id, wantKey.explainLang, wantKey.l1)
-    : null;
+  // 問い合わせの形は復習と同じ物（`reader-explanation.ts` — 鍵がずれると作り直しに戻る）。
   const cachedExplanation = useMemo(
-    () => (cacheKey ? readCachedExplanation<WordExplanationResult>(cacheKey) : undefined),
-    [cacheKey],
+    () => readExplanationCache(s?.word_id, wantKey),
+    [s?.word_id, wantKey],
   );
   const { data: explanation } = useQuery({
-    queryKey: ["word-explanation", s?.word_id ?? null, wantKey.explainLang, wantKey.l1],
-    queryFn: async () => {
-      const r = await fetchExplanation({
-        data: { word_id: s!.word_id, explain_lang: wantKey.explainLang, l1: wantKey.l1 },
-      });
-      if (cacheKey && !r.unavailable && r.picked) writeCachedExplanation(cacheKey, r);
-      return r;
-    },
+    ...wordExplanationQuery(fetchExplanation, s?.word_id, wantKey, cachedExplanation),
     enabled: !!s?.word_id && !local,
-    initialData: cachedExplanation,
-    // 覚えた物は「少し古い」扱いにして、開くたびに裏で確かめ直す。
-    initialDataUpdatedAt: cachedExplanation ? 0 : undefined,
-    staleTime: 30 * 60 * 1000,
-    gcTime: 60 * 60 * 1000,
   });
   const [flipped, setFlipped] = useState(false);
   const [editing, setEditing] = useState(false);
@@ -642,11 +626,8 @@ export function StickerSheet({ stickerId, onClose, openPhotoPicker, from, local 
     // 「言語が変わっただけか」を正確にしても直らない。**知りたいのは
     // 共有列が実際に欠けているかどうか**で、それは共有列を見れば分かる。
     // 判定は `word-explanation.ts` が1つだけ持つ(server 側も同じ物を見る)。
-    const sharedMissing = shouldWriteSharedColumns({
-      meaning: s.word.meaning_ja,
-      reading: s.word.reading_zhuyin || s.word.pinyin,
-      example: s.word.example_sentence,
-    });
+    // （判定 `shouldWriteSharedColumns` は保存の形と一緒に `readerExplanationSaveInput` の中。
+    //  復習も同じ形で保存する。）
     // 表示言語と母語を含めたキー: どちらを切り替えても同じ語をもう一度作る。
     const guardKey = `${s.word_id}:${uiLang}:${nativeLang}`;
     if (enrichedRef.current.has(guardKey)) return;
@@ -689,25 +670,16 @@ export function StickerSheet({ stickerId, onClose, openPhotoPicker, from, local 
                   null,
                   uiLang,
                 ).extras;
+        // 保存の形は復習と同じ物（`reader-explanation.ts`）。その人向けの解説の意味は
+        // **その人の言語で作った物**（`reader_meaning`。2026-10-02「英語・繁體中文の表示で
+        // 図鑑と復習に意味が出ない」— 前は共有の意味 = 別の言語が写っていた）。
         await saveExtras({
-          data: {
-            word_id: s.word_id,
-            extras: keepShownFields(
-              shownExtras as Record<string, unknown> | null,
-              card.extras as Record<string, unknown>,
-            ) as typeof card.extras,
-            patch: !sharedMissing
-              ? undefined
-              : {
-                  reading_zhuyin: card.reading_zhuyin,
-                  pinyin: card.pinyin,
-                  part_of_speech: card.part_of_speech,
-                  level: card.level,
-                  example_sentence: card.example_sentence,
-                  example_translation: card.example_translation,
-                  meaning_ja: card.meaning_ja,
-                },
-          },
+          data: readerExplanationSaveInput({
+            wordId: s.word_id,
+            shared: s.word,
+            card,
+            shownExtras: shownExtras as Record<string, unknown> | null,
+          }),
         });
         await qc.invalidateQueries({ queryKey: ["sticker", stickerId] });
         await qc.invalidateQueries({ queryKey: ["stickers"] });

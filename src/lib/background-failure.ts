@@ -14,7 +14,14 @@ import { reportLovableError } from "@/lib/lovable-error-reporting";
  * 同じ種類は1分に1回だけ数える（音が出ない語を続けて押すと、押した数だけ行が増えるため）。
  * 記録の通信が落ちても利用者は止めない。
  */
-export type BackgroundFailureArea = "tts" | "photo_upload" | "thumb_upload" | "review_grade";
+export type BackgroundFailureArea =
+  | "tts"
+  | "photo_upload"
+  | "thumb_upload"
+  | "review_grade"
+  // 読む人の言語の意味・解説を裏で作る（2026-10-02。図鑑と復習。失敗しても意味が出ないだけ）。
+  | "reader_meaning"
+  | "reader_explain";
 
 const lastLogged = new Map<BackgroundFailureArea, number>();
 const THROTTLE_MS = 60_000;
