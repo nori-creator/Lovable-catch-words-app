@@ -3,6 +3,7 @@ import {
   pickReading,
   pickReadingOf,
   readReadingPref,
+  seedReadingPref,
   readingChoices,
   writeReadingPref,
   showsReading,
@@ -35,8 +36,7 @@ function makeStore(entries: Record<string, string> = {}) {
 describe("readReadingPref", () => {
   it("何も憶えていなければ既定", () => {
     const s = makeStore();
-    // 台湾華語の既定は拼音（オーナー指示 2026-10-03）。
-    expect(readReadingPref(s, ZH_TW_PROFILE)).toBe("pinyin");
+    expect(readReadingPref(s, ZH_TW_PROFILE)).toBe("zhuyin");
     // オーナー決定 2026-08-24「アメリカ英語を既定」。
     expect(readReadingPref(s, EN_PROFILE)).toBe("ipa-us");
   });
@@ -57,13 +57,6 @@ describe("readReadingPref", () => {
     expect(readReadingPref(s, ZH_TW_PROFILE)).toBe("pinyin");
   });
 
-  it("**選んだ注音は既定が拼音になっても残る**", () => {
-    const s = makeStore({ "reading-pref-v1": '{"zh-TW":"zhuyin"}' });
-    expect(readReadingPref(s, ZH_TW_PROFILE)).toBe("zhuyin");
-    const legacy = makeStore({ "phonetic-pref-v1": "zhuyin" });
-    expect(readReadingPref(legacy, ZH_TW_PROFILE)).toBe("zhuyin");
-  });
-
   it("新しい表があれば古い鍵より優先する", () => {
     const s = makeStore({
       "phonetic-pref-v1": "pinyin",
@@ -79,14 +72,14 @@ describe("readReadingPref", () => {
 
   it("**その言語に無い表記は無視する**(言語をまたいで漏れない)", () => {
     const s = makeStore({ "reading-pref-v1": '{"zh-TW":"ipa-uk","en":"zhuyin"}' });
-    expect(readReadingPref(s, ZH_TW_PROFILE)).toBe("pinyin");
+    expect(readReadingPref(s, ZH_TW_PROFILE)).toBe("zhuyin");
     expect(readReadingPref(s, EN_PROFILE)).toBe("ipa-us");
   });
 
   it("壊れた中身で落ちない", () => {
     for (const raw of ["", "null", "[]", "7", "{", '{"zh-TW":null}', '{"zh-TW":3}']) {
       const s = makeStore({ "reading-pref-v1": raw });
-      expect(readReadingPref(s, ZH_TW_PROFILE)).toBe("pinyin");
+      expect(readReadingPref(s, ZH_TW_PROFILE)).toBe("zhuyin");
     }
   });
 
@@ -97,7 +90,7 @@ describe("readReadingPref", () => {
       },
       setItem: () => {},
     };
-    expect(readReadingPref(s, ZH_TW_PROFILE)).toBe("pinyin");
+    expect(readReadingPref(s, ZH_TW_PROFILE)).toBe("zhuyin");
   });
 });
 
@@ -138,7 +131,7 @@ describe("writeReadingPref", () => {
   it("**その言語に無い表記は憶えない**", () => {
     const s = makeStore();
     writeReadingPref(s, ZH_TW_PROFILE, "romaji");
-    expect(readReadingPref(s, ZH_TW_PROFILE)).toBe("pinyin");
+    expect(readReadingPref(s, ZH_TW_PROFILE)).toBe("zhuyin");
   });
 
   it("書けない入れ物でも落ちない", () => {
@@ -212,5 +205,29 @@ describe("pickReading — 古い口の動きが変わっていない", () => {
   it("どちらも無ければ空", () => {
     expect(pickReading("zhuyin", null, null)).toBe("");
     expect(pickReading("pinyin", "", "  ")).toBe("");
+  });
+});
+
+describe("seedReadingPref（登録前のチュートリアルの拼音、2026-10-03）", () => {
+  it("台湾華語で何も憶えていなければ拼音を書く", () => {
+    const s = makeStore();
+    expect(seedReadingPref(s, ZH_TW_PROFILE, "pinyin")).toBe(true);
+    expect(readReadingPref(s, ZH_TW_PROFILE)).toBe("pinyin");
+  });
+  it("選んだ注音には触らない（新しい表も古い鍵も）", () => {
+    const s = makeStore({ "reading-pref-v1": '{"zh-TW":"zhuyin"}' });
+    expect(seedReadingPref(s, ZH_TW_PROFILE, "pinyin")).toBe(false);
+    expect(readReadingPref(s, ZH_TW_PROFILE)).toBe("zhuyin");
+    const legacy = makeStore({ "phonetic-pref-v1": "zhuyin" });
+    expect(seedReadingPref(legacy, ZH_TW_PROFILE, "pinyin")).toBe(false);
+    expect(readReadingPref(legacy, ZH_TW_PROFILE)).toBe("zhuyin");
+  });
+  it("チュートリアルを通らない人は、何も憶えていなければ今まで通り注音", () => {
+    expect(readReadingPref(makeStore(), ZH_TW_PROFILE)).toBe("zhuyin");
+  });
+  it("その言語に無い表記は書かない", () => {
+    const s = makeStore();
+    expect(seedReadingPref(s, EN_PROFILE, "pinyin")).toBe(false);
+    expect(readReadingPref(s, EN_PROFILE)).toBe("ipa-us");
   });
 });

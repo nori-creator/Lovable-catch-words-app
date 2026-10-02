@@ -2,6 +2,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { setUiLang } from "./i18n";
 import { setTargetLang } from "./target-lang-pref";
 import type { FirstCatch } from "./first-catch";
+import { seedReadingPrefNow } from "./phonetic";
+import { ZH_TW_PROFILE } from "./target-profile";
 
 let opening: Promise<void> | null = null;
 /** Anonymous auth keeps existing AI auth/cost controls intact. No public AI endpoint. */
@@ -31,6 +33,19 @@ export function isGuestRefusal(error: unknown): boolean {
 export function applyFirstCatchLanguage(draft: FirstCatch) {
   setUiLang(draft.uiLanguage);
   setTargetLang(draft.targetLanguage);
+  seedFirstCatchReading(draft);
+}
+
+/**
+ * **登録前のチュートリアルは、台湾華語なら拼音で始める**（オーナー指示 2026-10-03「中文を
+ * 選択したら必ずピンインを表示して。外国人が中文を学ぶときほとんどがピンイン使うから」）。
+ *
+ * 設定と同じ所（`reading-pref-v1`）に書くので、登録した後もそのまま続く。**この端末で
+ * 表記を選んだことがあれば触らない**（チュートリアルの設定で注音に戻した人も含む）。
+ * 全員の既定は変えない — チュートリアルを通らない今までの人は注音のまま。
+ */
+export function seedFirstCatchReading(draft: Pick<FirstCatch, "targetLanguage">) {
+  if (draft.targetLanguage === ZH_TW_PROFILE.code) seedReadingPrefNow(ZH_TW_PROFILE, "pinyin");
 }
 
 /** Decode and re-encode even small photos, stripping EXIF/GPS before storage or AI. */

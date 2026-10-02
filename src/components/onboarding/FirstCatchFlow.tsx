@@ -23,6 +23,7 @@ import type { FirstCatchAIRequest } from "@/lib/first-catch-ai-schema";
 import {
   firstCatchPhoto,
   applyFirstCatchLanguage,
+  seedFirstCatchReading,
   ensureFirstCatchSession,
   isGuestRefusal,
 } from "@/lib/first-catch-services";
@@ -135,7 +136,12 @@ export function FirstCatchFlow({
   persist?: (draft: FirstCatch) => Promise<void>;
 }) {
   const t = useT();
-  const [draft, setDraft] = useState<FirstCatch | null>(initialDraft ?? null);
+  const [draft, setDraft] = useState<FirstCatch | null>(() => {
+    // 台湾華語なら最初の描画から拼音（選んだことのある端末はそのまま）。子の読みは
+    // この後に描かれるので、ここで書けば1コマ目から拼音になる。
+    if (initialDraft) seedFirstCatchReading(initialDraft);
+    return initialDraft ?? null;
+  });
   const draftRef = useRef(draft);
   draftRef.current = draft;
   const [busy, setBusy] = useState<"photo" | "card" | "save" | null>(null);
@@ -751,6 +757,7 @@ export function FirstCatchFlow({
           <Spotlight
             target='[data-tour="word-detail"]'
             alignTop
+            compact
             title={t("first.exploreCoachTitle")}
             text={t("first.exploreHint")}
             interactive

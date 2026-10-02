@@ -61,6 +61,7 @@ export function Spotlight({
   keepVisible,
   primary,
   alignTop = false,
+  compact = false,
 }: {
   /** 照らす物。**押す所そのもの**を指す（押す所を中に含む広い範囲ではなく）。 */
   target: string;
@@ -91,6 +92,12 @@ export function Spotlight({
    * 最初から見せる。オーナー指示 2026-10-03「単語の詳細は例文とチャンクをなるべく表示して」）。
    */
   alignTop?: boolean;
+  /**
+   * 札を**1段の細い札**にして画面の下端に置く（下のタブを覆う全画面の面＝単語の詳細）。
+   * 意味・例文・チャンクを札で隠さないため（オーナー指示 2026-10-03「単語の詳細は例文と
+   * チャンクをなるべく表示して」）。
+   */
+  compact?: boolean;
 }) {
   const reduced = usePrefersReducedMotion();
   /**
@@ -304,7 +311,12 @@ export function Spotlight({
   // 1コマ目（新しい画面）: 画面だけを見せる。透明の鍵で、この間に押しても飛ばさない。
   if (!box && phase !== "coach") return <div className="tour-preview-lock" aria-hidden="true" />;
   const ring = box?.box;
-  const place = coachPlacement(ring ?? null, coachH, keepVisible);
+  const place = compact
+    ? {
+        side: "dock" as const,
+        style: { bottom: "max(12px, calc(env(safe-area-inset-bottom) + 8px))" },
+      }
+    : coachPlacement(ring ?? null, coachH, keepVisible);
   const ringClass = [
     "tour-ring",
     phase === "focus" && entry === "expand" ? "tour-ring--expand" : "",
@@ -372,7 +384,7 @@ export function Spotlight({
           aria-label={title ?? text}
           aria-describedby={title ? "tour-coach-text" : undefined}
           tabIndex={-1}
-          className="tour-coach"
+          className={compact ? "tour-coach tour-coach--compact" : "tour-coach"}
           data-side={place.side}
           style={{ ...place.style, visibility: coachH ? undefined : "hidden" }}
         >

@@ -171,6 +171,21 @@ describe("tutorial owner revisions 2026-10-03", () => {
     const driver = readFileSync(new URL("../../e2e/real-app/run.mjs", import.meta.url), "utf8");
     expect(driver).toMatch(/getAttribute\("data-tour-primary"\)/);
   });
+  it("the tutorial stores pinyin for Taiwan Mandarin only when nothing is stored", () => {
+    const services = source("lib/first-catch-services.ts");
+    expect(services).toMatch(/seedFirstCatchReading\(draft\);/);
+    expect(services).toMatch(/seedReadingPrefNow\(ZH_TW_PROFILE, "pinyin"\)/);
+    // 全員の既定は注音のまま（チュートリアルを通らない今までの人は変わらない）。
+    expect(source("lib/target-profile.ts")).not.toMatch(/defaultReading: "pinyin"/);
+    // 最初の描画の前に書く（子の読みが1コマ目から拼音）。
+    expect(source("components/onboarding/FirstCatchFlow.tsx")).toMatch(
+      /if \(initialDraft\) seedFirstCatchReading\(initialDraft\);/,
+    );
+  });
+  it("the word-detail coach is one row at the bottom edge so the example and chunks show", () => {
+    expect(source("components/onboarding/FirstCatchFlow.tsx")).toMatch(/alignTop\s+compact/);
+    expect(source("components/onboarding/first-catch.css")).toMatch(/\.tour-coach--compact \{/);
+  });
   it("a local (pre-signup) word never waits for the shared explanation, so chunks show", () => {
     expect(source("components/StickerSheet.tsx")).toMatch(
       /explanationPending=\{!local && explanation === undefined\}/,

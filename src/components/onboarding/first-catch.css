@@ -530,6 +530,34 @@
   font-size: 15px;
   font-weight: 650;
 }
+/* 1段の細い札（単語の詳細）: 見出しと一言を左に、次へを右に。下端に置く。 */
+.tour-coach--compact {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  column-gap: 12px;
+  align-items: center;
+  padding: 10px 10px 10px 16px;
+  border-radius: 20px;
+}
+.tour-coach--compact .tour-coach__head {
+  grid-column: 1;
+  margin-bottom: 0;
+}
+.tour-coach--compact .tour-coach__head h2 {
+  font-size: 15px;
+}
+.tour-coach--compact p {
+  grid-column: 1;
+  font-size: 13px;
+  line-height: 1.45;
+}
+.tour-coach--compact .tour-coach__next {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+  margin: 0;
+  min-width: 0;
+  padding: 0 16px;
+}
 .tour-coach__next:active {
   transform: scale(0.97);
 }

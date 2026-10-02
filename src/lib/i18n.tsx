@@ -234,9 +234,9 @@ export const DICT: Record<string, Record<UiLang, string>> = {
     "zh-TW": "一個單字，\n更多發現。",
   },
   "first.exploreHint": {
-    ja: "意味・発音・例文・使い方チャンクが、この1枚にまとまります。",
-    en: "Meaning, sound, examples and usage chunks, all on one card.",
-    "zh-TW": "意思、發音、例句和用法組塊，都在這一張。",
+    ja: "意味・発音・例文・チャンクを、この1枚に。",
+    en: "Meaning, sound, examples and chunks on one card.",
+    "zh-TW": "意思、發音、例句、用法組塊，都在這一張。",
   },
   "first.sampleCoffee": { ja: "コーヒー", en: "coffee", "zh-TW": "咖啡" },
   "first.sampleAlbum": {

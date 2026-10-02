@@ -159,16 +159,10 @@ export type TargetProfile = {
    */
   scriptLang: string;
   /**
-   * 読みの表記。並びは「読み1・読み2」の割り当て(`neutralReadings`)にも使うので
-   * 動かさない。既定は `defaultReading`（無ければ先頭）。
+   * 読みの表記。**先頭が既定**。
    * 設定の切替(`phonetic.tsx`)はこの並びから選ぶ。
    */
   readings: readonly ReadingKind[];
-  /**
-   * 本人がまだ選んでいない時の読みの表記。省くと `readings` の先頭。
-   * 並び（データの割り当て）と既定（画面の初期値）を別に持つための欄。
-   */
-  defaultReading?: ReadingKind;
   /** その言語のカードに出る項目(上から順)。 */
   sections: readonly ProfileSection[];
   /**
@@ -462,11 +456,6 @@ export const ZH_TW_PROFILE: TargetProfile = {
   speechLang: speechLangOf(DEFAULT_TARGET_LANGUAGE),
   scriptLang: "zh-Hant",
   readings: ["zhuyin", "pinyin"],
-  // **既定は拼音**（オーナー指示 2026-10-03「中文を選択したら必ずピンインを表示して。
-  // 外国人が中文を学ぶときほとんどがピンイン使うから」）。設定で選んだ人の表記は
-  // そのまま（`phonetic.tsx` が憶えた値を先に読む）。並びは読み1=注音・読み2=拼音の
-  // ままにする（辞書の列の割り当て）。
-  defaultReading: "pinyin",
   sections: [
     "meaning",
     "example",
@@ -996,7 +985,7 @@ export function hasSection(profile: TargetProfile, section: ProfileSection): boo
 
 /** その言語で使う読みの既定(設定がまだ無いとき)。 */
 export function defaultReading(profile: TargetProfile): ReadingKind {
-  return profile.defaultReading ?? profile.readings[0];
+  return profile.readings[0];
 }
 
 /**
