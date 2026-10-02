@@ -362,6 +362,20 @@ const REVIEW_SCENES: Array<{ scene: string; label: string }> = [
   { scene: "word-card", label: "単語: 4項目を外したカード" },
   // 2026-10-02「アニメーションの設定…スライドでオンとオフになるボタンに」。
   { scene: "settings-toggles", label: "設定: アニメーションのオン・オフ" },
+  // 2026-10-02「利用者ごとの情報のチャートやグラフをもっと詳しく、細かく、見やすいように
+  // アップデートして。…名前なしのユーザーは消して、一覧は最も最近利用した人順に」。
+  {
+    scene: "admin-users&view=user",
+    label: "ひとりの画面: 日ごとの動き（期間切替・触れると値）・復習・使い方・AI",
+  },
+  {
+    scene: "admin-users&view=user&theme=dark",
+    label: "ひとりの画面（暗いテーマ）",
+  },
+  {
+    scene: "admin-users&view=list",
+    label: "一覧: 名前なしを外し、最後に使った順（上に全体のグラフ）",
+  },
 ];
 
 /**
@@ -441,6 +455,12 @@ document.documentElement.style.setProperty(
     }
   }
 }
+/**
+ * 暗いテーマで見る(`?theme=dark`)。本番は `__root.tsx` が `<html>` に `.dark` を付ける。
+ * 端末の設定を変えずに、Deploy Preview の帯から明るい・暗いを見比べられるようにする
+ * （2026-10-02 管理画面のグラフ。色はトークンだけなので、両方で読めるかを目で確かめる）。
+ */
+if (q.get("theme") === "dark") document.documentElement.classList.add("dark");
 /**
  * 単語の詳細で、既定では畳んである節を先頭に出して撮る(`?show=real_usage`)。
  * 節の並びと表示は localStorage から読むので、これも React の前に書く。

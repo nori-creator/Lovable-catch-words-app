@@ -4797,6 +4797,9 @@ describe("ホームは今日の誌面", () => {
     expect(list).toMatch(/scene: "word-card"/);
     expect(list).toMatch(/scene: "settings-toggles"/);
     // 前の回（チュートリアルの4択）の面は残さない。
+    // 同じ回の管理画面（利用者ごとのグラフ・名前なしを外す・最後に使った順）。
+    expect(list).toMatch(/scene: "admin-users&view=user"/);
+    expect(list).toMatch(/scene: "admin-users&view=list"/);
     expect(list).not.toMatch(/scene: "first-catch&step=review"/);
     // 前の回（R26/R27）の面は残さない。
     expect(list).not.toMatch(/scene: "home-shelf"/);
