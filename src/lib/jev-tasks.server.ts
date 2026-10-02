@@ -9,7 +9,6 @@ import {
   parseJevIntervalMode,
   recallQuestion,
   scheduleQuestion,
-  speakingQuestion,
   type EntryFields,
   type EntryOpinion,
   type JevIntervalMode,
@@ -245,29 +244,6 @@ async function logShadow(
   } catch (e) {
     console.warn("[jev] shadow log skipped:", (e as Error)?.message ?? e);
   }
-}
-
-/**
- * 話す練習の**判定**（影）。添削の AI の判定と並べて記録し、両者の一致を
- * 後で見る。画面の判定は変えない。
- */
-export async function recordSpeakingShadow(
-  db: Db,
-  args: { userId: string; headword: string; utterance: string; llmOk: boolean },
-): Promise<void> {
-  if (!jevAvailable() || !args.utterance.trim()) return;
-  const q = speakingQuestion(args.headword, args.utterance);
-  const res = await askJev(q.state, q.questions, { timeoutMs: 4000 });
-  const a = res?.answers.used;
-  if (!res || !a || a.type !== "noul") return;
-  await logShadow(db, {
-    userId: args.userId,
-    task: "speaking_judge",
-    model: res.model,
-    predicted: a.noul,
-    outcome: args.llmOk,
-    meta: { headword: args.headword },
-  });
 }
 
 /**

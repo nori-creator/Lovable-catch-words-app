@@ -2,7 +2,6 @@
  * 学習言語ごとの**級の目盛り**。
  *
  * オーナー指示 2026-08-24:
- * > 「TOEFL と IELTS のレベル対応は **CEFR 換算でいい**」
  * > 「アプリ内のすべての項目について学習言語、英語と台湾華語で変更すべきことを
  * >  変更して」
  *
@@ -13,19 +12,13 @@
  *     TOCFL   1  2 | 3  4 | 5  6      帯 A | B | C
  *     CEFR   A1 A2 |B1 B2 |C1 C2      帯 A | B | C
  *
- * だから `TocflLadder`(段々の絵)は**中身を変えずにそのまま使える**。
+ * だから級の読み書き・設定の選択肢・生成の指示は**1つの形で回せる**。
  * 変わるのは「段の名前」と「読み取り方」だけ。
  *
  * ## 級の外を「無い」で済ませない
  * どちらの体系にも載っていない語は珍しくない(固有名詞・新語・方言)。
- * そこを `null` のまま画面に渡すと「段が1つも光らない図」になり、壊れて
- * 見える。**級外という段がある**ことにして、6段の外側に置く。
- *
- * ## 色は体系ではなく「どこまで登ったか」を表す
- * 色のトークンは `--level-1`〜`--level-6` と `--level-out`。**体系ごとに
- * 色を分けない** — 同じ「6段の深さ」を表す物なので、TOCFL の3級と CEFR の
- * B1 が同じ濃さで出るのが正しい。学ぶ言語を切り替えたときに色の意味が
- * 変わらないほうが読みやすい。
+ * そこを `null`(分からない)と混ぜないよう、**級外という段がある**ことにして、
+ * 6段の外側に置く。
  *
  * 外の世界に触れるものをここに入れないこと。
  */
@@ -41,12 +34,12 @@ export type LevelStep = number | LevelOut;
 export const LEVEL_BANDS = ["A", "B", "C"] as const;
 export type LevelBand = (typeof LEVEL_BANDS)[number];
 
-/** 段は6つ。TOCFL も CEFR もここが一致しているので絵を共有できる。 */
+/** 段は6つ。TOCFL も CEFR もここが一致しているので同じ形で扱える。 */
 export const LEVEL_INDEXES = [1, 2, 3, 4, 5, 6] as const;
 export type LevelIndex = (typeof LEVEL_INDEXES)[number];
 
 export type LevelScale = {
-  /** 体系の名前。画面の目盛りの左に出す(「TOCFL」「CEFR」)。 */
+  /** 体系の名前(「TOCFL」「CEFR」)。 */
   id: string;
   /**
    * 段の名前(小さい順に6つ)。
@@ -68,16 +61,6 @@ export type LevelScale = {
    */
   outStored: string;
   /**
-   * 「その段の名前 + 帯」の言い方の翻訳キー。
-   *
-   * **体系ごとに違う。** TOCFL は「2級（Band A）」だが、CEFR で
-   * 「A1級」と書くと別の体系に見える — 級は TOCFL の数え方で、
-   * CEFR の段はそれ自体が名前。絵で見つけた。
-   */
-  levelInBandKey: string;
-  /** 級外の言い方の翻訳キー。 */
-  outKey: string;
-  /**
    * 設定の「いまの級 / 目標の級」に並べる文言。
    *
    * **体系ごとに言い方が違う。** TOCFL は `TOCFL Level 3` と書くのが
@@ -93,23 +76,16 @@ export const TOCFL_SCALE: LevelScale = {
   labels: ["1", "2", "3", "4", "5", "6"],
   toStored: (i) => `TOCFL-${i}`,
   outStored: "TOCFL-0",
-  levelInBandKey: "tocfl.levelInBand",
-  outKey: "tocfl.out",
   optionLabel: (label) => `TOCFL Level ${label}`,
 };
 
-/**
- * 英語: CEFR。TOEFL と IELTS は**この段に添える派生の目盛り**として出す
- * (オーナー承認済み「CEFR 換算でいい」)。
- */
+/** 英語: CEFR。 */
 export const CEFR_SCALE: LevelScale = {
   id: "CEFR",
   labels: ["A1", "A2", "B1", "B2", "C1", "C2"],
   toStored: (i) => CEFR_SCALE.labels[i - 1],
   // `A1`〜`C2` の綴りに当たらず、数字が 6段の外。**級外として読み返せる**。
   outStored: "CEFR-0",
-  levelInBandKey: "cefr.levelInBand",
-  outKey: "cefr.out",
   // CEFR に `Level` は付けない。`CEFR B1` がその体系の書き方。
   optionLabel: (label) => `CEFR ${label}`,
 };
@@ -119,7 +95,7 @@ export const CEFR_SCALE: LevelScale = {
  *
  * ## 5級しか無いのに6段に載せる
  * JLPT は N5(易)〜N1(難)の**5段**で、TOCFL / CEFR の6段と数が合わない。
- * 段の絵・級の読み替え(`restoreLevel`)・生成の指示は全部「6段」を前提に
+ * 級の読み替え(`restoreLevel`)・設定の選択肢・生成の指示は全部「6段」を前提に
  * しているので、目盛りの形のほうを変えると、その全部を直すことになる。
  *
  * そこで **N5→1段 … N1→5段**と易しい順に並べ、6段目を「N1+」
@@ -138,8 +114,6 @@ export const JLPT_SCALE: LevelScale = {
   toStored: (i) => `JLPT-${JLPT_SCALE.labels[i - 1]}`,
   // `N` が付かず数字が 6段の外。**級外として読み返せる**(CEFR-0 と同じ形)。
   outStored: "JLPT-0",
-  levelInBandKey: "jlpt.levelInBand",
-  outKey: "jlpt.out",
   // 慣習どおり `JLPT N3`。`Level` は付けない。
   optionLabel: (label) => `JLPT ${label}`,
 };
@@ -189,85 +163,6 @@ export function parseLevelStep(raw: string | number | null | undefined): LevelSt
 /** その段の名前(画面に出す文字)。級外は呼ぶ側が別に出す。 */
 export function stepLabel(scale: LevelScale, index: LevelIndex): string {
   return scale.labels[index - 1] ?? String(index);
-}
-
-/** 段の高さ(0〜1)。1段目がいちばん低く、6段目がいちばん高い。 */
-export function stepHeight(index: LevelIndex): number {
-  const i = LEVEL_INDEXES.indexOf(index);
-  // 一番低い段も**見える高さ**を持たせる。0 から始めると、1級の語で
-  // 「段が無い」ように見える。
-  return 0.35 + (0.65 * i) / (LEVEL_INDEXES.length - 1);
-}
-
-/** 段1つの横幅(px)。 */
-export const STEP_WIDTH_BASE = 16;
-/** 名前が1文字伸びるごとに広げる幅(px)。11px 太字の1文字ぶん。 */
-const STEP_WIDTH_PER_CHAR = 6;
-
-/**
- * 段1つの横幅。**その体系でいちばん長い名前が収まる幅**にする。
- *
- * TOCFL の名前は1文字(`1`〜`6`)だが、CEFR は2文字(`A1`〜`C2`)。
- * 16px に決め打ちすると、絵で見たとおり **`A1 A2` がくっついて読めなく
- * なる**(段の間の隙間は2pxしかない)。名前の長さから決めれば、
- * TOCFL は 16px のまま1ドットも動かず、CEFR だけが広がる。
- *
- * 文字数は `[...s]` で数える。`.length` だと将来 2桁の符号や合字が
- * 入ったときに数え間違える。
- */
-export function stepWidth(scale: LevelScale): number {
-  const longest = Math.max(...scale.labels.map((l) => [...l].length), 1);
-  return STEP_WIDTH_BASE + (longest - 1) * STEP_WIDTH_PER_CHAR;
-}
-
-/** 色のトークン名(`src/styles.css` の `--level-*`)。素の16進を書かない。 */
-export function stepColorVar(step: LevelStep): string {
-  return step === LEVEL_OUT ? "var(--level-out)" : `var(--level-${step})`;
-}
-
-/** その段が属する帯。1-2=A / 3-4=B / 5-6=C。 */
-export function bandOf(index: LevelIndex): LevelBand {
-  return index <= 2 ? "A" : index <= 4 ? "B" : "C";
-}
-
-/** 帯に属する段(小さい順)。 */
-export function stepsInBand(band: LevelBand): LevelIndex[] {
-  return LEVEL_INDEXES.filter((i) => bandOf(i) === band);
-}
-
-/** 帯の名前の翻訳キー。 */
-export function bandLabelKey(band: LevelBand): string {
-  return `tocfl.band${band}`;
-}
-
-/**
- * CEFR → TOEFL iBT / IELTS のおおよその対応。
- *
- * オーナー承認済み(2026-08-24)「TOEFL と IELTS のレベル対応は CEFR 換算でいい」。
- *
- * **幅で出す。** 換算は公開されている対応表でも幅を持っていて、1点に
- * 決まる物ではない。1つの数字で出すと「その点を取れば B2」と読まれるが、
- * それは言い過ぎになる。
- *
- * A1 は TOEFL iBT にも IELTS にも対応する帯が無い(どちらも A2/B1 から)。
- * **無い所は無いと言う** — 埋めるために作り話をしない。
- */
-export const CEFR_EXAM_MAP: Record<string, { toefl: string | null; ielts: string | null }> = {
-  A1: { toefl: null, ielts: null },
-  A2: { toefl: null, ielts: "3.0–3.5" },
-  B1: { toefl: "42–71", ielts: "4.0–5.0" },
-  B2: { toefl: "72–94", ielts: "5.5–6.5" },
-  C1: { toefl: "95–120", ielts: "7.0–8.0" },
-  C2: { toefl: null, ielts: "8.5–9.0" },
-};
-
-/** その段に添える検定の目盛り。CEFR 以外の体系では何も返さない。 */
-export function examLabels(
-  scale: LevelScale,
-  index: LevelIndex,
-): { toefl: string | null; ielts: string | null } {
-  if (scale.id !== "CEFR") return { toefl: null, ielts: null };
-  return CEFR_EXAM_MAP[stepLabel(scale, index)] ?? { toefl: null, ielts: null };
 }
 
 /**

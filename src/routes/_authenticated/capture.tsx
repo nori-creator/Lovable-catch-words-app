@@ -43,12 +43,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { suggestWords, generateCard, suggestWordCandidates } from "@/lib/ai.functions";
 import { isTargetHeadword } from "@/lib/target-language";
 import { TARGET_LANG_LABEL_KEYS } from "@/lib/i18n";
-import {
-  listMyStickers,
-  saveSticker,
-  setStickerVoiceVideo,
-  type StickerWithWord,
-} from "@/lib/stickers.functions";
+import { listMyStickers, saveSticker, type StickerWithWord } from "@/lib/stickers.functions";
 import { prependSticker, type StickerListCache } from "@/lib/optimistic-sticker";
 import { checkOwnedWord, recordEncounter, type OwnedWord } from "@/lib/encounters.functions";
 import {
@@ -71,10 +66,8 @@ import {
 } from "@/components/CameraChrome";
 import { uploadStickerImage } from "@/lib/sticker-upload";
 import { WordCard } from "@/components/WordCard";
-import { VoiceCaptionButton, type RecordedNote } from "@/components/VoiceCaptionButton";
 import { Term } from "@/components/Term";
 import { Reading, useReadingText } from "@/lib/phonetic";
-import { uploadVoiceNote } from "@/lib/voice-note-upload";
 import { ScanEffect } from "@/components/ScanEffect";
 import { CatchLandingOverlay, runCatchLanding } from "@/components/CatchLanding";
 import { usePronounce } from "@/lib/use-pronounce";
@@ -297,9 +290,6 @@ function CapturePage() {
     pinyin: card?.pinyin,
   });
   const [caption, setCaption] = useState("");
-  // 声で吹き込んだ一言。**保存の経路には入れない** — 札が出来てから
-  // 裏で上げる(オーナー「一瞬でも早く」が最大のペイン)。
-  const [voiceNote, setVoiceNote] = useState<RecordedNote | null>(null);
   /**
    * どこで撮ったか。**画面を開いた時から温めておき、保存の直前に短く待つ。**
    * 以前は解析の頭で `getCurrentPosition` を投げっぱなしにしていたので、
@@ -406,7 +396,6 @@ function CapturePage() {
   const suggestFn = useServerFn(suggestWords);
   const cardFn = useServerFn(generateCard);
   const saveFn = useServerFn(saveSticker);
-  const attachVoiceFn = useServerFn(setStickerVoiceVideo);
   const ownedFn = useServerFn(checkOwnedWord);
   const encounterFn = useServerFn(recordEncounter);
 
@@ -1013,26 +1002,6 @@ function CapturePage() {
       },
     });
 
-    if (voiceNote) {
-      const note = voiceNote;
-      void (async () => {
-        try {
-          const path = await uploadVoiceNote({
-            blob: note.blob,
-            mime: note.mime,
-            stickerId: res.id,
-          });
-          const saved = await attachVoiceFn({
-            data: { sticker_id: res.id, voice_video_path: path },
-          });
-          if (!saved.saved) toast.error(t("voice.needsMigration"));
-        } catch (e) {
-          console.warn("voice note attach failed", e);
-          toast.error(t("voice.attachFailed"));
-        }
-      })();
-    }
-
     /**
      * **いま捕まえた札を、図鑑の手元の一覧へ先に入れる**
      * （`lib/optimistic-sticker.ts` の注。オーナー報告 2026-09-22
@@ -1428,8 +1397,6 @@ function CapturePage() {
           setFlipped={setFlipped}
           caption={caption}
           setCaption={setCaption}
-          voiceNote={voiceNote}
-          setVoiceNote={setVoiceNote}
           placeName={loc?.name ?? null}
           onRedo={reset}
           onSave={handleSave}
@@ -1897,8 +1864,6 @@ export function CaptureCardPanel({
   setFlipped,
   caption,
   setCaption,
-  voiceNote,
-  setVoiceNote,
   placeName,
   onRedo,
   onSave,
@@ -1915,9 +1880,6 @@ export function CaptureCardPanel({
   setFlipped: (f: (v: boolean) => boolean) => void;
   caption: string;
   setCaption: (v: string) => void;
-  /** 声で吹き込んだ一言。**まだ上げていない**(札が出来てから裏で上げる)。 */
-  voiceNote: RecordedNote | null;
-  setVoiceNote: (n: RecordedNote | null) => void;
   placeName: string | null;
   onRedo: () => void;
   onSave: () => void;
@@ -2008,22 +1970,14 @@ export function CaptureCardPanel({
         <Label htmlFor="caption" className="text-footnote text-muted-foreground">
           {t("capture.note")}
         </Label>
-        {/* **声のボタンは文字の欄の隣**(オーナー指示 2026-08-26)。
-            一言は「文字で書く」か「声で言う」かの同じ用事の2つの言い方で、
-            離すと別の機能に見える。歩きながら・荷物を持ったまま —
-            文字が打てない場面ほど一言は残したくなる。
-            録るだけで、上げも結び付けもしない(保存を1ミリ秒も遅くしない)。 */}
-        <div className="mt-1 flex items-start gap-2">
-          <Textarea
-            id="caption"
-            value={caption}
-            onChange={(e) => setCaption(e.target.value)}
-            placeholder={t("capture.notePlaceholder")}
-            rows={2}
-            className="flex-1"
-          />
-          <VoiceCaptionButton value={voiceNote} onChange={setVoiceNote} />
-        </div>
+        <Textarea
+          id="caption"
+          value={caption}
+          onChange={(e) => setCaption(e.target.value)}
+          placeholder={t("capture.notePlaceholder")}
+          rows={2}
+          className="mt-1"
+        />
       </div>
 
       {placeName && <p className="text-footnote text-muted-foreground">📍 {placeName}</p>}

@@ -124,7 +124,6 @@ export function practiceCard(
     review_count: 0,
     lapses: 0,
     photo_count: 1,
-    prompt_pattern: null,
     blur_seen: false,
     ease: 2.5,
     interval_days: 0,
@@ -178,13 +177,10 @@ export function FirstCatchReview({
     <FirstCatchShell tab={3} fixedViewport={!expanded}>
       <ReviewSessionHeader
         compact={!expanded}
-        lockMode
         header={{
           answered: index,
           total: cards.length,
           progress: (index / cards.length) * 100,
-          mode: "choice",
-          onMode: () => {},
         }}
         memOverview={{ danger: 0, fuzzy: 0, solid: memoryWords.length, words: memoryWords }}
         memListOpen={expanded}
@@ -195,7 +191,6 @@ export function FirstCatchReview({
         key={index}
         card={practiceCard(cards[index], samples)}
         practice
-        format="choice"
         onNext={() => {
           if (index + 1 < cards.length) setIndex(index + 1);
           else onComplete();

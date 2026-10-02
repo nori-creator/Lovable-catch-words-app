@@ -6,22 +6,24 @@
  * 自分が読まないほうの記号が毎回目に入って、読みを探す時間が増える。
  * **一方だけ**にして、設定で切り替える。
  *
- * ## 2026-08-24: 台湾華語だけの物をやめた
- * 英語版でも同じ問題が起きる — アメリカ英語の IPA とイギリス英語の IPA を
- * 並べると読みの欄が2行になる。形は台湾華語とまったく同じなので、
+ * ## 台湾華語だけの物にしない
+ * 日本語でも同じ形になる — かなとローマ字を並べると読みの欄が2行になる。
  * **「注音か拼音か」ではなく「その言語の読みの表記のどれか」**として持つ。
  *
  *     zh-TW  注音(ㄅㄆㄇ) ／ 拼音        既定 = 注音
- *     en     IPA(米)     ／ IPA(英)     既定 = 米(オーナー決定 2026-08-24)
+ *     ja     かな        ／ ローマ字    既定 = かな
+ *
+ * 英語の発音記号(IPA)は画面に出さない(オーナー指示 2026-09-30・2026-10-02)。
+ * 選ぶ物も無い。IPA の列は残す — 音声や解説の生成が読んでいる。
  *
  * 並びは `target-profile.ts` が持っている(`profile.readings`、先頭が既定)。
  * ここは**選び方と憶え方**だけを持つ。
  *
  * ## 言語ごとに別に憶える
- * 1つの鍵に入れると、英語を学んでいる間に選んだ `ipa-uk` が台湾華語の
+ * 1つの鍵に入れると、日本語を学んでいる間に選んだ `romaji` が台湾華語の
  * 読みの設定として残り、**その言語に存在しない表記**を指したまま画面が
  * 動くことになる。鍵の中を言語ごとの表に分ける。読むときに
- * 「その言語に在る表記か」を必ず確かめ、無ければ既定へ落とす。
+ * 「その言語で選べる表記か」を必ず確かめ、無ければ既定へ落とす。
  *
  * ## 古い鍵を捨てない
  * `phonetic-pref-v1` で拼音を選んでいた人が、この変更で注音に戻ったら
@@ -31,7 +33,6 @@
  * 外の世界に触れるものをここに入れないこと。
  */
 
-import { learnerIpa } from "@/lib/learner-ipa";
 import { useEffect, useState } from "react";
 import {
   ZH_TW_PROFILE,
@@ -67,9 +68,9 @@ export type ReadingStore = {
   setItem: (key: string, value: string) => void;
 };
 
-/** その表記はこの言語に在るか。無い表記を画面に渡さないための関門。 */
+/** その表記はこの言語で選べるか。選べない表記を画面に渡さないための関門。 */
 function allowed(profile: TargetProfile, value: unknown): value is ReadingKind {
-  return typeof value === "string" && (profile.readings as readonly string[]).includes(value);
+  return readingChoices(profile).some((c) => c.value === value);
 }
 
 function readMap(store: ReadingStore): Record<string, unknown> {
@@ -108,7 +109,7 @@ export function readReadingPref(store: ReadingStore, profile: TargetProfile): Re
   return defaultReading(profile);
 }
 
-/** 選び直しを憶える。**その言語に無い表記は憶えない。** */
+/** 選び直しを憶える。**その言語で選べない表記は憶えない。** */
 export function writeReadingPref(
   store: ReadingStore,
   profile: TargetProfile,
@@ -141,47 +142,48 @@ export function pickReadingOf(
   if (!showsReading(profile)) return "";
   for (const k of [kind, ...profile.readings]) {
     const v = readings[k]?.trim();
-    // IPA は**学習者の見慣れた形**で出す（`learner-ipa.ts`、オーナー報告
-    // 2026-09-27「英単語の下の発音記号が見たことない記号」）。
-    if (v) return k === "ipa-us" || k === "ipa-uk" || isIpaProfile(profile) ? learnerIpa(v) : v;
+    if (v) return v;
   }
   return "";
-}
-
-function isIpaProfile(profile: TargetProfile): boolean {
-  return profile.readings.some((r) => r === "ipa-us" || r === "ipa-uk");
 }
 
 /**
  * その言語で読みの表記を画面に出すか。
  *
- * 台湾華語（注音・拼音）は出す。英語（IPA）は出さない（オーナー指示
- * 2026-09-30）。設定の「発音表記」の行もこれを見て、英語では
- * 米式／英式の切り替えごと出さない。
+ * 台湾華語（注音・拼音）と日本語（かな・ローマ字）は出す。英語（IPA）は
+ * 出さない（オーナー指示 2026-09-30）。
  */
 export function showsReading(profile: TargetProfile): boolean {
-  return !isIpaProfile(profile);
+  return !profile.readings.some((r) => r === "ipa-us" || r === "ipa-uk");
 }
 
 /**
- * その表記の名前の翻訳キー。
- *
- * **設定の並びを `readings` から作るための口。** ここを表にしておかないと、
- * 設定画面に `zhuyin` / `pinyin` を直に2つ書くことになり、英語版で
- * 分岐が生える。
+ * 画面に出す表記の名前の翻訳キー。**ここに無い表記は画面に出さない**
+ * (英語の IPA)ので、設定の選択肢にも並ばない。
  */
-export function readingLabelKey(kind: ReadingKind): string {
-  return READING_LABEL_KEYS[kind];
-}
-
-const READING_LABEL_KEYS: Record<ReadingKind, string> = {
+const READING_LABEL_KEYS: Partial<Record<ReadingKind, string>> = {
   zhuyin: "settings.zhuyin",
   pinyin: "settings.pinyin",
-  "ipa-us": "settings.ipaUs",
-  "ipa-uk": "settings.ipaUk",
   kana: "settings.kana",
   romaji: "settings.romaji",
 };
+
+/**
+ * 設定で選べる表記(並びは `readings` の順)と、その名前の翻訳キー。
+ *
+ * **設定の並びを `readings` から作るための口。** 設定画面に `zhuyin` /
+ * `pinyin` を直に2つ書くと、学習言語ごとに分岐が生える。
+ * 英語は画面に読みを出さないので、選べる物が無い(空)。
+ */
+export function readingChoices(
+  profile: TargetProfile,
+): Array<{ value: ReadingKind; labelKey: string }> {
+  if (!showsReading(profile)) return [];
+  return profile.readings.flatMap((value) => {
+    const labelKey = READING_LABEL_KEYS[value];
+    return labelKey ? [{ value, labelKey }] : [];
+  });
+}
 
 function browserStore(): ReadingStore | null {
   if (typeof window === "undefined") return null;
@@ -334,27 +336,18 @@ export function ReadingOf({
 export function Reading({
   zhuyin,
   pinyin,
-  ipaUs,
-  ipaUk,
   lang,
   className,
 }: {
   zhuyin?: string | null;
   pinyin?: string | null;
-  ipaUs?: string | null;
-  ipaUk?: string | null;
-  /** 学習言語。既定は台湾華語(いまの唯一の学習言語)。 */
+  /** 学習言語。既定は台湾華語。 */
   lang?: string;
   className?: string;
 }) {
   const profile = targetProfile(lang);
   const pref = useReadingPref(profile);
-  const text = pickReadingOf(profile, pref, {
-    zhuyin,
-    pinyin,
-    "ipa-us": ipaUs,
-    "ipa-uk": ipaUk,
-  });
+  const text = pickReadingOf(profile, pref, { zhuyin, pinyin });
   if (!text) return null;
   return (
     <span lang={profile.scriptLang} className={className}>

@@ -1,20 +1,10 @@
-import {
-  REVIEW_MODE_CHOICE_ENABLED,
-  REVIEW_PRACTICE_ENABLED,
-  selfieCaptureEnabled,
-  setSelfieCaptureEnabled,
-} from "@/lib/product-features";
+import { selfieCaptureEnabled, setSelfieCaptureEnabled } from "@/lib/product-features";
 import { useReadableError } from "@/lib/errors";
 import { useMotion } from "@/components/motion-provider";
 import { parseMotionChoice } from "@/lib/motion-pref";
 import { createFileRoute, Link, useNavigate, useRouter } from "@tanstack/react-router";
 import { DEFAULT_TARGET_LANGUAGE, webTargetChoices } from "@/lib/target-lang";
 import { setTargetLang, storedTargetLang } from "@/lib/target-lang-pref";
-import {
-  getStoredReviewMode,
-  setStoredReviewMode,
-  resolveReviewMode,
-} from "@/lib/review-mode-pref";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { InstallAppCard } from "@/components/InstallApp";
@@ -51,7 +41,7 @@ import { SlidingIndicator } from "@/components/SlidingIndicator";
 import { PickerRow } from "@/components/PickerRow";
 import { toast } from "sonner";
 import { useTheme } from "@/components/theme-provider";
-import { useReadingPref, setReadingPref, readingLabelKey, showsReading } from "@/lib/phonetic";
+import { useReadingPref, setReadingPref, readingChoices } from "@/lib/phonetic";
 import { targetProfile } from "@/lib/target-profile";
 import { levelOptions, restoreLevel } from "@/lib/level-scale";
 import { UI_LANGS, UI_LANG_LABEL_KEYS, TARGET_LANG_LABEL_KEYS, normalizeUiLang } from "@/lib/i18n";
@@ -59,7 +49,6 @@ import { useT, setUiLang, storedUiLang } from "@/lib/i18n";
 import { reconcileLanguage } from "@/lib/language-sync";
 import { storedLevels, setStoredLevels } from "@/lib/level-pref";
 import { restoreSettings } from "@/lib/settings-restore";
-import { normalizeReviewMode, type ReviewModePref } from "@/lib/review-format";
 import { getPhotoPref, setPhotoPref, type PhotoPref } from "@/lib/photo-pref";
 import {
   clearCatchTimings,
@@ -381,7 +370,6 @@ function SettingsPage() {
     setLevelGoal((prev) => restoreLevel(scale, saved.goal ?? prev, 2));
   };
   const [strictness, setStrictness] = useState<"easy" | "normal" | "strict">("normal");
-  const [reviewMode, setReviewMode] = useState<ReviewModePref>("speaking");
   const [photoPref, setPhotoPrefState] = useState<PhotoPref>("auto");
   /** 出す札（升の数もここから数える）。切り抜きは 2026-10-01 に消した。 */
   const photoPrefOptions = [
@@ -544,12 +532,6 @@ function SettingsPage() {
     setLevelGoal(picked.levelGoal);
     setCurrentLevel(picked.currentLevel);
     setStrictness(profile.pronunciation_strictness as "easy" | "normal" | "strict");
-    // **この端末で選んだ値が勝つ**(`src/lib/review-mode-pref.ts`)。
-    // DB の列に 'hybrid' を許す移行が当たっていないと保存が落ちるので、
-    // DB は他の端末へ持っていくための控えでしかない。
-    setReviewMode(
-      resolveReviewMode(getStoredReviewMode(), (profile as { review_mode?: string }).review_mode),
-    );
     const p = profile as { review_daily_limit?: number | null; review_stage_focus?: string | null };
     setReviewLimit(typeof p.review_daily_limit === "number" ? p.review_daily_limit : 20);
     setReviewFocus(
@@ -574,7 +556,6 @@ function SettingsPage() {
     currentLevel,
     levelGoal,
     strictness,
-    reviewMode,
     reviewLimit,
     reviewFocus,
   ]);
@@ -593,9 +574,8 @@ function SettingsPage() {
        * 画面には選んだ値が残るので保存できたように見え、次に開いたとき
        * 既定へ戻る — それが報告の姿。
        *
-       * すぐ下の出題形式には既に同じ注が書いてある。言語は出題形式より
-       * 重い設定(撮る・解説・復習の全部がこれで決まる)なので、
-       * **こちらこそ単独で送るべきだった。**
+       * 言語は重い設定(撮る・解説・復習の全部がこれで決まる)なので、
+       * **単独で送る。**
        */
       await updateProfile({
         data: {
@@ -633,12 +613,6 @@ function SettingsPage() {
           review_stage_focus: reviewFocus,
         },
       });
-      // **出題形式は別に送る。** 同じ payload に混ぜると、この1列の制約違反で
-      // 名前も言語もレベルも**まとめて保存されない**。端末には既に書いて
-      // あるので、ここが落ちてもその端末では選んだ形が効く。
-      await updateProfile({ data: { review_mode: reviewMode } }).catch(() =>
-        toast(t("review.modeLocalOnly")),
-      );
       // **ここで "ja" に落とさない。** 繁體中文を選んだ人が保存するたびに
       // 日本語へ戻ってしまう（型でもビルドでも落ちない）。
       setUiLang(normalizeUiLang(uiLanguage));
@@ -786,33 +760,13 @@ function SettingsPage() {
             {/* **学習言語を渡す。** 渡していなかったので既定(台湾華語)で
                 考え、**英語を学ぶ人にも注音・拼音の選択が出ていた**
                 (オーナー指摘「学習言語が英語のときピンイン・注音の設定を
-                消して」)。英語では米式/英式の IPA の選択になる。 */}
+                消して」)。英語では行ごと出ない。 */}
             <PhoneticRow lang={targetLanguage} />
           </div>
         </SettingsCard>
 
         <SettingsCard title={t("settings.study")}>
           <div className="space-y-3">
-            {/* 「AIが選ぶ」は記憶の段階で形を変える(`lib/review-format.ts`)。
-                既定は従来どおり「発話」— 黙って人の画面を変えない。 */}
-            {REVIEW_PRACTICE_ENABLED && REVIEW_MODE_CHOICE_ENABLED && (
-              <ChoiceRow
-                cols={3}
-                label={t("settings.reviewMode")}
-                value={reviewMode}
-                onChange={edit((v: string) => {
-                  const next = normalizeReviewMode(v);
-                  setReviewMode(next);
-                  // 押した瞬間に端末へ。保存を押し忘れても、選んだ形は効く。
-                  setStoredReviewMode(next);
-                })}
-                options={[
-                  { value: "hybrid", label: t("settings.modeHybrid") },
-                  { value: "speaking", label: t("settings.modeSpeaking") },
-                  { value: "choice", label: t("settings.modeChoice") },
-                ]}
-              />
-            )}
             {/* 要望 #16「表示画像(切り抜き/元画像/自撮り)を設定から選べる」。
                 端末ごとの設定にしてある(理由は `lib/photo-pref.ts`)ので、
                 保存はここで即座に効く — サーバへは行かない。 */}
@@ -967,31 +921,28 @@ function SettingsPage() {
 /**
  * 読みの表記: その言語の書き方のうち**どれか一方だけ**を全画面で表示する。
  *
- * 台湾華語は注音と拼音、英語は米式と英式の IPA。並びは
+ * 台湾華語は注音と拼音、日本語はかなとローマ字。並びは
  * `target-profile.ts` が持っていて、ここは**それを回すだけ**。
- * 2つを直に書くと、英語版でこの関数の中に分岐が生える。
+ * 英語は読みを画面に出さないので、選ぶ物も無い(行ごと出さない)。
  */
 export function PhoneticRow({ lang }: { lang?: string } = {}) {
   const t = useT();
   const profile = targetProfile(lang);
   const pref = useReadingPref(profile);
-  // 列は 2〜5 しか用意がない。読みの数をそのまま渡すと、1つしか無い言語を
+  const choices = readingChoices(profile);
+  // 列は 2〜5 しか用意がない。選択肢の数をそのまま渡すと、1つしか無い言語を
   // 足した日に**クラス名が undefined になって並びが崩れる**。挟んでおく。
-  const cols = Math.min(5, Math.max(2, profile.readings.length)) as keyof typeof CHOICE_COLS;
-  // **選ぶものが無いなら行ごと出さない。** 読みが1つしか無い言語を足した日に
-  // 「選択肢が1つだけのボタンの列」が残るのは、設定として意味が無い。
-  if (profile.readings.length < 2) return null;
-  // **読みを出さない言語では切り替えも出さない**（英語の IPA 米式／英式。
-  // オーナー指示 2026-09-30）。画面に出ない物の選び方だけが残ると、
-  // 押しても何も変わらないボタンになる。
-  if (!showsReading(profile)) return null;
+  const cols = Math.min(5, Math.max(2, choices.length)) as keyof typeof CHOICE_COLS;
+  // **選ぶものが無いなら行ごと出さない。** 「選択肢が1つだけのボタンの列」や
+  // 押しても何も変わらないボタンが残るのは、設定として意味が無い。
+  if (choices.length < 2) return null;
   return (
     <ChoiceRow
       cols={cols}
       label={t("settings.phonetic")}
       value={pref}
       onChange={(k) => setReadingPref(profile, k)}
-      options={profile.readings.map((k) => ({ value: k, label: t(readingLabelKey(k)) }))}
+      options={choices.map((c) => ({ value: c.value, label: t(c.labelKey) }))}
     />
   );
 }

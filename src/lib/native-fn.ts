@@ -64,7 +64,6 @@ export const NATIVE_FNS: Record<string, Loader> = {
   replaceStickerPhoto: from(stickers, "replaceStickerPhoto"),
   setStickerHeadword: from(stickers, "setStickerHeadword"),
   setStickerHeroRole: from(stickers, "setStickerHeroRole"),
-  setStickerVoiceVideo: from(stickers, "setStickerVoiceVideo"),
   // 写真の無い札の見出し・「ネットの画像」の節（画像は iOS が直に取りに行く）
   searchImageCandidates: from(images, "searchImageCandidates"),
   setStickerPlaceholder: from(stickers, "setStickerPlaceholder"),
@@ -80,8 +79,6 @@ export const NATIVE_FNS: Record<string, Loader> = {
   // 復習
   getDueReviews: from(reviews, "getDueReviews"),
   gradeReview: from(reviews, "gradeReview"),
-  getSpeakingFeedback: from(reviews, "getSpeakingFeedback"),
-  getSpeakingScaffold: from(reviews, "getSpeakingScaffold"),
   getMemoryOverview: from(reviews, "getMemoryOverview"),
   getOverallMemoryStats: from(reviews, "getOverallMemoryStats"),
   getReviewCapState: from(reviews, "getReviewCapState"),

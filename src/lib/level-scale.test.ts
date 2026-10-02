@@ -1,22 +1,12 @@
 import { describe, it, expect } from "vitest";
 import {
-  CEFR_EXAM_MAP,
   CEFR_SCALE,
-  LEVEL_BANDS,
   LEVEL_INDEXES,
   LEVEL_OUT,
   TOCFL_SCALE,
-  bandLabelKey,
-  bandOf,
-  examLabels,
   levelOptions,
   restoreLevel,
   parseLevelStep,
-  stepColorVar,
-  stepHeight,
-  stepLabel,
-  stepWidth,
-  stepsInBand,
 } from "./level-scale";
 
 /**
@@ -90,60 +80,10 @@ describe("parseLevelStep — 級外と「分からない」", () => {
   });
 });
 
-describe("段と帯の形が2つの体系で同じ", () => {
+describe("段の形が2つの体系で同じ", () => {
   it("どちらも6段", () => {
     expect(TOCFL_SCALE.labels).toHaveLength(6);
     expect(CEFR_SCALE.labels).toHaveLength(6);
-  });
-
-  it("**どの段もどれか1つの帯に入る**(抜けも重なりも無い)", () => {
-    const all = LEVEL_BANDS.flatMap(stepsInBand);
-    expect([...all].sort()).toEqual([...LEVEL_INDEXES]);
-    expect(new Set(all).size).toBe(LEVEL_INDEXES.length);
-  });
-
-  it("帯ごとに2段ずつ、小さい順", () => {
-    expect(stepsInBand("A")).toEqual([1, 2]);
-    expect(stepsInBand("B")).toEqual([3, 4]);
-    expect(stepsInBand("C")).toEqual([5, 6]);
-  });
-
-  it("**CEFR の綴りと帯が一致する**(B1/B2 は帯 B)", () => {
-    for (const i of LEVEL_INDEXES) {
-      expect(stepLabel(CEFR_SCALE, i).startsWith(bandOf(i))).toBe(true);
-    }
-  });
-
-  it("帯ごとに違う文言を指す", () => {
-    const keys = LEVEL_BANDS.map(bandLabelKey);
-    expect(new Set(keys).size).toBe(keys.length);
-  });
-});
-
-describe("stepHeight / stepColorVar", () => {
-  it("段が上がるほど高くなる", () => {
-    const hs = LEVEL_INDEXES.map(stepHeight);
-    for (let i = 1; i < hs.length; i++) expect(hs[i]).toBeGreaterThan(hs[i - 1]);
-  });
-
-  it("いちばん低い段も見える高さを持つ(0 にしない)", () => {
-    expect(stepHeight(1)).toBeGreaterThan(0.2);
-  });
-
-  it("いちばん高い段が 1", () => {
-    expect(stepHeight(6)).toBeCloseTo(1, 6);
-  });
-
-  it("色は CSS のトークンで返す(素の16進を書かない)", () => {
-    for (const i of LEVEL_INDEXES) expect(stepColorVar(i)).toBe(`var(--level-${i})`);
-    expect(stepColorVar(LEVEL_OUT)).toBe("var(--level-out)");
-  });
-
-  it("**体系で色を分けない**(同じ深さは同じ濃さ)", () => {
-    // TOCFL の3級と CEFR の B1 はどちらも3段目 = 同じ色。
-    expect(stepColorVar(parseLevelStep("TOCFL-3") as number)).toBe(
-      stepColorVar(parseLevelStep("B1") as number),
-    );
   });
 });
 
@@ -154,73 +94,6 @@ describe("toStored — 保存する形へ往復できる", () => {
 
   it("CEFR", () => {
     for (const i of LEVEL_INDEXES) expect(parseLevelStep(CEFR_SCALE.toStored(i))).toBe(i);
-  });
-});
-
-describe("examLabels — TOEFL / IELTS は CEFR に添える", () => {
-  it("B2 に両方付く", () => {
-    const got = examLabels(CEFR_SCALE, 4);
-    expect(got.toefl).toBeTruthy();
-    expect(got.ielts).toBeTruthy();
-  });
-
-  it("**無い所は無いと言う**(埋めるために作り話をしない)", () => {
-    // A1 はどちらの検定にも対応する帯が無い。
-    expect(examLabels(CEFR_SCALE, 1)).toEqual({ toefl: null, ielts: null });
-    // C2 は TOEFL iBT の上限より上。
-    expect(examLabels(CEFR_SCALE, 6).toefl).toBeNull();
-  });
-
-  it("**TOCFL には検定の目盛りを付けない**(別の言語の話)", () => {
-    for (const i of LEVEL_INDEXES) {
-      expect(examLabels(TOCFL_SCALE, i)).toEqual({ toefl: null, ielts: null });
-    }
-  });
-
-  it("換算表は6段ぶん揃っている", () => {
-    for (const label of CEFR_SCALE.labels) expect(CEFR_EXAM_MAP[label]).toBeDefined();
-  });
-
-  it("**幅で出す**(1点に決めない)", () => {
-    for (const v of Object.values(CEFR_EXAM_MAP)) {
-      for (const s of [v.toefl, v.ielts]) {
-        if (s) expect(s).toMatch(/[–-]/);
-      }
-    }
-  });
-});
-
-describe("言い方は体系ごとに持つ", () => {
-  it("**CEFR に「級」を付けない**(A1級 という体系は無い)", () => {
-    expect(TOCFL_SCALE.levelInBandKey).not.toBe(CEFR_SCALE.levelInBandKey);
-    expect(TOCFL_SCALE.outKey).not.toBe(CEFR_SCALE.outKey);
-  });
-
-  it("どちらの体系も言い方を持っている(空のキーを画面に出さない)", () => {
-    for (const sc of [TOCFL_SCALE, CEFR_SCALE]) {
-      expect(sc.levelInBandKey).toBeTruthy();
-      expect(sc.outKey).toBeTruthy();
-      expect(sc.id).toBeTruthy();
-    }
-  });
-});
-
-describe("stepWidth — 名前の長さで決める", () => {
-  it("**TOCFL は 16px のまま**(1文字なので今までと1ドットも変わらない)", () => {
-    expect(stepWidth(TOCFL_SCALE)).toBe(16);
-  });
-
-  it("**CEFR は広がる**(`A1 A2` がくっついて読めなかった — 絵で見つけた)", () => {
-    expect(stepWidth(CEFR_SCALE)).toBeGreaterThan(stepWidth(TOCFL_SCALE));
-  });
-
-  it("名前が伸びるほど広い", () => {
-    const long = { ...CEFR_SCALE, labels: ["A1+", "A2", "B1", "B2", "C1", "C2"] } as const;
-    expect(stepWidth(long as unknown as typeof CEFR_SCALE)).toBeGreaterThan(stepWidth(CEFR_SCALE));
-  });
-
-  it("**指が届く幅を下回らない**(段そのものは押す物ではないが、細い棒にしない)", () => {
-    for (const sc of [TOCFL_SCALE, CEFR_SCALE]) expect(stepWidth(sc)).toBeGreaterThanOrEqual(16);
   });
 });
 
@@ -306,8 +179,7 @@ describe("restoreLevel — 学習言語を切り替えたときの級", () => {
 describe("outStored — 級外を保存する形", () => {
   it("**保存して読み返すと級外になる**", () => {
     // オーナー指示 2026-08-26「CEFR-J に無い語は級外にして」。
-    // ここが往復しないと、級外の語が「分からない」になって段々そのものが
-    // 消える(`TocflLadder` は null で何も描かない)。
+    // ここが往復しないと、級外の語が「分からない」と混ざる。
     for (const scale of [TOCFL_SCALE, CEFR_SCALE]) {
       expect(parseLevelStep(scale.outStored), scale.id).toBe(LEVEL_OUT);
     }

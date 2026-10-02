@@ -273,12 +273,8 @@ describe("候補を選んだ直後は「訳と発音」だけ", () => {
     const src = codeOnly(read("components/WordCard.tsx"));
     expect(src).toContain("MINIMAL_SECTIONS");
     expect(src).toMatch(/shown\s*=\s*minimal/);
-    // 級の段々と品詞の札も出さない。「訳」でも「発音」でもない。
-    // **同じ行に並べた**ので(オーナー報告 2026-08-26、3度目「CEFR の欄と
-    // 品詞の大きさを揃えて、横に並べて」)、伏せる条件も1つに畳んである。
+    // 品詞の札も出さない。「訳」でも「発音」でもない。
     expect(src).toMatch(/\{!minimal &&\s*\(word\.part_of_speech \|\| word\.level \|\|/);
-    const row = src.slice(src.search(/\{!minimal &&\s*\(word\.part_of_speech/));
-    expect(row.slice(0, row.indexOf("</div>"))).toMatch(/<TocflLadder/);
     // **撮った直後は見出しを直す鉛筆も出さない**(「訳と発音以外は出さない」)。
     expect(src).toMatch(/!minimal && onEditHeadword && !editingHead/);
     // 見出し横の頻度の星も、撮った直後は出さない。
@@ -728,7 +724,7 @@ describe("第5段: 設定の整理", () => {
 
   it("読みの設定に**学習言語を渡す**", () => {
     // 渡していなかったので既定(台湾華語)で考え、英語を学ぶ人にも
-    // 注音・拼音の選択が出ていた。英語では米式/英式の IPA になる。
+    // 注音・拼音の選択が出ていた。英語では行ごと出ない。
     const src = codeOnly(read("routes/_authenticated/settings.tsx"));
     expect(src).toContain("<PhoneticRow lang={targetLanguage} />");
     // 検査の雛形も同じにする(片方だけだと実物と違う絵を撮る)。
@@ -738,7 +734,7 @@ describe("第5段: 設定の整理", () => {
 
   it("選ぶものが1つしか無いなら読みの行を出さない", () => {
     const src = codeOnly(read("routes/_authenticated/settings.tsx"));
-    expect(src).toContain("if (profile.readings.length < 2) return null;");
+    expect(src).toContain("if (choices.length < 2) return null;");
   });
 
   it("出典は設定から消えて、**約款の中に残る**", () => {
@@ -894,93 +890,7 @@ describe("第4段: アルバムと単語詳細で、絵を別々に選ぶ", () =
   });
 });
 
-describe("第3段: 一言は音声だけ、聞く所は日付と場所の隣", () => {
-  it("動画の名残が**どこにも残っていない**", () => {
-    // オーナー指示 2026-08-26「一言は音声だけにして。動画の撮影はやめて」。
-    expect(fs.existsSync(path.join(root, "lib/voice-video.ts"))).toBe(false);
-    expect(fs.existsSync(path.join(root, "components/VoiceVideoNote.tsx"))).toBe(false);
-    // **あとから録る欄そのものを消した**(オーナー指示 2026-08-26、3度目
-    // 「あとからひと言を録画とる項目は消して」)。一言は撮ったその瞬間に
-    // 録る物なので、録るのは撮る画面(`VoiceCaptionButton`)だけ。
-    expect(fs.existsSync(path.join(root, "components/VoiceNote.tsx"))).toBe(false);
-    // 撮る側に `<video>` が1つでも残っていたら、カメラがまた点く。
-    const cap = codeOnly(read("components/VoiceCaptionButton.tsx"));
-    expect(cap).not.toMatch(/<video/);
-    expect(cap).not.toMatch(/previewRef/);
-  });
-
-  it("録るときに**カメラを掴まない**", () => {
-    const lib = codeOnly(read("lib/voice-note.ts"));
-    expect(lib).toMatch(/return \{ audio: true \};/);
-    expect(lib).not.toMatch(/facingMode/);
-  });
-
-  it("前に撮った動画と**同じ道**に落ちる(消せない物を残さない)", () => {
-    const lib = codeOnly(read("lib/voice-note.ts"));
-    // `voice.<拡張子>` の形が変わると、撮り直しても古い動画が置き場所に
-    // 残り続け、画面からは消せなくなる。
-    expect(lib).toMatch(/voice\.\$\{extensionForMime\(mime\)\}/);
-  });
-
-  it("聞くのは `<audio>`(前に撮った動画もそのまま鳴る)", () => {
-    const player = codeOnly(read("components/VoiceNotePlayer.tsx"));
-    expect(player).toMatch(/<audio/);
-    expect(player).not.toMatch(/<video/);
-    // **自動で再生しない。** 図鑑を開くたび声が鳴ると人前で開けない。
-    expect(player).not.toMatch(/autoPlay/);
-  });
-
-  it("再生は**日付と場所の行**に在り、録る所には無い", () => {
-    // オーナー指示「再生ボタンは真ん中、日付と場所の名前の隣に置いて」。
-    const sheet = codeOnly(read("components/StickerSheet.tsx"));
-    const row = sheet.slice(sheet.indexOf("<Clock"), sheet.indexOf("{s.caption &&"));
-    expect(row).toMatch(/<VoiceNotePlayer url=\{s\.voice_video_url\} \/>/);
-    // カードに**録る欄が無い**こと(オーナー指示 3度目)。
-    expect(sheet).not.toMatch(/<VoiceNote /);
-    expect(sheet).not.toMatch(/components\/VoiceNote"/);
-  });
-
-  it("上げる道は**1つ**(3つの入口が同じ関数を通る)", () => {
-    expect(fs.existsSync(path.join(root, "lib/voice-note-upload.ts"))).toBe(true);
-    for (const rel of ["components/ScanCatchSheet.tsx", "routes/_authenticated/capture.tsx"]) {
-      expect(codeOnly(read(rel)), rel).toMatch(/uploadVoiceNote\(/);
-    }
-    // 置き場所を自分で組み立てる所が残っていないこと。
-    for (const rel of ["components/ScanCatchSheet.tsx", "routes/_authenticated/capture.tsx"]) {
-      expect(codeOnly(read(rel)), rel).not.toMatch(/voiceNotePath\(/);
-    }
-  });
-
-  it("キャッチの最中の一言は**文字の欄の隣**に在る", () => {
-    // オーナー指示「キャッチのときに一言を声で吹き込めるように。
-    // 文字入力の隣にボタンを置いて」。
-    const cap = codeOnly(read("routes/_authenticated/capture.tsx"));
-    const box = cap.slice(cap.indexOf('id="caption"'), cap.indexOf('id="caption"') + 900);
-    expect(box).toMatch(/<VoiceCaptionButton/);
-    const scan = codeOnly(read("components/ScanCatchSheet.tsx"));
-    const box2 = scan.slice(scan.indexOf('placeholder={t("sheet.notePlaceholder")}'));
-    expect(box2.slice(0, 500)).toMatch(/<VoiceCaptionButton/);
-  });
-
-  it("キャッチの保存を**待たせない**(録った物は札が出来てから裏で上げる)", () => {
-    // オーナーが「最大のペイン」と書いたのは「一瞬でも早く」。
-    // 保存の前に上げると、いちばん壊してはいけない所が遅くなる。
-    const btn = codeOnly(read("components/VoiceCaptionButton.tsx"));
-    expect(btn).not.toMatch(/uploadVoiceNote/);
-    expect(btn).not.toMatch(/useServerFn/);
-    for (const rel of ["components/ScanCatchSheet.tsx", "routes/_authenticated/capture.tsx"]) {
-      const src = codeOnly(read(rel));
-      // `void (async () => {` で投げっぱなしにしていること(= 待たない)。
-      expect(src, rel).toMatch(/void \(async \(\) => \{[\s\S]{0,400}?uploadVoiceNote\(/);
-    }
-  });
-
-  it("上げ損ねたら**黙って捨てない**", () => {
-    for (const rel of ["components/ScanCatchSheet.tsx", "routes/_authenticated/capture.tsx"]) {
-      expect(codeOnly(read(rel)), rel).toMatch(/voice\.attachFailed/);
-    }
-  });
-
+describe("撮る画面の検索の欄", () => {
   it("検索の欄が**カメラの画面そのもの**に在る", () => {
     // オーナー指示「検索欄をカメラの画面に直接置いて」。
     // 前は「文字で打つ」のボタンで、押して面が開いてから打てた。
@@ -1007,15 +917,6 @@ describe("第3段: 一言は音声だけ、聞く所は日付と場所の隣", (
     expect(audit).toMatch(/scene: "capture-object"/);
     const cap = codeOnly(read("routes/_authenticated/capture.tsx"));
     expect(cap).toMatch(/export function CaptureObjectPanel\(/);
-  });
-
-  it("検査の雛形が新しい面を撮っている", () => {
-    const audit = read("../scripts/ui-audit.mjs");
-    // `voice-note` の場面は部品ごと消えた(あとから録る欄をやめたため)。
-    expect(audit).not.toMatch(/scene: "voice-note"/);
-    expect(audit).toMatch(/scene: "voice-player"/);
-    expect(audit).toMatch(/variant: "voice"/);
-    expect(audit).not.toMatch(/scene: "voice-video"/);
   });
 });
 
@@ -1260,25 +1161,23 @@ describe("鳴らす道は1本だけ", () => {
 
   it("作り置きの音は**サーバ関数を呼ばずに**端末へ落ちる", () => {
     const src = codeOnly(read("routes/_authenticated/review.tsx"));
-    // **話す面と4択の面の両方**。片方だけだと、もう片方は毎回
-    // サーバ関数を呼び直す(直したつもりで半分残る形)。
-    const seeds = src.match(/urls: \{ \[card\.headword\]: card\.audio_url \}/g) ?? [];
-    expect(seeds.length).toBe(2);
+    // 束の作り置きの URL を、4択の音の先読みへそのまま流し込む。
+    expect(src).toMatch(/urls\[reviewCard\.headword\] = reviewCard\.audio_url;/);
+    expect(src).toMatch(/urls: choiceAudio\.urls,/);
   });
 
   it("復習の発音ボタンも**鳴らせるようになってから**出る", () => {
     const src = codeOnly(read("routes/_authenticated/review.tsx"));
-    // 4択の行・見出し語・添削文の3種類とも共通の部品に寄せる。
+    // 4択の行・答え合わせの見出し語の2種類とも共通の部品に寄せる。
     const uses = src.match(/<PronounceButton/g) ?? [];
-    expect(uses.length).toBeGreaterThanOrEqual(4);
+    expect(uses.length).toBeGreaterThanOrEqual(2);
     expect(src).not.toMatch(/aria-label=\{t\("rv\.pronOf"/);
   });
 
-  it("添削文も**その語の言語**で読む", () => {
-    // `usePronounce()` を引数なしで呼んでいたので、英語の添削文が
-    // 中国語の声で読まれ、しかもその音は保存されていた。
+  it("4択も**その語の言語**で読む", () => {
+    // `usePronounce()` を引数なしで呼ぶと、英語の語が中国語の声で読まれる。
     const src = codeOnly(read("routes/_authenticated/review.tsx"));
-    expect(src).toMatch(/const pronounceLang = card\.language \?\? undefined;/);
+    expect(src).toMatch(/usePronounce\(card\.language \?\? undefined\)/);
     expect(src).not.toMatch(/usePronounce\(\)/);
   });
 });
@@ -1454,26 +1353,6 @@ describe("2026-08-26 の3度目の報告", () => {
       /const next: CatchLocation = \{ lat, lng, name: null \};\s*setLoc\(next\);\s*if \(lat == null/,
     );
   });
-
-  it("あとから一言を録る欄が**消えている**", () => {
-    expect(fs.existsSync(path.join(root, "components/VoiceNote.tsx"))).toBe(false);
-    const sheet = codeOnly(read("components/StickerSheet.tsx"));
-    expect(sheet).not.toMatch(/<VoiceNote /);
-    // 聞く所は残っている(日付と場所の行)。
-    expect(sheet).toMatch(/<VoiceNotePlayer url=\{s\.voice_video_url\} \/>/);
-  });
-
-  it("級の札が**品詞の札と同じ寸法**(44px の塊にしない)", () => {
-    const src = codeOnly(read("components/TocflLadder.tsx"));
-    const collapsed = src.slice(
-      src.indexOf("if (!open) {"),
-      src.indexOf("return (\n    <div className={`inline-flex flex-col"),
-    );
-    // 見た目は品詞と同じ `px-2 py-0.5`、指の当たりは `::before` で広げる。
-    expect(collapsed).toMatch(/px-2 py-0\.5/);
-    expect(collapsed).toMatch(/before:-inset-y-3/);
-    expect(collapsed).not.toMatch(/min-h-11/);
-  });
 });
 
 describe("2026-08-26: 注音・拼音を英語のカードに出さない", () => {
@@ -1555,14 +1434,6 @@ describe("2026-08-26: 名前を変える", () => {
     expect(DICT["settings.langZhTw"].ja).toBe("繁體字（台灣）");
     expect(DICT["settings.langZhTw"].en).toBe("Mandarin (Taiwan)");
     expect(DICT["settings.langZhTw"]["zh-TW"]).toBe("繁體字（台灣）");
-  });
-
-  it("復習の自動は「AIが選ぶ」ではなく**自動**", () => {
-    for (const key of ["review.auto", "settings.modeHybrid"]) {
-      for (const lang of UI_LANGS) {
-        expect(DICT[key][lang], `${key}/${lang}`).not.toMatch(/AI/);
-      }
-    }
   });
 
   it("表示言語の欄は**母語**", () => {
@@ -1975,34 +1846,6 @@ describe("ネットの画像は、届いてから並べる", () => {
   });
 });
 
-/** 話すモードの採点（オーナー指示 2026-08-27 ⑦）。 */
-describe("言い直して当てた語を「覚えていた」に数えない", () => {
-  const rv = () => codeOnly(read("routes/_authenticated/review.tsx"));
-
-  it("判断は純粋な物1つに在る", () => {
-    expect(fs.existsSync(path.join(root, "lib/speaking-grade.ts"))).toBe(true);
-    expect(rv()).toMatch(/speakingResult\(\{ kind, objectiveOk, failedAttempts \}\)/);
-    expect(rv()).not.toMatch(/kind === "skip" \? "skip" : objectiveOk \? "success" : "skip"/);
-  });
-
-  it("外した回数を数えている(最後の1回ではなく)", () => {
-    const src = rv();
-    expect(src).toMatch(/const \[failedAttempts, setFailedAttempts\] = useState\(0\)/);
-    expect((src.match(/setFailedAttempts\(\(n\) => n \+ 1\)/g) ?? []).length).toBe(2);
-  });
-
-  it("グラフが読む `correct` も同じ所から出す", () => {
-    const src = rv();
-    expect(src).toMatch(/correct: countsAsRemembered\(result\)/);
-    expect(src).not.toMatch(/correct: result === "success"/);
-  });
-
-  it("明日また出る理由をその場で言う", () => {
-    expect(rv()).toMatch(/retried=\{failedAttempts > 0\}/);
-    expect(DICT["review.retriedCountsAsLapse"]).toBeDefined();
-  });
-});
-
 /** 級（オーナー指摘 2026-08-27 ⑭）。 */
 describe("級は辞書が正、分からないものは級外", () => {
   const ai = () => codeOnly(read("lib/ai.functions.ts"));
@@ -2030,11 +1873,7 @@ describe("級は辞書が正、分からないものは級外", () => {
     }
   });
 
-  it("級外の語には、級の代わりに検定の印を出す", () => {
-    expect(fs.existsSync(path.join(root, "lib/exam-tags.ts"))).toBe(true);
-    const card = codeOnly(read("components/WordCard.tsx"));
-    expect(card).toMatch(/parseLevelStep\(word\.level\) === LEVEL_OUT/);
-    expect(card).toMatch(/examTagLabels\(word\.extras\?\.exam_tags\)/);
+  it("検定の印は辞書の行から写す(AI に作らせない)", () => {
     expect(ai()).toMatch(/exam_tags: examTags/);
   });
 });
@@ -2092,14 +1931,6 @@ describe("2026-08-28 の指摘（並べ替え・絵文字・アルバム・ア�
     expect(fs.readFileSync(path.join(root, "..", "scripts/ui-audit.mjs"), "utf8")).toMatch(
       /"sections-panel"/,
     );
-  });
-
-  it("**復習モードに絵文字を付けない**(⑥)", () => {
-    for (const k of ["settings.modeHybrid", "settings.modeSpeaking", "settings.modeChoice"]) {
-      for (const l of ["ja", "en", "zh-TW"] as const) {
-        expect([k, l, /\p{Extended_Pictographic}/u.test(DICT[k][l])]).toEqual([k, l, false]);
-      }
-    }
   });
 
   it("**アルバムの文字の札に紙を敷かない**(⑦ 2度目の指摘)", () => {
@@ -5829,7 +5660,6 @@ describe("ホームの壁紙（オーナー指示 2026-09-23）", () => {
 
 describe("Jev を広げる（オーナー指示 2026-09-23）— 共有の辞書は二つの目、予定と判定は影", () => {
   const lex = codeOnly(read("lib/lexicon.server.ts"));
-  const reviews = codeOnly(read("lib/reviews.functions.ts"));
   const ai = codeOnly(read("lib/ai.functions.ts"));
 
   it("日々の点検・報告の仕分けは、Jev も案を選んだときだけ直す／却下する", () => {
@@ -5839,13 +5669,8 @@ describe("Jev を広げる（オーナー指示 2026-09-23）— 共有の辞書
     expect(lex).not.toMatch(/row\.source === "ai" && v\.confidence >= 0\.85\) \{/);
   });
 
-  it("話す練習の判定と例文の自然さは影で記録し、画面の判定は変えない", () => {
-    expect(reviews).toMatch(/recordSpeakingShadow\(/);
+  it("例文の自然さは影で記録し、画面の判定は変えない", () => {
     expect(ai).toMatch(/recordExampleShadow\(/);
-    // 記録は待たない（返事を遅らせない）。
-    expect(reviews).toMatch(
-      /void import\("\.\/jev-tasks\.server"\)\.then\(\(\{ recordSpeakingShadow \}\)/,
-    );
   });
 });
 
@@ -6642,7 +6467,6 @@ describe("R26: 生のエラー文を画面に出さない", () => {
     "components/TtsVoiceForm.tsx",
     "components/StickerSheet.tsx",
     "routes/_authenticated/settings.tsx",
-    "routes/_authenticated/review.tsx",
   ];
   for (const f of files) {
     it(`${f}: e.message を直に toast / 画面へ出さない`, () => {

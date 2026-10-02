@@ -29,6 +29,12 @@ describe("native-fn allowlist", () => {
     }
   });
 
+  it("does not expose the speaking review or the catch voice note (owner decision 2026-10-02)", () => {
+    for (const name of ["getSpeakingFeedback", "getSpeakingScaffold", "setStickerVoiceVideo"]) {
+      expect(NATIVE_FNS[name]).toBeUndefined();
+    }
+  });
+
   it("never exposes admin functions", () => {
     for (const name of Object.keys(NATIVE_FNS)) {
       expect(name.toLowerCase()).not.toContain("admin");

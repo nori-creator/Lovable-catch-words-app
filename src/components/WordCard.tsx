@@ -12,9 +12,6 @@ import { playMagicSwap, snapshotForSwap } from "@/lib/magic-swap";
 import { SceneBubbles } from "@/components/SceneBubbles";
 import type { PersonalLessonContext } from "@/components/onboarding/PersonalWordLesson";
 import { sceneBubbles } from "@/lib/scene-bubbles";
-import { TocflLadder } from "@/components/TocflLadder";
-import { examTagLabels } from "@/lib/exam-tags";
-import { LEVEL_OUT, parseLevelStep } from "@/lib/level-scale";
 import { resolveWordLanguage } from "@/lib/word-language";
 import { looksLikeTargetLanguage } from "@/lib/text-language";
 import { PronounceButton } from "@/components/PronounceButton";
@@ -92,10 +89,6 @@ export type WordExtras = Partial<WordExtrasDTO>;
 
 export type WordCardData = {
   headword: string;
-  /** 第一の読み（台湾華語=注音 / 英語=米式IPA）。無ければ古い列に落ちる。 */
-  reading_primary?: string | null;
-  /** 第二の読み（台湾華語=拼音 / 英語=英式IPA）。 */
-  reading_alt?: string | null;
   /**
    * その語を**何語として覚えているか**。
    *
@@ -1042,32 +1035,14 @@ function HeaderRow({
           {!zhuyinUnits && (
             <div className="mt-1 text-body text-muted-foreground">
               {/* **学習言語を渡す。** 渡さないと `Reading` は既定の台湾華語の
-                プロフィールで考えるので、英語の語に注音/拼音を探しに行き、
-                IPA を持っていても読みが空になる。 */}
+                プロフィールで考えるので、英語の語にも注音/拼音を出してしまう。 */}
               <Reading
                 lang={word.language ?? undefined}
                 zhuyin={neutralizeMeasureGe(word.headword, word.reading_zhuyin)}
                 pinyin={neutralizeMeasureGePinyin(word.headword, word.pinyin)}
-                ipaUs={word.reading_primary}
-                ipaUk={word.reading_alt}
               />
             </div>
           )}
-          {/**
-           * 品詞と級を**同じ行に、同じ大きさで**並べる(オーナー報告
-           * 2026-08-26、3度目「単語の欄の CEFR の欄が大きくて、品詞の
-           * カテゴリーとのバランスが悪いから、大きさを揃えて、横に並べて」)。
-           *
-           * 級は行を分けて置いていて、畳んだ札も 44px の高さがあったので、
-           * 22px の品詞の札と釣り合っていなかった。札の寸法は
-           * `TocflLadder` 側で品詞に揃えてある。
-           *
-           * **目盛りを渡す。** 渡さないと既定の TOCFL で描くので、
-           * 英語の語(CEFR A2)に「TOCFL 2級」が出る(`level-scale.ts`)。
-           *
-           * 級を開くと段々が縦に伸びるので、`items-start` で上端を揃える
-           * — `items-center` だと開いた瞬間に品詞の札が下へ落ちる。
-           */}
           {!minimal &&
             (word.part_of_speech || word.level || registerScaleOf(word.extras ?? {}) !== null) && (
               <div className="mt-2 flex flex-wrap items-start gap-1.5">
@@ -1076,33 +1051,12 @@ function HeaderRow({
                     {posDisplay(word.part_of_speech)}
                   </span>
                 )}
-                <TocflLadder level={word.level} scale={targetProfile(word.language).levels} />
-                {/* **言葉の性質は言葉だけ、級の横に**（オーナー指示 2026-09-24「言葉の
-                  性質は（言葉だけでいい、メーターいらない）検定のレベルの横に」）。 */}
+                {/* 言葉の性質は**言葉だけ**で出す（オーナー指示 2026-09-24。メーターは出さない）。 */}
                 {registerScaleOf(word.extras ?? {}) !== null && (
                   <span className="rounded-full bg-secondary px-2 py-0.5 text-caption font-medium text-foreground ring-1 ring-border">
                     {t(registerLabelKey(registerScaleOf(word.extras ?? {})!))}
                   </span>
                 )}
-                {/* **級外の語には、級の代わりに分かっていることを出す**
-                  (オーナー指摘 2026-08-27 ⑭「TOCFL の外の単語の場合
-                   どのように分類表示するか考えて」)。
-
-                  英語の辞書 25,595 語のうち級が入っているのは 7,009 語
-                  だけで、出所の CEFR-J が A1〜B2 までなので C1・C2 の語は
-                  最初から級が付きようがない。`ephemeral`(TOEFL・GRE)が
-                  「級外」としか出ないのは、嘘ではないが役に立たない。
-                  どの試験に出るかは辞書の行に入っている**事実**なので、
-                  そちらを出す。 */}
-                {parseLevelStep(word.level) === LEVEL_OUT &&
-                  examTagLabels(word.extras?.exam_tags).map((tag) => (
-                    <span
-                      key={tag}
-                      className="rounded-full bg-secondary px-2 py-0.5 text-caption font-medium text-muted-foreground ring-1 ring-border"
-                    >
-                      {tag}
-                    </span>
-                  ))}
                 {!guided && (
                   <ReportButton
                     wordId={wordId}

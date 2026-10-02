@@ -17,7 +17,6 @@ import { DexEmptyState, DexNoMatch } from "@/routes/_authenticated/dex";
 import { DexHeader } from "@/routes/_authenticated/dex";
 import type { DexFilter } from "@/lib/dex-filter";
 import { StickerPhotoHistory } from "@/components/StickerPhotoHistory";
-import { VoiceNotePlayer } from "@/components/VoiceNotePlayer";
 import { UserPanel } from "@/components/AppShell";
 import { PlaceMemoryCard } from "@/components/PlaceMemory";
 import type { RegisterScale } from "@/lib/register-scale";
@@ -402,19 +401,3 @@ const FAILED: Promise<GeneratedCard> = Promise.reject(new Error("AIの生成に�
 // 誰も受け取らないと node/ブラウザが「未処理の拒否」として騒ぐ。
 // シートの中で必ず受け取るが、渡る前に一度なだめておく。
 FAILED.catch(() => {});
-
-/**
- * 一言を**聞く**ボタン(オーナー指示 2026-08-26「再生ボタンは真ん中、
- * 日付と場所の名前の隣に置いて」)。
- *
- * 本物の並びをここに写さない — 日付・再生・場所の行そのものは
- * `StickerSheetBody` に在り、`sticker-sheet` の場面で撮っている。
- * ここで見るのは**指が届く大きさ**と、円の中で三角が中央に見えるか。
- */
-export function VoicePlayerScene() {
-  return (
-    <div style={{ display: "flex", alignItems: "center", gap: 8, padding: 16 }}>
-      <VoiceNotePlayer url="data:audio/webm;base64," />
-    </div>
-  );
-}

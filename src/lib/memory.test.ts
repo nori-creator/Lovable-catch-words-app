@@ -1,13 +1,5 @@
 import { describe, it, expect } from "vitest";
-import {
-  compareByMemory,
-  maturityLevel,
-  maturityScore,
-  memoryLevel,
-  memoryOf,
-  type MemorySortable,
-} from "./memory";
-import { stabilityOf } from "./srs";
+import { compareByMemory, memoryLevel, memoryOf, type MemorySortable } from "./memory";
 
 const w = (o: Partial<MemorySortable>): MemorySortable => ({
   retention: 100,
@@ -64,42 +56,6 @@ describe("画面の % と段", () => {
     const young = memoryOf({ retention: 97, interval_days: 3 });
     const mature = memoryOf({ retention: 97, interval_days: 90 });
     expect(mature.percent).toBe(young.percent);
-  });
-});
-
-/**
- * **出題の形に使う育ち具合**（画面には出さない）。
- * 復習の直後はどの語も 100% になるので、形はもつ長さも見て決める。
- */
-describe("育ち具合（出題の形だけに使う）", () => {
-  it("キャッチ直後(未復習)の 100% は、育った語より低い", () => {
-    const fresh = maturityLevel({ retention: 100, interval_days: 0 });
-    const grown = maturityLevel({ retention: 92, interval_days: 30 });
-    expect(fresh).toBeLessThan(grown);
-    // それでも「忘れかけ」ではない。
-    expect(fresh).toBeGreaterThanOrEqual(2);
-  });
-
-  it("画面の段を超えない（バッジより難しい形は来ない）", () => {
-    for (const retention of [5, 29, 45, 68, 83, 91, 100]) {
-      for (const interval_days of [0, 1, 5, 21, 60, 200]) {
-        const shown = memoryOf({ retention, interval_days }).level.level;
-        expect(maturityLevel({ retention, interval_days })).toBeLessThanOrEqual(shown);
-      }
-    }
-  });
-
-  it("定着度が同じなら、長くもつほうが高い", () => {
-    expect(maturityScore(100, 400)).toBeGreaterThan(maturityScore(100, 2));
-  });
-
-  it("安定度を渡さなければ、間隔と ease から出す", () => {
-    const given = maturityLevel({
-      retention: 90,
-      interval_days: 30,
-      stability_days: stabilityOf(30, 2.5),
-    });
-    expect(maturityLevel({ retention: 90, interval_days: 30, ease: 2.5 })).toBe(given);
   });
 });
 

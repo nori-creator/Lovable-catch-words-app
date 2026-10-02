@@ -1,7 +1,7 @@
 /**
  * 復習画面の場面。**ルートに書かれている本物のコンポーネントを描く。**
  *
- * 復習はこのアプリの中心(写真を見て、自分の言葉で言う)なのに、
+ * 復習はこのアプリの中心(写真を見て、その語を思い出す)なのに、
  * 中身がルートのファイルに直書きされていたので**一度も機械で見ていなかった**。
  * ルート側でいくつか `export` を足して、ここからそのまま描く。
  * 似たHTMLをこちらに書き写すことはしない — それをやると
@@ -21,8 +21,6 @@ import {
   MemoryOverviewPanel,
   ReviewHeader,
   ReviewPreparing,
-  SayResult,
-  SpeakingCard,
 } from "@/routes/_authenticated/review";
 import type { DueReviewCard } from "@/lib/reviews.functions";
 import { MiniRetentionGraph } from "@/components/MiniRetentionGraph";
@@ -59,7 +57,6 @@ const CARD: DueReviewCard = {
   review_count: 3,
   lapses: 0,
   photo_count: 1,
-  prompt_pattern: { type: "V+O", zh: "喝珍珠奶茶", ja: "〜を飲む" },
   blur_seen: false,
   ease: 2.4,
   interval_days: 6,
@@ -84,7 +81,7 @@ export function ReviewLoadingScene() {
   return (
     <>
       <section className="mb-4">
-        <ReviewHeader answered={null} total={null} progress={0} mode="choice" onMode={() => {}} />
+        <ReviewHeader answered={null} total={null} progress={0} />
       </section>
       <ReviewPreparing />
     </>
@@ -118,14 +115,7 @@ export function ReviewMemoryScene({ q }: { q: URLSearchParams }) {
     <section className="mb-4">
       {/* 続いている日数はここに出る。**0 のときは出ない**のが正しい姿なので、
           読み込み中の面(下)で「出ないこと」も一緒に見る。 */}
-      <ReviewHeader
-        answered={3}
-        total={12}
-        progress={25}
-        mode="choice"
-        onMode={() => {}}
-        reviewStreak={7}
-      />
+      <ReviewHeader answered={3} total={12} progress={25} reviewStreak={7} />
       {/* 実物と同じく `<button>` で包む。開いた側も撮る — 印の向きが
           変わるだけの差だが、変わらなければ押しても何も起きないのと同じ。 */}
       <button
@@ -238,7 +228,7 @@ export function ReviewChoiceScene({ q }: { q: URLSearchParams }) {
   return (
     <>
       <section className="mb-2 shrink-0">
-        <ReviewHeader answered={3} total={12} progress={25} mode="choice" onMode={() => {}} />
+        <ReviewHeader answered={3} total={12} progress={25} />
       </section>
       <LightModeCard card={card} onNext={() => {}} onOpenMemory={() => {}} />
     </>
@@ -292,68 +282,6 @@ export function ReviewEndScene({ q }: { q: URLSearchParams }) {
     );
   }
   return <EmptyState />;
-}
-
-/**
- * 「言うだけ」の段の出題(要望 #32 の L2)。
- *
- * **型も足場も出ていない面**なので、何を求められているかが1行で
- * 伝わっているかを見る。ここに何も無いと、写真と録音ボタンだけが
- * 置かれた画面になり、人は「文を作るのか、単語だけか」を推測することになる。
- *
- * 本物の `SpeakingCard` をそのまま描く。足場の取得は
- * `format="say"` のとき止まっているので、通信は起きない。
- */
-export function ReviewSayScene() {
-  return (
-    <>
-      <section className="mb-4">
-        <ReviewHeader answered={2} total={9} progress={22} mode="hybrid" onMode={() => {}} />
-      </section>
-      <SpeakingCard card={CARD} format="say" onNext={() => {}} onOpenMemory={() => {}} />
-    </>
-  );
-}
-
-/**
- * 「言うだけ」の答え合わせ。通じた面と通じなかった面の両方。
- *
- * カードごと描くと、この節に辿り着くまでに写真と録音欄で数千pxになる
- * (「出会う」の節で一度やった失敗)。判定の面だけを直に描く。
- */
-export function ReviewSayResultScene({ q }: { q: URLSearchParams }) {
-  const v = q.get("variant");
-  const ok = v !== "ng";
-  return (
-    <SayResult
-      card={CARD}
-      ok={ok}
-      // **言い直して当てた回も撮る**(オーナー指示 2026-08-27 ⑦)。
-      // 画面は「正解！」と出すが記録は失念なので、その断りが本当に
-      // 出ているか・「正解！」に埋もれていないかは絵でしか分からない。
-      retried={v === "retried"}
-      heard={ok ? "珍珠奶茶" : "真豬奶茶"}
-      onRetry={() => {}}
-      onNext={() => {}}
-    />
-  );
-}
-
-/**
- * 見出しの3択そのもの。**滑る丸がどの札を覆っているか**を3通りとも見る。
- *
- * 2択のときの `w-1/2` を残したまま3つ目を足すと、丸が最後の札の
- * 半分しか覆わない — 押しているのに選ばれていないように見える。
- * 位置で意味を伝える部品は、位置が合っている絵で確かめる。
- */
-export function ReviewModeTabsScene({ q }: { q: URLSearchParams }) {
-  const raw = q.get("variant") ?? "hybrid";
-  const mode = raw === "speaking" || raw === "choice" ? raw : "hybrid";
-  return (
-    <section className="mb-4">
-      <ReviewHeader answered={3} total={12} progress={25} mode={mode} onMode={() => {}} />
-    </section>
-  );
 }
 
 /**
