@@ -3,6 +3,7 @@ import { ZhuyinWord, useZhuyinUnits } from "@/components/ZhuyinWord";
 import { useReadableError } from "@/lib/errors";
 import { useEffect, useRef, useState } from "react";
 import { useTargetLang } from "@/lib/target-lang-pref";
+import { isTargetHeadword } from "@/lib/target-language";
 import { Reading, useReadingText } from "@/lib/phonetic";
 import { Term } from "@/components/Term";
 import { targetProfile } from "@/lib/target-profile";
@@ -222,6 +223,16 @@ export function ScanCatchSheet({
 
   async function doSave() {
     if (!objectDataUrl || saving) return;
+    /**
+     * **学習言語の語でなければ、飛ばす前に止める**（オーナー報告 2026-10-02
+     * 「英語の図鑑にノート」）。サーバの関所（`upsertWord`）も同じ判定で
+     * 止めるが、そこまで行くと祝いの演出が始まってから謝ることになる。
+     * 再会（`upgrade`）は既にある札に写真を足すだけなので、語を作らない。
+     */
+    if (!upgrade && !isTargetHeadword(headword, targetLanguage)) {
+      setErr(t("err.notTargetLanguage"));
+      return;
+    }
     pronounceRef.current.prepare();
     // Webの自動ダウンロードは、押した直後でなければブラウザに止められる。
 
@@ -461,8 +472,10 @@ export function ScanCatchSheet({
     } catch (e) {
       failSave(e);
       console.error(e);
-      setErr(readable(e, t("cap.saveFailed")));
-      toast.error(t("cap.saveFailed"));
+      // **なぜ入らないのかを言う**（学習言語の語でないなど。`errors.ts`）。
+      const reason = readable(e, t("cap.saveFailed"));
+      setErr(reason);
+      toast.error(reason);
       setSaving(false);
       setPhase("ready");
     }

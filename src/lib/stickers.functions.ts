@@ -1,7 +1,11 @@
 import { createServerFn } from "@tanstack/react-start";
 import { DEFAULT_TARGET_LANGUAGE, normalizeTargetLanguage } from "./target-lang";
-import { isTargetHeadword } from "./target-language";
-import { wordLanguageFilter, matchesTargetLanguage } from "./language-filter";
+import { assertTargetHeadword } from "./target-language";
+import {
+  wordLanguageFilter,
+  matchesTargetLanguage,
+  headwordMatchesTarget,
+} from "./language-filter";
 import { getUserTargetLanguage } from "./ai-provider.server";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { z } from "zod";
@@ -382,6 +386,15 @@ export const listMyStickers = createServerFn({ method: "GET" })
     const truncated =
       stoppedEarly ||
       isTruncated(total, rows.length, total == null ? STICKER_PAGE_SIZE : STICKER_TOTAL_CAP);
+    /**
+     * **学習言語の字でない見出し語の札は出さない**（オーナー報告 2026-10-02
+     * 「英語の図鑑にノートが出る。言語が混ざってる」）。言語の列は `en` でも、
+     * 見出しが「ノート」「拿鐵」の行が既にある（保存の関所が無かった頃の物）。
+     * 札も行も消さない — 見せないだけ。判定は `language-filter.ts` の1つ。
+     * 「途中まで」の判定（上の `truncated`）は**隠す前の数**で済ませてある
+     * — 隠した数を「読み切れなかった」と取り違えない。
+     */
+    rows = rows.filter((r) => headwordMatchesTarget(r.words?.headword, targetLanguage));
     // Also sign the `${path}.thumb.webp` companions (uploaded since 2026-07).
     // Missing thumbs (old stickers) simply return error rows and drop out of
     // the map — the client falls back to the full image.
@@ -730,6 +743,21 @@ export async function upsertWord(
   word: WordUpsertInput,
   language: string,
 ): Promise<string> {
+  /**
+   * **学習言語の字でない見出し語は、行を作る前に止める**（オーナー報告
+   * 2026-10-02「英語の図鑑にノート」「英語の復習に拿鐵の4択」）。
+   *
+   * ここは写真のキャッチ（`saveSticker`）・文字と声のキャッチ
+   * （`saveGhostSticker`）・見出しの直し（`setStickerHeadword`）・iOS 版の
+   * `/api/native-fn` が**全部通る1本道**。画面の側の関所は道ごとに書くので
+   * 1本でも書き忘れると母語や別の言語の語が共有の `words` に入り、
+   * その行は `(language, headword)` で全員に見える。
+   *
+   * 既存の行を探す前に止める — 既に入ってしまった「ノート/en」の行に
+   * 新しい札を足すのも、同じ混ざりを増やすだけ。
+   * 言語は付け替えない・見出しも直さない（`assertTargetHeadword` の注）。
+   */
+  assertTargetHeadword(word.headword, language);
   const { data: existing } = await supabase
     .from("words")
     .select("id")
@@ -1490,10 +1518,9 @@ export const setStickerHeadword = createServerFn({ method: "POST" })
     const current = (row as { words?: { language?: string | null; headword?: string } | null })
       .words;
     const language = normalizeTargetLanguage(current?.language);
-    if (!isTargetHeadword(headword, language)) {
-      // **母語のまま通さない。** 通すと、直したはずの見出しがまた母語になる。
-      throw new Error("NOT_TARGET_LANGUAGE");
-    }
+    // **母語のまま通さない。** 通すと、直したはずの見出しがまた母語になる。
+    // （`upsertWord` も同じ関所を持つが、同じ語なら何もしない下の早道より前で止める。）
+    assertTargetHeadword(headword, language);
     // 同じ語なら何もしない（押し間違いで行を増やさない）。
     if (current?.headword === headword) {
       return { word_id: row.word_id as string, headword };

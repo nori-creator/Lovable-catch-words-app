@@ -7,6 +7,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { createPortal } from "react-dom";
 import { useReadableError } from "@/lib/errors";
 import { playMagicSwap, snapshotForSwap } from "@/lib/magic-swap";
 import { SceneBubbles } from "@/components/SceneBubbles";
@@ -532,6 +533,12 @@ export const WordCard = forwardRef<
      * 2026-09-27）ので読まない。呼ぶ側の形を崩さないために型だけ残す。
      */
     personalContext?: PersonalLessonContext;
+    /**
+     * **報告ボタンを置く場所**（オーナー指示 2026-10-02「報告ボタンは一番下の削除の横に
+     * 配置して」）。渡されれば報告はそこへ描き（見出しからは外す）、渡されなければ従来どおり
+     * 見出しの品詞の行に置く。呼ぶ側の DOM の箱を渡す（`createPortal` で描く）。
+     */
+    reportSlot?: HTMLElement | null;
   }
 >(function WordCard(
   {
@@ -543,9 +550,12 @@ export const WordCard = forwardRef<
     onEditHeadword,
     minimal = false,
     guided = false,
+    reportSlot,
   },
   ref,
 ) {
+  /** カードの箱。報告で「どの項目を光らせるか」を探す範囲（報告が箱の外に描かれても使える）。 */
+  const cardRef = useRef<HTMLDivElement>(null);
   /**
    * **その語が本当は何語なのかを、見出し語の文字から正す。**
    *
@@ -687,7 +697,7 @@ export const WordCard = forwardRef<
       );
 
   return (
-    <div className="space-y-3" data-word-card>
+    <div className="space-y-3" data-word-card ref={cardRef}>
       <HeaderRow
         word={word}
         autoplay={autoplay}
@@ -695,8 +705,21 @@ export const WordCard = forwardRef<
         guided={guided}
         onEditHeadword={onEditHeadword}
         wordId={wordId}
-        reportItems={reportItemsFor(shown)}
+        reportItems={reportSlot ? [] : reportItemsFor(shown)}
+        cardRef={cardRef}
       />
+      {reportSlot &&
+        !guided &&
+        createPortal(
+          <ReportButton
+            wordId={wordId}
+            items={reportItemsFor(shown)}
+            language={word.language ?? null}
+            cardRef={cardRef}
+            footer
+          />,
+          reportSlot,
+        )}
       {wordId && missing.length > 0 && <AutoFillSections wordId={wordId} missing={missing} />}
       <div className="grid gap-3">
         {shown.map((id) => (
@@ -896,9 +919,12 @@ function HeaderRow({
   onEditHeadword,
   wordId,
   reportItems = [],
+  cardRef,
 }: {
   word: WordCardData;
   autoplay: boolean;
+  /** 報告で光らせる項目を探す箱（カード全体）。 */
+  cardRef?: React.RefObject<HTMLDivElement | null>;
   /** 報告から直すときの語の id。無ければ報告の印を出さない。 */
   wordId?: string;
   /** 報告できる項目（`reportItemsFor`）。 */
@@ -965,9 +991,13 @@ function HeaderRow({
     // 暗いテーマでは**白い箱の上に明るい文字**になっていた(見出し語 1.07:1)。
     // 主色をごく薄く敷いて「ここが主役」を出しつつ、面はテーマに追従させる。
     <div className="rounded-3xl border border-border bg-card bg-gradient-to-br from-primary/[0.06] to-transparent p-4 shadow-sm">
-      <div className="flex items-start gap-3">
+      {/* **見出しの並び**（オーナー指示 2026-10-02「単語、品詞、発音ボタン…バランス悪い。
+          整理して」）: 左に「語（鉛筆はすぐ横に小さく）→ 読み → 品詞」を上から積み、
+          発音ボタンは右で**縦の真ん中**に置く。前は語と発音ボタンを同じ行の両端に置き、
+          鉛筆が間に浮き、品詞の行の右端に「報告」が来ていた（報告は一番下の削除の横へ）。 */}
+      <div className="flex items-center gap-3">
         <div className="min-w-0 flex-1">
-          <div className="flex items-baseline gap-3">
+          <div className="flex min-w-0 items-center gap-1">
             {/* **その語の字で組む**(`Term` の注)。`lang="zh-Hant"` の
                 決め打ちだと、英語の見出し語に中国語のフォントが当たる。 */}
             {editingHead ? (
@@ -996,16 +1026,6 @@ function HeaderRow({
                 {word.headword}
               </Term>
             )}
-            {/* 発音ボタンと鉛筆は**右端**へ寄せる（同じ指示「発音ボタンは一番右に移動」）。 */}
-            <span className="ml-auto" aria-hidden />
-            {/* 40px だった。この画面でいちばん押されるボタンなので、
-                当たり判定を広げるのではなく**見た目ごと 44px** にする。
-
-                **鳴らせるようになってから出る**(オーナー指摘 2026-08-26
-                「発音がでるようになってから発音ボタンを表示して」)。
-                支度中は同じ大きさの空きが立つので、出ても行がずれない。 */}
-            {/* **鉛筆は渡された画面にだけ出す。** 直す口を持たない画面
-                （撮った直後の面など）で出しても、押して何も起きない。 */}
             {!minimal && onEditHeadword && !editingHead && (
               <button
                 onClick={() => {
@@ -1014,26 +1034,10 @@ function HeaderRow({
                 }}
                 aria-label={t("card.editHead")}
                 title={t("card.editHead")}
-                className="lift-soft inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-muted-foreground"
+                className="lift-soft -my-2 inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-muted-foreground"
               >
                 <Pencil className="h-4 w-4" />
               </button>
-            )}
-            {editingHead ? (
-              <button
-                onClick={() => void saveHead()}
-                disabled={savingHead}
-                className="lift-soft inline-flex h-11 shrink-0 items-center rounded-full bg-primary px-4 text-body font-semibold text-primary-foreground disabled:opacity-60"
-              >
-                {t("card.editHeadSave")}
-              </button>
-            ) : (
-              <PronounceButton
-                text={word.headword}
-                language={word.language ?? undefined}
-                tone="hero"
-                label={t("card.playPron")}
-              />
             )}
           </div>
           {/* 注音を字の右に組んだときは、下の行に読みを重ねて出さない。 */}
@@ -1062,16 +1066,33 @@ function HeaderRow({
                     {t(registerLabelKey(registerScaleOf(word.extras ?? {})!))}
                   </span>
                 )}
-                {!guided && (
+                {!guided && reportItems.length > 0 && (
                   <ReportButton
                     wordId={wordId}
                     items={reportItems}
                     language={word.language ?? null}
+                    cardRef={cardRef}
                   />
                 )}
               </div>
             )}
         </div>
+        {editingHead ? (
+          <button
+            onClick={() => void saveHead()}
+            disabled={savingHead}
+            className="lift-soft inline-flex h-11 shrink-0 items-center rounded-full bg-primary px-4 text-body font-semibold text-primary-foreground disabled:opacity-60"
+          >
+            {t("card.editHeadSave")}
+          </button>
+        ) : (
+          <PronounceButton
+            text={word.headword}
+            language={word.language ?? undefined}
+            tone="hero"
+            label={t("card.playPron")}
+          />
+        )}
       </div>
     </div>
   );
@@ -1096,11 +1117,20 @@ function ReportButton({
   wordId,
   items,
   language,
+  cardRef,
+  footer = false,
 }: {
   wordId?: string;
   /** 報告できる項目（画面に出ている節の並び）。 */
   items: ReportItem[];
   language: string | null;
+  /**
+   * 光らせる項目を探すカードの箱。報告は**カードの外**（一番下の削除の横）にも描かれる
+   * ので、自分の祖先から探すだけでは見つからない（2026-10-02）。
+   */
+  cardRef?: React.RefObject<HTMLDivElement | null>;
+  /** 一番下の削除の横に置く形（削除と同じ大きさの枠。項目の一覧は上へ開く）。 */
+  footer?: boolean;
 }) {
   const t = useT();
   const readable = useReadableError();
@@ -1119,7 +1149,7 @@ function ReportButton({
       : item === "pos"
         ? t("card.posLabel")
         : t(sectionTitleKey(item, language));
-  const cardEl = () => selfRef.current?.closest("[data-word-card]") ?? null;
+  const cardEl = () => cardRef?.current ?? selfRef.current?.closest("[data-word-card]") ?? null;
   const sectionEl = (item: ReportItem) =>
     cardEl()?.querySelector<HTMLElement>(`[data-magic="${item}"]`) ?? null;
   async function send(item: ReportItem | "auto", text = "") {
@@ -1166,14 +1196,26 @@ function ReportButton({
         // §11: 見た目は小さいまま、当たり判定だけを 44px へ広げる
         // (`::before` を伸ばす)。文字は `/70` をやめる — 薄めた結果
         // 明るい面 3.04:1 / 暗い面 1.76:1 だった。
-        className="relative inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-caption text-muted-foreground transition-colors before:absolute before:-inset-x-2 before:-inset-y-3 before:content-[''] hover:text-foreground disabled:opacity-60"
+        className={
+          footer
+            ? "flex min-h-11 items-center justify-center gap-2 rounded-2xl border border-border bg-card px-4 py-3 text-footnote font-medium text-foreground transition-colors hover:bg-secondary disabled:opacity-60"
+            : "relative inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-caption text-muted-foreground transition-colors before:absolute before:-inset-x-2 before:-inset-y-3 before:content-[''] hover:text-foreground disabled:opacity-60"
+        }
         aria-label={t("card.reportError")}
       >
-        {busy ? <Loader2 className="h-3 w-3 animate-spin" /> : <Flag className="h-3 w-3" />}
+        {busy ? (
+          <Loader2 className={footer ? "h-3.5 w-3.5 animate-spin" : "h-3 w-3 animate-spin"} />
+        ) : (
+          <Flag className={footer ? "h-3.5 w-3.5" : "h-3 w-3"} />
+        )}
         {busy ? t("card.reportFixing") : t("card.report")}
       </button>
       {open && (
-        <div className="absolute right-0 top-7 z-20 max-h-80 w-56 overflow-y-auto rounded-xl border border-border bg-card p-1.5 shadow-xl">
+        <div
+          className={`absolute z-20 max-h-80 w-56 overflow-y-auto rounded-xl border border-border bg-card p-1.5 shadow-xl ${
+            footer ? "bottom-full right-0 mb-2" : "right-0 top-7"
+          }`}
+        >
           {/* いちばん上は「AIに見つけてもらう」（どこが違うか分からない人のため）。
               押すと一言の欄が開く（空でも送れる）。 */}
           {asking ? (

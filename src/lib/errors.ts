@@ -29,6 +29,16 @@ const KNOWN: Array<[RegExp, string]> = [
   [/もう一度|形が整いませんでした|返りませんでした|生成できませんでした/, "err.tryAgain"],
 ];
 
+/**
+ * サーバが**印**で投げる理由 → 辞書の鍵。
+ *
+ * `NOT_TARGET_LANGUAGE` は保存の関所（`upsertWord`）が、学習言語の字でない
+ * 見出し語を止めたときの印（オーナー報告 2026-10-02「英語の図鑑にノート」）。
+ * 印は英字なので、下の「人に向けた文か」の見分けに掛けると汎用の
+ * 「保存に失敗しました」に潰れる — **なぜ入らないのかが分からない**。
+ */
+const KNOWN_CODES: Array<[string, string]> = [["NOT_TARGET_LANGUAGE", "err.notTargetLanguage"]];
+
 export function readableError(
   e: unknown,
   fallback: string,
@@ -37,6 +47,10 @@ export function readableError(
 ): string {
   const msg = e instanceof Error ? e.message : "";
   if (!msg) return fallback;
+  // **サーバが印で投げた理由**（文ではない）。どの表示言語でもその言語の文に直す。
+  if (t) {
+    for (const [code, key] of KNOWN_CODES) if (msg.includes(code)) return t(key);
+  }
   // ひらがな・カタカナ・漢字のいずれかを含む = 人に向けて書かれた文。
   const human = /[぀-ヿ一-龯]/.test(msg);
   if (!human) return fallback;
