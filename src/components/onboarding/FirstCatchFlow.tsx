@@ -45,6 +45,7 @@ import { DexSurface, JUST_CAUGHT_VIEW } from "@/routes/_authenticated/dex";
 import { StickerSheet } from "@/components/StickerSheet";
 import { FirstCatchHome, FirstCatchShell } from "./FirstCatchHome";
 import { Spotlight } from "./Spotlight";
+import { CAMERA_PRIMER_VARIANT, type CameraPrimerVariant } from "@/lib/camera-access";
 import { TutorialSettings, TutorialSettingsContext } from "./TutorialSettings";
 import "./first-catch.css";
 
@@ -114,7 +115,10 @@ export function FirstCatchFlow({
   initialDraft,
   persist = writeFirstCatch,
   initialSettingsOpen = false,
+  cameraPrimer = CAMERA_PRIMER_VARIANT,
 }: {
+  /** 撮る前の一枚の見せ方（見本で A/B/C を見比べるため。本番は既定の1つ）。 */
+  cameraPrimer?: CameraPrimerVariant;
   /** 見本（UI ハーネス）で設定画面を開いた状態から見せるため。 */
   initialSettingsOpen?: boolean;
   services: FirstCatchServices;
@@ -137,11 +141,12 @@ export function FirstCatchFlow({
   const [homeGuide, setHomeGuide] = useState<"album" | "camera">("album");
   const [landing, setLanding] = useState(false);
   /**
-   * 撮る画面で映像が取れない（アプリ内ブラウザ・許可なし）。そのときは
-   * シャッターだけを照らす案内を外す — 案内の覆いが、枠の中に出る
-   * 「スマホのカメラで撮る」「写真を選ぶ」を押せなくしてしまうため。
+   * 撮る画面のシャッターが「次に押す物」か（映像が届いていて、撮る前の一枚も直し方も
+   * 出ていない）。そうでない間はシャッターを照らす案内を出さない — 案内の覆いが
+   * 撮る前の一枚・直し方の「カメラを使う」「スマホのカメラで撮る」を押せなくし、
+   * ブラウザの確認の後ろに札が重なるため（2026-10-02 オーナーの画面写真）。
    */
-  const [cameraUnavailable, setCameraUnavailable] = useState(false);
+  const [shutterReady, setShutterReady] = useState(false);
   /** チュートリアル用の設定（言語・最初に戻る）。下のタブの「設定」から開く。 */
   const [menuOpen, setMenuOpen] = useState(initialSettingsOpen);
   const openMenu = useRef(() => setMenuOpen(true)).current;
@@ -621,7 +626,8 @@ export function FirstCatchFlow({
                 onSearch={() => {}}
                 onOpenScan={() => {}}
                 error={null}
-                onCameraUnavailable={setCameraUnavailable}
+                onShutterReady={setShutterReady}
+                primer={cameraPrimer}
               />
             ))}
         </FirstCatchShell>
@@ -724,7 +730,7 @@ export function FirstCatchFlow({
           allowSelector={homeGuide === "camera" ? '[data-tour="tab-camera"]' : undefined}
         />
       )}
-      {!error && !landing && !cameraUnavailable && draft.stage === "camera" && !draft.photo && (
+      {!error && !landing && shutterReady && draft.stage === "camera" && !draft.photo && (
         <Spotlight
           target=".camera-shutter"
           title={t("first.shootTitle")}
