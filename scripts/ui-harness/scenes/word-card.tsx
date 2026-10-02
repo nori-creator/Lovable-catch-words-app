@@ -155,8 +155,21 @@ export function WordCardScene({ q }: { q: URLSearchParams }) {
     };
     return <WordCard word={word} autoplay={false} />;
   }
+  // `?lang=en` / `?lang=zh-TW` … 本番の単語の詳細は、その人の言語で作った解説の意味を
+  // 出す（`resolveDisplayWord`）。見本には日本語の意味しか無いので、英語・繁體中文の表示では
+  // 「意味」が空に見えていた。本番と同じく、読む人の言語の意味を渡す。
+  const readerMeaning = READER_MEANING[q.get("lang") ?? ""];
+  if (readerMeaning) {
+    return <WordCard word={{ ...FULL, meaning_ja: readerMeaning }} autoplay={false} />;
+  }
   return <WordCard word={FULL} autoplay={false} />;
 }
+
+/** 表示言語ごとの、その人向けの解説の意味（図鑑のスライドの見本と同じ文）。 */
+const READER_MEANING: Record<string, string> = {
+  en: "bubble tea",
+  "zh-TW": "加了粉圓的奶茶",
+};
 
 /**
  * **英語のカード**(第4段 / 指摘⑬「英語を学ぶ台湾人向けの版」)。

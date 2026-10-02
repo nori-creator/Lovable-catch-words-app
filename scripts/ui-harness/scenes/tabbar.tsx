@@ -12,18 +12,24 @@
 import { useState } from "react";
 import { BookOpen, Camera, Home, Settings, Sparkles } from "lucide-react";
 import { TabBar } from "@/components/TabBar";
+import { useT } from "@/lib/i18n";
 
-const ITEMS = [
-  { label: "ホーム", icon: Home },
-  { label: "図鑑", icon: BookOpen },
-  { label: "撮る", icon: Camera, lens: true },
-  { label: "復習", icon: Sparkles },
-  { label: "設定", icon: Settings },
+/**
+ * 文字は実物（`AppNavigation`）と同じ辞書の鍵から引く。以前は日本語を直書きしていたので、
+ * 英語・繁體中文の表示の見本でも帯だけ日本語のままだった（2026-10-02）。
+ */
+const ITEMS: Array<{ labelKey: string; icon: typeof Home; lens?: boolean }> = [
+  { labelKey: "nav.home", icon: Home },
+  { labelKey: "nav.dex", icon: BookOpen },
+  { labelKey: "nav.camera", icon: Camera, lens: true },
+  { labelKey: "nav.review", icon: Sparkles },
+  { labelKey: "nav.settings", icon: Settings },
 ];
 
 const CAMERA = ITEMS.findIndex((i) => i.lens);
 
 export function TabBarScene() {
+  const t = useT();
   const [index, setIndex] = useState(0);
   /**
    * **画面が入れ替わったことにする。**
@@ -48,8 +54,8 @@ export function TabBarScene() {
         remount
       </button>
       <TabBar key={generation} cursor={index} indicatorOpacity={indicatorOpacity}>
-        {ITEMS.map(({ label, icon: Icon, lens }, i) => (
-          <li key={label} className="flex-1">
+        {ITEMS.map(({ labelKey, icon: Icon, lens }, i) => (
+          <li key={labelKey} className="flex-1">
             <button
               data-tab={i}
               data-remount={i}
@@ -77,7 +83,7 @@ export function TabBarScene() {
               ) : (
                 <Icon className="h-5 w-5" />
               )}
-              <span>{label}</span>
+              <span>{t(labelKey)}</span>
             </button>
           </li>
         ))}
