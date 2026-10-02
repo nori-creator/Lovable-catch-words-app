@@ -306,8 +306,8 @@ export const pregenerateDictionaryTts = createServerFn({ method: "POST" })
  * 学習言語ごとの**声の札**。端末は音をこの札つきの鍵で貯めるので、開発者が
  * 声を変えたら端末の古い音も使われなくなる。誰でも読める（値は札だけ）。
  */
+// ログイン前の画面（チュートリアル等）でも呼ばれるので認証は要らない。返すのは札だけ。
 export const getTtsVoiceTags = createServerFn({ method: "GET" })
-  .middleware([requireSupabaseAuth])
   .handler(async () => {
     const { currentVoiceTag, isLockedFor } = await import("./tts-provider.server");
     const tags: Record<string, string> = {};
