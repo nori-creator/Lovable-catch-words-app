@@ -1960,10 +1960,6 @@ export const DICT: Record<string, Record<UiLang, string>> = {
     "zh-TW": "無法儲存版面。請檢查連線後再試一次。",
   },
   "settings.motion": { ja: "アニメーション", en: "Animation", "zh-TW": "動畫" },
-  // **短く。** 3列の丸は約118pxで、入るのは5〜6文字（`MotionChoiceRow` の注）。
-  "settings.motionSystem": { ja: "自動", en: "Auto", "zh-TW": "自動" },
-  "settings.motionFull": { ja: "見せる", en: "Show", "zh-TW": "顯示" },
-  "settings.motionReduce": { ja: "減らす", en: "Reduce", "zh-TW": "減少" },
   // **なぜ消えているのかが分かる言葉にする。** 端末の設定で消えている人は、
   // 自分で入れた覚えが無いので「動きを減らす」とだけ書かれても辿り着けない。
   "settings.motion.osReduces": {
