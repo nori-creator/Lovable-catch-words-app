@@ -831,7 +831,11 @@ export function StickerSheet({ stickerId, onClose, openPhotoPicker, from, local 
             // その人向けの解説(共有キャッシュ)。無ければ古い列に落ちる。
             explanation={explanation?.picked ?? null}
             // 返事がまだ（端末にも無い）間は、古い解説を出さない。後から差し替わるので。
-            explanationPending={explanation === undefined}
+            // **端末の中だけの語（登録前のチュートリアル）は問い合わせない**ので、待たない —
+            // 待つと `undefined` のまま、カードと一緒に届いたチャンク・追加の例文が
+            // ずっと伏せられていた（オーナー報告 2026-10-03「単語の詳細は例文とチャンクを
+            // なるべく表示して」）。
+            explanationPending={!local && explanation === undefined}
             isPro={isPro}
             canMake3d={canMake3d}
             flipped={flipped}

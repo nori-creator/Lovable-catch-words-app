@@ -354,6 +354,15 @@ async function step(page, run) {
         h: b.height,
         // 案内が対象にしてほしい操作（`Spotlight` の `gesture`: tap / swipe / peel）。
         gesture: r.getAttribute("data-tour-gesture"),
+        // 枠が面ごと囲う時（答え合わせ）、その中で次に押す物の真ん中。
+        primary: (() => {
+          const sel = r.getAttribute("data-tour-primary");
+          const el = sel ? document.querySelector(sel) : null;
+          const pb = el ? el.getBoundingClientRect() : null;
+          return pb && pb.width > 0
+            ? { x: pb.left + pb.width / 2, y: pb.top + pb.height / 2 }
+            : null;
+        })(),
         tap,
         peel,
         btn: bb
@@ -367,6 +376,10 @@ async function step(page, run) {
     })
     .catch(() => null);
   if (ring) {
+    if (ring.primary) {
+      await page.mouse.click(ring.primary.x, ring.primary.y);
+      return "案内の枠の中の次へ";
+    }
     if (ring.peel || ring.gesture === "peel") {
       // シールをはがす: 右下の角から左上へ引く。
       await page.mouse.move(ring.x + ring.w * 0.4, ring.y + ring.h * 0.4);

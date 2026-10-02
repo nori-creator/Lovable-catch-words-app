@@ -66,3 +66,12 @@ Guide sequence (every coach shows its chapter):
 5. Review — intro on the question card (Next) → choices → the answer's Next button, twice → completion → account.
 
 Coach copy: title = what to do, one sentence = why it helps. The review coach quotes the real button label (`review.next`), so it matches the screen in every language. Frame geometry and beat timing are in QA.md › Shared tutorial release checks.
+
+## 2026-10-03 owner revision
+
+- Reading: Taiwan Mandarin shows **pinyin by default** everywhere (candidates, word card, Dex, word detail, review choices) — `ZH_TW_PROFILE.defaultReading = "pinyin"`. A reading the learner chose (Settings or the tutorial settings, `reading-pref-v1` / legacy `phonetic-pref-v1`) is kept.
+- Home in the tutorial renders `HomeSurface` with `shelf={false}`: the day album from the first frame, no 3D bookshelf (also removes its three.js start-up stall).
+- Word detail: the guest card's `example_sentence` and `extras.usage_chunks` arrive in the single `card` response at candidate pick (no extra AI call). A local word no longer waits for the shared explanation query (`explanationPending={!local && …}`), so the chunks show; the guide scrolls the detail to the top.
+- Review answer: the whole answer sheet is framed and bright; its Next button pulses inside (`primary`), the coach keeps the question visible.
+- The ready screen and the completion screen have entrance/celebration animations (transform/opacity only; static final frame with reduced motion).
+- Harness: with the review bar or `tour=1`, the tutorial opens in an iframe below the bars, so harness chrome never covers the guide.

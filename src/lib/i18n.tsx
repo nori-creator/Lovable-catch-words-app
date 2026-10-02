@@ -234,9 +234,9 @@ export const DICT: Record<string, Record<UiLang, string>> = {
     "zh-TW": "一個單字，\n更多發現。",
   },
   "first.exploreHint": {
-    ja: "意味・発音・例文から、実際の使われ方まで。あなたの目的に合わせた例文も見られます。",
-    en: "Meaning, pronunciation, examples and real-world use, plus examples that fit your goals.",
-    "zh-TW": "意思、發音、例句到實際用法都在這裡，還有配合你目標的例句。",
+    ja: "意味・発音・例文・使い方チャンクが、この1枚にまとまります。",
+    en: "Meaning, sound, examples and usage chunks, all on one card.",
+    "zh-TW": "意思、發音、例句和用法組塊，都在這一張。",
   },
   "first.sampleCoffee": { ja: "コーヒー", en: "coffee", "zh-TW": "咖啡" },
   "first.sampleAlbum": {

@@ -121,7 +121,12 @@ describe("tutorial guide frame and beats", () => {
   });
   it("the frame hugs the target with one even gap and concentric corners", () => {
     expect(RING_GAP).toBe(4);
-    expect(spot).toMatch(/borderRadius: box\.radius \? box\.radius \+ RING_GAP : RING_GAP/);
+    expect(spot).toMatch(/borderRadius: ringRadius\(box\.radii\)/);
+    // 角ごとに足す（上だけ丸い答え合わせの面も、そのままの形で囲う）。
+    expect(spot).toMatch(/radii\.map\(\(r\) => `\$\{r \+ RING_GAP\}px`\)/);
+    expect(spot).toMatch(/cs\.borderBottomRightRadius/);
+    // 札は iPhone の時計・切り欠きの下に置く。
+    expect(spot).toMatch(/padding-top:env\(safe-area-inset-top\)/);
     expect(qa).toMatch(/4px outside on every side/);
   });
   it("text never shows before its frame: the phase belongs to one target", () => {
@@ -149,5 +154,35 @@ describe("tutorial guide frame and beats", () => {
     expect(driver).toMatch(/getAttribute\("data-tour-gesture"\)/);
     expect(driver).toMatch(/ring\.gesture === "swipe"/);
     expect(driver).toMatch(/ring\.gesture === "peel"/);
+  });
+});
+
+/** 2026-10-03 のオーナー指示（拼音・本棚・答え合わせの面・例文とチャンク・始まりと終わりの動き）。 */
+describe("tutorial owner revisions 2026-10-03", () => {
+  it("Home in the tutorial shows only the album (no 3D shelf flashing first)", () => {
+    expect(source("routes/_authenticated/home.tsx")).toMatch(/\{ready && shelf \? \(\s*<HomeShelf/);
+    expect(source("components/onboarding/FirstCatchHome.tsx")).toMatch(/shelf=\{false\}/);
+  });
+  it("the answer sheet is framed whole and its Next button pulses inside", () => {
+    const practice = source("components/onboarding/FirstCatchPractice.tsx");
+    expect(practice).toMatch(/'\[data-tour="review-answer"\] > div'/);
+    expect(practice).toMatch(/primary=\{answerOpen && introduced \? '\[data-tour="review-next"\]'/);
+    expect(source("components/onboarding/first-catch.css")).toMatch(/\.tour-primary \{/);
+    const driver = readFileSync(new URL("../../e2e/real-app/run.mjs", import.meta.url), "utf8");
+    expect(driver).toMatch(/getAttribute\("data-tour-primary"\)/);
+  });
+  it("a local (pre-signup) word never waits for the shared explanation, so chunks show", () => {
+    expect(source("components/StickerSheet.tsx")).toMatch(
+      /explanationPending=\{!local && explanation === undefined\}/,
+    );
+  });
+  it("the start and end screens animate with transform/opacity and settle on the final frame", () => {
+    const css = source("components/onboarding/first-catch.css");
+    for (const name of ["first-rise-in", "first-pop-in", "first-confetti-burst", "first-badge-pop"])
+      expect(css).toMatch(new RegExp(`@keyframes ${name} \\{\\s*from \\{`));
+    expect(css).toMatch(/html\[data-motion="reduce"\] \.first-standalone \*/);
+    const flow = source("components/onboarding/FirstCatchFlow.tsx");
+    expect(flow).toMatch(/className="first-standalone first-ready first-complete"/);
+    expect(flow).toMatch(/className="first-complete-badge"/);
   });
 });

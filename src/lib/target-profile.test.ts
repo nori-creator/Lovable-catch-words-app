@@ -105,7 +105,10 @@ describe("言語で違う項目 — オーナー指摘の本体", () => {
   });
 
   it("読みの表記が入れ替わる(注音/拼音 ↔ 米/英のIPA)", () => {
-    expect(defaultReading(ZH_TW_PROFILE)).toBe("zhuyin");
+    // オーナー指示 2026-10-03「外国人が中文を学ぶときほとんどがピンイン使う」。
+    expect(defaultReading(ZH_TW_PROFILE)).toBe("pinyin");
+    // 並び（読み1=注音・読み2=拼音の割り当て）は変えない。
+    expect(ZH_TW_PROFILE.readings).toEqual(["zhuyin", "pinyin"]);
     // オーナー決定 2026-08-24「アメリカ英語を既定」。
     expect(defaultReading(EN_PROFILE)).toBe("ipa-us");
   });
