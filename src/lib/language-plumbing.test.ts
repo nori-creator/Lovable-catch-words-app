@@ -4845,23 +4845,17 @@ describe("ホームは今日の誌面", () => {
     );
     // 2026-09-24「過去のものが多すぎで画面で確認できないから、過去のものは全て
     // 削除して」: 帯には**今回の依頼の面だけ**。
-    // 2026-10-02「記憶のグラフ: 現行をベースに改良」の回。先頭は本番の復習の上部そのもの
-    // （数なし・段の帯のグラフ）。見比べ（現在・A〜D）はその後ろ。
-    expect(list.slice(0, list.indexOf("},"))).toMatch(/scene: "review-header"/);
-    expect(list).toMatch(/scene: "review-header&theme=dark"/);
-    expect(list).toMatch(/scene: "memory-designs&v=current"/);
-    expect(main).toContain('"review-header": ReviewHeaderScene');
-    // 前の回（パスワードの再設定）の面は残さない。
+    // 2026-10-02「英語の単語の見出しのなかの配置がバランス悪い…報告ボタンは一番下の削除の横に」の回。
+    // 先頭は単語の詳細（英語）。
+    expect(list.slice(0, list.indexOf("},"))).toMatch(/scene: "sticker-sheet&word=en"/);
+    expect(list).toMatch(/scene: "sticker-sheet"/);
+    // 前の回（記憶のグラフ・アルバム・管理画面・パスワードの再設定）の面は残さない。
+    expect(list).not.toMatch(/scene: "review-header/);
+    expect(list).not.toMatch(/scene: "memory-designs/);
+    expect(list).not.toMatch(/scene: "admin-users/);
     expect(list).not.toMatch(/scene: "auth&email=1"/);
     expect(list).not.toMatch(/scene: "reset-password/);
-    // 同じ回の他の面（本の左ページ・4項目を外したカード・アニメーションのスイッチ）。
-    expect(list).toMatch(/scene: "book-page"/);
-    expect(list).toMatch(/scene: "word-card"/);
-    expect(list).toMatch(/scene: "settings-toggles"/);
-    // 前の回（チュートリアルの4択）の面は残さない。
-    // 同じ回の管理画面（利用者ごとのグラフ・名前なしを外す・最後に使った順）。
-    expect(list).toMatch(/scene: "admin-users&view=user"/);
-    expect(list).toMatch(/scene: "admin-users&view=list"/);
+    expect(main).toContain('"review-header": ReviewHeaderScene');
     expect(list).not.toMatch(/scene: "first-catch&step=review"/);
     // 前の回（R26/R27）の面は残さない。
     expect(list).not.toMatch(/scene: "home-shelf"/);

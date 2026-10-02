@@ -1041,6 +1041,8 @@ export function StickerSheetBody({
    */
   const photoPref = usePhotoPref();
   const [show3d, setShow3d] = useState(false);
+  /** 報告ボタンを描く箱（一番下の削除の横）。`WordCard` がここへ描く。 */
+  const [reportSlot, setReportSlot] = useState<HTMLSpanElement | null>(null);
   /** 3D にする絵（切り抜きがあればそれ。背景が無い方が形がきれいに出る）。 */
   const object3dSource = stickerPhotoUrl(s, { prefer: "cutout" });
   const hero = pickStickerPhoto(s, {
@@ -1346,6 +1348,7 @@ export function StickerSheetBody({
           isPro={isPro}
           onPickImage={applyWebImage}
           onEditHeadword={editHeadword}
+          reportSlot={reportSlot}
         />
       </section>
 
@@ -1402,6 +1405,10 @@ export function StickerSheetBody({
             手前で「やっぱりやめる」と思った人に、押せるものが1つも無い
             のはおかしい(圏外で預かった写真を捨てる確認で同じ指摘を受けた)。
             武装しているときだけ出す。 */}
+        {/* **報告は削除の横**（オーナー指示 2026-10-02「報告ボタンは一番下の削除の横に
+            配置して」）。中身は `WordCard` の報告（項目を選んでその項目だけ直す）を、
+            ここへ描いてもらう（`reportSlot`）。 */}
+        <span ref={setReportSlot} className="flex" />
         {deleteArmed && busy === null && (
           <button
             onClick={onCancelDelete}

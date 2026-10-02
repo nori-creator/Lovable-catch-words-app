@@ -11,7 +11,7 @@
  */
 import { useRef, useState } from "react";
 import { StickerSheetBody } from "@/components/StickerSheet";
-import { FULL } from "./word-card";
+import { FULL, FULL_EN } from "./word-card";
 
 const shot = (w: number, h: number, c: string) =>
   "data:image/svg+xml;utf8," +
@@ -77,6 +77,9 @@ const CANDIDATES = [
  */
 export function StickerSheetScene({ q }: { q: URLSearchParams }) {
   const variant = q.get("variant");
+  // `?lang=en` で英語の語（見出し・品詞・発音ボタンの並びと、一番下の報告を見る）。
+  const sticker =
+    q.get("word") === "en" ? ({ ...(STICKER as object), word: FULL_EN } as never) : STICKER;
   const [flipped, setFlipped] = useState(variant === "selfie");
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const longPressFired = useRef(false);
@@ -89,7 +92,7 @@ export function StickerSheetScene({ q }: { q: URLSearchParams }) {
     >
       <div className="flex-1 overflow-y-auto overscroll-contain px-4 pb-24 pt-3">
         <StickerSheetBody
-          sticker={STICKER}
+          sticker={sticker}
           uiLang="ja"
           /**
            * 解説の**共有キャッシュ**(2026-08-24)。
