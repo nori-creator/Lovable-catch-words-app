@@ -8,6 +8,7 @@ import { HomeShelfScene } from "./scenes/home-shelf";
 import { InstallAppScene } from "./scenes/install-app";
 import { ChunkDesignsScene } from "./scenes/chunk-designs";
 import { PeelStickerScene } from "./scenes/peel-sticker";
+import { MemoryDesignsScene } from "./scenes/memory-designs";
 /**
  * 画面の検査用ハーネス — **本物のコンポーネントを描く**。
  *
@@ -51,6 +52,7 @@ import { PlaceNotifyDesignsScene } from "./scenes/place-notify-designs";
 import { RegenMagicScene } from "./scenes/regen-magic";
 import { AnalyzingDesignsScene } from "./scenes/analyzing-designs";
 import { Shelf3DScene } from "./scenes/shelf-3d";
+import { BookAlbumEditScene, BookPageScene, HomeVsBookScene } from "./scenes/book-page";
 import { ThreeFxScene } from "./scenes/three-fx";
 import { Object3DScene } from "./scenes/object-3d";
 import { DiaryPencilScene } from "./scenes/diary-pencil";
@@ -109,6 +111,7 @@ import {
   ReviewChoiceScene,
   ReviewEndScene,
   ReviewExplainScene,
+  ReviewHeaderScene,
   ReviewLoadingScene,
   ReviewMemoryScene,
   ReviewMemoryListScene,
@@ -172,6 +175,9 @@ const SCENES: Record<string, ((p: { q: URLSearchParams }) => ReactNode) | undefi
   "place-notify-designs": PlaceNotifyDesignsScene,
   "analyzing-designs": AnalyzingDesignsScene,
   "shelf-3d": Shelf3DScene,
+  "book-page": BookPageScene,
+  "home-vs-book": HomeVsBookScene,
+  "book-album-edit": BookAlbumEditScene,
   "three-fx": ThreeFxScene,
   "object-3d": Object3DScene,
   "diary-pencil": DiaryPencilScene,
@@ -232,6 +238,10 @@ const SCENES: Record<string, ((p: { q: URLSearchParams }) => ReactNode) | undefi
   "review-memory-list": ReviewMemoryListScene,
   "memory-curve": MemoryCurveScene,
   "memory-overall": MemoryOverallScene,
+  // 復習タブの上部そのもの（本番の `ReviewSessionHeader`。2026-10-02 の改良）。
+  "review-header": ReviewHeaderScene,
+  // 記憶の状態のデザイン案（現在 + A〜D）。場面の中に切り替えがある。
+  "memory-designs": MemoryDesignsScene,
   "review-loading": ReviewLoadingScene,
   "review-choice": ReviewChoiceScene,
   "review-explain": ReviewExplainScene,
@@ -330,6 +340,8 @@ const BARE = new Set([
   "reward-catch",
   // 押した札から詳細が広がる絵。全画面の面なので枠は要らない。
   "home-tap",
+  // 本の左ページを長押しして開く面は全画面。
+  "book-album-edit",
 ]);
 
 const q = new URLSearchParams(location.search);
@@ -348,16 +360,41 @@ const q = new URLSearchParams(location.search);
  * 「これを見てください」と差し出すことになる。
  */
 const REVIEW_SCENES: Array<{ scene: string; label: string }> = [
-  // 2026-09-30「パスワード忘れた時にパスワードリセットできるようにして」。
-  { scene: "auth&email=1", label: "ログイン: パスワード欄の下に「パスワードを忘れた方」" },
+  // 2026-10-02「記憶のグラフ: 現行をベースに改良」— 見出しの数を出さない・線は1色で
+  // 地を記憶の段の帯に分ける・撮っただけの語は 0%。本番の `ReviewSessionHeader` そのもの。
+  { scene: "review-header", label: "復習: 上部（数なし・段の帯のグラフ）" },
+  { scene: "review-header&theme=dark", label: "復習: 上部（暗いテーマ）" },
+  { scene: "review-header&open=0", label: "復習: 上部（畳んだ形）" },
+  // 2026-10-02「２つのグラフのデザインと機能を統一して。いいところを取り合って」。
+  { scene: "curve", label: "単語ごとの忘却曲線（全体のグラフと同じ作り・点で辿れる）" },
+  { scene: "curve&theme=dark", label: "単語ごとの忘却曲線（暗いテーマ）" },
+  // 2026-10-02「記憶の状態のグラフのデザイン案を複数提案して。」
+  // 案の切り替え（現在・A〜D）と、開く/畳む・明暗は場面の中にある。
+  { scene: "memory-designs&v=current", label: "復習: 記憶の状態のデザイン案（現在・A〜D）" },
+  // 2026-10-02「本のアルバムの写真の配置とホームのアルバム画像の配置は同じにして」→
+  // 「台紙を本のページの形にそろえる」。ホームと本を同じ日で並べて見比べる。
+  { scene: "home-vs-book", label: "ホームと本棚の本: 同じ台紙・同じ配置（7・4・2・1枚）" },
+  { scene: "book-page", label: "本棚: 本の左ページだけ（7・4・2・1枚）" },
+  // 2026-10-02「ホームのアルバムのように本棚のアルバムでも長押しで配置を変換できるように」。
+  { scene: "book-album-edit", label: "本棚の本を長押し: 配置を変える面（開いた所から）" },
+  { scene: "home-shelf&open=left", label: "本棚の本（3D・左ページ）: 長押しで配置の面が開く" },
+  // 2026-10-02「ネットの画像、追加の例文、発音のコツ、覚え方、の項目を消して」。
+  { scene: "word-card", label: "単語: 4項目を外したカード" },
+  // 2026-10-02「アニメーションの設定…スライドでオンとオフになるボタンに」。
+  { scene: "settings-toggles", label: "設定: アニメーションのオン・オフ" },
+  // 2026-10-02「利用者ごとの情報のチャートやグラフをもっと詳しく、細かく、見やすいように
+  // アップデートして。…名前なしのユーザーは消して、一覧は最も最近利用した人順に」。
   {
-    scene: "reset-password",
-    label: "再設定: メールアドレスを入れて送る（ログインで打った物を引き継ぐ）",
+    scene: "admin-users&view=user",
+    label: "ひとりの画面: 日ごとの動き（期間切替・触れると値）・復習・使い方・AI",
   },
-  { scene: "reset-password&state=sent", label: "再設定: 送った後（画面に残る案内・もう一度送る）" },
   {
-    scene: "reset-password&state=update",
-    label: "再設定: メールのリンクから戻って新しいパスワード",
+    scene: "admin-users&view=user&theme=dark",
+    label: "ひとりの画面（暗いテーマ）",
+  },
+  {
+    scene: "admin-users&view=list",
+    label: "一覧: 名前なしを外し、最後に使った順（上に全体のグラフ）",
   },
 ];
 
@@ -438,6 +475,12 @@ document.documentElement.style.setProperty(
     }
   }
 }
+/**
+ * 暗いテーマで見る(`?theme=dark`)。本番は `__root.tsx` が `<html>` に `.dark` を付ける。
+ * 端末の設定を変えずに、Deploy Preview の帯から明るい・暗いを見比べられるようにする
+ * （2026-10-02 管理画面のグラフ。色はトークンだけなので、両方で読めるかを目で確かめる）。
+ */
+if (q.get("theme") === "dark") document.documentElement.classList.add("dark");
 /**
  * 単語の詳細で、既定では畳んである節を先頭に出して撮る(`?show=real_usage`)。
  * 節の並びと表示は localStorage から読むので、これも React の前に書く。

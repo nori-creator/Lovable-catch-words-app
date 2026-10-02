@@ -1,7 +1,6 @@
 import { selfieCaptureEnabled, setSelfieCaptureEnabled } from "@/lib/product-features";
 import { useReadableError } from "@/lib/errors";
 import { useMotion } from "@/components/motion-provider";
-import { parseMotionChoice } from "@/lib/motion-pref";
 import { createFileRoute, Link, useNavigate, useRouter } from "@tanstack/react-router";
 import { DEFAULT_TARGET_LANGUAGE, webTargetChoices } from "@/lib/target-lang";
 import { setTargetLang, storedTargetLang } from "@/lib/target-lang-pref";
@@ -852,7 +851,7 @@ function SettingsPage() {
                 { value: "system", label: t("settings.system") },
               ]}
             />
-            <MotionChoiceRow />
+            <MotionToggleRow />
             <InstallAppCard />
             {/* ホームの壁紙。**選ぶ所はここだけ**（ホームの上の丸はやめた —
                 オーナー指示 2026-09-23）。押せば、その場で端末に残る。 */}
@@ -1275,34 +1274,20 @@ export function AvatarRow() {
  * 2026-09-15 に欄ごと消してあったが、仕組み（`lib/motion-pref.ts` と
  * `components/motion-provider.tsx`）は丸ごと残してあったので、
  * **置き直すのは欄1つだけ**。
- *
- * ## 「自動」を残す理由
- * 既定は今までどおり「見せる」。端末の「動きを減らす」設定に従うかどうかを
- * 本人が選べる形にしてある — 前庭障害のある人には大きく動く絵が実害になる
- * ので、**端末に従う道を閉じない**。
- *
- * ## 何が起きているかを字で出す
- * 「減らす」とだけ書いても、端末の設定で消えている人には伝わらない
- * （自分で入れた覚えが無い）。端末がいま何を返しているかをそのまま出す。
  */
-export function MotionChoiceRow() {
+export function MotionToggleRow() {
   const t = useT();
   // 下の説明文は消した（オーナー指示 2026-09-23「アニメーションの下の説明文消して」）。
-  const { choice, setChoice } = useMotion();
+  // **3択（自動・見せる・減らす）をやめ、オンとオフのスイッチにした**（オーナー指示
+  // 2026-10-02「スライドでオンとオフになるボタンに」）。いま実際に動いているか（`mode`）を
+  // そのまま映すので、端末に従う「自動」で保存していた人も、見た目どおりの位置から始まる。
+  const { mode, setChoice } = useMotion();
   return (
-    <div>
-      <ChoiceRow
-        cols={3}
-        label={t("settings.motion")}
-        value={choice}
-        onChange={(v) => setChoice(parseMotionChoice(v))}
-        options={[
-          { value: "system", label: t("settings.motionSystem") },
-          { value: "full", label: t("settings.motionFull") },
-          { value: "reduce", label: t("settings.motionReduce") },
-        ]}
-      />
-    </div>
+    <ToggleRow
+      label={t("settings.motion")}
+      value={mode === "full"}
+      onChange={(on) => setChoice(on ? "full" : "reduce")}
+    />
   );
 }
 

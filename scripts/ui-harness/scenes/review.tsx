@@ -7,7 +7,7 @@
  * 似たHTMLをこちらに書き写すことはしない — それをやると
  * 「直しても画像が変わらない検査」に戻る。
  */
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { DEFAULT_TARGET_LANGUAGE } from "@/lib/target-lang";
 import { stabilityOf } from "@/lib/srs";
@@ -21,9 +21,11 @@ import {
   MemoryOverviewPanel,
   ReviewHeader,
   ReviewPreparing,
+  ReviewSessionHeader,
 } from "@/routes/_authenticated/review";
 import type { DueReviewCard } from "@/lib/reviews.functions";
 import { MiniRetentionGraph } from "@/components/MiniRetentionGraph";
+import { buildMemoryDesignsFixture } from "./memory-designs-fixture";
 
 /** 4択の上に出る写真。縦長（実物のキャッチ写真はだいたい縦）。 */
 const PHOTO =
@@ -81,10 +83,35 @@ export function ReviewLoadingScene() {
   return (
     <>
       <section className="mb-4">
-        <ReviewHeader answered={null} total={null} progress={0} />
+        <ReviewHeader progress={0} />
       </section>
       <ReviewPreparing />
     </>
+  );
+}
+
+/**
+ * **復習タブの上部そのもの**（見出し・記憶の帯・一覧・全体のグラフ）を、本番の
+ * `ReviewSessionHeader` で描く（オーナー指示 2026-10-02「現行をベースに改良」）。
+ *
+ * 見るところ: 見出しに「0 / 10」のような数が無いこと、全体のグラフの線が1色で、
+ * 地が記憶の段の帯（薄れぎみ・覚えている・はっきり）に分かれて名前が読めること。
+ * `?open=0` で畳んだ形、`?theme=dark` で暗い画面（`main.tsx` が付ける）。
+ * データは `memory-designs-fixture.ts`（135語・決まった値）。
+ */
+export function ReviewHeaderScene({ q }: { q: URLSearchParams }) {
+  const fixture = useMemo(buildMemoryDesignsFixture, []);
+  const [open, setOpen] = useState(q.get("open") !== "0");
+  return (
+    <ReviewSessionHeader
+      compact={false}
+      header={{ progress: 0, reviewStreak: 7 }}
+      memOverview={{ danger: 0, fuzzy: 0, solid: 0, words: fixture.words }}
+      memListOpen={open}
+      onToggle={() => setOpen((o) => !o)}
+      onOpenWord={() => {}}
+      series={fixture.series}
+    />
   );
 }
 
@@ -115,7 +142,7 @@ export function ReviewMemoryScene({ q }: { q: URLSearchParams }) {
     <section className="mb-4">
       {/* 続いている日数はここに出る。**0 のときは出ない**のが正しい姿なので、
           読み込み中の面(下)で「出ないこと」も一緒に見る。 */}
-      <ReviewHeader answered={3} total={12} progress={25} reviewStreak={7} />
+      <ReviewHeader progress={25} reviewStreak={7} />
       {/* 実物と同じく `<button>` で包む。開いた側も撮る — 印の向きが
           変わるだけの差だが、変わらなければ押しても何も起きないのと同じ。 */}
       <button
@@ -223,12 +250,12 @@ export function ReviewChoiceScene({ q }: { q: URLSearchParams }) {
     return () => window.cancelAnimationFrame(frame);
   }, []);
   // **見出しも一緒に描く。** 札だけを描いていたせいで、独立監査が
-  // 「クイズに進捗(3/12)が無い」と指摘した — 実物には最初からある。
+  // 「クイズに進捗が無い」と指摘した — 実物には最初からある（数は出さない。2026-10-02）。
   // 部品だけを切り出した絵は、その画面の絵ではない。
   return (
     <>
       <section className="mb-2 shrink-0">
-        <ReviewHeader answered={3} total={12} progress={25} />
+        <ReviewHeader progress={25} />
       </section>
       <LightModeCard card={card} onNext={() => {}} onOpenMemory={() => {}} />
     </>

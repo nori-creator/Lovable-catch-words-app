@@ -2172,7 +2172,7 @@ describe("独自ドメインへ移れる形になっているか", () => {
  * 名前が `ScrapbookAlbum` → `DayCollage` に変わった（オーナー指示
  * 2026-09-22「ホームを開いたら雑誌のように撮った画像が有機的に重なり合って
  * 写真が並ぶようにしたい」）。**中身は同じ台紙**で、置き方の計算だけが
- * 升目から誌面の石積み（`packCollage`）に変わっている。
+ * 升目から誌面の石積み、そして本のページの形の台紙（`album-page-fit.ts`）に変わっている。
  */
 function albumOnly(): string {
   const home = codeOnly(read("routes/_authenticated/home.tsx"));
@@ -2262,7 +2262,8 @@ describe("ホームのアルバムの長押し", () => {
     // そもそも表現できない。
     expect(home).toMatch(/pointers: Map<number, Pt>/);
     expect(home).toMatch(/gestureDelta\(g\.startGrip, gripOf\(g\.pointers\)\)/);
-    expect(home).toMatch(/applyDelta\(g\.startPlace, d, board\.w, boardH\)/);
+    // 下へはページの底まで（台紙はページの形。2026-10-02）。
+    expect(home).toMatch(/applyDelta\(g\.startPlace, d, board\.w, ALBUM_PAGE_RATIO\)/);
   });
 
   it("**指の数が変わったら握りを取り直す**（2本目を置いた瞬間に札が飛ばない）", () => {
@@ -2423,7 +2424,7 @@ describe("ホームのアルバムの長押し", () => {
     // 別々に出すと、積んだ高さと実際の高さがずれて字の上に札が乗る。
     // 計算は `lib/album-day-layout.ts` の1本（ホームと本の左ページが共有）。
     expect(home).toMatch(/const \{ frameRatio, settledById \} = useMemo/);
-    expect(layout.match(/ratio: frameRatio\(s\.id\)/g) ?? []).toHaveLength(3);
+    expect(layout.match(/ratio: frameRatio\(s\.id\)/g) ?? []).toHaveLength(2);
   });
 
   /**
@@ -4307,25 +4308,80 @@ describe("N. 下のタブ帯と、札を開く動き", () => {
    * 写した先が古い式のまま残ると、同じ語が画面ごとに違う段になる
    * （実際、復習画面と曲線の2か所に写されていた）。
    */
-  it("安定度の式は1か所にあり、狙いは 90%", () => {
+  it("忘却曲線の式は1か所（`srs.ts`、FSRS）にあり、狙いは 90%、撮っただけの語は 0%", () => {
     const srs = codeOnly(read("lib/srs.ts"));
     expect(srs).toMatch(/export const TARGET_RETENTION = 0\.9;/);
-    expect(srs).toMatch(
-      /const STABILITY_K = 1 \/ \(BASE_EASE \* Math\.log\(1 \/ TARGET_RETENTION\)\);/,
-    );
-    expect(srs).toMatch(
-      /Math\.max\(0\.5, Math\.max\(1, interval_days\) \* Math\.max\(1, ease\) \* STABILITY_K\)/,
-    );
-    // 写しが残っていないこと。
+    // 2026-10-02: 式は `ts-fsrs` のもの（FSRS-6）。安定度は列の `interval_days` そのもの。
+    expect(srs).toMatch(/from "ts-fsrs"/);
+    expect(srs).toMatch(/request_retention: TARGET_RETENTION/);
+    expect(srs).toMatch(/export function forgettingCurve\(/);
+    // 未復習（起点が無い／安定度 0）は 0（オーナー指示 2026-10-02）。
+    expect(srs).toMatch(/if \(s <= 0 \|\| lastReviewMs == null\) return 0;/);
+    // 写しが残っていないこと（曲線の式を自前で書いた所が無い）。
     for (const file of [
       "routes/_authenticated/review.tsx",
       // 計算はグラフの部品から分けた（起動時に recharts を読まないため）。
       "lib/memory-curve-from.ts",
+      "lib/memory-curve.ts",
+      "lib/retention-series.ts",
+      "lib/reviews.functions.ts",
     ]) {
       const src = codeOnly(read(file));
+      expect([file, /Math\.exp\(-/.test(src)]).toEqual([file, false]);
       expect([file, /Math\.max\(0\.5,[^\n]*Math\.max\(1, ease\)/.test(src)]).toEqual([file, false]);
-      expect([file, src.includes("stabilityOf(")]).toEqual([file, true]);
     }
+    for (const file of ["routes/_authenticated/review.tsx", "lib/memory-curve-from.ts"]) {
+      expect([file, codeOnly(read(file)).includes("stabilityOf(")]).toEqual([file, true]);
+    }
+    // 出す札も一覧も、% の起点は**最後の復習だけ**（撮った日を起点にしない）。
+    const reviews = codeOnly(read("lib/reviews.functions.ts"));
+    expect(reviews).not.toMatch(/retentionNow\([^\n]*anchorMs/);
+    expect(reviews).toMatch(
+      /const lastMs = row\.last_reviewed_at \? new Date\(row\.last_reviewed_at\)\.getTime\(\) : null;/,
+    );
+  });
+
+  /**
+   * **見出しに数を出さない**（オーナー指示 2026-10-02「今日覚えるべき単語などの数字を
+   * 出すと、やるべきことがたまった時にやる気がなくなるから出さない」）。
+   * 「0 / 10」の数字と「あと N 語」の N をやめた。進み具合はバーだけ。
+   */
+  it("復習の見出しと束の終わりに、残りの数を出さない", () => {
+    const rv = codeOnly(read("routes/_authenticated/review.tsx"));
+    const head = rv.slice(
+      rv.indexOf("export function ReviewHeader("),
+      rv.indexOf("export function DoneState"),
+    );
+    expect(head).not.toMatch(/formatCount\(answered\)/);
+    expect(head).not.toMatch(/\{formatCount\(total\)\}/);
+    expect(head).toMatch(/width: `\$\{progress\}%`/);
+    expect(rv).toMatch(/\{t\("review\.moreHint"\)\}/);
+    const i18n = read("lib/i18n.tsx");
+    const at = i18n.indexOf('"review.moreHint": {');
+    expect(i18n.slice(at, i18n.indexOf("},", at))).not.toMatch(/\{n\}/);
+  });
+
+  /**
+   * **全体のグラフは線が1色で、地を記憶の段の帯に分ける**（オーナー指示 2026-10-02
+   * 「グラフ自体の色を変えるのではなく、グラフの域範囲で色を変える」）。
+   * 帯の色はトークン（`.mem-band`）で持ち、明暗で混ぜる割合を変える。
+   */
+  it("全体のグラフ: 線は1色、地は段の帯（トークンで明暗に追従）", () => {
+    const mini = codeOnly(read("components/MiniRetentionGraph.tsx"));
+    expect(mini).not.toMatch(/levelGradient\(/);
+    // 帯は単語ごとの曲線と共通の部品（2026-10-02「2つのグラフのデザインと機能を統一して」）。
+    expect(mini).toMatch(/bandAreas\(bands, \[lo, hi\], bandLabel\)/);
+    const parts = codeOnly(read("components/memory-chart-parts.tsx"));
+    expect(parts).toMatch(/<ReferenceArea/);
+    expect(parts).toMatch(/className=\{`mem-lv-\$\{b\.level\} mem-band`\}/);
+    expect(parts).toMatch(/className=\{`mem-lv-\$\{b\.level\} mem-band-label`\}/);
+    expect((mini.match(/stroke="var\(--primary\)"/g) ?? []).length).toBe(2);
+    const css = read("styles.css");
+    expect(css).toMatch(
+      /\.mem-band \{\n\s*fill: color-mix\(in oklab, var\(--mem\) var\(--mem-band-mix\), var\(--card\)\);/,
+    );
+    const dark = css.slice(css.indexOf("--mem-band-mix: 26%"), css.indexOf(".mem-band {"));
+    expect(dark).toMatch(/\.dark,[\s\S]*--mem-band-mix: 34%/);
   });
 
   /**
@@ -4409,7 +4465,7 @@ describe("N. 下のタブ帯と、札を開く動き", () => {
  * > 1つの作品になるように。
  *
  * 縦一列の道（`DayTimeline`）は**消した**。置き方の計算は
- * `lib/album-place.ts` の `packCollage`（試験は `album-collage.test.ts`）。
+ * `lib/album-day-layout.ts` → `lib/album-page-fit.ts`（試験は `album-day-layout.test.ts`）。
  */
 describe("ホームは今日の誌面", () => {
   const collageOnly = () => {
@@ -4593,10 +4649,12 @@ describe("ホームは今日の誌面", () => {
     const home = codeOnly(read("routes/_authenticated/home.tsx"));
     const layout = codeOnly(read("lib/album-day-layout.ts"));
     expect(layout).toMatch(/export const MIN_TAP_PX = 44;/);
-    // 2026-09-27: 細い画面で時刻が次の行へ回るぶん（`timeLine`）も足す。
+    // 2026-09-27: 細い欄で時刻が次の行へ回るぶん（`timeLine`）も足す。2026-10-02 からは
+    // 欄の幅が列の数で変わるので、その札の幅（`plainCardPx`）から決める。
     expect(layout).toMatch(
-      /Math\.max\(\s*PLAIN_WORD_PX \+ timeLine \+ \(hasNote\.get\(id\) \? CAP_NOTE_PX : 0\),\s*MIN_TAP_PX,?\s*\)/,
+      /Math\.max\(\s*PLAIN_WORD_PX \+ timeLine \+ \(s\.caption \? CAP_NOTE_PX : 0\),\s*MIN_TAP_PX,?\s*\)/,
     );
+    expect(layout).toMatch(/export function plainCardPx\(/);
     expect(home).toMatch(/data-plain=\{heroUrl \? undefined : ""\}/);
     expect(cssBlock("[data-plain] {", "\n}")).toMatch(/min-height: 2\.75rem/);
   });
@@ -4613,7 +4671,7 @@ describe("ホームは今日の誌面", () => {
     // 余白 ＋ 一言との間 4px で 38px。
     expect(layout).toMatch(/export const CAP_ROW_PX = 38;/);
     expect(layout).toMatch(/export const CAP_NOTE_PX = 56;/);
-    // 台紙の幅で割って、`packCollage` が積む割合に直す。
+    // 台紙の幅で割って、置き方の計算（`album-page-fit.ts`）が積む割合に直す。
     expect(layout).toMatch(/\(CAP_ROW_PX \+ \(s\.caption \? CAP_NOTE_PX : 0\)\) \/ boardW/);
     // 一言の行数には CSS 側で上限が在る（どれだけ長くても越えない）。
     expect(cssBlock(".collage__note {", "\n}")).toMatch(/-webkit-line-clamp: 3/);
@@ -4787,10 +4845,23 @@ describe("ホームは今日の誌面", () => {
     );
     // 2026-09-24「過去のものが多すぎで画面で確認できないから、過去のものは全て
     // 削除して」: 帯には**今回の依頼の面だけ**。
-    // 2026-09-30「パスワード忘れた時にリセットできるようにして」の回。先頭はログイン。
-    expect(list.slice(0, list.indexOf("},"))).toMatch(/scene: "auth&email=1"/);
-    // 前の回（単語の詳細の注音・チュートリアルの4択）の面は残さない。
-    expect(list).not.toMatch(/scene: "word-card"/);
+    // 2026-10-02「記憶のグラフ: 現行をベースに改良」の回。先頭は本番の復習の上部そのもの
+    // （数なし・段の帯のグラフ）。見比べ（現在・A〜D）はその後ろ。
+    expect(list.slice(0, list.indexOf("},"))).toMatch(/scene: "review-header"/);
+    expect(list).toMatch(/scene: "review-header&theme=dark"/);
+    expect(list).toMatch(/scene: "memory-designs&v=current"/);
+    expect(main).toContain('"review-header": ReviewHeaderScene');
+    // 前の回（パスワードの再設定）の面は残さない。
+    expect(list).not.toMatch(/scene: "auth&email=1"/);
+    expect(list).not.toMatch(/scene: "reset-password/);
+    // 同じ回の他の面（本の左ページ・4項目を外したカード・アニメーションのスイッチ）。
+    expect(list).toMatch(/scene: "book-page"/);
+    expect(list).toMatch(/scene: "word-card"/);
+    expect(list).toMatch(/scene: "settings-toggles"/);
+    // 前の回（チュートリアルの4択）の面は残さない。
+    // 同じ回の管理画面（利用者ごとのグラフ・名前なしを外す・最後に使った順）。
+    expect(list).toMatch(/scene: "admin-users&view=user"/);
+    expect(list).toMatch(/scene: "admin-users&view=list"/);
     expect(list).not.toMatch(/scene: "first-catch&step=review"/);
     // 前の回（R26/R27）の面は残さない。
     expect(list).not.toMatch(/scene: "home-shelf"/);
@@ -5220,8 +5291,13 @@ describe("記憶のグラフ（オーナー指摘 2026-09-22「記憶のグラ�
   const review = codeOnly(read("routes/_authenticated/review.tsx"));
 
   it("**横に辿り始めたら縦の巻き取りに指を取られない**（R11「押したまま横に滑らせると引っかかる」）", () => {
-    expect(chart).toMatch(/addEventListener\("touchmove", move, \{ passive: false \}\)/);
-    expect(chart).toMatch(/if \(lock === "x" && e\.cancelable\) e\.preventDefault\(\);/);
+    // 辿る部品は全体のグラフと共用になった（2026-10-02、`CurveScrubber.tsx`）。
+    const scrub = codeOnly(read("components/CurveScrubber.tsx"));
+    expect(scrub).toMatch(/addEventListener\("touchmove", move, \{ passive: false \}\)/);
+    expect(scrub).toMatch(/if \(lock === "x" && e\.cancelable\) e\.preventDefault\(\);/);
+    // 単語ごとの曲線と、復習の上の全体のグラフの**両方**で辿れる。
+    expect(chart).toMatch(/<CurveScrubber/);
+    expect(codeOnly(read("components/MiniRetentionGraph.tsx"))).toMatch(/<CurveScrubber/);
   });
 
   it("**復習した回数は履歴の行数**（SM-2 の「続けて正解した回数」ではない）", () => {
@@ -5245,7 +5321,9 @@ describe("記憶のグラフ（オーナー指摘 2026-09-22「記憶のグラ�
     // 引く縦線は**復習で100%へ戻る所だけ**（実線・灰色、2026-09-27）。補助線ではない。
     expect(lines.match(/<ReferenceLine/g)?.length ?? 0).toBe(1);
     expect(lines).toMatch(/jumps\.map\(\(j\) => \(\s*<ReferenceLine/);
-    expect(lines).toMatch(/<CartesianGrid vertical=\{false\} stroke="var\(--border\)" \/>/);
+    // 格子の代わりに、全体のグラフと同じ段の帯を敷く（2026-10-02 統一）。
+    expect(lines).toMatch(/bandAreas\(bands, \[lo, hi\], bandLabel\)/);
+    expect(lines).not.toMatch(/<CartesianGrid/);
     // 全体のグラフも同じ。
     // 全体のグラフは部品に分けた（押すまで読み込まない。2026-09-27）。
     const miniSrc = read("components/MiniRetentionGraph.tsx");
@@ -5255,10 +5333,13 @@ describe("記憶のグラフ（オーナー指摘 2026-09-22「記憶のグラ�
     expect(miniLines).not.toMatch(/ReferenceLine/);
   });
 
-  it("**今日に点**、線は**縦軸の値で塗り分け**、目盛りは明確な日だけ", () => {
+  it("**今日に点**、線は**主色1本・地を段の帯**（全体のグラフと統一）、目盛りは明確な日だけ", () => {
     expect(chart).toMatch(/<ReferenceDot\s+x=\{0\}\s+y=\{curve\.todayR\}/);
-    expect(chart).toMatch(/levelGradient\(\s*`mc-past-/);
-    expect(chart).toMatch(/levelGradient\(\s*`mc-future-/);
+    // 2026-10-02「2つのグラフのデザインと機能を統一して」: 線を値で塗り分けるのをやめた。
+    expect(chart).not.toMatch(/levelGradient\(/);
+    expect((chart.match(/stroke="var\(--primary\)"/g) ?? []).length).toBeGreaterThanOrEqual(2);
+    expect(chart).toMatch(/<ChartLegend reviews=/);
+    expect(codeOnly(read("components/MiniRetentionGraph.tsx"))).toMatch(/<ChartLegend \/>/);
     expect(chart).toMatch(/ticks=\{curve\.ticks\.map/);
     // 同じ日の複数回は ×N を添える（重なって数が減って見えないように）。
     expect(chart).toMatch(/groupReviews\(curve\.reviews\)/);
@@ -6374,6 +6455,8 @@ describe("R26（2026-09-30 の全体点検で見つけた不具合）", () => {
 /**
  * R27（オーナー指示 2026-09-30）: 日記の左ページ = ホームのアルバムをそのまま再現し、ホームと
  * 同じ操作。ひと言は単語の詳細・ホームのアルバム・日記のそれぞれから直せる。
+ * 2026-10-02 決定「台紙を本のページの形にそろえる」: 台紙は1枚（`ALBUM_PAGE_RATIO`）、本で
+ * 並べ直す枝は無い。本の左ページの長押しはホームと同じ並べ替えの面を**別の面**に開く。
  */
 describe("R27: 日記の左ページは元の紙のまま、置き方だけホームと同じ", () => {
   const layout = codeOnly(read("lib/album-day-layout.ts"));
@@ -6389,12 +6472,44 @@ describe("R27: 日記の左ページは元の紙のまま、置き方だけホ�
       /albumHeroUrl\(s, \{ surfaceRoles: roles, photoPref: pref, thumb: true \}\)/,
     );
     expect(layout).toMatch(/const byOrder/);
+    // 自動の置き方はページの形の台紙に全部収める（`album-page-fit.ts` の1本）。
+    expect(layout).toMatch(/fitAlbumPage\(/);
+    expect(layout).toMatch(/h: ALBUM_PAGE_RATIO - 2 \* PAGE_INSET_Y/);
+    expect(codeOnly(read("lib/album-place.ts"))).toMatch(
+      /export const MIN_BOARD_H = ALBUM_PAGE_RATIO;/,
+    );
+    expect(codeOnly(read("lib/album-place.ts"))).not.toMatch(/export function packCollage/);
+  });
+
+  it("本は同じ台紙をページに一様に縮めて貼るだけ（本だけ並べ直す枝は無い）", () => {
+    expect(tex).toMatch(/const bw = Math\.min\(boardMaxW, availH \/ boardH\);/);
+    expect(tex).not.toMatch(/paintFlowedPhotos|keepHomeLayout|fitAlbumPage/);
+    // 日付は左右のページともアプリの字体（手書きは人が書いた一言・日記だけ）。
+    expect(tex).toMatch(/function paintDateHeading\(/);
+    expect(tex).toMatch(/ctx\.font = `600 44px \$\{SANS\}`;/);
+    expect(tex).not.toMatch(/inkText\(ctx, dateLabel\(s\)/);
+  });
+
+  it("本の左ページの長押し → ホームと同じ並べ替えの面（本の上には重ねない）", () => {
+    expect(engine).toMatch(/onPageLongPress\?: \(side: "left" \| "right"\) => void;/);
+    expect(engine).toMatch(/private static readonly LONG_PRESS_MS = 550;/);
+    expect(shelf).toMatch(
+      /onAlbumLongPress\?: \(day: \{ y: number; m: number; d: number \}\) => void;/,
+    );
+    expect(shelf).toMatch(/if \(side !== "left" \|\| !d \|\| !longPressRef\.current\) return;/);
+    // 面はホームが持つ（`HomeShelf` はアルバムの UI を描かない）。
+    expect(shelf).not.toMatch(/DayCollage|BookAlbumEditor/);
+    expect(home).toMatch(/export function BookAlbumEditor\(/);
+    expect(home).toMatch(/<BookAlbumEditor/);
+    expect(home).toMatch(/startEditing\n\s+onDoneEditing=\{onClose\}/);
+    // 下へはページの底まで（台紙はページの形）。
+    expect(home).toMatch(/applyDelta\(g\.startPlace, d, board\.w, ALBUM_PAGE_RATIO\)/);
   });
 
   it("本の絵は置き方（大きさ・向き・重なり）で貼り、見た目は元の紙（白い台紙・マスキングテープ・手書きの一言3行）", () => {
     expect(tex).toMatch(/function paintPlacedPhotos\(/);
     expect(tex).toMatch(/s\.photos\.every\(\(p\) => p\.place\)/);
-    expect(tex).toMatch(/clampLines\(ctx, p\.note, capW, 3\)/);
+    expect(tex).toMatch(/clampLines\(ctx, p\.note, o\.capW, 3\)/);
     expect(tex).toMatch(/rgba\(214,190,140,0\.62\)/);
     expect(shelf).toMatch(/monthDays\(shown, b\.y, b\.m, 60\)/);
   });

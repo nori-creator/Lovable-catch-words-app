@@ -1,14 +1,12 @@
-import { useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
+import { useMemo, useRef, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import {
   ComposedChart,
-  Area,
   Line,
   ReferenceLine,
   XAxis,
   YAxis,
   ResponsiveContainer,
-  CartesianGrid,
   Customized,
   ReferenceDot,
 } from "recharts";
@@ -17,15 +15,27 @@ import {
   buildMemoryCurve,
   curveValueAt,
   curveValueAtExact,
-  gradientStops,
   groupReviews,
-  levelOfR,
   type CurveEvent,
   type CurvePoint,
   type CurveTick,
   type MemoryCurve,
 } from "@/lib/memory-curve";
 import { stabilityOf } from "@/lib/srs";
+import {
+  CurveScrubber,
+  ScaleProbe,
+  type ChartGeo,
+  type ScrubLayerProps,
+} from "@/components/CurveScrubber";
+import {
+  axisTicks,
+  bandAreas,
+  ChartLegend,
+  chartYMin,
+  levelBands,
+  useBandLabel,
+} from "@/components/memory-chart-parts";
 
 import { memoryCurveFrom, type HistoryPoint } from "@/lib/memory-curve-from";
 export { memoryCurveFrom, type HistoryPoint };
@@ -59,16 +69,6 @@ export function MemoryCurveChart({
 }) {
   const t = useT();
   const locale = localeOf(useUiLang());
-  const uid = useId().replace(/:/g, "");
-  const past = levelGradient(
-    `mc-past-${uid}`,
-    curve.past.map((p) => p.r),
-  );
-  const future = levelGradient(
-    `mc-future-${uid}`,
-    curve.future.map((p) => p.r),
-  );
-  const pastFill = levelFill(`mc-fill-${uid}`);
   /**
    * **復習で100%へ戻る所は線を切る**（オーナー指示 2026-09-27「記憶の
    * グラフをより細かく」）。線は値で塗り分けているので、縦に戻る所が
@@ -76,7 +76,14 @@ export function MemoryCurveChart({
    * 灰色の縦線で別に描く（`jumps`）。
    */
   const { drawn: pastDrawn, jumps } = useMemo(() => splitJumps(curve.past), [curve.past]);
-  const color = (r: number) => `var(--mem-${levelOfR(r)})`;
+  // 線・点の色は主色1つ（2026-10-02「2つのグラフのデザインと機能を統一して」）。
+  // 記憶の段は線の色ではなく、地の帯で読む（`memory-chart-parts.tsx`）。
+  const color = () => "var(--primary)";
+  // 縦軸の下端は**覚えた後の値**で決める。撮っただけの区間（0%）まで入れると、肝心の
+  // 曲線が上の3割に詰まって読めない。0% からの立ち上がりは下端から伸びる線で見える。
+  const yMin = chartYMin([...curve.past, ...curve.future].map((p) => p.r).filter((r) => r > 0));
+  const bands = levelBands(yMin);
+  const bandLabel = useBandLabel();
   const dateOf = (d: number) =>
     new Date(nowMs + d * DAY).toLocaleDateString(locale, { month: "numeric", day: "numeric" });
   const [lo, hi] = curve.domain;
@@ -107,46 +114,7 @@ export function MemoryCurveChart({
       {/* 縦軸が何の % かを言う。写真の右上・一覧の % と**同じ数**
           （いま思い出せる確率。`memory.ts` の `memoryOf`）。 */}
       <p className="mb-1 text-caption text-muted-foreground">{t("curve.axisNote")}</p>
-      <div
-        className="mb-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-caption text-muted-foreground"
-        aria-hidden
-      >
-        <span className="inline-flex items-center gap-1">
-          <svg width="18" height="6">
-            <line x1="1" y1="3" x2="17" y2="3" stroke="var(--mem-4)" strokeWidth="2.5" />
-          </svg>
-          {t("curve.legendPast")}
-        </span>
-        <span className="inline-flex items-center gap-1">
-          <svg width="18" height="6">
-            <line
-              x1="1"
-              y1="3"
-              x2="17"
-              y2="3"
-              stroke="var(--mem-2)"
-              strokeWidth="2.5"
-              strokeDasharray="4 3"
-            />
-          </svg>
-          {t("curve.legendFuture")}
-        </span>
-        {curve.reviews.length > 0 && (
-          <span className="inline-flex items-center gap-1">
-            <svg width="10" height="10">
-              <circle
-                cx="5"
-                cy="5"
-                r="3.5"
-                fill="var(--card)"
-                stroke="var(--mem-5)"
-                strokeWidth="2"
-              />
-            </svg>
-            {t("curve.legendReview")}
-          </span>
-        )}
-      </div>
+      <ChartLegend reviews={curve.reviews.length > 0} />
 
       <div
         className="relative h-52 w-full"
@@ -155,12 +123,8 @@ export function MemoryCurveChart({
       >
         <ResponsiveContainer width="100%" height="100%">
           <ComposedChart margin={{ top: 22, right: 14, bottom: 0, left: -18 }}>
-            <defs>
-              {past.def}
-              {future.def}
-              {pastFill.def}
-            </defs>
-            <CartesianGrid vertical={false} stroke="var(--border)" />
+            {/* 段の帯。線より先に描く（下に敷く）。全体のグラフと同じ部品。 */}
+            {bandAreas(bands, [lo, hi], bandLabel)}
             <XAxis
               type="number"
               dataKey="d"
@@ -186,43 +150,35 @@ export function MemoryCurveChart({
                 />
               )}
             />
-            {/* 25% と 75% の線も引く（オーナー指示 2026-09-23）。 */}
+            {/* 目盛りは段の境目（全体のグラフと同じ）。 */}
             <YAxis
-              domain={[0, 100]}
-              ticks={[0, 25, 50, 75, 100]}
+              domain={[yMin, 100]}
+              ticks={axisTicks(yMin)}
+              interval={0}
               tickFormatter={(v) => `${v}%`}
               tickLine={false}
               axisLine={false}
               stroke="var(--muted-foreground)"
-              fontSize={11}
+              fontSize={10}
+              allowDataOverflow
             />
             <Line
               data={curve.future}
               dataKey="r"
               type="linear"
-              stroke={future.stroke}
+              stroke="var(--primary)"
               strokeWidth={2.5}
               strokeDasharray="6 5"
               strokeLinecap="round"
               dot={false}
               isAnimationActive={false}
             />
-            {/* 線の下をごく薄く塗る（段の色）。どの段にどれだけ居たかが面で分かる。 */}
-            <Area
-              data={pastDrawn}
-              dataKey="r"
-              type="linear"
-              stroke="none"
-              fill={pastFill.fill}
-              baseValue={0}
-              connectNulls={false}
-              isAnimationActive={false}
-            />
             {jumps.map((j) => (
               <ReferenceLine
                 key={`jump-${j.d}`}
                 segment={[
-                  { x: j.d, y: j.from },
+                  // 撮っただけ（0%）からの立ち上がりは、縦軸の下端から引く（軸の外へ出さない）。
+                  { x: j.d, y: Math.max(j.from, yMin) },
                   { x: j.d, y: 100 },
                 ]}
                 stroke="var(--muted-foreground)"
@@ -235,7 +191,7 @@ export function MemoryCurveChart({
               data={pastDrawn}
               dataKey="r"
               type="linear"
-              stroke={past.stroke}
+              stroke="var(--primary)"
               strokeWidth={3}
               strokeLinejoin="round"
               strokeLinecap="round"
@@ -250,7 +206,7 @@ export function MemoryCurveChart({
                 y={100}
                 r={4}
                 fill="var(--card)"
-                stroke="var(--mem-5)"
+                stroke="var(--primary)"
                 strokeWidth={2}
                 label={
                   g.n > 1
@@ -270,7 +226,7 @@ export function MemoryCurveChart({
                 x={curve.bestDay}
                 y={futureValueAt(curve, curve.bestDay)}
                 r={5.5}
-                fill={color(futureValueAt(curve, curve.bestDay))}
+                fill={color()}
                 stroke="var(--card)"
                 strokeWidth={2.5}
               />
@@ -279,7 +235,7 @@ export function MemoryCurveChart({
               x={0}
               y={curve.todayR}
               r={7}
-              fill={color(curve.todayR)}
+              fill={color()}
               stroke="var(--card)"
               strokeWidth={3}
               label={
@@ -348,364 +304,6 @@ export function MemoryCurveChart({
       </div>
     </div>
   );
-}
-
-type AxisScale = { scale: ((v: number) => number) & { invert?: (px: number) => number } };
-type ScrubLayerProps = {
-  xAxisMap?: Record<string, AxisScale>;
-  yAxisMap?: Record<string, AxisScale>;
-  offset?: { left: number; top: number; width: number; height: number };
-};
-
-type ChartGeo = {
-  x: (d: number) => number;
-  y: (r: number) => number;
-  invertX: (px: number) => number;
-  left: number;
-  top: number;
-  width: number;
-  height: number;
-};
-
-/**
- * グラフの縮尺を**読むだけ**の部品。何も描かない。
- * Recharts が描くたびに、日数→横の位置、% →縦の位置の換算を `into` に置く。
- */
-function ScaleProbe({
-  xAxisMap,
-  yAxisMap,
-  offset,
-  into,
-}: ScrubLayerProps & { into: { current: ChartGeo | null } }) {
-  const xa = xAxisMap ? Object.values(xAxisMap)[0] : undefined;
-  const ya = yAxisMap ? Object.values(yAxisMap)[0] : undefined;
-  if (xa?.scale.invert && ya && offset) {
-    const invert = xa.scale.invert;
-    into.current = {
-      x: (d) => xa.scale(d),
-      y: (r) => ya.scale(r),
-      invertX: (px) => invert(px),
-      left: offset.left,
-      top: offset.top,
-      width: offset.width,
-      height: offset.height,
-    };
-  }
-  return null;
-}
-
-/** 指に付いてくる速さ（秒）。小さいほどぴったり。 */
-const DRAG_TAU = 0.035;
-/** 押した所へ**滑って行く**速さ（秒）。押した瞬間に飛ばない。 */
-const GLIDE_TAU = 0.11;
-/** 点の高さが線に追いつく速さ（秒）。 */
-const Y_TAU = 0.05;
-
-/**
- * **指で辿る層**（オーナー指示 2026-09-23、2026-09-27 に作り直し）。
- *
- * > 「タップするとかくかく → なめらかに。グラフ上の点を持つと滑らかに
- * >  過去の状態を辿れるように」
- *
- * 前の版の「かくかく」の原因は3つあった:
- *  1. 指が動くたびに**グラフ全体を React で描き直していた**（1コマに収まらない）
- *  2. 点の高さを**1% に丸めた値**で置いていた（縦が階段状に跳ねる）
- *  3. 押した瞬間に点が**その場へ飛んでいた**
- *
- * いまは:
- *  1. 点・点線・札だけを**毎コマ直接**動かす（React の描き直しは始めと終わりの2回）
- *  2. 高さは丸めない値（`curveValueAtExact`）。札の数字だけ丸める
- *  3. 押した所へ**滑って行き**、押したまま動かすと指にぴったり付いてくる
- *     （指数的に近づける — 動きを減らす設定では即座に）
- *
- * 離しても点はそこに残る（読んでいる途中で消えない）。
- */
-function CurveScrubber({
-  geo,
-  domain,
-  valueAt,
-  color,
-  whenLabel,
-  onActive,
-}: {
-  geo: { current: ChartGeo | null };
-  domain: [number, number];
-  valueAt: (d: number) => number;
-  color: (r: number) => string;
-  whenLabel: (d: number) => string;
-  onActive: (on: boolean) => void;
-}) {
-  const svg = useRef<SVGSVGElement>(null);
-  const hLine = useRef<SVGLineElement>(null);
-  const vLine = useRef<SVGLineElement>(null);
-  const dot = useRef<SVGCircleElement>(null);
-  const rTag = useRef<SVGGElement>(null);
-  const dTag = useRef<SVGGElement>(null);
-  const s = useRef({
-    target: null as number | null,
-    cur: null as number | null,
-    /** 描いている点の高さ（px）。復習で 100% に戻る所も一瞬で飛ばさない。 */
-    y: null as number | null,
-    dragging: false,
-    tau: GLIDE_TAU,
-    raf: 0,
-    last: 0,
-  });
-  // 最新の関数を毎回読む（描き直しで作り直される）。
-  const fns = useRef({ valueAt, color, whenLabel, domain });
-  fns.current = { valueAt, color, whenLabel, domain };
-
-  useEffect(() => () => cancelAnimationFrame(s.current.raf), []);
-
-  const setTag = (g: SVGGElement | null, x: number, y: number, text: string, below: boolean) => {
-    if (!g) return;
-    const w = Math.max(28, text.length * 7 + 12);
-    const h = 18;
-    const left = below ? x - w / 2 : x - w - 2;
-    const top = below ? y + 2 : y - h / 2;
-    const rect = g.firstElementChild as SVGRectElement | null;
-    const label = g.lastElementChild as SVGTextElement | null;
-    rect?.setAttribute("x", String(left));
-    rect?.setAttribute("y", String(top));
-    rect?.setAttribute("width", String(w));
-    if (label) {
-      label.setAttribute("x", String(left + w / 2));
-      label.setAttribute("y", String(top + h / 2));
-      label.textContent = text;
-    }
-  };
-
-  /** 描く。高さが落ち着いたかを返す。 */
-  const draw = (d: number, alpha: number): boolean => {
-    const g = geo.current;
-    if (!g) return true;
-    const r = fns.current.valueAt(d);
-    const x = g.x(d);
-    const yTarget = g.y(r);
-    const st = s.current;
-    // 横は指に付く。縦は**線の上を追いかける** — 復習した日を跨ぐと線は
-    // 縦に 100% まで戻るので、そのまま置くと点が1コマで飛ぶ。
-    st.y = st.y == null ? yTarget : st.y + (yTarget - st.y) * alpha;
-    if (Math.abs(yTarget - st.y) < 0.3) st.y = yTarget;
-    const y = st.y;
-    const bottom = g.top + g.height;
-    hLine.current?.setAttribute("x1", String(g.left));
-    hLine.current?.setAttribute("x2", String(g.left + g.width));
-    hLine.current?.setAttribute("y1", String(y));
-    hLine.current?.setAttribute("y2", String(y));
-    vLine.current?.setAttribute("x1", String(x));
-    vLine.current?.setAttribute("x2", String(x));
-    vLine.current?.setAttribute("y1", String(g.top));
-    vLine.current?.setAttribute("y2", String(bottom));
-    if (dot.current) {
-      dot.current.setAttribute("cx", String(x));
-      dot.current.setAttribute("cy", String(y));
-      dot.current.style.fill = fns.current.color(Math.round(r));
-    }
-    setTag(rTag.current, g.left, y, `${Math.round(r)}%`, false);
-    setTag(dTag.current, x, bottom, fns.current.whenLabel(d), true);
-    return y === yTarget;
-  };
-
-  const tick = (now: number) => {
-    const st = s.current;
-    if (st.target == null) return;
-    const dt = st.last ? Math.min(0.05, (now - st.last) / 1000) : 1 / 60;
-    st.last = now;
-    const reduce = document.documentElement.dataset.motion === "reduce";
-    if (st.cur == null || reduce) st.cur = st.target;
-    else st.cur += (st.target - st.cur) * (1 - Math.exp(-dt / st.tau));
-    const span = fns.current.domain[1] - fns.current.domain[0];
-    const xSettled = Math.abs(st.target - st.cur) < span * 0.0005;
-    if (xSettled) st.cur = st.target;
-    const ySettled = draw(st.cur, reduce ? 1 : 1 - Math.exp(-dt / Y_TAU));
-    const settled = xSettled && ySettled;
-    if (settled && !st.dragging) {
-      st.raf = 0;
-      st.last = 0;
-      return;
-    }
-    st.raf = requestAnimationFrame(tick);
-  };
-
-  const toD = (clientX: number) => {
-    const g = geo.current;
-    const el = svg.current;
-    if (!g || !el) return null;
-    const box = el.getBoundingClientRect();
-    const px = Math.min(g.left + g.width, Math.max(g.left, clientX - box.left));
-    const [lo, hi] = fns.current.domain;
-    return Math.min(hi, Math.max(lo, g.invertX(px)));
-  };
-
-  const aim = (clientX: number, tau: number) => {
-    const d = toD(clientX);
-    if (d == null) return;
-    const st = s.current;
-    // 初めて触ったときは**今日の点から**滑り出す（どこから来たか分かる）。
-    if (st.cur == null) st.cur = 0;
-    st.target = d;
-    st.tau = tau;
-    if (!st.raf) st.raf = requestAnimationFrame(tick);
-  };
-
-  const [shown, setShown] = useState(false);
-
-  /**
-   * **横に辿り始めたら、画面の縦の巻き取りに指を渡さない**（オーナー報告「点を押したまま
-   * 横に滑らせると引っかかる」）。面は `touch-action: pan-y`（縦には画面を巻ける）なので、
-   * 横に辿る途中で指が少し縦にぶれると、ブラウザが巻き取りを始めて指の追跡を取り消していた
-   * （pointercancel → 点が止まる）。指の最初の動きが横なら、その指の間は巻き取りを止める。
-   * 縦に動き出した指はそのまま画面を巻く（グラフの上でも画面は縦に動かせる）。
-   */
-  const hit = useRef<SVGRectElement>(null);
-  useEffect(() => {
-    const el = hit.current;
-    if (!el) return;
-    let x0 = 0;
-    let y0 = 0;
-    let lock: "x" | "y" | null = null;
-    const start = (e: TouchEvent) => {
-      const t = e.touches[0];
-      if (!t) return;
-      x0 = t.clientX;
-      y0 = t.clientY;
-      lock = null;
-    };
-    const move = (e: TouchEvent) => {
-      const t = e.touches[0];
-      if (!t) return;
-      if (!lock) {
-        const dx = Math.abs(t.clientX - x0);
-        const dy = Math.abs(t.clientY - y0);
-        if (dx < 4 && dy < 4) return;
-        lock = dx >= dy ? "x" : "y";
-      }
-      if (lock === "x" && e.cancelable) e.preventDefault();
-    };
-    el.addEventListener("touchstart", start, { passive: true });
-    // 巻き取りを止めるには passive: false が要る（既定の passive では preventDefault が効かない）。
-    el.addEventListener("touchmove", move, { passive: false });
-    return () => {
-      el.removeEventListener("touchstart", start);
-      el.removeEventListener("touchmove", move);
-    };
-  }, []);
-
-  return (
-    <svg ref={svg} className="memory-scrub absolute inset-0 h-full w-full" aria-hidden>
-      <g pointerEvents="none" style={{ opacity: shown ? 1 : 0 }}>
-        <line
-          ref={hLine}
-          stroke="var(--foreground)"
-          strokeOpacity={0.55}
-          strokeWidth={1.25}
-          strokeDasharray="3 3"
-        />
-        <line
-          ref={vLine}
-          stroke="var(--foreground)"
-          strokeOpacity={0.55}
-          strokeWidth={1.25}
-          strokeDasharray="3 3"
-        />
-        <circle ref={dot} r={7} stroke="var(--card)" strokeWidth={2.5} />
-        <g ref={rTag}>
-          <rect height={18} rx={9} fill="var(--foreground)" />
-          <text
-            dy="0.35em"
-            textAnchor="middle"
-            fontSize={11}
-            fontWeight={700}
-            fill="var(--background)"
-          />
-        </g>
-        <g ref={dTag}>
-          <rect height={18} rx={9} fill="var(--foreground)" />
-          <text
-            dy="0.35em"
-            textAnchor="middle"
-            fontSize={11}
-            fontWeight={700}
-            fill="var(--background)"
-          />
-        </g>
-      </g>
-      <rect
-        ref={hit}
-        x="0"
-        y="0"
-        width="100%"
-        height="100%"
-        fill="transparent"
-        style={{ touchAction: "pan-y", cursor: "grab" }}
-        onPointerDown={(e) => {
-          try {
-            e.currentTarget.setPointerCapture(e.pointerId);
-          } catch {
-            /* 取れなくても、面の上なら動く */
-          }
-          s.current.dragging = true;
-          if (!shown) {
-            setShown(true);
-            onActive(true);
-          }
-          aim(e.clientX, GLIDE_TAU);
-        }}
-        onPointerMove={(e) => {
-          if (!s.current.dragging) return;
-          // 押した直後の滑りが終わる前に指が動いたら、そこから指に付く。
-          aim(e.clientX, DRAG_TAU);
-        }}
-        onPointerUp={() => {
-          s.current.dragging = false;
-        }}
-        onPointerCancel={() => {
-          s.current.dragging = false;
-        }}
-      />
-    </svg>
-  );
-}
-
-/**
- * 線を縦軸の値で塗り分けるための `<linearGradient>` と、線に渡す `stroke`。
- * 全部同じ値の線は単色（`gradientStops` の注記）。
- *
- * 止まりの色は **`style` で渡す**。`stop-color="var(--…)"` のような属性に
- * 書いた CSS 変数は、ブラウザによっては解決されない。
- */
-export function levelGradient(id: string, values: number[]): { def: ReactNode; stroke: string } {
-  const stops = gradientStops(values);
-  if (!stops) {
-    return { def: null, stroke: `var(--mem-${levelOfR(values[0] ?? 100)})` };
-  }
-  return {
-    def: (
-      <linearGradient key={id} id={id} x1="0" y1="0" x2="0" y2="1">
-        {stops.map((s, i) => (
-          <stop key={i} offset={s.offset} style={{ stopColor: `var(--mem-${s.level})` }} />
-        ))}
-      </linearGradient>
-    ),
-    stroke: `url(#${id})`,
-  };
-}
-
-/**
- * 線の下の面の塗り。**主色を上ほど少し濃く、下へ向けて消す**。
- * 段の色で塗ると横縞になり、線より面のほうが目立った（試して撮った絵で確認）。
- */
-export function levelFill(id: string): { def: ReactNode; fill: string } {
-  return {
-    def: (
-      <linearGradient key={id} id={id} x1="0" y1="0" x2="0" y2="1">
-        <stop offset="0" style={{ stopColor: "var(--primary)", stopOpacity: 0.14 }} />
-        <stop offset="1" style={{ stopColor: "var(--primary)", stopOpacity: 0 }} />
-      </linearGradient>
-    ),
-    fill: `url(#${id})`,
-  };
 }
 
 /**

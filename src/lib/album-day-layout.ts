@@ -1,10 +1,14 @@
 /**
  * **1日のアルバムの置き方を決める計算**（ホームの `DayCollage` と、本棚の本の左ページが
  * **同じ1つ**を使う。オーナー指示 2026-09-30「日記の写真が表示されるアルバム、ユーザーが
- * ホームで配置した写真の大きさ向きのように…そのまま再現して日記の左側に置いて」）。
+ * ホームで配置した写真の大きさ向きのように…そのまま再現して日記の左側に置いて」、
+ * オーナー決定 2026-10-02「本のアルバムの写真の配置とホームのアルバム画像の配置は同じにして」
+ * →「台紙を本のページの形にそろえる」）。
  *
- * 前は `home.tsx` の中に在り、本の左ページ（canvas の絵）は別の升目で写真を並べていた。
- * 計算を2つ持つと、片方を直した日に静かに食い違う。ここに1本だけ置く。
+ * 台紙は**本のページの形**（幅 : 高さ = 1 : `ALBUM_PAGE_RATIO`）。まだ自分で置いていない札は
+ * `album-page-fit.ts` がその中に全部収める（列の数と写真の幅をページに合わせて選ぶ）。自分で
+ * 置いて保存した札（`album_x/y/scale/rot`。台紙の幅に対する割合）はそのまま勝ち、自動の札は
+ * それを避ける。計算を2つ持つと、片方を直した日に静かに食い違う。ここに1本だけ置く。
  *
  * 入るのは**画面に触らない値だけ**: 札の情報・写真の縦横比・台紙の幅（px）。
  * 台紙の幅は「px で決まっている字の高さ」を割合に直すのに要る。
@@ -13,13 +17,17 @@ import { resolvePrefer, type PhotoPref } from "@/lib/photo-pref";
 import { resolveSurfaceRole, surfaceKey, type SurfaceRoleMap } from "@/lib/photo-surface";
 import { stickerPhotoUrl } from "@/lib/sticker-photo";
 import type { StickerWithWord } from "@/lib/stickers.functions";
+import { fitAlbumPage, type PageFitItem } from "@/lib/album-page-fit";
 import {
+  ALBUM_PAGE_RATIO,
   avoidFixed,
+  BASE_WIDTH,
   boxOf,
   boardHeight,
+  BOARD_PAD,
   collageRatio,
-  COLLAGE_COL_W,
-  packCollage,
+  COLLAGE_CAP_MIN,
+  idSeed,
   placeFromCell,
   placementFrom,
   type AlbumSize,
@@ -59,6 +67,16 @@ export const CAP_NOTE_PX = 56;
 export const PLAIN_WORD_PX = 32;
 export const MIN_TAP_PX = 44;
 
+/**
+ * ページの内側の余白（台紙の幅に対する割合）。傾けた角とテープが台紙の縁から出ないぶん。
+ * 下の余白は `boardHeight` が残す縁（`BOARD_PAD`）と同じ — 自動の置き方なら台紙は
+ * ちょうどページの形（`ALBUM_PAGE_RATIO`）になる。
+ */
+export const PAGE_INSET_X = 0.02;
+export const PAGE_INSET_Y = BOARD_PAD;
+/** 写真と写真の間（縦横とも。台紙の幅に対する割合）。傾けた角がぶつからない幅。 */
+export const PAGE_GAP = 0.035;
+
 /** 置き方の計算に要る札の情報（`StickerWithWord` の一部）。 */
 export type DayLayoutSticker = {
   id: string;
@@ -84,23 +102,34 @@ export type DayLayoutInput = {
 const byOrder = <T extends DayLayoutSticker>(a: T, b: T) =>
   (a.album_order ?? Number.MAX_SAFE_INTEGER) - (b.album_order ?? Number.MAX_SAFE_INTEGER);
 
-/** その札の枠の縦横比。**置き方の計算と描く形で同じ1つの数を使う**（別々だと次の札が字に乗る）。 */
-export function dayFrameRatio({
-  stickers,
-  hasHero,
-  photoRatio,
-  boardW,
-}: DayLayoutInput): (id: string) => number {
-  const hasNote = new Map(stickers.map((s) => [s.id, Boolean(s.caption)]));
-  // 割るのは**いちばん細い札の幅**（札ごとの幅は `packCollage` の中で `id` から決まる）。
-  const narrowest = Math.max(boardW * COLLAGE_COL_W * 0.78, 1);
+/**
+ * 字だけの札の高さ（px）。`widthPx` はその札の字の欄の幅 — 細いと時刻が語の下の行へ
+ * 回るぶんを足す（欄は `COLLAGE_CAP_MIN` より細くならない。CSS の `--cap-min` と対）。
+ */
+export function plainCardPx(s: DayLayoutSticker, widthPx: number, boardW: number): number {
+  const lane = Math.max(widthPx, boardW * COLLAGE_CAP_MIN);
+  const timeLine = lane < 130 ? 14 : 0;
+  return Math.max(PLAIN_WORD_PX + timeLine + (s.caption ? CAP_NOTE_PX : 0), MIN_TAP_PX);
+}
+
+/**
+ * その札の枠の縦横比。**置き方の計算と描く形で同じ1つの数を使う**（別々だと次の札が字に乗る）。
+ *
+ * 写真の札は写真の比（誌面に収まる範囲へ丸める）。字だけの札は**高さが px で決まる**ので、
+ * その札の幅（`widthOf`、台紙の幅に対する割合）で割って比にする — 幅が列の数で変わっても
+ * 字の欄の高さは変わらない。
+ */
+export function dayFrameRatio(
+  { stickers, hasHero, photoRatio, boardW }: DayLayoutInput,
+  widthOf: (id: string) => number,
+): (id: string) => number {
+  const byId = new Map(stickers.map((s) => [s.id, s]));
   return (id: string) => {
     if (hasHero(id)) return collageRatio(photoRatio[id] ?? PLACEHOLDER_RATIO);
-    // 細い画面では時刻が語の下の行へ回るぶんを足す。
-    const timeLine = narrowest < 130 ? 14 : 0;
-    const px = Math.max(PLAIN_WORD_PX + timeLine + (hasNote.get(id) ? CAP_NOTE_PX : 0), MIN_TAP_PX);
     // 台紙をまだ測れていない最初の1枚は、ほどほどの比で場所を取っておく。
-    return boardW ? px / narrowest : 0.3;
+    if (!boardW) return 0.3;
+    const w = Math.max(widthOf(id), 0.01) * boardW;
+    return plainCardPx(byId.get(id) ?? { id }, w, boardW) / w;
   };
 }
 
@@ -110,8 +139,19 @@ export function dayExtra(s: DayLayoutSticker, hasHero: boolean, boardW: number):
 }
 
 /**
- * まだ自分で置いていない札の置き場所（誌面の石積み）を決め、**自分で置いて保存した写真を
- * 避ける**（`avoidFixed`）。返すのは「札 id → 置き場所」。
+ * 傾き（度）。**左の列は左へ、右の列は右へ**（1〜2.5度）— 外側へ開く向きに揃えると、
+ * 1枚の見開きとして釣り合う。真ん中の列と1列の日は `id` で左右どちらか。`id` から作るので
+ * 何度描いても同じ（乱数だと描き直すたびに動く）。
+ */
+function pageTilt(id: string, col: number, cols: number): number {
+  const mid = (cols - 1) / 2;
+  const side = col < mid ? -1 : col > mid ? 1 : idSeed(id, 5) < 0.5 ? -1 : 1;
+  return side * (1 + idSeed(id, 13) * 1.5);
+}
+
+/**
+ * まだ自分で置いていない札の置き場所（ページの形の台紙に全部収める）を決め、**自分で置いて
+ * 保存した写真を避ける**（`avoidFixed`）。返すのは「札 id → 置き場所」と枠の比。
  *
  * `stickers` は**表から届いた並び**（重なり順のために入れ替える `ordered` ではない）。
  * 置き場所は「その札が何番目に撮られたか」で決まるべきで、「さっき誰を触ったか」で
@@ -121,27 +161,52 @@ export function settleDayAlbum(input: DayLayoutInput): {
   frameRatio: (id: string) => number;
   settledById: Map<string, Placement>;
 } {
-  const { stickers, hasHero, boardW } = input;
-  const frameRatio = dayFrameRatio(input);
+  const { stickers, hasHero, photoRatio, boardW } = input;
   const base = [...stickers].sort(byOrder);
-  const places = packCollage(
-    base.map((s) => ({
-      id: s.id,
-      ratio: frameRatio(s.id),
-      extra: dayExtra(s, hasHero(s.id), boardW),
-    })),
+  // 字の高さ（px）を割合に直す台紙の幅。測れていない最初の1枚はふつうのスマホの幅で
+  // 仮に置く（測れた瞬間に計算し直すので、この値は画面に残らない）。
+  const pxW = boardW || 340;
+  const fitItems: PageFitItem[] = base.map((s) =>
+    hasHero(s.id)
+      ? {
+          ratio: collageRatio(photoRatio[s.id] ?? PLACEHOLDER_RATIO),
+          below: () => dayExtra(s, true, pxW),
+        }
+      : { ratio: 0, below: (w) => plainCardPx(s, w * pxW, pxW) / pxW },
+  );
+  const fit = fitAlbumPage(
+    fitItems,
+    { w: 1 - 2 * PAGE_INSET_X, h: ALBUM_PAGE_RATIO - 2 * PAGE_INSET_Y },
+    PAGE_GAP,
   );
   const autoById = new Map<string, Placement>();
-  base.forEach((s, i) => autoById.set(s.id, places[i]));
+  base.forEach((s, i) => {
+    const b = fit.boxes[i];
+    // 字だけの札は枠の高さが 0 で届くので、字の欄の高さぶんを枠にする。
+    const h = hasHero(s.id) ? b.h : plainCardPx(s, b.w * pxW, pxW) / pxW;
+    autoById.set(s.id, {
+      x: PAGE_INSET_X + b.x + b.w / 2,
+      y: PAGE_INSET_Y + b.y + h / 2,
+      scale: b.w / BASE_WIDTH,
+      rot: pageTilt(s.id, b.col, fit.cols),
+    });
+  });
 
   const saved = (s: DayLayoutSticker) => s.album_x != null && s.album_y != null;
-  const fixed = stickers.filter(saved).map((s) => {
-    const p = placementFrom(
+  const resolved = (s: DayLayoutSticker) =>
+    placementFrom(
       { x: s.album_x, y: s.album_y, scale: s.album_scale, rot: s.album_rot },
       autoById.get(s.id) ?? placeFromCell({ col: 0, row: 0 }, "small", s.id),
     );
-    return boxOf(p, frameRatio(s.id), dayExtra(s, hasHero(s.id), boardW));
+  const byId = new Map(stickers.map((s) => [s.id, s]));
+  const frameRatio = dayFrameRatio(input, (id) => {
+    const s = byId.get(id);
+    return (s ? resolved(s).scale : 1) * BASE_WIDTH;
   });
+
+  const fixed = stickers
+    .filter(saved)
+    .map((s) => boxOf(resolved(s), frameRatio(s.id), dayExtra(s, hasHero(s.id), boardW)));
   if (fixed.length === 0) return { frameRatio, settledById: autoById };
 
   const autos = base.filter((s) => !saved(s) && autoById.has(s.id));
@@ -174,13 +239,15 @@ export type DayLayoutItem = {
   id: string;
   place: Placement;
   ratio: number;
+  /** 写真の下に付く字のぶん（台紙の幅に対する割合）。台紙の高さに入れる。 */
+  extra: number;
   /** 重なりの順（後ろほど上）。 */
   z: number;
 };
 
 /**
  * 1日の全体（本棚の本の左ページが使う）。並びは保存した `album_order`。
- * `boardH` は台紙の高さ（幅に対する割合）。
+ * `boardH` は台紙の高さ（幅に対する割合）— ふつうはページの形（`ALBUM_PAGE_RATIO`）。
  */
 export function layoutDayAlbum(input: DayLayoutInput): { items: DayLayoutItem[]; boardH: number } {
   const { frameRatio, settledById } = settleDayAlbum(input);
@@ -193,6 +260,7 @@ export function layoutDayAlbum(input: DayLayoutInput): { items: DayLayoutItem[];
       s.album_size ?? AUTO_ALBUM_SIZE[i % AUTO_ALBUM_SIZE.length],
     ),
     ratio: frameRatio(s.id),
+    extra: dayExtra(s, input.hasHero(s.id), input.boardW),
     z: 10 + i,
   }));
   return { items, boardH: boardHeight(items) };

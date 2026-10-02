@@ -7,7 +7,10 @@
  * 写真は端末に同梱の見本、撮った日は今日から遡って 7 か月ぶん。日記は見本の文（保存は
  * その場だけ）。上の帯の右端に小さな棚（本番と同じ並び）、下には今日のアルバムが続く。
  */
+import { useState } from "react";
 import { HomeShelf } from "@/components/HomeShelf";
+import { monthDays } from "@/lib/home-shelf";
+import { BookAlbumEditor } from "@/routes/_authenticated/home";
 import { FIXTURES, HomePastScene, HomeScene, makeSticker } from "./home";
 
 const PHOTOS = [
@@ -58,11 +61,17 @@ export function HomeShelfScene({ q }: { q: URLSearchParams }) {
     months >= 7
       ? ITEMS
       : ITEMS.filter((s) => Date.now() - Date.parse(s.created_at) < months * 30 * 864e5);
+  // 本の左ページを長押し → その日の並べ替えの面（本番の `HomeSurface` と同じ繋ぎ方）。
+  const [edit, setEdit] = useState<{ y: number; m: number; d: number } | null>(null);
+  const editStickers = edit
+    ? (monthDays(items, edit.y, edit.m, 60).find((g) => g.d === edit.d)?.items ?? [])
+    : [];
   return (
     <div className="home-scene">
       <HomeShelf
         items={items}
         autoOpen={open}
+        onAlbumLongPress={setEdit}
         loaders={{
           diary: async (month) => {
             const [y, m] = month.split("-").map(Number);
@@ -82,6 +91,15 @@ export function HomeShelfScene({ q }: { q: URLSearchParams }) {
       <HomeScene q={q} />
       {/* 過去の日も同じ壁の上（本番と同じ並び。2026-09-29「9/28 以下が白くなってる」）。 */}
       <HomePastScene q={q} />
+      {edit && editStickers.length > 0 && (
+        <BookAlbumEditor
+          date={new Date(edit.y, edit.m - 1, edit.d)}
+          stickers={editStickers}
+          surface="album-bg-paper"
+          onOpen={() => {}}
+          onClose={() => setEdit(null)}
+        />
+      )}
     </div>
   );
 }

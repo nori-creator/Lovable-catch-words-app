@@ -1960,10 +1960,6 @@ export const DICT: Record<string, Record<UiLang, string>> = {
     "zh-TW": "無法儲存版面。請檢查連線後再試一次。",
   },
   "settings.motion": { ja: "アニメーション", en: "Animation", "zh-TW": "動畫" },
-  // **短く。** 3列の丸は約118pxで、入るのは5〜6文字（`MotionChoiceRow` の注）。
-  "settings.motionSystem": { ja: "自動", en: "Auto", "zh-TW": "自動" },
-  "settings.motionFull": { ja: "見せる", en: "Show", "zh-TW": "顯示" },
-  "settings.motionReduce": { ja: "減らす", en: "Reduce", "zh-TW": "減少" },
   // **なぜ消えているのかが分かる言葉にする。** 端末の設定で消えている人は、
   // 自分で入れた覚えが無いので「動きを減らす」とだけ書かれても辿り着けない。
   "settings.motion.osReduces": {
@@ -2217,10 +2213,12 @@ export const DICT: Record<string, Record<UiLang, string>> = {
     en: "That's this batch",
     "zh-TW": "這一輪先到這裡",
   },
+  // 残りの数は言わない（オーナー指示 2026-10-02「今日覚えるべき単語などの数字を出すと
+  // …やる気がなくなるから出さない」）。
   "review.moreHint": {
-    ja: "あと {n} 語、期限が来ています。続けられます。",
-    en: "{n} more are due. You can keep going.",
-    "zh-TW": "還有 {n} 個字到複習時間了，可以繼續。",
+    ja: "まだ期限が来ている語があります。続けられます。",
+    en: "More words are due. You can keep going.",
+    "zh-TW": "還有到複習時間的字，可以繼續。",
   },
   "review.moreCta": { ja: "続ける", en: "Keep going", "zh-TW": "繼續" },
   "review.empty": {
@@ -2768,6 +2766,13 @@ export const DICT: Record<string, Record<UiLang, string>> = {
   "shelf.home.leftPage": { ja: "左のページ", en: "Left page", "zh-TW": "左頁" },
   "shelf.home.rightPage": { ja: "右のページ", en: "Right page", "zh-TW": "右頁" },
   "shelf.home.cover": { ja: "表紙", en: "Cover", "zh-TW": "封面" },
+  // 本の左ページを長押しして開く、ホームと同じ並べ替えの画面（2026-10-02）。
+  "shelf.home.arrange": { ja: "アルバムの配置", en: "Arrange the album", "zh-TW": "相簿的排法" },
+  "shelf.home.arrangeHint": {
+    ja: "ホームのアルバムと同じ置き方。「完了」で本にも反映されます。",
+    en: "Same layout as the home album. “Done” updates the book too.",
+    "zh-TW": "和首頁相簿同一種排法。按「完成」後書裡也會更新。",
+  },
   "object3d.open": { ja: "3Dにする", en: "Make it 3D", "zh-TW": "變成 3D" },
   "object3d.close": { ja: "写真に戻る", en: "Back to the photo", "zh-TW": "回到照片" },
   "object3d.making": {

@@ -63,15 +63,17 @@ Separate:
    Store enough event data to re-evaluate algorithms later without rewriting history.
    Experimental models should initially run shadow predictions, not control production schedules.
 
-**Owner decision (2026-10-01, back to shadow):** SM-2 sets the next review interval again. After grading, `gradeReview` asks Jev in the background and only logs its interval (`model_shadow_predictions`, `meta.mode = "shadow"`); grading never waits for Jev. The switch is `app_config.jev_interval = {"mode":"live"}` (read by `jevIntervalMode`, unknown/unreadable = shadow). Going live again requires the calibration evaluation below. When live, the 2026-09-23 guardrails apply:
+**Scheduler (owner decision 2026-10-02, "単語のアルゴリズムを正確に改善したい"):** the next interval and the displayed probability come from an FSRS-style DSR model (`src/lib/srs.ts`, formulas and FSRS-6 default weights from the MIT `ts-fsrs` package; see `docs/memory-algorithm-options.md` › decided). No DB migration: `reviews.interval_days` (integer) holds the stability S in whole days (interval at the 90% target equals S; 0 = never reviewed), `ease` 1.3–3.0 is a linear image of difficulty D 10–1 (`easeToDifficulty`/`difficultyToEase`), `repetitions` stays the consecutive-success count, `last_reviewed_at` is the memory anchor. Score 1–5 maps to Again (<3) / Hard (3, 4) / Good (5); Easy is unused because a four-choice recognition quiz gives no evidence for it. Displayed retention is FSRS's power forgetting curve (`forgettingCurve`); a word that has never been reviewed shows **0%** and the lowest level (badge, list, curves, overall average, admin counts). After a lapse the post-lapse stability (≤ S) sets the next date, so a mature word returns in a few days, a young one tomorrow; `review_history.interval_days_after` therefore also records S.
+
+**Owner decision (2026-10-01, back to shadow):** the app's scheduler (FSRS since 2026-10-02; SM-2 before) sets the next review interval. After grading, `gradeReview` asks Jev in the background and only logs its interval (`model_shadow_predictions`, `meta.mode = "shadow"`); grading never waits for Jev. The switch is `app_config.jev_interval = {"mode":"live"}` (read by `jevIntervalMode`, unknown/unreadable = shadow). Going live again requires the calibration evaluation below. When live, the 2026-09-23 guardrails apply (read "SM-2" as "the app's scheduler"):
 
 **Owner override (2026-09-23, "jevにすぐに切り替えて", superseded 2026-10-01 by the shadow default above):** Jev sets the next review interval in `gradeReview`, without a prior shadow-calibration period. Guardrails that must stay:
 
-- A failed/hinted review (score < `LAPSE_SCORE`) always stays on SM-2 (tomorrow); Jev is not asked.
-- If Jev is unavailable, times out (2.5 s) or returns an invalid shape, SM-2 is used.
-- Jev's days are clamped to 0.5×–2× the SM-2 interval (1–365 days) by `pickInterval` (`src/lib/jev-tasks.ts`). Widen only after calibration data supports it.
-- Every Jev interval decision (Jev days, SM-2 days, used days) and every pre-answer recall prediction are logged to `model_shadow_predictions` so calibration can still be evaluated; nothing reads that table to change behavior.
-- ease and repetitions remain SM-2 state.
+- A failed/hinted review (score < `LAPSE_SCORE`) always stays on the scheduler's post-lapse interval; Jev is not asked.
+- If Jev is unavailable, times out (2.5 s) or returns an invalid shape, the scheduler's interval is used.
+- Jev's days are clamped to 0.5×–2× the scheduler's interval (1–365 days) by `pickInterval` (`src/lib/jev-tasks.ts`). Widen only after calibration data supports it. When live, Jev's days are written to `interval_days`, i.e. they replace that word's stability.
+- Every Jev interval decision (Jev days, scheduler days, used days) and every pre-answer recall prediction are logged to `model_shadow_predictions` so calibration can still be evaluated; nothing reads that table to change behavior.
+- ease and repetitions remain scheduler state (difficulty image and consecutive successes).
 
 **Jev usage map (owner request 2026-09-23, "速さと正確性を両立させて"):** Jev is a fast, text-only judge. Use it to _check, rank and decide_, never to _write_ learner-facing content (LLMs write; Jev verifies). Every Jev call must have a timeout and a non-Jev fallback, and must not add latency to the first thing the user sees.
 
@@ -79,6 +81,8 @@ Separate:
 - Shadow (logged only, until calibrated): review interval (switchable, see above), recall prediction, example-sentence naturalness. Next candidate for going live: repair examples Jev rates clearly unnatural (<0.2) in a background job after the word is saved, applied only with the correction judge's approval.
 
 **Displayed number (owner decision 2026-09-23, "単語の数値は1つに統一したい"):** every surface (photo badge, review list, forgetting-curve y-axis and colors, modal chip) shows one number: the estimated probability of recalling the word now (`memoryOf` → `memoryPercent(retention)`), matching PRODUCT.md. How long a word lasts is expressed as the next review date, never as a second percentage.
+
+**No to-do counts (owner decision 2026-10-02, "今日覚えるべき単語などの数字を出すと…やる気がなくなるから出さない"):** the review header shows no "0 / 10" counter and the batch-end hint no "あと N 語"; progress is the bar only. Per-word percentages and the overall % stay. The overall graph (`MiniRetentionGraph`) draws one-colour lines over background bands of the six memory levels (`.mem-band` tokens, light/dark), with the y-axis zoomed to the data.
 
 ## Data licensing
 
@@ -149,9 +153,13 @@ Changes to shared presentation components therefore affect the app and tutorial 
 
 `onboarding-shared-surfaces.test.ts` guards the rendering boundary and rejects tutorial-specific replacements/size overrides. Visual review must exercise the same production components with deterministic local data, and live capture/AI must also be tested on a backend-enabled deployment before release.
 
-## Home album layout: one function (2026-09-30)
+## Home album layout: one function, one page-shaped board (2026-09-30, 2026-10-02)
 
-`src/lib/album-day-layout.ts` decides where every photo of a day sits (`settleDayAlbum` → `frameRatio` + `settledById`; `layoutDayAlbum` for the whole day). Both the home `DayCollage` (DOM) and the 3D diary book's left page (`shelf3d/textures.ts` → `paintPlacedPhotos`, painted in the book's own paper style) use it, and `albumHeroUrl` picks the picture. Do not add a second layout path, and do not overlay DOM on the book (`HomeShelf` renders no album UI; it only repaints textures via `refreshDays`). `CaptionEditDialog` is the note editor used by word detail and the home album.
+`src/lib/album-day-layout.ts` decides where every photo of a day sits (`settleDayAlbum` → `frameRatio` + `settledById`; `layoutDayAlbum` for the whole day). Both the home `DayCollage` (DOM) and the 3D diary book's left page (`shelf3d/textures.ts` → `paintPlacedPhotos`, painted in the book's own paper style) use it, and `albumHeroUrl` picks the picture.
+
+Owner decision 2026-10-02 (「台紙を本のページの形にそろえる」): home and the book share **one board whose shape is the book page** — width 1, height `ALBUM_PAGE_RATIO` (1.35, `album-place.ts`). Un-placed photos are packed into that board by `album-page-fit.ts` (`fitAlbumPage`: 1–4 columns, the largest photo width that fits, centred, slight stagger; plain text-only cards have a px height and get their frame ratio from the chosen width). Saved placements (`album_x/album_y` as fractions of the board **width**, `album_scale`, `album_rot`) keep their meaning and still win; autos avoid them (`avoidFixed`). `boardHeight` is `ALBUM_PAGE_RATIO` unless a saved card sits lower (legacy tall boards): then the board grows for that day and the book scales it down uniformly, so home and book stay identical. Dragging clamps the centre to the page bottom (`applyDelta(…, ALBUM_PAGE_RATIO)`). The book has **no re-flow branch** of its own; do not add a second layout path. Do not overlay DOM on the book (`HomeShelf` renders no album UI; it only repaints textures via `refreshDays`).
+
+Arranging from the book (owner 2026-10-02 「本棚のアルバムでも長押しで配置を変換できるようにして」): `ShelfWorld` emits `onPageLongPress(side)` (550 ms, same as the home album; the press is not a tap or a flip), `HomeShelf` forwards the left page's day as `onAlbumLongPress({y,m,d})`, and `HomeSurface` opens `BookAlbumEditor` — a full-screen sheet with that day's production `DayCollage` in edit mode (`startEditing`, `onDoneEditing`). It saves through the same `saveAlbumLayout` as home, invalidates `["stickers"]`, and the book repaints via the existing `layoutSig` → `refreshDays()` path. Book text: date headings on both pages and the title page use the sans family (`SANS`), words are bold sans, only the owner's notes (and the diary) are handwritten — matching home (`DiaryDate` app font, bold word, `.handwritten-ja` note). `CaptionEditDialog` is the note editor used by word detail and the home album.
 
 Dead-code policy used in R26: delete only files with zero references (code, tests, harness, docs) — done: WordTreeView, AuthProviderButtons, ImagePicker, ai-gateway.server, first-catch-sample, words.functions, catch-landing v1–v4. Kept on purpose: shadcn `ui/*` primitives, `DayJournalPage`, `use-voice-input`, `admob`, `quests.functions`, `catch-landing/v5_physics` (tests gate a future re-connection), `src/server.ts` (SSR entry; knip false positive). Unused npm dependencies are listed for the owner, not removed (lockfile/Lovable sync). The "kept on purpose" list was superseded by the 2026-10-01 cleanup below.
 

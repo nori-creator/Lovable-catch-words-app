@@ -464,8 +464,6 @@ function ReviewPage() {
       <ReviewSessionHeader
         compact={!!current && !memListOpen}
         header={{
-          answered: REVIEW_PRACTICE_ENABLED && cards ? Math.min(idx, cards.length) : null,
-          total: REVIEW_PRACTICE_ENABLED ? (cards?.length ?? null) : null,
           progress: REVIEW_PRACTICE_ENABLED ? progress : 0,
           reviewStreak: myStats?.review_streak ?? null,
           streakPending: myStatsPending,
@@ -599,7 +597,7 @@ export function ReviewSessionHeader({
                   {t("rv.overallTitle")}
                 </p>
                 {series && (
-                  <Suspense fallback={<div className="h-36 w-full" />}>
+                  <Suspense fallback={<div className="h-44 w-full" />}>
                     <MiniRetentionGraph series={series} />
                   </Suspense>
                 )}
@@ -1661,27 +1659,26 @@ export function EmptyState() {
 }
 
 /**
- * 復習の見出し — 「今日の復習」・**いま何問目か**・進捗バー。
+ * 復習の見出し — 「今日の復習」・続いている日数・進捗バー。
  *
  * ## なぜ切り出したか
  * 検査の場面が**札だけ**を描いていて、この見出しが入っていなかった。
- * その絵を見た独立監査が「クイズに進捗(3/12)が無い」と指摘した —
+ * その絵を見た独立監査が「クイズに進捗が無い」と指摘した —
  * 実物には最初からあるのに。**雛形が実物の一部しか描いていないと、
  * 監査も自分も「無い」と誤って判断する。**
  *
  * ルートに直書きのままでは場面から描けないので、ここへ出す。
  * (復習・ホーム・設定で同じことを何度もやっている。)
+ *
+ * **数は出さない**（オーナー指示 2026-10-02「今日覚えるべき単語などの数字を出すと、
+ * やるべきことがたまった時にやる気がなくなるから出さない」）。以前ここにあった
+ * 「0 / 10」は束の残りを数えて見せる数字そのもの。進み具合はバーだけで示す。
  */
 export function ReviewHeader({
-  answered,
-  total,
   progress,
   reviewStreak,
   streakPending = false,
 }: {
-  /** 何問終わったか。まだ取得できていなければ null(件数を出さない)。 */
-  answered: number | null;
-  total: number | null;
   /** 0〜100。 */
   progress: number;
   /**
@@ -1699,32 +1696,23 @@ export function ReviewHeader({
   if (streakPending) streakReserved.current = true;
   return (
     <>
-      <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2">
-        <div className="min-w-0">
-          <h1 className="text-title font-semibold leading-[1.1] tracking-[-0.02em]">
-            {t("review.today")}
-          </h1>
-          {/* 続いていることは、今日ここを開いた理由そのもの。
-              数字は `review_history` を数えたもので、1日の上限と同じ出所。 */}
-          {typeof reviewStreak === "number" && reviewStreak > 0 ? (
-            <p className="mt-0.5 text-footnote text-muted-foreground">
-              {t("rv.streakLine", { n: formatCount(reviewStreak) })}
+      <div className="min-w-0">
+        <h1 className="text-title font-semibold leading-[1.1] tracking-[-0.02em]">
+          {t("review.today")}
+        </h1>
+        {/* 続いていることは、今日ここを開いた理由そのもの。
+            数字は `review_history` を数えたもので、1日の上限と同じ出所。 */}
+        {typeof reviewStreak === "number" && reviewStreak > 0 ? (
+          <p className="mt-0.5 text-footnote text-muted-foreground">
+            {t("rv.streakLine", { n: formatCount(reviewStreak) })}
+          </p>
+        ) : (
+          streakReserved.current && (
+            <p aria-hidden className="mt-0.5 text-footnote text-transparent">
+              &nbsp;
             </p>
-          ) : (
-            streakReserved.current && (
-              <p aria-hidden className="mt-0.5 text-footnote text-transparent">
-                &nbsp;
-              </p>
-            )
-          )}
-        </div>
-        <div className="flex shrink-0 items-center gap-2 self-center">
-          {answered !== null && total !== null && (
-            <span className="text-footnote text-muted-foreground">
-              {formatCount(answered)} / {formatCount(total)}
-            </span>
-          )}
-        </div>
+          )
+        )}
       </div>
       <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-secondary">
         <div
@@ -1798,9 +1786,10 @@ export function DoneState({
         <CheckCircle2 className="mb-2 h-6 w-6 text-ok" aria-hidden />
         <p className="text-body font-semibold">{t("review.moreTitle")}</p>
         {score}
-        <p className="mt-1 max-w-[22em] text-body text-muted-foreground">
-          {t("review.moreHint", { n: formatCount(batch?.dueRemaining ?? 0) })}
-        </p>
+        {/* **残りの数は言わない**（オーナー指示 2026-10-02「やるべきことがたまった時に
+            やる気がなくなるから」）。「まだある」とだけ言い、続けるかは本人が決める。
+            `dueRemaining` は言い方の分岐（`batchEndKind`）にだけ使う。 */}
+        <p className="mt-1 max-w-[22em] text-body text-muted-foreground">{t("review.moreHint")}</p>
         <div className="mt-4 flex flex-wrap items-center gap-2">
           <button
             onClick={onAgain}

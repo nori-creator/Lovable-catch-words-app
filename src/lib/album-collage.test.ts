@@ -1,233 +1,50 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import {
-  packCollage,
+  captionAlign,
   collageRatio,
   COLLAGE_CAP_MIN,
   COLLAGE_CAP_W,
-  COLLAGE_COL_W,
-  COLLAGE_GUTTER,
-  COLLAGE_HERO_W,
   COLLAGE_RATIO_MAX,
   COLLAGE_RATIO_MIN,
-  COLLAGE_STAGGER,
-  BASE_WIDTH,
-  type Placement,
+  idSeed,
 } from "./album-place";
-
-const items = (n: number, ratio = 1) =>
-  Array.from({ length: n }, (_, i) => ({ id: `s${i}`, ratio }));
+import { PAGE_FIT_MAX_W } from "./album-page-fit";
 
 /**
- * 札の幅・上端・下端（台紙の幅に対する割合）。
- *
- * **高さは「幅 × 比」。** `Placement` は幅（`scale`）しか持たないので、
- * 比を渡さないと正方形として測ってしまう。`items()` の既定は比 1 なので
- * そこでは同じ値になるが、比を変えた回で嘘になる。
+ * 誌面の約束のうち、置き方の計算（`album-day-layout.test.ts` / `album-page-fit.test.ts`）の
+ * 外に残る物: 字の幅・語の揃え方・枠の比の丸め・傾きの種。
  */
-const wOf = (p: Placement) => p.scale * BASE_WIDTH;
-const topOf = (p: Placement, ratio = 1) => p.y - (wOf(p) * ratio) / 2;
-const botOf = (p: Placement, ratio = 1) => p.y + (wOf(p) * ratio) / 2;
-/** 左の列か右の列か。 */
-const colOf = (p: Placement) => (p.x < 0.5 ? 0 : 1);
-
-describe("誌面の自動配置", () => {
-  it("**2列に振り分ける**（1枚目を大きくしない日）", () => {
-    // 2枚の日は大きい1枚を作らないので、そのまま左→右。
-    const out = packCollage(items(2));
-    expect(out[0].x).toBeLessThan(0.5);
-    expect(out[1].x).toBeGreaterThan(0.5);
-  });
-
-  it("**初めから重ならない**（写真も字も。傾けたぶんの角のはみ出しも数える）", () => {
-    // オーナー指示 2026-09-27「デフォルトでは画像や文字が重ならないようにして」。
-    // 札1枚の場所 ＝ 写真 ＋ 下の字（字の幅は下限まで広がる）。傾けた角が
-    // はみ出すぶん（高さ × sin 傾き）だけ左右に広げて、どの2枚も交わらないこと。
-    const ratios = [1, 1.15, 0.66, 0.9, 1.1, 0.7, 1, 0.8, 1.15, 0.75, 1, 0.9];
-    const list = ratios.map((ratio, i) => ({
-      id: `p${i}`,
-      ratio,
-      extra: i % 3 === 0 ? 0.2 : 0.08,
-    }));
-    for (const n of [2, 3, 5, 8, 12]) {
-      const sub = list.slice(0, n);
-      const out = packCollage(sub);
-      const box = out.map((p, i) => {
-        const w = wOf(p);
-        const h = w * sub[i].ratio;
-        const tilt = (h * Math.abs(Math.sin((p.rot * Math.PI) / 180))) / 2;
-        const capW = Math.max(w, COLLAGE_CAP_MIN);
-        const left = p.x < 0.5 ? p.x - w / 2 : p.x + w / 2 - capW;
-        const right = p.x < 0.5 ? p.x - w / 2 + capW : p.x + w / 2;
-        return {
-          l: Math.min(left, p.x - w / 2) - tilt,
-          r: Math.max(right, p.x + w / 2) + tilt,
-          t: p.y - h / 2,
-          b: p.y + h / 2 + sub[i].extra,
-        };
-      });
-      for (let a = 0; a < box.length; a++)
-        for (let b = a + 1; b < box.length; b++) {
-          const x = Math.min(box[a].r, box[b].r) - Math.max(box[a].l, box[b].l);
-          const y = Math.min(box[a].b, box[b].b) - Math.max(box[a].t, box[b].t);
-          expect(x <= 0 || y <= 0, `${n}枚の日の ${a} と ${b} が重なる`).toBe(true);
-        }
-    }
-  });
-
-  it("**右の列は最初から下げる**（段が揃わない）", () => {
-    // 幅は `id` ごとに少し違うので、**上端**で比べる（中心だと高さの差が乗る）。
-    const out = packCollage(items(2));
-    const top = (i: number) => out[i].y - (out[i].scale * BASE_WIDTH) / 2;
-    expect(top(0)).toBeCloseTo(0, 5);
-    expect(top(1)).toBeCloseTo(COLLAGE_STAGGER, 5);
-  });
-
-  it("**同じ列では重ねない**（縦に重ねると、上の札の字が下の札に隠れる）", () => {
-    // 重なりは**左右だけ**で作る。縦に重ねると、写真の下に書いた時刻と
-    // 語がそのまま隠れる（実測で全部隠れた）。
-    const out = packCollage(items(8));
-    for (let i = 0; i < out.length; i++) {
-      for (let j = i + 1; j < out.length; j++) {
-        if (colOf(out[i]) !== colOf(out[j])) continue;
-        const overlap =
-          Math.min(botOf(out[i]), botOf(out[j])) - Math.max(topOf(out[i]), topOf(out[j]));
-        expect(overlap).toBeLessThanOrEqual(0);
-      }
-    }
-  });
-
-  it("**空いているほうの列へ積む**（片方だけが先へ伸びない）", () => {
-    // 左右を1枚ずつ交互に振ると、縦長が続いた列だけが伸び、もう片方に
-    // 画面まるごとの空白ができる（実測 230px）。
-    const out = packCollage(items(8));
-    const left = out.filter((p) => colOf(p) === 0).length;
-    expect(left).toBeGreaterThanOrEqual(3);
-    expect(out.length - left).toBeGreaterThanOrEqual(3);
-    // 最後にできる段差も、札1枚ぶんより小さい。
-    const bottomOf = (c: number) => Math.max(...out.filter((p) => colOf(p) === c).map(botOf));
-    expect(Math.abs(bottomOf(0) - bottomOf(1))).toBeLessThan(COLLAGE_COL_W * COLLAGE_RATIO_MAX);
-  });
-
+describe("写真の下の字", () => {
   it("**字は潰さない**（写真を小さくしても、字の欄は下限の幅を保つ）", () => {
     // オーナー指示 2026-09-27「画像を小さくしても文字は潰れたり隠れたりしないようにして」。
-    // 下限は列の中に収まり、1枚目の横の細い列にも収まること。
-    expect(COLLAGE_CAP_MIN).toBeLessThanOrEqual(COLLAGE_COL_W);
-    expect(COLLAGE_CAP_MIN).toBeLessThanOrEqual(1 - COLLAGE_HERO_W - COLLAGE_GUTTER);
+    // 上限はいちばん広い写真（1枚の日）の幅まで（その語が「…」で切れない）。
+    expect(COLLAGE_CAP_MIN).toBeLessThan(COLLAGE_CAP_W);
+    expect(COLLAGE_CAP_W).toBeGreaterThanOrEqual(PAGE_FIT_MAX_W - 0.03);
     const css = readFileSync(new URL("../styles.css", import.meta.url), "utf8");
-    // 上限は1枚目の幅まで（1枚目の語が「…」で切れない）。
-    expect(COLLAGE_CAP_W).toBeGreaterThanOrEqual(COLLAGE_HERO_W);
     expect(css).toMatch(/\.collage__plain \{[\s\S]*?width: max\(100%, var\(--cap-min/);
     expect(css).toMatch(/\.collage__cap \{[\s\S]*?min-width: var\(--cap-min/);
   });
 
-  it("縦長の写真でも、その高さぶんだけ下がる（升目の決め打ちに引きずられない）", () => {
-    const rest = ["b", "c", "d", "e", "f"].map((id) => ({ id, ratio: 1 }));
-    const tall = packCollage([{ id: "a", ratio: 1.6 }, ...rest]);
-    const flat = packCollage([{ id: "a", ratio: 0.6 }, ...rest]);
-    // 1枚目の下（左の列）に最初に置かれる札が、1枚目の高さぶん下がっている。
-    const underHero = (out: Placement[]) => out.slice(1).find((p) => colOf(p) === 0)!;
-    expect(underHero(tall).y).toBeGreaterThan(underHero(flat).y);
-  });
-
-  it("**何度描いても同じ**（乱数を使わない）", () => {
-    expect(packCollage(items(5))).toEqual(packCollage(items(5)));
-  });
-
-  it("**連番の id でも傾きが揃わない**", () => {
-    // `s0` `s1` `s2` … のような id で素朴に混ぜると、出てくる値がほぼ連番に
-    // なり、傾きが全部同じ向きに並ぶ（実測 0.006° 刻み）。
-    const rots = packCollage(items(8)).map((p) => p.rot);
-    const gaps = rots.slice(1).map((r, i) => Math.abs(r - rots[i]));
-    // 隣どうしが少なくとも1つは大きく離れていること。
-    expect(Math.max(...gaps)).toBeGreaterThan(1);
-    // 左右どちらにも傾く。
-    expect(rots.some((r) => r > 0.3)).toBe(true);
-    expect(rots.some((r) => r < -0.3)).toBe(true);
-  });
-
-  it("台紙の外へ中心を出さない", () => {
-    for (const p of packCollage(items(8))) {
-      expect(p.x).toBeGreaterThanOrEqual(0);
-      expect(p.x).toBeLessThanOrEqual(1);
-      expect(p.y).toBeGreaterThan(0);
-    }
-  });
-
-  it("比が壊れていても落ちない（0・負・NaN は 1 とみなす）", () => {
-    const out = packCollage([
-      { id: "a", ratio: 0 },
-      { id: "b", ratio: -1 },
-      { id: "c", ratio: Number.NaN },
-    ]);
-    for (const p of out) expect(Number.isFinite(p.y)).toBe(true);
+  it("**語は写真の真下が基本**。台紙の端から出る時だけ内側へ寄せる", () => {
+    expect(captionAlign(0.5, 100, 340)).toBe("c");
+    expect(captionAlign(0.05, 100, 340)).toBe("l");
+    expect(captionAlign(0.95, 100, 340)).toBe("r");
+    // 台紙を測れていない間は真ん中。
+    expect(captionAlign(0.05, 100, 0)).toBe("c");
   });
 });
 
-describe("写真の下に付く字のぶん", () => {
-  it("**字のぶんだけ次の札を下げる**（字の上に写真が乗らない）", () => {
-    const base = items(6);
-    // 一言が付くのは「s1」。同じ列に続く札が、その字を越えて始まること。
-    const out = packCollage(base.map((x) => (x.id === "s1" ? { ...x, extra: 0.15 } : x)));
-    const next = out.findIndex((p, k) => k > 1 && colOf(p) === colOf(out[1]));
-    expect(next).toBeGreaterThan(1);
-    expect(topOf(out[next]) - botOf(out[1])).toBeGreaterThanOrEqual(0.15);
-    // 一言が無ければ、そこまで空けない。
-    const plain = packCollage(base);
-    const plainNext = plain.findIndex((p, k) => k > 1 && colOf(p) === colOf(plain[1]));
-    expect(topOf(plain[plainNext]) - botOf(plain[1])).toBeLessThan(0.15);
-  });
-});
-
-describe("その日の1枚目", () => {
-  it("**3枚以上の日は、1枚目だけ大きく置く**", () => {
-    const out = packCollage(items(4));
-    expect(wOf(out[0])).toBeCloseTo(COLLAGE_HERO_W, 5);
-    expect(colOf(out[0])).toBe(0);
-  });
-
-  it("**2枚目は1枚目の下ではなく、横に並ぶ**（最初の画面に入る枚数が増える）", () => {
-    // 幅 0.8 だと1枚目だけで高さ 344px（画面の4割）を占め、表紙と合わせて
-    // 最初の画面に写真が1枚半しか入らなかった（オーナー指示 2026-09-22）。
-    const out = packCollage(items(4));
-    expect(colOf(out[1])).toBe(1);
-    expect(topOf(out[1])).toBeLessThan(botOf(out[0]));
-    // 横に並ぶが、**重ならない**（2026-09-27）。
-    expect(COLLAGE_HERO_W + wOf(out[1]) + COLLAGE_GUTTER).toBeLessThanOrEqual(1 + 1e-9);
-  });
-
-  it("**2枚の日は大きくしない**（残り1枚が取り残される）", () => {
-    const out = packCollage(items(2));
-    expect(wOf(out[0])).toBeLessThan(COLLAGE_HERO_W);
-  });
-
-  it("**主役は1枚**（ほかのどの札も1枚目より小さい）", () => {
-    const out = packCollage(items(9));
-    for (const p of out.slice(1)) expect(wOf(p)).toBeLessThan(wOf(out[0]));
-  });
-
-  it("**大・小の律動**（同じ列で大きい物が続かない）", () => {
-    const out = packCollage(items(9)).slice(1);
-    for (const c of [0, 1]) {
-      const ws = out.filter((p) => colOf(p) === c).map(wOf);
-      for (let i = 1; i < ws.length; i++) expect(Math.abs(ws[i] - ws[i - 1])).toBeGreaterThan(0.02);
+describe("傾きの種（`id` から決まる 0〜1）", () => {
+  it("**何度でも同じ**で、連番の id でも値が揃わない", () => {
+    expect(idSeed("s1", 13)).toBe(idSeed("s1", 13));
+    const vals = Array.from({ length: 8 }, (_, i) => idSeed(`s${i}`, 13));
+    const gaps = vals.slice(1).map((v, i) => Math.abs(v - vals[i]));
+    expect(Math.max(...gaps)).toBeGreaterThan(0.2);
+    for (const v of vals) {
+      expect(v).toBeGreaterThanOrEqual(0);
+      expect(v).toBeLessThan(1);
     }
-  });
-
-  it("**左の列は左へ、右の列は右へ傾く**（外へ開いて見開きに見える）", () => {
-    const out = packCollage(items(9)).slice(1);
-    for (const p of out) {
-      if (colOf(p) === 0) expect(p.rot).toBeLessThan(0);
-      else expect(p.rot).toBeGreaterThan(0);
-      expect(Math.abs(p.rot)).toBeGreaterThanOrEqual(1);
-      expect(Math.abs(p.rot)).toBeLessThanOrEqual(3.5);
-    }
-  });
-
-  it("1枚目の下も、空いているほうへ積む", () => {
-    const out = packCollage(items(6));
-    expect(out.filter((p) => colOf(p) === 0).length).toBeGreaterThanOrEqual(2);
-    expect(out.filter((p) => colOf(p) === 1).length).toBeGreaterThanOrEqual(2);
   });
 });
 
@@ -254,16 +71,5 @@ describe("枠の縦横比は誌面に収まる範囲へ", () => {
     expect(collageRatio(0)).toBe(1);
     expect(collageRatio(-3)).toBe(1);
     expect(collageRatio(Number.NaN)).toBe(1);
-  });
-
-  it("**積む計算では丸めない**（字だけの札は写真より低いのが正しい）", () => {
-    // 低い比をそのまま渡したら、そのぶんだけ低く積まれること。
-    const out = packCollage([
-      { id: "a", ratio: 0.2 },
-      { id: "b", ratio: 0.2 },
-    ]);
-    expect(botOf(out[0], 0.2) - topOf(out[0], 0.2)).toBeCloseTo(wOf(out[0]) * 0.2, 5);
-    // 積んだ位置も低い比のまま（丸めていれば 0.66 で積まれて下がる）。
-    expect(out[0].y).toBeCloseTo((wOf(out[0]) * 0.2) / 2, 5);
   });
 });

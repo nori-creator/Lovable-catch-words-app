@@ -513,6 +513,8 @@ const BARE_SCENES = new Set([
   "capture-object",
   "reward-catch",
   "home-tap",
+  // 本の左ページを長押しして開く面は全画面。
+  "book-album-edit",
 ]);
 
 /**

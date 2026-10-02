@@ -8,6 +8,7 @@ import {
   sectionsFor,
   missingSections,
   relatedWordsLackNotes,
+  RETIRED_SECTIONS,
   sectionNeedsFill,
   type SectionContentInput,
   type SectionId,
@@ -63,7 +64,14 @@ describe("sectionsFor — 言語ごとの並び", () => {
   const everywhere = new Set(TARGET_LANGUAGES.flatMap((l) => [...sectionsFor(l)]));
 
   it("**一覧の節は、必ずどこかの言語のカードに出る**(死んだ節を作らない)", () => {
-    for (const id of SECTION_IDS) expect([...everywhere], id).toContain(id);
+    for (const id of SECTION_IDS) {
+      if (RETIRED_SECTIONS.includes(id)) continue;
+      expect([...everywhere], id).toContain(id);
+    }
+  });
+
+  it("**外した節は、どの言語のカードにも並ばない**（オーナー指示 2026-10-02）", () => {
+    for (const id of RETIRED_SECTIONS) expect([...everywhere], id).not.toContain(id);
   });
 
   it("**どの言語の並びも、一覧の中の物だけ**(知らない節を描かない)", () => {

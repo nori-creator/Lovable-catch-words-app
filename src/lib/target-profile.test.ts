@@ -8,7 +8,7 @@ import {
   targetProfile,
   type ProfileSection,
 } from "./target-profile";
-import { SECTION_IDS } from "./card-sections";
+import { RETIRED_SECTIONS, SECTION_IDS } from "./card-sections";
 import { DEFAULT_TARGET_LANGUAGE } from "./target-lang";
 import fs from "node:fs";
 import path from "node:path";
@@ -213,7 +213,10 @@ describe("いまの画面と食い違っていない", () => {
       ...EN_PROFILE.sections,
       ...JA_PROFILE.sections,
     ]);
-    for (const id of SECTION_IDS) expect([...used], id).toContain(id);
+    for (const id of SECTION_IDS) {
+      if (RETIRED_SECTIONS.includes(id)) continue;
+      expect([...used], id).toContain(id);
+    }
   });
 });
 

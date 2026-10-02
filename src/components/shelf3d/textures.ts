@@ -12,7 +12,14 @@
  */
 
 import { diaryFont, wrapDiaryLines, type DiaryFontId } from "@/lib/diary-fonts";
-import { clamp, COLLAGE_CAP_MIN, COLLAGE_CAP_W, sizePx, type Placement } from "@/lib/album-place";
+import {
+  ALBUM_PAGE_RATIO,
+  clamp,
+  COLLAGE_CAP_MIN,
+  COLLAGE_CAP_W,
+  sizePx,
+  type Placement,
+} from "@/lib/album-place";
 
 export type Canvas = HTMLCanvasElement;
 
@@ -501,6 +508,8 @@ export type DaySpread = {
 };
 
 const HAND = `"Zen Kurenaido", cursive`;
+/** アプリが書く字（日付・語）。ホームの札の語と同じゴシック。 */
+const SANS = `"Noto Sans TC", "PingFang TC", sans-serif`;
 const WEEK_JA = ["日", "月", "火", "水", "木", "金", "土"];
 
 function paper(ctx: CanvasRenderingContext2D, w: number, h: number, side: "left" | "right") {
@@ -542,6 +551,19 @@ function dateLabel(s: DaySpread) {
 }
 
 /**
+ * ページの頭の日付。**ホームのアルバムの日付（`DiaryDate`）と同じくアプリの字体**（太めの
+ * ゴシック。オーナー指示 2026-10-02「本棚アルバムの文字は統一して」）。前は左右で手書きの
+ * 太さが違い、語のゴシックと3つに割れていた。人が書いた字（一言・日記）だけが手書きで残る。
+ */
+function paintDateHeading(ctx: CanvasRenderingContext2D, text: string, x: number, y: number) {
+  ctx.fillStyle = "#2a231c";
+  ctx.font = `600 44px ${SANS}`;
+  ctx.textAlign = "left";
+  ctx.textBaseline = "alphabetic";
+  ctx.fillText(text, x, y);
+}
+
+/**
  * **左のページ: その日のアルバム。** 写真は重ならない位置に少し傾けて貼り（マスキング
  * テープ付き）、下に語、横に本人の一言を手書きで。落書きはその上に重ねる。
  */
@@ -551,10 +573,7 @@ export function paintAlbumDay(s: DaySpread): Canvas {
   const c = canvas(w, h);
   const ctx = c.getContext("2d")!;
   paper(ctx, w, h, "left");
-  ctx.fillStyle = "#2a231c";
-  ctx.font = `400 54px ${HAND}`;
-  ctx.textAlign = "left";
-  inkText(ctx, dateLabel(s), 70, 112, 54);
+  paintDateHeading(ctx, dateLabel(s), 70, 112);
   if (s.photos.length > 0 && s.photos.every((p) => p.place)) {
     paintPlacedPhotos(ctx, s, w, h);
     paintDoodles(ctx, s, w, h);
@@ -661,14 +680,15 @@ function paintDoodles(ctx: CanvasRenderingContext2D, s: DaySpread, w: number, h:
   }
 }
 
-// ── ホームのアルバムでの置き方（大きさ・向き・重なり）で貼る（オーナー指示 2026-09-30）───────
+// ── ホームのアルバムと同じ台紙（置き方・大きさ・向き・重なり）で貼る（オーナー指示 2026-09-30、
+//    決定 2026-10-02「台紙を本のページの形にそろえる」）─────────────────────────────
 // 見た目は**本の元の紙のまま**（白い台紙・マスキングテープ・太字の語・茶色の手書きの一言）。
 // ホームの `DayCollage` の操作画面を上に重ねるのはやめた（本とページがずれる）。置き方の計算は
-// `lib/album-day-layout.ts` の1本を共有するので、ホームで直した置き方・一言がそのまま本に出る。
+// `lib/album-day-layout.ts` の1本を共有し、台紙はページの形なので、ホームの並びがそのまま本に出る。
+// 本で並べ直す枝は無い（2つ持つと、片方を直した日に食い違う）。
 
 /** 置き方を計算した時の台紙の幅（CSS px）。字の大きさを canvas へ写す基準。 */
 const REF_BOARD_CSS = 340;
-const SANS = `"Noto Sans TC", "PingFang TC", sans-serif`;
 
 function roundedRect(
   ctx: CanvasRenderingContext2D,
@@ -715,9 +735,11 @@ function paintPlacedPhotos(ctx: CanvasRenderingContext2D, s: DaySpread, w: numbe
   const top = 150;
   const boardMaxW = w - 2 * M;
   const availH = h - top - 40;
-  // 台紙が縦に長い日は、ページに収まるまで全体を縮める（置き方の比は変えない）。
-  const fit = Math.min(1, availH / ((s.boardH ?? 1.3) * boardMaxW));
-  const bw = boardMaxW * fit;
+  // 台紙はページの形（`ALBUM_PAGE_RATIO`）なので、ふつうは紙の幅いっぱいにそのまま貼れる。
+  // 自分で置いた写真がページより下に在る日（台紙が伸びた日）だけ、収まるまで全体を縮める
+  // （置き方の比は変えない — ホームと同じ並びのまま小さくなるだけ）。
+  const boardH = s.boardH ?? ALBUM_PAGE_RATIO;
+  const bw = Math.min(boardMaxW, availH / boardH);
   const ox = M + (boardMaxW - bw) / 2;
   const k = bw / REF_BOARD_CSS;
   const order = s.photos.map((p, i) => ({ p, i })).sort((a, b) => (a.p.z ?? a.i) - (b.p.z ?? b.i));
@@ -727,91 +749,116 @@ function paintPlacedPhotos(ctx: CanvasRenderingContext2D, s: DaySpread, w: numbe
     const { w: cw, h: ch } = sizePx(pl, bw, p.ratio ?? 1.2);
     const X = ox + pl.x * bw;
     const Y = top + pl.y * bw;
-    // 語を書く下の余白（元の本と同じく写真より少し広い台紙）。
-    const strip = Math.max(30 * k, cw * 0.2);
-    const wordPx = clamp(cw * 0.12, 15 * k, 26 * k);
-    const notePx = Math.max(13 * k, 20);
-    ctx.save();
-    ctx.translate(X, Y);
-    ctx.rotate((pl.rot * Math.PI) / 180);
+    const capW = clamp(cw + 10, bw * COLLAGE_CAP_MIN, bw * COLLAGE_CAP_W);
+    // 一言が台紙の外へはみ出す時は、台紙の中へ寄せる。
+    const dx = Math.max(0, ox - (X - capW / 2)) - Math.max(0, X + capW / 2 - (ox + bw));
+    paintPhotoCard(ctx, p, { X, Y, cw, ch, rot: pl.rot, k, capW, capDx: dx, plainW: bw });
+  }
+}
 
-    if (p.plain) {
-      // 字だけの札: 枠も地も持たず、紙に語と一言を書く。
-      ctx.textAlign = "left";
-      ctx.textBaseline = "alphabetic";
-      ctx.font = `700 ${wordPx}px ${SANS}`;
-      ctx.fillStyle = "#2b2520";
-      ctx.fillText(fitOneLine(ctx, p.word, Math.max(cw, wordPx * 3)), -cw / 2, -ch / 2 + wordPx);
-      if (p.note) {
-        ctx.font = `400 ${notePx}px ${HAND}`;
-        ctx.fillStyle = "#7a4e2a";
-        const lh = notePx * 1.3;
-        clampLines(ctx, p.note, Math.max(cw, bw * COLLAGE_CAP_MIN), 3).forEach((ln, n) =>
-          inkText(ctx, ln, -cw / 2, -ch / 2 + wordPx + lh * (n + 1), notePx),
-        );
-      }
-      ctx.restore();
-      continue;
-    }
+/** 写真の下の字の大きさ（台紙の白い余白・語・一言）。ホームの札と同じ割合。 */
+function cardText(cw: number, k: number) {
+  const strip = Math.max(30 * k, cw * 0.2);
+  const wordPx = clamp(cw * 0.12, 15 * k, 26 * k);
+  const notePx = Math.max(13 * k, 20);
+  return { strip, wordPx, notePx, lh: notePx * 1.3 };
+}
 
-    // 白い台紙（元の本と同じ: 影つき・角ばった紙）
-    const pad = Math.max(8, cw * 0.045);
-    ctx.shadowColor = "rgba(40,30,20,0.32)";
-    ctx.shadowBlur = 16;
-    ctx.shadowOffsetY = 6;
-    ctx.fillStyle = "#fcfbf7";
-    ctx.fillRect(-cw / 2, -ch / 2, cw, ch + strip);
-    ctx.shadowColor = "transparent";
-    ctx.shadowOffsetY = 0;
-    // 写真（枠いっぱいに `cover`）
-    const px = -cw / 2 + pad;
-    const py = -ch / 2 + pad;
-    const pw = cw - 2 * pad;
-    const ph = ch - pad;
-    ctx.save();
-    ctx.beginPath();
-    ctx.rect(px, py, pw, ph);
-    ctx.clip();
-    if (p.img) {
-      const iw = p.img.naturalWidth || p.img.width;
-      const ih = p.img.naturalHeight || p.img.height;
-      if (iw && ih) {
-        const sc = Math.max(pw / iw, ph / ih);
-        ctx.drawImage(p.img, px + (pw - iw * sc) / 2, py + (ph - ih * sc) / 2, iw * sc, ih * sc);
-      }
-    } else {
-      ctx.fillStyle = "#e9e4d6";
-      ctx.fillRect(px, py, pw, ph);
-    }
-    ctx.restore();
-    // マスキングテープ
-    ctx.fillStyle = "rgba(214,190,140,0.62)";
-    ctx.save();
-    ctx.translate(0, -ch / 2 - 4);
-    ctx.rotate(-0.08);
-    const tw = clamp(cw * 0.34, 56, 100);
-    ctx.fillRect(-tw / 2, -14, tw, 28);
-    ctx.restore();
-    // 語（太字・真ん中）
-    ctx.fillStyle = "#2b2520";
-    ctx.font = `700 ${wordPx}px ${SANS}`;
-    ctx.textAlign = "center";
+/** 写真1枚（台紙・写真・テープ・語・一言）を、中心 (X, Y) に傾けて描く。 */
+function paintPhotoCard(
+  ctx: CanvasRenderingContext2D,
+  p: DaySpread["photos"][number],
+  o: {
+    X: number;
+    Y: number;
+    cw: number;
+    ch: number;
+    rot: number;
+    k: number;
+    capW: number;
+    capDx: number;
+    /** 字だけの札が語と一言を書ける幅。 */
+    plainW: number;
+  },
+) {
+  const { X, Y, cw, ch, k } = o;
+  const { strip, wordPx, notePx, lh } = cardText(cw, k);
+  ctx.save();
+  ctx.translate(X, Y);
+  ctx.rotate((o.rot * Math.PI) / 180);
+
+  if (p.plain) {
+    // 字だけの札: 枠も地も持たず、紙に語と一言を書く。
+    ctx.textAlign = "left";
     ctx.textBaseline = "alphabetic";
-    const wordY = ch / 2 + strip * 0.68;
-    ctx.fillText(fitOneLine(ctx, p.word, cw - 2 * pad), 0, wordY);
-    // 本人の一言（茶色の手書き。3行まで、台紙の幅で折る）
+    ctx.font = `700 ${wordPx}px ${SANS}`;
+    ctx.fillStyle = "#2b2520";
+    ctx.fillText(fitOneLine(ctx, p.word, Math.max(cw, wordPx * 3)), -cw / 2, -ch / 2 + wordPx);
     if (p.note) {
-      const capW = clamp(cw + 10, bw * COLLAGE_CAP_MIN, bw * COLLAGE_CAP_W);
-      const dx = Math.max(0, ox - (X - capW / 2)) - Math.max(0, X + capW / 2 - (ox + bw));
       ctx.font = `400 ${notePx}px ${HAND}`;
       ctx.fillStyle = "#7a4e2a";
-      const lh = notePx * 1.3;
-      clampLines(ctx, p.note, capW, 3).forEach((ln, n) =>
-        inkText(ctx, ln, dx, ch / 2 + strip + lh * (n + 1) - lh * 0.15, notePx),
+      clampLines(ctx, p.note, Math.max(cw, o.plainW * COLLAGE_CAP_MIN), 3).forEach((ln, n) =>
+        inkText(ctx, ln, -cw / 2, -ch / 2 + wordPx + lh * (n + 1), notePx),
       );
     }
     ctx.restore();
+    return;
   }
+
+  // 白い台紙（元の本と同じ: 影つき・角ばった紙）
+  const pad = Math.max(8, cw * 0.045);
+  ctx.shadowColor = "rgba(40,30,20,0.32)";
+  ctx.shadowBlur = 16;
+  ctx.shadowOffsetY = 6;
+  ctx.fillStyle = "#fcfbf7";
+  ctx.fillRect(-cw / 2, -ch / 2, cw, ch + strip);
+  ctx.shadowColor = "transparent";
+  ctx.shadowOffsetY = 0;
+  // 写真（枠いっぱいに `cover`）
+  const px = -cw / 2 + pad;
+  const py = -ch / 2 + pad;
+  const pw = cw - 2 * pad;
+  const ph = ch - pad;
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(px, py, pw, ph);
+  ctx.clip();
+  if (p.img) {
+    const iw = p.img.naturalWidth || p.img.width;
+    const ih = p.img.naturalHeight || p.img.height;
+    if (iw && ih) {
+      const sc = Math.max(pw / iw, ph / ih);
+      ctx.drawImage(p.img, px + (pw - iw * sc) / 2, py + (ph - ih * sc) / 2, iw * sc, ih * sc);
+    }
+  } else {
+    ctx.fillStyle = "#e9e4d6";
+    ctx.fillRect(px, py, pw, ph);
+  }
+  ctx.restore();
+  // マスキングテープ
+  ctx.fillStyle = "rgba(214,190,140,0.62)";
+  ctx.save();
+  ctx.translate(0, -ch / 2 - 4);
+  ctx.rotate(-0.08);
+  const tw = clamp(cw * 0.34, 56, 100);
+  ctx.fillRect(-tw / 2, -14, tw, 28);
+  ctx.restore();
+  // 語（太字・真ん中）
+  ctx.fillStyle = "#2b2520";
+  ctx.font = `700 ${wordPx}px ${SANS}`;
+  ctx.textAlign = "center";
+  ctx.textBaseline = "alphabetic";
+  const wordY = ch / 2 + strip * 0.68;
+  ctx.fillText(fitOneLine(ctx, p.word, cw - 2 * pad), 0, wordY);
+  // 本人の一言（茶色の手書き。3行まで、台紙の幅で折る）
+  if (p.note) {
+    ctx.font = `400 ${notePx}px ${HAND}`;
+    ctx.fillStyle = "#7a4e2a";
+    clampLines(ctx, p.note, o.capW, 3).forEach((ln, n) =>
+      inkText(ctx, ln, o.capDx, ch / 2 + strip + lh * (n + 1) - lh * 0.15, notePx),
+    );
+  }
+  ctx.restore();
 }
 
 function wrapCanvas(ctx: CanvasRenderingContext2D, text: string, maxW: number) {
@@ -855,11 +902,8 @@ export function paintDiary(s: DaySpread, font: DiaryFontId): Canvas {
   ctx.moveTo(78, 60);
   ctx.lineTo(78, h - 40);
   ctx.stroke();
-  // 日付（左の写真のページと同じ手書き）
-  ctx.fillStyle = "#3a3128";
-  ctx.font = `400 42px ${HAND}`;
-  ctx.textAlign = "left";
-  inkText(ctx, dateLabel(s), left, 124, 42);
+  // 日付（左のアルバムのページと同じ字体・大きさ）
+  paintDateHeading(ctx, dateLabel(s), left, 124);
   // 本文
   ctx.fillStyle = "#1c2640";
   ctx.font = `400 ${px}px ${f.family}`;
@@ -885,13 +929,14 @@ export function paintTitlePage(title: string, subtitle: string): Canvas {
   const c = canvas(w, h);
   const ctx = c.getContext("2d")!;
   paper(ctx, w, h, "right");
+  // 扉もアルバム・日記のページと同じ字体（本の中の字は1つの系統に揃える）。
   ctx.fillStyle = "#3a3128";
   ctx.textAlign = "center";
-  ctx.font = `400 64px ${HAND}`;
+  ctx.font = `600 56px ${SANS}`;
   ctx.fillText(title, w / 2, h * 0.44);
-  ctx.fillStyle = "rgba(58,49,40,0.55)";
-  ctx.font = `400 30px ${HAND}`;
-  ctx.fillText(subtitle, w / 2, h * 0.44 + 64);
+  ctx.fillStyle = "rgba(58,49,40,0.6)";
+  ctx.font = `500 28px ${SANS}`;
+  ctx.fillText(subtitle, w / 2, h * 0.44 + 60);
   fibers(ctx, w, h, 3);
   return c;
 }

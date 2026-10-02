@@ -23,7 +23,9 @@
  * `SoundAndHapticsPanel` が持つ同名の見出しと二重になっていた)。
  */
 import { DataSourcesList } from "@/components/DataSourcesList";
+import { MotionProvider } from "@/components/motion-provider";
 import {
+  MotionToggleRow,
   ToggleRow,
   AvatarRow,
   ChoiceRow,
@@ -215,6 +217,11 @@ export function SettingsTogglesScene() {
             { value: "system", label: t("settings.system") },
           ]}
         />
+        {/* アニメーションはオン・オフのスイッチ（オーナー指示 2026-10-02）。
+            実物と同じ部品を、実物と同じ保存の仕組みの中で動かす。 */}
+        <MotionProvider>
+          <MotionToggleRow />
+        </MotionProvider>
       </SettingsCard>
 
       <SoundAndHapticsPanel />

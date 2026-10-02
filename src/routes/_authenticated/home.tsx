@@ -2,6 +2,7 @@ import { MemorialReveal } from "@/components/MemorialReveal";
 import { JIGGLE, jiggleStyle, LIFTED } from "@/lib/album-drag";
 import { CollageFasteners } from "@/components/AlbumPrint";
 import {
+  ALBUM_PAGE_RATIO,
   applyDelta,
   boardHeight,
   COLLAGE_CAP_MIN,
@@ -22,9 +23,11 @@ import {
   AUTO_ALBUM_SIZE,
   CAP_NOTE_PX,
   CAP_ROW_PX,
+  dayExtra,
   PLACEHOLDER_RATIO,
   settleDayAlbum,
 } from "@/lib/album-day-layout";
+import { monthDays } from "@/lib/home-shelf";
 import { toast } from "sonner";
 import { haptic } from "@/lib/haptics";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
@@ -516,6 +519,22 @@ export function HomeSurface({
   }, [albumItems, todayKey]);
   const ready = !loading && !failed && albumItems.length > 0;
   const albumHidden = useAlbumHidden();
+  /**
+   * **本の左ページを長押し → ホームと同じ並べ替えの画面**（オーナー指示 2026-10-02「ホームの
+   * アルバムのように本棚のアルバムでも長押しで配置を変換できるようにして。ホームと本棚の
+   * アルバムは連携させて」）。本の上に DOM は重ねない（本とページがずれる）ので、その日の
+   * `DayCollage` を**別の面**（全画面）に開く。保存はホームと同じ `saveAlbumLayout` →
+   * `["stickers"]` の読み直し → `HomeShelf` が置き方の署名の変化で本を描き直す（`refreshDays`）。
+   */
+  const [bookEdit, setBookEdit] = useState<{ y: number; m: number; d: number } | null>(null);
+  const bookEditStickers = useMemo(
+    () =>
+      bookEdit
+        ? (monthDays(albumItems, bookEdit.y, bookEdit.m, 60).find((g) => g.d === bookEdit.d)
+            ?.items ?? [])
+        : [],
+    [albumItems, bookEdit],
+  );
   return (
     /*
       **アプリの一番上に、部屋に置いた 3D の本棚**（オーナー指示 R17「本棚が小さすぎる。
@@ -527,8 +546,25 @@ export function HomeSurface({
     */
     <div className={ready ? "home-scene" : undefined}>
       {ready ? (
-        <HomeShelf items={albumItems} loaders={shelfLoaders} hiddenIds={albumHidden.hidden} />
+        <HomeShelf
+          items={albumItems}
+          loaders={shelfLoaders}
+          hiddenIds={albumHidden.hidden}
+          onAlbumLongPress={(day) => {
+            haptic("medium");
+            setBookEdit(day);
+          }}
+        />
       ) : null}
+      {bookEdit && bookEditStickers.length > 0 && (
+        <BookAlbumEditor
+          date={new Date(bookEdit.y, bookEdit.m - 1, bookEdit.d)}
+          stickers={bookEditStickers}
+          surface={surfaceClass}
+          onOpen={onOpen}
+          onClose={() => setBookEdit(null)}
+        />
+      )}
       {/* **日付は壁紙に直に書く**（オーナー指示 2026-09-23「ホーム画面の日付は
         背景の壁紙に直接書いて。日記のように」）。上の見出しの帯はやめ、
         今日の誌面の板の中（`DayCollage` の `heading`）に書く。 */}
@@ -969,7 +1005,15 @@ export function DayCollage({
   heading,
   editable = true,
   stamp = "time",
+  startEditing = false,
+  onDoneEditing,
 }: {
+  /**
+   * 開いた瞬間から並べ替え（本の左ページを長押しして開いた面。長押しを2回させない）。
+   * 「完了」を押したら `onDoneEditing`（面を閉じる）。
+   */
+  startEditing?: boolean;
+  onDoneEditing?: () => void;
   /** 札に添える印。1日の誌面は時刻、日をまたぐ記念アルバムは日付。 */
   stamp?: "time" | "date";
   /**
@@ -1043,7 +1087,7 @@ export function DayCollage({
     if (back) setOrdered((o) => (o.some((x) => x.id === id) ? o : [...o, back]));
     void albumHidden.restore(id);
   };
-  const [editing, setEditing] = useState(false);
+  const [editing, setEditing] = useState(startEditing && editable);
   const [ordered, setOrdered] = useState(stickers);
   const dragId = useRef<string | null>(null);
   const dragged = useRef(false);
@@ -1189,6 +1233,8 @@ export function DayCollage({
          * 指で広げても比は変わらない（横長の写真が縦長にならない）。
          */
         ratio: frameRatio(s.id),
+        /** 写真の下の字のぶん（台紙の高さに入れる）。 */
+        extra: dayExtra(s, Boolean(heroById.get(s.id)), board.w),
         /**
          * 重なりの順。**並びの後ろほど上。**（オーナー指示 2026-09-15
          * 「後から画像と画像を重ねた場合は、後から重ねた部分を上に表示する」）
@@ -1198,11 +1244,12 @@ export function DayCollage({
          */
         z: 10 + i,
       })),
-    [ordered, settledById, sizes, frameRatio],
+    [ordered, settledById, sizes, frameRatio, heroById, board.w],
   );
   /**
-   * 台紙の高さ（幅に対する割合）。**中身から決める。**
-   * 縦を幅で測っているので、ここが伸びても置いてある札は動かない。
+   * 台紙の高さ（幅に対する割合）。**ページの形（`ALBUM_PAGE_RATIO`）が基本**で、自分で
+   * ページより下に置いた札が在る日だけ、そこまで伸びる。縦を幅で測っているので、伸びても
+   * 置いてある札は動かない。
    */
   const boardH = useMemo(() => boardHeight(items), [items]);
 
@@ -1235,6 +1282,7 @@ export function DayCollage({
   }
   function finishEditing() {
     setEditing(false);
+    onDoneEditing?.();
     if (!changed.current) return;
     changed.current = false;
     void persistLayout({ data: { items: layoutPayload() } }).then(
@@ -1411,7 +1459,9 @@ export function DayCollage({
        * 来るので、そのたびに state を変えると札の枚数ぶん描き直しが
        * 積み上がって、掴んだ物が指から遅れる（「カクカク」のもう半分）。
        */
-      pendingPlace.current = applyDelta(g.startPlace, d, board.w, boardH);
+      // 下へは**ページの底まで**（台紙はページの形。昔の縦に長い台紙で下に置いた札は、
+      // 動かした時にページの中へ戻る）。
+      pendingPlace.current = applyDelta(g.startPlace, d, board.w, ALBUM_PAGE_RATIO);
       if (!moveRafPlace.current) {
         moveRafPlace.current = requestAnimationFrame(() => {
           moveRafPlace.current = 0;
@@ -1454,7 +1504,7 @@ export function DayCollage({
     // `reseat` は毎描画で作り直されるが、中身は ref だけなので依存に
     // 入れる必要がない（入れると指を動かすたびに張り直しになる）。
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [live, board, boardH]);
+  }, [live, board]);
   /**
    * **長押しで掴んだ札を動かす間だけ、画面の送りを止める。**
    *
@@ -1951,6 +2001,61 @@ export function DayCollage({
       </div>
       <CaptionEditDialog target={captionTarget} onClose={() => setCaptionTarget(null)} />
     </>
+  );
+}
+
+/**
+ * **本の左ページを長押しして開く、その日の並べ替えの面**（オーナー指示 2026-10-02）。
+ * 中身はホームと**同じ `DayCollage`**（同じ台紙・同じ置き方・同じ保存）で、開いた瞬間から
+ * 並べ替え（`startEditing`）。「完了」で保存して閉じる。本の上には重ねず、全画面の別の面
+ * （本棚の全画面 `z-index: 70` より上、鉛筆の 90 より下）。
+ *
+ * 札を押しても詳細は開かない（並べ替え中なので。詳細の面はこの面より下に出るため）。
+ */
+export function BookAlbumEditor({
+  date,
+  stickers,
+  surface,
+  onOpen,
+  onClose,
+}: {
+  date: Date;
+  stickers: StickerWithWord[];
+  surface: string;
+  onOpen: (id: string, from?: FlightOrigin | null) => void;
+  onClose: () => void;
+}) {
+  const t = useT();
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label={t("shelf.home.arrange")}
+      data-book-album-editor
+      className="fixed inset-0 z-[85] overflow-y-auto bg-background px-4 pb-32 pt-[calc(env(safe-area-inset-top)+0.75rem)]"
+    >
+      <div className="mx-auto max-w-3xl">
+        <div className="mb-2 flex items-center justify-between gap-3">
+          <p className="text-footnote text-muted-foreground">{t("shelf.home.arrangeHint")}</p>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label={t("common.close")}
+            className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-card shadow-sm"
+          >
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+        <DayCollage
+          stickers={stickers}
+          surface={surface}
+          heading={<DiaryDate date={date} compact />}
+          onOpen={onOpen}
+          startEditing
+          onDoneEditing={onClose}
+        />
+      </div>
+    </div>
   );
 }
 

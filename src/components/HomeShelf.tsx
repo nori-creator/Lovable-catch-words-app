@@ -79,7 +79,14 @@ export function HomeShelf({
   room = "a",
   hiddenIds,
   autoOpen,
+  onAlbumLongPress,
 }: {
+  /**
+   * 開いた本の**左ページ（その日のアルバム）を長押し**した（オーナー指示 2026-10-02「本棚の
+   * アルバムでも長押しで配置を変換できるようにして」）。受け取る側（ホーム）がその日の
+   * ホームと同じ並べ替えの面を開く。ここでは本の上に何も重ねない（本とページがずれる）。
+   */
+  onAlbumLongPress?: (day: { y: number; m: number; d: number }) => void;
   items: ReadonlyArray<StickerWithWord>;
   /**
    * ホームのアルバムから外した写真（`useAlbumHidden`）。**本の左ページにも貼らない**
@@ -114,6 +121,10 @@ export function HomeShelf({
   itemsRef.current = items;
   const hiddenRef = useRef(hiddenIds);
   hiddenRef.current = hiddenIds;
+  const longPressRef = useRef(onAlbumLongPress);
+  longPressRef.current = onAlbumLongPress;
+  /** いま見開きで見ている日（長押しした時にどの日かを知るため）。 */
+  const dayRef = useRef<DaySpread | undefined>(undefined);
   // アルバムに貼る絵の選び方（設定と、長押しで選んだ絵）。ホームと同じ答えを使う。
   const photoPref = usePhotoPref();
   const surfaceRoles = useSurfaceRoleMap();
@@ -432,6 +443,12 @@ export function HomeShelf({
             },
             // 見開きで押した側のページへ寄る。寄っている時に押したら見開きへ戻る。
             onPageTap: (side) => setView(viewRef.current === "spread" ? side : "spread"),
+            // 左ページ（その日のアルバム）の長押し → ホームと同じ並べ替えの面（右の日記は対象外）。
+            onPageLongPress: (side) => {
+              const d = dayRef.current;
+              if (side !== "left" || !d || !longPressRef.current) return;
+              longPressRef.current({ y: d.y, m: d.m, d: d.d });
+            },
             // 片ページで払って、同じ見開きの反対のページへ横に移った（R20）。
             onFocusSide: (side) => setView(side),
             onBookTap: (b, open) => {
@@ -575,6 +592,7 @@ export function HomeShelf({
   const days = world.current?.openDays ?? [];
   const dayIndex = state.open && !state.cover ? state.page - 1 : -1;
   const day = dayIndex >= 0 ? days[dayIndex] : undefined;
+  dayRef.current = day;
   if (!months.length || failed) return null;
 
   const heading = state.open

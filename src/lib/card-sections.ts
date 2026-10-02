@@ -65,6 +65,21 @@ export const SECTION_IDS = [
 export type SectionId = (typeof SECTION_IDS)[number];
 
 /**
+ * **どの言語のカードにも並べない節**（オーナー指示 2026-10-02「ネットの画像・追加の例文・
+ * 発音のコツ・覚え方の項目を消して」）。
+ *
+ * 名前は `SECTION_IDS` に残す。保存済みのカードの中身と、作り直しの窓口
+ * （`REGEN_SECTIONS`、iOS 版も呼ぶ）の型がこの名前を使っているため。
+ * 戻すときは `target-profile.ts` の各言語の `sections` に足し、ここから外す。
+ */
+export const RETIRED_SECTIONS: readonly SectionId[] = [
+  "web_images",
+  "examples_extra",
+  "pronunciation_tips",
+  "mnemonic",
+];
+
+/**
  * その学習言語のカードに出る節を、**その言語の並び順で**返す。
  *
  * 出所は `target-profile.ts` の `sections` ただ1つ。画面の既定の並びも、

@@ -46,8 +46,7 @@ export const MOTION_STORAGE_KEY = "motion";
  * **これは端末の `prefers-reduced-motion` を尊重しない、ということ。**
  * あの設定は前庭障害のある人のために在り、大きく動く絵は実害になりうる。
  * オーナーには2度お伝えしたうえでの決定なので、そのとおりにしてある。
- * 戻すときはここを `"system"` に戻し、`MotionChoiceRow` を設定画面へ
- * 置き直すだけでよい（仕組みは丸ごと残してある）。
+ * 設定画面の欄は 2026-10-02 からオン・オフのスイッチ（`MotionToggleRow`）。
  */
 export const DEFAULT_MOTION: MotionChoice = "full";
 

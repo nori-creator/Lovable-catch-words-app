@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { daysUntilRetention } from "./srs";
 import { BEST_R, buildMemoryCurve, curveTicks, gradientStops, groupReviews } from "./memory-curve";
 
 const DAY = 86_400_000;
@@ -70,6 +71,28 @@ describe("buildMemoryCurve", () => {
     expect(c.todayR).toBe(100);
     expect(c.domain[0]).toBe(0);
     expect(c.future.length).toBeGreaterThan(10);
+  });
+
+  /**
+   * **撮っただけの語は 0%**（オーナー指示 2026-10-02「写真を撮ったときはまだ覚えて
+   * ないから 0% になるように」）。安定度 0 の出会いは、最初の復習まで 0% の平らな線。
+   */
+  it("撮っただけ（安定度 0）の語は、最初の復習まで 0% で、復習どきはもう来ている", () => {
+    const c = buildMemoryCurve([], NOW, { encounter: { t: NOW - 2 * DAY, stability: 0 } })!;
+    expect(c.todayR).toBe(0);
+    expect(c.past.every((p) => p.r === 0)).toBe(true);
+    expect(c.future.every((p) => p.r === 0)).toBe(true);
+    expect(c.bestDay).toBeLessThanOrEqual(0);
+    expect(c.nextDrop).toBeNull();
+    // 最初の復習で 100 へ戻り、そこから落ちる。
+    const d = buildMemoryCurve([{ t: NOW - 1 * DAY, stability: 3 }], NOW, {
+      encounter: { t: NOW - 5 * DAY, stability: 0 },
+    })!;
+    const before = d.past.filter((p) => p.d < -1);
+    expect(before.length).toBeGreaterThan(0);
+    expect(before.every((p) => p.r === 0)).toBe(true);
+    expect(d.past.some((p) => p.d === -1 && p.r === 100)).toBe(true);
+    expect(d.todayR).toBeGreaterThan(90);
   });
 
   it("撮った日から線が始まり、撮った日は復習に数えない", () => {
@@ -162,15 +185,17 @@ describe("groupReviews", () => {
 import { curveValueAt, nextLevelDrop } from "./memory-curve";
 
 describe("次に段が下がる日（オーナー指示 2026-09-23）", () => {
-  it("境目を割る日を解く（S=10・今日100% → 95% を割るのは約0.56日後）", () => {
+  it("境目を割る日を解く（S=10・今日100% → 95% を割る日は忘却曲線の逆で出す）", () => {
     const r = nextLevelDrop(100, 0, 10)!;
     expect(r.level).toBe(4);
-    expect(r.d).toBeCloseTo(10 * Math.log(100 / 94.5), 2);
+    expect(r.d).toBeCloseTo(daysUntilRetention(10, 0.945), 2);
+    expect(r.d).toBeGreaterThan(0);
+    expect(r.d).toBeLessThan(10);
   });
   it("過ぎた時間を差し引く。忘れかけは null", () => {
     const r = nextLevelDrop(90, 2, 30)!;
     expect(r.level).toBe(3);
-    expect(r.d).toBeCloseTo(30 * Math.log(100 / 84.5) - 2, 2);
+    expect(r.d).toBeCloseTo(daysUntilRetention(30, 0.845) - 2, 2);
     expect(nextLevelDrop(20, 5, 3)).toBeNull();
   });
 });
