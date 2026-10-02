@@ -120,7 +120,7 @@ Track AI/TTS cost per operation and aggregate per active user without exposing u
 
 Every database change must be readable from `supabase/migrations/`. Lovable also writes `drizzle/migrations/`; anything added there must be mirrored into a `supabase/migrations/` file that names the drizzle file (`src/lib/migrations-mirror.test.ts` enforces it). Production policy changes are applied only with owner approval.
 
-Shared `words` rows are written only by the server (service role). Browser `UPDATE`/`DELETE` were revoked on 2026-10-01 (`20261001100000_words_server_only_update.sql`, applied). Browser `INSERT` is closed by `docs/pending-migrations/20261001100200_words_server_only_insert.sql`, **to be applied only after the version where `upsertWord` inserts with the service role is published** (kept out of `supabase/migrations/` so it cannot run early; move it there once applied).
+Shared `words` rows are written only by the server (service role). Browser `UPDATE`/`DELETE` were revoked on 2026-10-01 (`20261001100000_words_server_only_update.sql`, applied). Browser `INSERT` was revoked on 2026-10-02 after the version where `upsertWord` inserts with the service role was published (`20261001100200_words_server_only_insert.sql`, applied). Browsers can only `SELECT` shared words.
 
 ## Failures must be visible
 

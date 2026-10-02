@@ -801,8 +801,8 @@ export async function upsertWord(
      * ブラウザの権限で足せると、アプリを通さずに中身を決めた行を先に置けてしまう
      * （後から同じ語を撮った人は全員その行を見る）。足した人は `created_by` に残す
      * （DB の `enforce_words_source` は auth.uid() が空のとき渡した値を使う）。
-     * この版を公開した後に、ブラウザの追加口を閉じる
-     * （`docs/pending-migrations/20261001100200_words_server_only_insert.sql`）。
+     * ブラウザの追加口は閉じてある
+     * （`supabase/migrations/20261001100200_words_server_only_insert.sql`、本番に 2026-10-02 適用）。
      */
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const rowWithOwner = { ...row, created_by: userId };
