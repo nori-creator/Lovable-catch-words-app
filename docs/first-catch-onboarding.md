@@ -15,7 +15,7 @@ Branch implementation: `/welcome` introduction → five questions → notificati
 
 Netlify Deploy Preview opens `first-catch` by default without a developer menu. It uses the production components and an authenticated preview endpoint for the actual AI path. AI and Auth are unavailable until the intended environment has configured publishable Supabase and AI keys and reviewed anonymous sign-in. The preview fails explicitly; it never presents a canned word as though detected in the visitor's photo. In-memory sample screens and account form are for visual review only.
 
-Useful additional scenes: `?scene=first-catch&step=card`, `?scene=first-catch&step=added`, `?scene=first-catch&step=explore`, `?scene=first-catch&step=account`, and `?scene=first-catch&step=card&fail=storage`. Sample screens are explicitly labelled; camera capture still uses the real camera component.
+Useful additional scenes: `?scene=first-catch&step=home&tour=1` (chapter selector + replay button to watch the beat timing), `?scene=first-catch&step=pick` (sample candidates for the sample cafe photo), `?scene=first-catch&step=card`, `?scene=first-catch&step=added`, `?scene=first-catch&step=explore`, `?scene=first-catch&step=account`, and `?scene=first-catch&step=card&fail=storage`. Sample screens are explicitly labelled; camera capture still uses the real camera component.
 
 ## Production gate (not enabled by this PR)
 
@@ -45,3 +45,15 @@ The pre-signup AI endpoint uses server-side `SUPABASE_SERVICE_ROLE_KEY` only to 
 - The same-origin check also accepts the forwarded host, for hosts that proxy the request to a different internal URL.
 - If the guest endpoint refuses at the gate (`FIRST_CATCH_LIMIT`, `FIRST_CATCH_ORIGIN`, `FIRST_CATCH_AI_UNAVAILABLE`), the client falls back to a per-device anonymous account and the authenticated endpoint (24 calls per account per day). If anonymous sign-in is disabled, `FIRST_CATCH_GUEST_UNAVAILABLE` is shown. Genuine AI failures are not retried on the other path.
 - Generic failures now show the error code after the message, and the server logs why the gate refused (no photo, word or address), so the cause can be reported and traced.
+
+## 2026-10-02 tutorial polish (owner: precise frame, clear beats, value-first copy)
+
+Guide sequence (every coach shows its chapter):
+
+1. Home — today's album (Next) → camera tab (tap).
+2. Catch — shutter → candidate list (the search box below stays usable) → meaning & speaker (Next) → peel the photo.
+3. Collection — "added" cell (Next) → swipe the cover flow → tap the gallery-view button → tap your own photo (opens the detail).
+4. Word detail (Try a review).
+5. Review — intro on the question card (Next) → choices → the answer's Next button, twice → completion → account.
+
+Coach copy: title = what to do, one sentence = why it helps. The review coach quotes the real button label (`review.next`), so it matches the screen in every language. Frame geometry and beat timing are in QA.md › Shared tutorial release checks.

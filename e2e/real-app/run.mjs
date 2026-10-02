@@ -350,8 +350,11 @@ async function step(page, run) {
       return {
         x: b.left + b.width / 2,
         y: b.top + b.height / 2,
+        left: b.left,
         w: b.width,
         h: b.height,
+        // 案内が対象にしてほしい操作（`Spotlight` の `gesture`: tap / swipe / peel）。
+        gesture: r.getAttribute("data-tour-gesture"),
         tap,
         peel,
         btn: bb
@@ -365,7 +368,7 @@ async function step(page, run) {
     })
     .catch(() => null);
   if (ring) {
-    if (ring.peel) {
+    if (ring.peel || ring.gesture === "peel") {
       // シールをはがす: 右下の角から左上へ引く。
       await page.mouse.move(ring.x + ring.w * 0.4, ring.y + ring.h * 0.4);
       await page.mouse.down();
@@ -379,13 +382,14 @@ async function step(page, run) {
       await page.mouse.up();
       return "シールをはがす";
     }
-    if (ring.tap?.swipe) {
-      // めくる面を右から左へ払う（1枚ぶん）。
-      const y = ring.tap.cy;
-      await page.mouse.move(ring.tap.left + ring.tap.w * 0.8, y);
+    if (ring.tap?.swipe || ring.gesture === "swipe") {
+      // めくる面を右から左へ払う（1枚ぶん）。枠そのものが面を囲う（2026-10-02 から）。
+      const area = ring.tap?.swipe ? ring.tap : { left: ring.left, w: ring.w, cy: ring.y };
+      const y = area.cy;
+      await page.mouse.move(area.left + area.w * 0.8, y);
       await page.mouse.down();
       for (let i = 1; i <= 12; i++) {
-        await page.mouse.move(ring.tap.left + ring.tap.w * (0.8 - i * 0.055), y);
+        await page.mouse.move(area.left + area.w * (0.8 - i * 0.055), y);
         await sleep(25);
       }
       await page.mouse.up();

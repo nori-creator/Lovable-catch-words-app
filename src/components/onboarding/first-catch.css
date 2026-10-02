@@ -423,41 +423,38 @@
   z-index: 149;
   touch-action: none;
 }
+/* 枠の外を押せなくする透明の板（暗幕そのものは枠の影）。 */
 .tour-block {
   position: absolute;
   background: transparent;
   pointer-events: auto;
   touch-action: none;
-  animation: tour-dim-in 0.4s ease-out both;
 }
-@keyframes tour-dim-in {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
-}
+/* 青い枠。箱は対象より 4px 大きく（`RING_GAP`）、線は内側に 2px — 対象の縁との間は
+   どの段でも 2px。外の光は枠の外へだけ広がる。 */
 .tour-ring {
-  animation: tour-focus-expand 850ms cubic-bezier(0.22, 1, 0.36, 1) both;
   position: absolute;
+  box-sizing: border-box;
   border: 2px solid var(--primary);
   box-shadow:
-    0 0 0 4px color-mix(in oklab, var(--primary) 22%, transparent),
-    0 0 24px color-mix(in oklab, var(--primary) 48%, transparent),
+    0 0 0 3px color-mix(in oklab, var(--primary) 22%, transparent),
+    0 0 20px color-mix(in oklab, var(--primary) 45%, transparent),
     0 0 0 9999px rgb(11 24 42 / 0.57);
 }
-/* 案内が次の物へ移るとき、暗幕の穴と輪は**跳ばずに滑って**移る
-   （どこからどこへ目を移すのかが分かる）。曲線は iOS のシートと同じ。 */
-.tour-ring,
-.tour-block {
+/* 新しい画面の2コマ目: 暗幕と一緒に、対象の真ん中の 24px から対象の形まで広がる
+   （`TOUR_TIMING.ringIn`）。 */
+.tour-ring--expand {
+  animation: tour-focus-expand 700ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+/* 同じ画面の次の案内: 暗幕は保ったまま、枠が前の物から次の物へ**滑って**移る
+   （`TOUR_TIMING.ringMove`。どこからどこへ目を移すのかが分かる）。 */
+.tour-ring--move {
   transition:
-    top 0.68s cubic-bezier(0.22, 1, 0.36, 1),
-    bottom 0.68s cubic-bezier(0.22, 1, 0.36, 1),
-    left 0.68s cubic-bezier(0.22, 1, 0.36, 1),
-    right 0.68s cubic-bezier(0.22, 1, 0.36, 1),
-    width 0.68s cubic-bezier(0.22, 1, 0.36, 1),
-    height 0.68s cubic-bezier(0.22, 1, 0.36, 1);
+    top 480ms cubic-bezier(0.22, 1, 0.36, 1),
+    left 480ms cubic-bezier(0.22, 1, 0.36, 1),
+    width 480ms cubic-bezier(0.22, 1, 0.36, 1),
+    height 480ms cubic-bezier(0.22, 1, 0.36, 1),
+    border-radius 480ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 .tour-coach {
   position: fixed;
@@ -472,8 +469,8 @@
   box-shadow: 0 12px 36px color-mix(in oklab, var(--foreground) 18%, transparent);
   pointer-events: auto;
   outline: none;
-  transition: top 0.45s cubic-bezier(0.32, 0.72, 0, 1);
-  animation: tour-coach-in 0.34s cubic-bezier(0.32, 0.72, 0, 1) both;
+  /* 3コマ目: 枠が止まってから、札が下から 8px 浮き上がる。 */
+  animation: tour-coach-in 0.28s cubic-bezier(0.32, 0.72, 0, 1) both;
 }
 .tour-coach[data-side="above"] {
   transform-origin: 50% 100%;
@@ -523,12 +520,16 @@
 @keyframes tour-coach-in {
   from {
     opacity: 0;
-    scale: 0.96;
+    translate: 0 var(--tour-coach-from, 8px);
   }
   to {
     opacity: 1;
-    scale: 1;
+    translate: 0 0;
   }
+}
+.tour-coach[data-side="above"],
+.tour-coach[data-side="top"] {
+  --tour-coach-from: -8px;
 }
 .first-account {
   position: fixed;
@@ -1442,14 +1443,20 @@ html[data-motion="reduce"] .first-run *::after {
   transition-duration: 0.01ms !important;
 }
 
-/* Explicit keyframes guarantee a painted small frame; no React/RAF batching race. */
+/* Explicit keyframes guarantee a painted small frame; no React/RAF batching race.
+   始まりは**対象の真ん中**（`--ring-cx/cy`）。画面の真ん中から飛んで来ると、
+   どこを見るのか分かる前に目が画面を横切る。暗幕も同じ時間で濃くなる。 */
 @keyframes tour-focus-expand {
   from {
-    top: calc(50dvh - 12px);
-    left: calc(50vw - 12px);
+    top: calc(var(--ring-cy) - 12px);
+    left: calc(var(--ring-cx) - 12px);
     width: 24px;
     height: 24px;
-    border-radius: 6px;
+    border-radius: 12px;
+    box-shadow:
+      0 0 0 3px color-mix(in oklab, var(--primary) 0%, transparent),
+      0 0 20px color-mix(in oklab, var(--primary) 0%, transparent),
+      0 0 0 9999px rgb(11 24 42 / 0);
   }
 }
 .tour-animation-lock {
@@ -1485,20 +1492,6 @@ html[data-motion="reduce"] .first-run *::after {
       0 0 18px color-mix(in oklab, var(--primary) 50%, transparent);
   }
 }
-.tour-tap {
-  position: absolute;
-  pointer-events: none;
-  border: 2px solid var(--primary);
-  animation:
-    tour-tap-in 0.5s cubic-bezier(0.22, 1, 0.36, 1) both,
-    tour-tap-pulse 1.6s ease-out 0.5s infinite;
-}
-@keyframes tour-tap-in {
-  from {
-    opacity: 0;
-    scale: 1.25;
-  }
-}
 .tour-pulse {
   outline: 2px solid var(--primary);
   outline-offset: 3px;
@@ -1513,7 +1506,6 @@ html[data-motion="reduce"] .first-run *::after {
   animation: tour-tap-pulse 1.6s ease-out infinite;
   pointer-events: none;
 }
-html[data-motion="reduce"] .tour-tap,
 html[data-motion="reduce"] .tour-pulse,
 html[data-motion="reduce"] .tour-ring--tap::after {
   animation: none !important;

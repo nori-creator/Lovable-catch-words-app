@@ -100,9 +100,15 @@ export function FirstCatchFlow({
   initialDraft,
   persist = writeFirstCatch,
   initialSettingsOpen = false,
+  initialSuggestions = [],
 }: {
   /** 見本（UI ハーネス）で設定画面を開いた状態から見せるため。 */
   initialSettingsOpen?: boolean;
+  /**
+   * 見本（UI ハーネス）で、見本の写真の候補が並んだ所から見せるため。
+   * 撮った写真の解析結果の代わりには使わない（見本の写真にだけ付ける）。
+   */
+  initialSuggestions?: Suggestion[];
   services: FirstCatchServices;
   onAccount: () => void;
   initialDraft?: FirstCatch;
@@ -116,7 +122,7 @@ export function FirstCatchFlow({
   const [error, setError] = useState<string | null>(null);
   const retry = useRef<() => void>(() => {});
   const lock = useRef(false);
-  const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
+  const [suggestions, setSuggestions] = useState<Suggestion[]>(initialSuggestions);
   const [manual, setManual] = useState("");
   const [flipped, setFlipped] = useState(false);
   const [detailSeen, setDetailSeen] = useState(false);
@@ -628,8 +634,9 @@ export function FirstCatchFlow({
             <Spotlight
               target={`#dex-cell-${sticker.id}`}
               title={t("first.added")}
-              text={t("first.dexOpen")}
-              nextLabel={t("first.dexTitle")}
+              text={t("first.addedHint")}
+              step="3 / 5"
+              nextLabel={t("first.next")}
               onNext={() => move("dex")}
             />
           )}
@@ -658,7 +665,7 @@ export function FirstCatchFlow({
           />
           <Spotlight
             target='[data-tour="word-detail"]'
-            title={t("first.detailTitle")}
+            title={t("first.exploreCoachTitle")}
             text={t("first.exploreHint")}
             interactive
             step="4 / 5"
@@ -682,22 +689,30 @@ export function FirstCatchFlow({
           onNext={homeGuide === "album" ? () => setHomeGuide("camera") : undefined}
           interactive={homeGuide === "camera"}
           allowSelector={homeGuide === "camera" ? '[data-tour="tab-camera"]' : undefined}
+          gesture="tap"
         />
       )}
       {!error && !landing && !cameraUnavailable && draft.stage === "camera" && !draft.photo && (
         <Spotlight
           target=".camera-shutter"
-          title={t("first.shootTitle")}
+          title={t("first.shutterTitle")}
           text={t("first.shoot")}
+          step="2 / 5"
           interactive
+          gesture="tap"
         />
       )}
       {!error && !landing && draft.stage === "camera" && suggestions.length > 0 && (
         <Spotlight
-          target='[data-tour="pick"]'
+          // 枠は候補の一覧そのもの。下の「違う単語を入力」と、2段目の「戻る」も押せる
+          // （候補に無い時の道を、チュートリアルでも塞がない）。
+          target='[data-tour="pick"] .candidate-picker > ul'
+          allowSelector='[data-tour="pick"]'
           title={t("first.pickTitle")}
           text={t("first.pick")}
+          step="2 / 5"
           interactive
+          gesture="tap"
         />
       )}
       {!error && !landing && draft.stage === "card" && (
@@ -705,7 +720,9 @@ export function FirstCatchFlow({
           target={detailSeen ? '[data-tour="peel"]' : '[data-tour="detail"]'}
           title={t(detailSeen ? "first.peelTitle" : "first.detailTitle")}
           text={t(detailSeen ? "first.peel" : "first.detail")}
+          step="2 / 5"
           interactive
+          gesture={detailSeen ? "peel" : undefined}
           allowSelector={detailSeen ? undefined : "button[aria-label]"}
           nextLabel={t("first.next")}
           onNext={detailSeen ? undefined : () => setDetailSeen(true)}
