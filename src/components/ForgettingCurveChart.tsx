@@ -1,14 +1,12 @@
-import { useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
+import { useMemo, useRef, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import {
   ComposedChart,
-  Area,
   Line,
   ReferenceLine,
   XAxis,
   YAxis,
   ResponsiveContainer,
-  CartesianGrid,
   Customized,
   ReferenceDot,
 } from "recharts";
@@ -17,9 +15,7 @@ import {
   buildMemoryCurve,
   curveValueAt,
   curveValueAtExact,
-  gradientStops,
   groupReviews,
-  levelOfR,
   type CurveEvent,
   type CurvePoint,
   type CurveTick,
@@ -32,6 +28,14 @@ import {
   type ChartGeo,
   type ScrubLayerProps,
 } from "@/components/CurveScrubber";
+import {
+  axisTicks,
+  bandAreas,
+  ChartLegend,
+  chartYMin,
+  levelBands,
+  useBandLabel,
+} from "@/components/memory-chart-parts";
 
 import { memoryCurveFrom, type HistoryPoint } from "@/lib/memory-curve-from";
 export { memoryCurveFrom, type HistoryPoint };
@@ -65,16 +69,6 @@ export function MemoryCurveChart({
 }) {
   const t = useT();
   const locale = localeOf(useUiLang());
-  const uid = useId().replace(/:/g, "");
-  const past = levelGradient(
-    `mc-past-${uid}`,
-    curve.past.map((p) => p.r),
-  );
-  const future = levelGradient(
-    `mc-future-${uid}`,
-    curve.future.map((p) => p.r),
-  );
-  const pastFill = levelFill(`mc-fill-${uid}`);
   /**
    * **復習で100%へ戻る所は線を切る**（オーナー指示 2026-09-27「記憶の
    * グラフをより細かく」）。線は値で塗り分けているので、縦に戻る所が
@@ -82,7 +76,14 @@ export function MemoryCurveChart({
    * 灰色の縦線で別に描く（`jumps`）。
    */
   const { drawn: pastDrawn, jumps } = useMemo(() => splitJumps(curve.past), [curve.past]);
-  const color = (r: number) => `var(--mem-${levelOfR(r)})`;
+  // 線・点の色は主色1つ（2026-10-02「2つのグラフのデザインと機能を統一して」）。
+  // 記憶の段は線の色ではなく、地の帯で読む（`memory-chart-parts.tsx`）。
+  const color = () => "var(--primary)";
+  // 縦軸の下端は**覚えた後の値**で決める。撮っただけの区間（0%）まで入れると、肝心の
+  // 曲線が上の3割に詰まって読めない。0% からの立ち上がりは下端から伸びる線で見える。
+  const yMin = chartYMin([...curve.past, ...curve.future].map((p) => p.r).filter((r) => r > 0));
+  const bands = levelBands(yMin);
+  const bandLabel = useBandLabel();
   const dateOf = (d: number) =>
     new Date(nowMs + d * DAY).toLocaleDateString(locale, { month: "numeric", day: "numeric" });
   const [lo, hi] = curve.domain;
@@ -113,46 +114,7 @@ export function MemoryCurveChart({
       {/* 縦軸が何の % かを言う。写真の右上・一覧の % と**同じ数**
           （いま思い出せる確率。`memory.ts` の `memoryOf`）。 */}
       <p className="mb-1 text-caption text-muted-foreground">{t("curve.axisNote")}</p>
-      <div
-        className="mb-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-caption text-muted-foreground"
-        aria-hidden
-      >
-        <span className="inline-flex items-center gap-1">
-          <svg width="18" height="6">
-            <line x1="1" y1="3" x2="17" y2="3" stroke="var(--mem-4)" strokeWidth="2.5" />
-          </svg>
-          {t("curve.legendPast")}
-        </span>
-        <span className="inline-flex items-center gap-1">
-          <svg width="18" height="6">
-            <line
-              x1="1"
-              y1="3"
-              x2="17"
-              y2="3"
-              stroke="var(--mem-2)"
-              strokeWidth="2.5"
-              strokeDasharray="4 3"
-            />
-          </svg>
-          {t("curve.legendFuture")}
-        </span>
-        {curve.reviews.length > 0 && (
-          <span className="inline-flex items-center gap-1">
-            <svg width="10" height="10">
-              <circle
-                cx="5"
-                cy="5"
-                r="3.5"
-                fill="var(--card)"
-                stroke="var(--mem-5)"
-                strokeWidth="2"
-              />
-            </svg>
-            {t("curve.legendReview")}
-          </span>
-        )}
-      </div>
+      <ChartLegend reviews={curve.reviews.length > 0} />
 
       <div
         className="relative h-52 w-full"
@@ -161,12 +123,8 @@ export function MemoryCurveChart({
       >
         <ResponsiveContainer width="100%" height="100%">
           <ComposedChart margin={{ top: 22, right: 14, bottom: 0, left: -18 }}>
-            <defs>
-              {past.def}
-              {future.def}
-              {pastFill.def}
-            </defs>
-            <CartesianGrid vertical={false} stroke="var(--border)" />
+            {/* 段の帯。線より先に描く（下に敷く）。全体のグラフと同じ部品。 */}
+            {bandAreas(bands, [lo, hi], bandLabel)}
             <XAxis
               type="number"
               dataKey="d"
@@ -192,43 +150,35 @@ export function MemoryCurveChart({
                 />
               )}
             />
-            {/* 25% と 75% の線も引く（オーナー指示 2026-09-23）。 */}
+            {/* 目盛りは段の境目（全体のグラフと同じ）。 */}
             <YAxis
-              domain={[0, 100]}
-              ticks={[0, 25, 50, 75, 100]}
+              domain={[yMin, 100]}
+              ticks={axisTicks(yMin)}
+              interval={0}
               tickFormatter={(v) => `${v}%`}
               tickLine={false}
               axisLine={false}
               stroke="var(--muted-foreground)"
-              fontSize={11}
+              fontSize={10}
+              allowDataOverflow
             />
             <Line
               data={curve.future}
               dataKey="r"
               type="linear"
-              stroke={future.stroke}
+              stroke="var(--primary)"
               strokeWidth={2.5}
               strokeDasharray="6 5"
               strokeLinecap="round"
               dot={false}
               isAnimationActive={false}
             />
-            {/* 線の下をごく薄く塗る（段の色）。どの段にどれだけ居たかが面で分かる。 */}
-            <Area
-              data={pastDrawn}
-              dataKey="r"
-              type="linear"
-              stroke="none"
-              fill={pastFill.fill}
-              baseValue={0}
-              connectNulls={false}
-              isAnimationActive={false}
-            />
             {jumps.map((j) => (
               <ReferenceLine
                 key={`jump-${j.d}`}
                 segment={[
-                  { x: j.d, y: j.from },
+                  // 撮っただけ（0%）からの立ち上がりは、縦軸の下端から引く（軸の外へ出さない）。
+                  { x: j.d, y: Math.max(j.from, yMin) },
                   { x: j.d, y: 100 },
                 ]}
                 stroke="var(--muted-foreground)"
@@ -241,7 +191,7 @@ export function MemoryCurveChart({
               data={pastDrawn}
               dataKey="r"
               type="linear"
-              stroke={past.stroke}
+              stroke="var(--primary)"
               strokeWidth={3}
               strokeLinejoin="round"
               strokeLinecap="round"
@@ -256,7 +206,7 @@ export function MemoryCurveChart({
                 y={100}
                 r={4}
                 fill="var(--card)"
-                stroke="var(--mem-5)"
+                stroke="var(--primary)"
                 strokeWidth={2}
                 label={
                   g.n > 1
@@ -276,7 +226,7 @@ export function MemoryCurveChart({
                 x={curve.bestDay}
                 y={futureValueAt(curve, curve.bestDay)}
                 r={5.5}
-                fill={color(futureValueAt(curve, curve.bestDay))}
+                fill={color()}
                 stroke="var(--card)"
                 strokeWidth={2.5}
               />
@@ -285,7 +235,7 @@ export function MemoryCurveChart({
               x={0}
               y={curve.todayR}
               r={7}
-              fill={color(curve.todayR)}
+              fill={color()}
               stroke="var(--card)"
               strokeWidth={3}
               label={
@@ -354,46 +304,6 @@ export function MemoryCurveChart({
       </div>
     </div>
   );
-}
-
-/**
- * 線を縦軸の値で塗り分けるための `<linearGradient>` と、線に渡す `stroke`。
- * 全部同じ値の線は単色（`gradientStops` の注記）。
- *
- * 止まりの色は **`style` で渡す**。`stop-color="var(--…)"` のような属性に
- * 書いた CSS 変数は、ブラウザによっては解決されない。
- */
-export function levelGradient(id: string, values: number[]): { def: ReactNode; stroke: string } {
-  const stops = gradientStops(values);
-  if (!stops) {
-    return { def: null, stroke: `var(--mem-${levelOfR(values[0] ?? 100)})` };
-  }
-  return {
-    def: (
-      <linearGradient key={id} id={id} x1="0" y1="0" x2="0" y2="1">
-        {stops.map((s, i) => (
-          <stop key={i} offset={s.offset} style={{ stopColor: `var(--mem-${s.level})` }} />
-        ))}
-      </linearGradient>
-    ),
-    stroke: `url(#${id})`,
-  };
-}
-
-/**
- * 線の下の面の塗り。**主色を上ほど少し濃く、下へ向けて消す**。
- * 段の色で塗ると横縞になり、線より面のほうが目立った（試して撮った絵で確認）。
- */
-export function levelFill(id: string): { def: ReactNode; fill: string } {
-  return {
-    def: (
-      <linearGradient key={id} id={id} x1="0" y1="0" x2="0" y2="1">
-        <stop offset="0" style={{ stopColor: "var(--primary)", stopOpacity: 0.14 }} />
-        <stop offset="1" style={{ stopColor: "var(--primary)", stopOpacity: 0 }} />
-      </linearGradient>
-    ),
-    fill: `url(#${id})`,
-  };
 }
 
 /**

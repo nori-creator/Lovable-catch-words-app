@@ -365,6 +365,9 @@ const REVIEW_SCENES: Array<{ scene: string; label: string }> = [
   { scene: "review-header", label: "復習: 上部（数なし・段の帯のグラフ）" },
   { scene: "review-header&theme=dark", label: "復習: 上部（暗いテーマ）" },
   { scene: "review-header&open=0", label: "復習: 上部（畳んだ形）" },
+  // 2026-10-02「２つのグラフのデザインと機能を統一して。いいところを取り合って」。
+  { scene: "curve", label: "単語ごとの忘却曲線（全体のグラフと同じ作り・点で辿れる）" },
+  { scene: "curve&theme=dark", label: "単語ごとの忘却曲線（暗いテーマ）" },
   // 2026-10-02「記憶の状態のグラフのデザイン案を複数提案して。」
   // 案の切り替え（現在・A〜D）と、開く/畳む・明暗は場面の中にある。
   { scene: "memory-designs&v=current", label: "復習: 記憶の状態のデザイン案（現在・A〜D）" },

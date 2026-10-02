@@ -4369,9 +4369,12 @@ describe("N. 下のタブ帯と、札を開く動き", () => {
   it("全体のグラフ: 線は1色、地は段の帯（トークンで明暗に追従）", () => {
     const mini = codeOnly(read("components/MiniRetentionGraph.tsx"));
     expect(mini).not.toMatch(/levelGradient\(/);
-    expect(mini).toMatch(/<ReferenceArea/);
-    expect(mini).toMatch(/className=\{`mem-lv-\$\{b\.level\} mem-band`\}/);
-    expect(mini).toMatch(/className=\{`mem-lv-\$\{b\.level\} mem-band-label`\}/);
+    // 帯は単語ごとの曲線と共通の部品（2026-10-02「2つのグラフのデザインと機能を統一して」）。
+    expect(mini).toMatch(/bandAreas\(bands, \[lo, hi\], bandLabel\)/);
+    const parts = codeOnly(read("components/memory-chart-parts.tsx"));
+    expect(parts).toMatch(/<ReferenceArea/);
+    expect(parts).toMatch(/className=\{`mem-lv-\$\{b\.level\} mem-band`\}/);
+    expect(parts).toMatch(/className=\{`mem-lv-\$\{b\.level\} mem-band-label`\}/);
     expect((mini.match(/stroke="var\(--primary\)"/g) ?? []).length).toBe(2);
     const css = read("styles.css");
     expect(css).toMatch(
@@ -5318,7 +5321,9 @@ describe("記憶のグラフ（オーナー指摘 2026-09-22「記憶のグラ�
     // 引く縦線は**復習で100%へ戻る所だけ**（実線・灰色、2026-09-27）。補助線ではない。
     expect(lines.match(/<ReferenceLine/g)?.length ?? 0).toBe(1);
     expect(lines).toMatch(/jumps\.map\(\(j\) => \(\s*<ReferenceLine/);
-    expect(lines).toMatch(/<CartesianGrid vertical=\{false\} stroke="var\(--border\)" \/>/);
+    // 格子の代わりに、全体のグラフと同じ段の帯を敷く（2026-10-02 統一）。
+    expect(lines).toMatch(/bandAreas\(bands, \[lo, hi\], bandLabel\)/);
+    expect(lines).not.toMatch(/<CartesianGrid/);
     // 全体のグラフも同じ。
     // 全体のグラフは部品に分けた（押すまで読み込まない。2026-09-27）。
     const miniSrc = read("components/MiniRetentionGraph.tsx");
@@ -5328,10 +5333,13 @@ describe("記憶のグラフ（オーナー指摘 2026-09-22「記憶のグラ�
     expect(miniLines).not.toMatch(/ReferenceLine/);
   });
 
-  it("**今日に点**、線は**縦軸の値で塗り分け**、目盛りは明確な日だけ", () => {
+  it("**今日に点**、線は**主色1本・地を段の帯**（全体のグラフと統一）、目盛りは明確な日だけ", () => {
     expect(chart).toMatch(/<ReferenceDot\s+x=\{0\}\s+y=\{curve\.todayR\}/);
-    expect(chart).toMatch(/levelGradient\(\s*`mc-past-/);
-    expect(chart).toMatch(/levelGradient\(\s*`mc-future-/);
+    // 2026-10-02「2つのグラフのデザインと機能を統一して」: 線を値で塗り分けるのをやめた。
+    expect(chart).not.toMatch(/levelGradient\(/);
+    expect((chart.match(/stroke="var\(--primary\)"/g) ?? []).length).toBeGreaterThanOrEqual(2);
+    expect(chart).toMatch(/<ChartLegend reviews=/);
+    expect(codeOnly(read("components/MiniRetentionGraph.tsx"))).toMatch(/<ChartLegend \/>/);
     expect(chart).toMatch(/ticks=\{curve\.ticks\.map/);
     // 同じ日の複数回は ×N を添える（重なって数が減って見えないように）。
     expect(chart).toMatch(/groupReviews\(curve\.reviews\)/);

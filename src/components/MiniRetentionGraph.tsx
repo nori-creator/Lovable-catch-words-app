@@ -1,17 +1,22 @@
 import { useMemo, useRef, useState } from "react";
 import { localeOf, useT, useUiLang } from "@/lib/i18n";
-import { LEVEL_EDGES } from "@/lib/memory-curve";
-import { MEMORY_LEVELS } from "@/lib/memory";
 import {
   LineChart,
   Line,
   XAxis,
   YAxis,
   ResponsiveContainer,
-  ReferenceArea,
   ReferenceDot,
   Customized,
 } from "recharts";
+import {
+  axisTicks,
+  bandAreas,
+  ChartLegend,
+  chartYMin,
+  levelBands,
+  useBandLabel,
+} from "@/components/memory-chart-parts";
 import {
   CurveScrubber,
   ScaleProbe,
@@ -59,10 +64,9 @@ export function MiniRetentionGraph({
   const today = pts.find((p) => p.d === 0)?.r ?? null;
   const lo = Math.min(0, ...pts.map((p) => p.d));
   const hi = Math.max(0, ...pts.map((p) => p.d));
-  // 下端は、いちばん低い値より 3 ポイント以上下にある段の境目。
-  const low = Math.min(...values, 100);
-  const yMin = [70, 50, 30, 0].find((b) => b <= low - 3) ?? 0;
+  const yMin = chartYMin(values);
   const bands = levelBands(yMin);
+  const bandLabel = useBandLabel();
   const yTicks = axisTicks(yMin);
   /**
    * **点を持って過去を辿る**（オーナー指示 2026-10-02「グラフの点はもっと動かせて、
@@ -83,167 +87,98 @@ export function MiniRetentionGraph({
       day: "numeric",
     });
   return (
-    <div className="relative h-44 w-full">
-      <ResponsiveContainer width="100%" height="100%">
-        <LineChart margin={{ top: 20, right: 22, bottom: 0, left: -18 }}>
-          {/* 段の帯。線より先に描く（下に敷く）。 */}
-          {bands.map((b) => (
-            <ReferenceArea
-              key={b.level}
-              x1={lo}
-              x2={hi}
-              y1={b.lo}
-              y2={b.hi}
-              shape={(p: BandShape) => (
-                <rect
-                  x={p.x}
-                  y={p.y}
-                  width={p.width}
-                  height={p.height}
-                  className={`mem-lv-${b.level} mem-band`}
-                />
-              )}
-              label={(p: { viewBox?: ViewBox }) => {
-                const v = p.viewBox ?? {};
-                // 帯が字より低い時は名前を出さない（はみ出して隣の帯に重なる）。
-                // 名前は帯の**縦の真ん中**に置く — 「はっきり」の帯（95〜100%）は 12px ほどしか
-                // 無いので、上に寄せると下の帯へはみ出す。
-                if ((v.height ?? 0) < 11) return <g />;
-                return (
-                  <text
-                    x={(v.x ?? 0) + 6}
-                    y={(v.y ?? 0) + (v.height ?? 0) / 2 + 3.5}
-                    textAnchor="start"
-                    fontSize={10}
-                    fontWeight={600}
-                    className={`mem-lv-${b.level} mem-band-label`}
-                  >
-                    {t(MEMORY_LEVELS[b.level].labelKey)}
-                  </text>
-                );
-              }}
+    <>
+      <ChartLegend />
+      <div className="relative h-44 w-full">
+        <ResponsiveContainer width="100%" height="100%">
+          <LineChart margin={{ top: 20, right: 22, bottom: 0, left: -18 }}>
+            {/* 段の帯。線より先に描く（下に敷く）。 */}
+            {bandAreas(bands, [lo, hi], bandLabel)}
+            <XAxis
+              type="number"
+              dataKey="d"
+              domain={[lo, hi]}
+              ticks={[lo, 0, hi].filter((v, i, a) => a.indexOf(v) === i)}
+              interval={0}
+              tickLine={false}
+              axisLine={{ stroke: "var(--border)" }}
+              tickFormatter={(v: number) => (v === 0 ? t("rv.today") : dateOf(v))}
+              stroke="var(--muted-foreground)"
+              fontSize={11}
             />
-          ))}
-          <XAxis
-            type="number"
-            dataKey="d"
-            domain={[lo, hi]}
-            ticks={[lo, 0, hi].filter((v, i, a) => a.indexOf(v) === i)}
-            interval={0}
-            tickLine={false}
-            axisLine={{ stroke: "var(--border)" }}
-            tickFormatter={(v: number) => (v === 0 ? t("rv.today") : dateOf(v))}
-            stroke="var(--muted-foreground)"
-            fontSize={11}
-          />
-          <YAxis
-            domain={[yMin, 100]}
-            ticks={yTicks}
-            interval={0}
-            tickFormatter={(v) => `${v}%`}
-            tickLine={false}
-            axisLine={false}
-            stroke="var(--muted-foreground)"
-            fontSize={10}
-            allowDataOverflow
-          />
-          {/* これから（点線・予測）。線は1色（`--primary`）。点は日ごとの整数なので、
+            <YAxis
+              domain={[yMin, 100]}
+              ticks={yTicks}
+              interval={0}
+              tickFormatter={(v) => `${v}%`}
+              tickLine={false}
+              axisLine={false}
+              stroke="var(--muted-foreground)"
+              fontSize={10}
+              allowDataOverflow
+            />
+            {/* これから（点線・予測）。線は1色（`--primary`）。点は日ごとの整数なので、
               `monotone` で全部の点を通しつつなめらかに結ぶ（直線だと寄せた縦軸で階段に見える）。 */}
-          <Line
-            data={future}
-            dataKey="r"
-            type="monotone"
-            stroke="var(--primary)"
-            strokeWidth={2.5}
-            strokeDasharray="6 5"
-            strokeLinecap="round"
-            dot={false}
-            isAnimationActive={false}
-          />
-          <Line
-            data={past}
-            dataKey="r"
-            type="monotone"
-            stroke="var(--primary)"
-            strokeWidth={3}
-            strokeLinejoin="round"
-            dot={false}
-            isAnimationActive={false}
-          />
-          {today != null && (
-            <ReferenceDot
-              x={0}
-              y={today}
-              r={6}
-              fill="var(--primary)"
-              stroke="var(--card)"
-              strokeWidth={3}
-              label={
-                !scrubbing
-                  ? {
-                      value: t("curve.todayPct", { pct: today }),
-                      position: "top",
-                      fill: "var(--foreground)",
-                      fontSize: 12,
-                      fontWeight: 700,
-                    }
-                  : undefined
-              }
+            <Line
+              data={future}
+              dataKey="r"
+              type="monotone"
+              stroke="var(--primary)"
+              strokeWidth={2.5}
+              strokeDasharray="6 5"
+              strokeLinecap="round"
+              dot={false}
+              isAnimationActive={false}
             />
-          )}
-          <Customized
-            component={(props: ScrubLayerProps) => <ScaleProbe {...props} into={geo} />}
+            <Line
+              data={past}
+              dataKey="r"
+              type="monotone"
+              stroke="var(--primary)"
+              strokeWidth={3}
+              strokeLinejoin="round"
+              dot={false}
+              isAnimationActive={false}
+            />
+            {today != null && (
+              <ReferenceDot
+                x={0}
+                y={today}
+                r={6}
+                fill="var(--primary)"
+                stroke="var(--card)"
+                strokeWidth={3}
+                label={
+                  !scrubbing
+                    ? {
+                        value: t("curve.todayPct", { pct: today }),
+                        position: "top",
+                        fill: "var(--foreground)",
+                        fontSize: 12,
+                        fontWeight: 700,
+                      }
+                    : undefined
+                }
+              />
+            )}
+            <Customized
+              component={(props: ScrubLayerProps) => <ScaleProbe {...props} into={geo} />}
+            />
+          </LineChart>
+        </ResponsiveContainer>
+        {known.length > 1 && (
+          <CurveScrubber
+            geo={geo}
+            domain={[Math.max(lo, known[0].d), Math.min(hi, known[known.length - 1].d)]}
+            valueAt={(d) => seriesValueAt(known, d)}
+            color={() => "var(--primary)"}
+            whenLabel={whenLabel}
+            onActive={setScrubbing}
           />
-        </LineChart>
-      </ResponsiveContainer>
-      {known.length > 1 && (
-        <CurveScrubber
-          geo={geo}
-          domain={[Math.max(lo, known[0].d), Math.min(hi, known[known.length - 1].d)]}
-          valueAt={(d) => seriesValueAt(known, d)}
-          color={() => "var(--primary)"}
-          whenLabel={whenLabel}
-          onActive={setScrubbing}
-        />
-      )}
-    </div>
+        )}
+      </div>
+    </>
   );
-}
-
-type ViewBox = { x?: number; y?: number; width?: number; height?: number };
-type BandShape = { x?: number; y?: number; width?: number; height?: number };
-
-/**
- * 段の帯（下端 `yMin` から上）。境目は `memoryLevel` と同じ `LEVEL_EDGES`
- * （一覧やバッジと同じ色が同じ高さに来る）。
- */
-export function levelBands(yMin: number): Array<{ level: number; lo: number; hi: number }> {
-  const edges = [0, ...LEVEL_EDGES, 100];
-  const out: Array<{ level: number; lo: number; hi: number }> = [];
-  for (let level = 0; level < edges.length - 1; level++) {
-    const lo = edges[level];
-    const hi = edges[level + 1];
-    if (hi <= yMin) continue;
-    out.push({ level, lo: Math.max(lo, yMin), hi });
-  }
-  return out;
-}
-
-/**
- * 縦軸の目盛り = 帯の境目。ただし**重なる字は出さない**: 上（100%）から下へ見て、
- * 直前の目盛りと軸の幅の 10% 未満しか離れていない境目は落とす（95 と 100 は
- * 下端が 30% 以下のとき 10px も離れない）。下端は必ず出す。
- */
-export function axisTicks(yMin: number): number[] {
-  const minGap = (100 - yMin) * 0.1;
-  const edges = [100, ...[...LEVEL_EDGES].reverse(), 0].filter((e) => e > yMin);
-  const kept: number[] = [];
-  for (const e of edges) {
-    if (kept.length === 0 || kept[kept.length - 1] - e >= minGap) kept.push(e);
-  }
-  if (kept[kept.length - 1] - yMin < minGap) kept.pop();
-  kept.push(yMin);
-  return kept.sort((a, b) => a - b);
 }
 
 /**
