@@ -12,6 +12,7 @@ import { z } from "zod";
 import { isNounLike } from "./pos";
 import { assertWithinDailyCap, getAi, getAiFor, getAiRuntime } from "./ai-provider.server";
 import { normalizeDetection } from "./scan-detect-parse";
+import { readAllPages } from "./pagination";
 import { targetProfile, type CoachPhrases } from "./target-profile";
 
 /**
@@ -474,32 +475,43 @@ export const getScanContext = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }): Promise<ScanContext> => {
     const { supabase, userId } = context;
-    // stickerRes だけは capture_type 無しDB向けに作り直すことがあるので let。
-    // eslint-disable-next-line prefer-const
-    let [stickerRes, tapRes] = await Promise.all([
-      supabase
-        .from("stickers")
-        .select("id, created_at, capture_type, cutout_image_url, object_image_url, words(headword)")
-        .eq("user_id", userId)
-        .order("created_at", { ascending: true })
-        .limit(2000),
-      supabase
-        .from("scan_events")
-        .select("headword")
-        .eq("user_id", userId)
-        .eq("tapped", true)
-        .order("created_at", { ascending: false })
-        .limit(3000),
+    // **PostgREST は1回に1000行で切る**（2026-10-03 監査）。`.limit(2000)` / `.limit(3000)`
+    // でも 1000 行しか来ず、1000 語を超えて集めた人には「もう持っている語」が
+    // 新しく見えていた。全部 `readAllPages` で 1000 行ずつ読む（古い順は変えない）。
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const db = supabase as any;
+    const readStickers = (cols: string) =>
+      readAllPages<unknown>((a, b) =>
+        db
+          .from("stickers")
+          .select(cols)
+          .eq("user_id", userId)
+          .order("created_at", { ascending: true })
+          .order("id")
+          .range(a, b),
+      );
+    const [stickerRows, tapRes] = await Promise.all([
+      readStickers(
+        "id, created_at, capture_type, cutout_image_url, object_image_url, words(headword)",
+      ).catch((e: unknown) => {
+        // Migration not applied yet — every sticker is a photo catch then.
+        if (e instanceof Error && /capture_type/.test(e.message))
+          return readStickers(
+            "id, created_at, cutout_image_url, object_image_url, words(headword)",
+          );
+        throw e;
+      }),
+      readAllPages<{ headword: string }>((a, b) =>
+        db
+          .from("scan_events")
+          .select("headword")
+          .eq("user_id", userId)
+          .eq("tapped", true)
+          .order("created_at", { ascending: false })
+          .order("id")
+          .range(a, b),
+      ),
     ]);
-    if (stickerRes.error && /capture_type/.test(stickerRes.error.message)) {
-      // Migration not applied yet — every sticker is a photo catch then.
-      stickerRes = (await supabase
-        .from("stickers")
-        .select("id, created_at, cutout_image_url, object_image_url, words(headword)")
-        .eq("user_id", userId)
-        .order("created_at", { ascending: true })
-        .limit(2000)) as typeof stickerRes;
-    }
 
     const owned: Record<string, ScanContextEntry> = {};
     type Row = {
@@ -510,7 +522,7 @@ export const getScanContext = createServerFn({ method: "GET" })
       object_image_url: string | null;
       words: { headword: string } | null;
     };
-    for (const r of (stickerRes.data ?? []) as unknown as Row[]) {
+    for (const r of stickerRows.rows as Row[]) {
       if (!r.words?.headword) continue;
       const key = normHeadword(r.words.headword);
       const hasPhoto =
@@ -524,7 +536,7 @@ export const getScanContext = createServerFn({ method: "GET" })
       }
     }
 
-    const tapped = [...new Set((tapRes.data ?? []).map((r) => normHeadword(r.headword)))];
+    const tapped = [...new Set(tapRes.rows.map((r) => normHeadword(r.headword)))];
     return { owned, tapped };
   });
 

@@ -19,6 +19,7 @@ import {
   weeklyReviews,
 } from "@/lib/admin-user-stats";
 import { taipeiDay } from "./taipei-day";
+import { readAllPages } from "./pagination";
 
 /**
  * **開発者だけ: 利用者ごとの詳しい情報**（オーナー指示 2026-09-27）。
@@ -45,6 +46,18 @@ async function requireAdmin(context: { supabase: unknown; userId: string }) {
 
 const dayKey = (iso: string) => taipeiDay(iso);
 
+/**
+ * 開発者の画面の読み込みの安全の上限（行）。ここまでは全部読む。超えたら
+ * `warnIfTruncated` がログに残す（黙って切らない）。超えるほど育ったら集計用の表に移す。
+ */
+const ADMIN_READ = { maxRows: 1_000_000 };
+
+function warnIfTruncated(where: string, reads: Record<string, { truncated: boolean }>) {
+  for (const [name, r] of Object.entries(reads))
+    if (r.truncated)
+      console.warn(`[${where}] ${name}: 安全の上限で読むのを止めた（数が少なく出る）`);
+}
+
 export type AdminUserRow = {
   id: string;
   display_name: string | null;
@@ -68,35 +81,56 @@ export const listAdminUsers = createServerFn({ method: "GET" })
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     // 並びは「最後に使った順」（2026-10-02）。登録の新しい300人だけを読むと、前から使い
     // 続けている人が一覧から落ちるので、上限を上げた（読むのは短い列だけ）。
+    // **`.limit(50000)` と書いても PostgREST は 1000 行で切る**（2026-10-03 監査）。札の数も
+    // 最後に使った時刻も黙って少なくなっていたので、全部 `readAllPages` で 1000 行ずつ読む。
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const db = supabaseAdmin as any;
     const [profiles, stickers, events, reviewed] = await Promise.all([
-      supabaseAdmin
-        .from("profiles")
-        .select("id, display_name, created_at, target_language, ui_language, plan")
-        .order("created_at", { ascending: false })
-        .limit(2000),
-      supabaseAdmin.from("stickers").select("user_id, created_at").limit(50000),
-      supabaseAdmin
-        .from("usage_events")
-        .select("user_id, created_at")
-        .in("kind", ["app_open", "session_start"])
-        .order("created_at", { ascending: false })
-        .limit(20000),
-      supabaseAdmin
-        .from("review_history")
-        .select("user_id, reviewed_at")
-        .order("reviewed_at", { ascending: false })
-        .limit(20000),
+      readAllPages<{
+        id: string;
+        display_name: string | null;
+        created_at: string;
+        target_language: string | null;
+        ui_language: string | null;
+        plan?: string | null;
+      }>((a, b) =>
+        db
+          .from("profiles")
+          .select("id, display_name, created_at, target_language, ui_language, plan")
+          .order("created_at", { ascending: false })
+          .order("id")
+          .range(a, b),
+      ),
+      readAllPages<{ user_id: string; created_at: string }>(
+        (a, b) => db.from("stickers").select("user_id, created_at").order("id").range(a, b),
+        ADMIN_READ,
+      ),
+      readAllPages<{ user_id: string; created_at: string }>(
+        (a, b) =>
+          db
+            .from("usage_events")
+            .select("user_id, created_at")
+            .in("kind", ["app_open", "session_start"])
+            .order("id")
+            .range(a, b),
+        ADMIN_READ,
+      ),
+      readAllPages<{ user_id: string; reviewed_at: string }>(
+        (a, b) => db.from("review_history").select("user_id, reviewed_at").order("id").range(a, b),
+        ADMIN_READ,
+      ),
     ]);
+    warnIfTruncated("listAdminUsers", { profiles, stickers, events, reviewed });
     const count = new Map<string, number>();
     const last = new Map<string, string | null>();
     const bump = (uid: string, iso: string) => last.set(uid, latestIso(last.get(uid), iso));
-    for (const s of stickers.data ?? []) {
+    for (const s of stickers.rows) {
       count.set(s.user_id, (count.get(s.user_id) ?? 0) + 1);
       bump(s.user_id, s.created_at);
     }
-    for (const e of events.data ?? []) bump(e.user_id, e.created_at);
-    for (const r of reviewed.data ?? []) bump(r.user_id, r.reviewed_at);
-    return (profiles.data ?? []).map((p) => ({
+    for (const e of events.rows) bump(e.user_id, e.created_at);
+    for (const r of reviewed.rows) bump(r.user_id, r.reviewed_at);
+    return profiles.rows.map((p) => ({
       id: p.id,
       display_name: p.display_name,
       created_at: p.created_at,
@@ -125,6 +159,11 @@ async function buildDetail(userId: string) {
   const since = new Date(Date.now() - 180 * 86400 * 1000).toISOString();
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = supabaseAdmin as any;
+  // 1人分でも記録は 1000 行を超えうる（PostgREST の既定の上限で黙って切られる）ので、
+  // 札・スキャン・復習・利用・AI は全部 `readAllPages` で 1000 行ずつ読む（2026-10-03 監査）。
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const all = <T>(q: () => any) =>
+    readAllPages<T>((from, to) => q().order("id").range(from, to), ADMIN_READ);
   const [profile, stickers, scans, history, reviews, usage, runs] = await Promise.all([
     db
       .from("profiles")
@@ -133,39 +172,50 @@ async function buildDetail(userId: string) {
       )
       .eq("id", userId)
       .maybeSingle(),
-    db
-      .from("stickers")
-      .select(
-        "id, created_at, capture_type, location_name, cutout_image_url, words(headword, language)",
-      )
-      .eq("user_id", userId)
-      .order("created_at", { ascending: false })
-      .limit(5000),
-    db
-      .from("scan_events")
-      .select("created_at, detect_ms, tap_to_audio_ms, tapped, caught")
-      .eq("user_id", userId)
-      .gte("created_at", since)
-      .limit(5000),
-    db
-      .from("review_history")
-      .select("reviewed_at, correct, response_ms")
-      .eq("user_id", userId)
-      .gte("reviewed_at", since)
-      .limit(10000),
-    db
-      .from("reviews")
-      .select("due_at, interval_days, ease, last_reviewed_at, created_at")
-      .eq("user_id", userId)
-      .limit(10000),
-    db
-      .from("usage_events")
-      .select("kind, created_at")
-      .eq("user_id", userId)
-      .gte("created_at", since)
-      .limit(20000),
-    db.from("ai_runs").select("tokens_in, tokens_out").eq("user_id", userId).limit(5000),
+    // 新しい順（st[0] が最新、最後が最初の札）。同じ時刻は id で並びを決める。
+    readAllPages<unknown>(
+      (from, to) =>
+        db
+          .from("stickers")
+          .select(
+            "id, created_at, capture_type, location_name, cutout_image_url, words(headword, language)",
+          )
+          .eq("user_id", userId)
+          .order("created_at", { ascending: false })
+          .order("id")
+          .range(from, to),
+      ADMIN_READ,
+    ),
+    all<unknown>(() =>
+      db
+        .from("scan_events")
+        .select("created_at, detect_ms, tap_to_audio_ms, tapped, caught")
+        .eq("user_id", userId)
+        .gte("created_at", since),
+    ),
+    all<unknown>(() =>
+      db
+        .from("review_history")
+        .select("reviewed_at, correct, response_ms")
+        .eq("user_id", userId)
+        .gte("reviewed_at", since),
+    ),
+    all<unknown>(() =>
+      db
+        .from("reviews")
+        .select("due_at, interval_days, ease, last_reviewed_at, created_at")
+        .eq("user_id", userId),
+    ),
+    all<unknown>(() =>
+      db
+        .from("usage_events")
+        .select("kind, created_at")
+        .eq("user_id", userId)
+        .gte("created_at", since),
+    ),
+    all<unknown>(() => db.from("ai_runs").select("tokens_in, tokens_out").eq("user_id", userId)),
   ]);
+  warnIfTruncated("buildDetail", { stickers, scans, history, reviews, usage, runs });
   if (!profile.data) throw new Error("User not found");
 
   type St = {
@@ -176,7 +226,7 @@ async function buildDetail(userId: string) {
     cutout_image_url: string | null;
     words: { headword: string; language: string | null } | null;
   };
-  const st = (stickers.data ?? []) as St[];
+  const st = stickers.rows as St[];
   const days = st.map((s) => dayKey(s.created_at));
   const byDay = new Map<string, number>();
   for (const d of days) byDay.set(d, (byDay.get(d) ?? 0) + 1);
@@ -197,7 +247,7 @@ async function buildDetail(userId: string) {
     tapped: boolean;
     caught: boolean;
   };
-  const sc = (scans.data ?? []) as Sc[];
+  const sc = scans.rows as Sc[];
   const stTimes = st.map((s) => Date.parse(s.created_at)).sort((a, b) => a - b);
   const toDex = sc
     .filter((e) => e.caught)
@@ -208,7 +258,7 @@ async function buildDetail(userId: string) {
     });
 
   type Rh = { reviewed_at: string; correct: boolean | null; response_ms: number | null };
-  const rh = (history.data ?? []) as Rh[];
+  const rh = history.rows as Rh[];
   const last30 = Date.now() - 30 * 86400 * 1000;
   type Rv = {
     due_at: string | null;
@@ -217,11 +267,11 @@ async function buildDetail(userId: string) {
     last_reviewed_at: string | null;
     created_at: string | null;
   };
-  const rv = (reviews.data ?? []) as Rv[];
+  const rv = reviews.rows as Rv[];
   const now = Date.now();
 
   type Ue = { kind: string; created_at: string };
-  const ue = (usage.data ?? []) as Ue[];
+  const ue = usage.rows as Ue[];
   const kinds: Record<string, number> = {};
   for (const e of ue) kinds[e.kind] = (kinds[e.kind] ?? 0) + 1;
   const leaves = Object.entries(kinds)
@@ -242,7 +292,7 @@ async function buildDetail(userId: string) {
       ]++;
 
   type Ar = { tokens_in: number | null; tokens_out: number | null };
-  const ar = (runs.data ?? []) as Ar[];
+  const ar = runs.rows as Ar[];
 
   // **グラフ用の細かい数**（2026-10-02「もっと詳しく、細かく、見やすく」）。どれも上で
   // 読んだ記録から作る（新しい問い合わせは足さない）。
@@ -399,30 +449,49 @@ async function population() {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = supabaseAdmin as any;
   const since30 = new Date(Date.now() - 31 * 86400 * 1000).toISOString();
+  // `.limit(100000)` と書いても PostgREST は 1000 行で切る（2026-10-03 監査）。全体の札の数・
+  // 比べる中央値が黙って小さくなっていたので、全部 `readAllPages` で 1000 行ずつ読む。
   const [profiles, stickers, history, opens] = await Promise.all([
-    db
-      .from("profiles")
-      .select("id, created_at, plan, target_language")
-      .order("created_at", { ascending: false })
-      .limit(5000),
-    db.from("stickers").select("user_id, created_at").limit(100000),
-    db
-      .from("review_history")
-      .select("user_id, reviewed_at")
-      .gte("reviewed_at", since30)
-      .limit(100000),
-    db
-      .from("usage_events")
-      .select("user_id, created_at")
-      .in("kind", ["app_open", "session_start"])
-      .gte("created_at", new Date(Date.now() - 400 * 86400 * 1000).toISOString())
-      .limit(100000),
+    readAllPages<unknown>((a, b) =>
+      db
+        .from("profiles")
+        .select("id, created_at, plan, target_language")
+        .order("created_at", { ascending: false })
+        .order("id")
+        .range(a, b),
+    ),
+    readAllPages<unknown>(
+      (a, b) => db.from("stickers").select("user_id, created_at").order("id").range(a, b),
+      ADMIN_READ,
+    ),
+    readAllPages<unknown>(
+      (a, b) =>
+        db
+          .from("review_history")
+          .select("user_id, reviewed_at")
+          .gte("reviewed_at", since30)
+          .order("id")
+          .range(a, b),
+      ADMIN_READ,
+    ),
+    readAllPages<unknown>(
+      (a, b) =>
+        db
+          .from("usage_events")
+          .select("user_id, created_at")
+          .in("kind", ["app_open", "session_start"])
+          .gte("created_at", new Date(Date.now() - 400 * 86400 * 1000).toISOString())
+          .order("id")
+          .range(a, b),
+      ADMIN_READ,
+    ),
   ]);
+  warnIfTruncated("population", { profiles, stickers, history, opens });
   type P = { id: string; created_at: string; plan: string | null; target_language: string | null };
-  const ps = (profiles.data ?? []) as P[];
-  const st = (stickers.data ?? []) as Array<{ user_id: string; created_at: string }>;
-  const rh = (history.data ?? []) as Array<{ user_id: string; reviewed_at: string }>;
-  const op = (opens.data ?? []) as Array<{ user_id: string; created_at: string }>;
+  const ps = profiles.rows as P[];
+  const st = stickers.rows as Array<{ user_id: string; created_at: string }>;
+  const rh = history.rows as Array<{ user_id: string; reviewed_at: string }>;
+  const op = opens.rows as Array<{ user_id: string; created_at: string }>;
   const t30 = Date.parse(since30);
   const perUser = new Map<
     string,
