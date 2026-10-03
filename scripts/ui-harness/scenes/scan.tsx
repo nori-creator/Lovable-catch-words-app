@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 /**
  * 語の印を押したときに出る札。**scan の中でいちばん読む所**。
  *
@@ -74,6 +74,14 @@ export function ScanNothingScene() {
  * 白地の上で撮ると、白い光が消えて「はじめて」の印だけ写らない。
  */
 export function ScanDotsScene() {
+  // 語ごとの読み（前は5つとも「杯子」の読みを付けていた — 2026-10-03 画面の監査）。
+  const READING: Record<string, { zhuyin: string; pinyin: string; meaning_ja: string }> = {
+    珍珠奶茶: { zhuyin: BASE.zhuyin, pinyin: BASE.pinyin, meaning_ja: BASE.meaning },
+    杯子: { zhuyin: "ㄅㄟ ㄗ˙", pinyin: "bēi zi", meaning_ja: "コップ" },
+    吸管: { zhuyin: "ㄒㄧ ㄍㄨㄢˇ", pinyin: "xī guǎn", meaning_ja: "ストロー" },
+    冰塊: { zhuyin: "ㄅㄧㄥ ㄎㄨㄞˋ", pinyin: "bīng kuài", meaning_ja: "氷" },
+    半糖: { zhuyin: "ㄅㄢˋ ㄊㄤˊ", pinyin: "bàn táng", meaning_ja: "砂糖半分" },
+  };
   const mk = (
     id: string,
     headword: string,
@@ -84,9 +92,7 @@ export function ScanDotsScene() {
     id,
     kind,
     headword,
-    zhuyin: "ㄅㄟ ㄗ˙",
-    pinyin: "bēi zi",
-    meaning_ja: "コップ",
+    ...READING[headword],
     pos: "N",
     point,
     confidence,
@@ -99,12 +105,26 @@ export function ScanDotsScene() {
     mk("d4", "冰塊", [760, 620], 0.5), // 確信が低い
     mk("d5", "半糖", [180, 700], 0.9, "text"), // 文字の印
   ] as never[];
+  // 枠の幅は実物と同じく測って渡す（前は 358px 決め打ちで、320 幅では印の位置も
+  // 札を枠の内側へ寄せる計算も実物と違っていた）。
+  const boxRef = useRef<HTMLDivElement | null>(null);
+  const [boxW, setBoxW] = useState(358);
+  useLayoutEffect(() => {
+    const el = boxRef.current;
+    if (!el) return;
+    const read = () => setBoxW(el.clientWidth);
+    read();
+    const ro = new ResizeObserver(read);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
   const ctx = {
     owned: { 杯子: { has_photo: true }, 吸管: { has_photo: false } },
     tappedSet: new Set<string>(),
   } as never;
   return (
     <div
+      ref={boxRef}
       style={{
         position: "relative",
         height: 480,
@@ -117,10 +137,11 @@ export function ScanDotsScene() {
       <ScanDots
         items={items}
         scanCtx={ctx}
-        // 実物は枠の大きさから計算する。ここでは枠を固定してあるので
-        // 同じ式(1000分率)をそのまま使う。
-        dotStyle={(it) => ({ left: (it.point[0] / 1000) * 358, top: (it.point[1] / 1000) * 480 })}
+        // 実物は枠の大きさから計算する。ここでは枠の高さを固定し、幅は測った値で
+        // 同じ式(1000分率)を使う。
+        dotStyle={(it) => ({ left: (it.point[0] / 1000) * boxW, top: (it.point[1] / 1000) * 480 })}
         onOpen={() => {}}
+        boxWidth={boxW}
       />
     </div>
   );

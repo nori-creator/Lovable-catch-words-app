@@ -471,16 +471,20 @@
     0 0 0 9999px rgb(11 24 42 / 0.57);
 }
 /* 新しい画面の2コマ目: 暗幕と一緒に、対象の真ん中の 24px から対象の形まで広がる
-   （`TOUR_TIMING.ringIn`）。 */
+   （`TOUR_TIMING.ringIn`）。**枠は最初から対象の位置と大きさに置き、縮めた `scale` から
+   戻す** — 前は top / left / width / height を動かしていたので、広がるたびに配置が
+   動いたと数えられていた（2026-10-03 画面の監査: CLS 0.3〜0.39）。縮める割合は
+   `--ring-sx` / `--ring-sy`（24px ÷ 枠の幅・高さ、`Spotlight.tsx`）。 */
 .tour-ring--expand {
   animation: tour-focus-expand 700ms cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 /* 同じ画面の次の案内: 暗幕は保ったまま、枠が前の物から次の物へ**滑って**移る
-   （`TOUR_TIMING.ringMove`。どこからどこへ目を移すのかが分かる）。 */
+   （`TOUR_TIMING.ringMove`。どこからどこへ目を移すのかが分かる）。位置は `translate`
+   で滑らせる（配置の top / left は動かさない — 画面のずれと数えられない）。大きさは
+   width / height のまま変える（`scale` で変えると線と光が太って見える）。 */
 .tour-ring--move {
   transition:
-    top 480ms cubic-bezier(0.22, 1, 0.36, 1),
-    left 480ms cubic-bezier(0.22, 1, 0.36, 1),
+    translate 480ms cubic-bezier(0.22, 1, 0.36, 1),
     width 480ms cubic-bezier(0.22, 1, 0.36, 1),
     height 480ms cubic-bezier(0.22, 1, 0.36, 1),
     border-radius 480ms cubic-bezier(0.22, 1, 0.36, 1);
@@ -1980,6 +1984,13 @@ html[data-motion="reduce"] .tour-coach {
   font-size: clamp(15px, 4.3vw, 17px);
   padding-inline: 16px;
 }
+/* 始まりの画面の釦も**1行**（2026-10-03 画面の監査: 320×568 の日本語で
+   「チュートリアルをはじめる」が折れ、「る」だけが2行目に残っていた）。終わりの画面と同じ詰め方。 */
+.first-ready .first-standalone-footer .first-primary {
+  white-space: nowrap;
+  font-size: clamp(15px, 4.3vw, 17px);
+  padding-inline: 16px;
+}
 /* Motion tells the learner which option was accepted without slowing the next action. */
 .first-question-heading h1 {
   animation: first-title-in 0.48s cubic-bezier(0.22, 1, 0.36, 1) both;
@@ -2120,11 +2131,9 @@ html[data-motion="reduce"] .first-run *::after {
    どこを見るのか分かる前に目が画面を横切る。暗幕も同じ時間で濃くなる。 */
 @keyframes tour-focus-expand {
   from {
-    top: calc(var(--ring-cy) - 12px);
-    left: calc(var(--ring-cx) - 12px);
-    width: 24px;
-    height: 24px;
-    border-radius: 12px;
+    /* 対象の真ん中の 24px の丸から（縮めた後に 12px の丸みになる角）。 */
+    scale: var(--ring-sx) var(--ring-sy);
+    border-radius: calc(12px / var(--ring-sx)) / calc(12px / var(--ring-sy));
     box-shadow:
       0 0 0 3px color-mix(in oklab, var(--primary) 0%, transparent),
       0 0 20px color-mix(in oklab, var(--primary) 0%, transparent),
@@ -2221,5 +2230,23 @@ html[data-motion="reduce"] .tour-ring--tap::after {
   .first-footer {
     padding-top: 12px;
     gap: 2px;
+  }
+  /* 始まりの画面（2026-10-03 画面の監査: 320×568 で写真の紙が副題の2行目に重なっていた）。
+     写真は紙の下の余白と一言の分（`.first-ready-photo` の margin-bottom）だけ枠の外へ伸びるので、
+     見出しの上の余白と写真の大きさを詰め、副題・写真・釦の間を空ける。 */
+  .first-ready:not(.first-complete) .first-ready-heading {
+    padding-top: 40px;
+  }
+  .first-ready:not(.first-complete) .first-ready-heading h1 {
+    margin: 8px 0 6px;
+    font-size: 27px;
+    line-height: 1.3;
+  }
+  .first-ready:not(.first-complete) .first-ready-heading p {
+    font-size: 14px;
+    line-height: 1.6;
+  }
+  .first-ready:not(.first-complete) .first-ready-art {
+    width: min(70vw, 280px, 29dvh);
   }
 }

@@ -1829,11 +1829,20 @@ export function ScanDots({
               : "bg-white ring-white/60 shadow-[0_0_10px_2px_rgba(255,255,255,0.5)]";
         const pos = dotStyle(it);
         const dotX = typeof pos.left === "number" ? pos.left : null;
-        // 札は印の真ん中に揃えるが、枠の端から 4px より外へは出さない。
+        /**
+         * 札の置き場所（2026-10-03 画面の監査: 320×568 で右端の印の札が枠で切れていた）。
+         * 端の近くの印は札を**内側へ折り返す** — 右の4分の1なら札の右端を印の当たり枠の
+         * 右端に、左の4分の1なら左端に揃える。そのうえで枠の幅が分かれば、枠の端から
+         * 4px より外へは出さない。下の端の近く（1000分率で 850 より下）は札を印の上に出す。
+         */
+        const [px, py] = it.point ?? [500, 500];
+        const side = px > 750 ? "end" : px < 250 ? "start" : "center";
+        const base = side === "end" ? "calc(-100% + 22px)" : side === "start" ? "-22px" : "-50%";
         const labelShift =
           boxWidth && dotX !== null
-            ? `clamp(${4 - dotX}px, -50%, calc(${boxWidth - 4 - dotX}px - 100%)) 0`
-            : "-50% 0";
+            ? `clamp(${4 - dotX}px, ${base}, calc(${boxWidth - 4 - dotX}px - 100%)) 0`
+            : `${base} 0`;
+        const labelAbove = py > 850;
         return (
           <button
             key={it.id}
@@ -1885,7 +1894,7 @@ export function ScanDots({
                   B6: 品詞を小さな色ドットで示す(名詞=白/動詞=ローズ/形容詞=アンバー)。 */}
             <span
               style={{ translate: labelShift }}
-              className="pointer-events-none absolute top-full mt-1 left-1/2 flex max-w-[200px] items-center gap-1 whitespace-nowrap rounded-full bg-black/65 px-2 py-0.5 text-center text-caption font-semibold leading-tight text-white backdrop-blur-sm"
+              className={`pointer-events-none absolute ${labelAbove ? "bottom-full mb-1" : "top-full mt-1"} left-1/2 flex max-w-[200px] items-center gap-1 whitespace-nowrap rounded-full bg-black/65 px-2 py-0.5 text-center text-caption font-semibold leading-tight text-white backdrop-blur-sm`}
             >
               <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${posDotColor(it.pos)}`} />
               <span lang="zh-Hant" className="truncate">

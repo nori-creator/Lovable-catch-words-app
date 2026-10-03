@@ -200,7 +200,8 @@ const FIXTURE = {
     removebg: 23,
     saveFailures: { catch: 1, reencounter: 0, firstTransfer: 0 },
     // 裏の処理の失敗（2026-10-01、`background-failure.ts`）。
-    backgroundFailures: { tts: 3, photoUpload: 1, thumbUpload: 0, reviewGrade: 0 },
+    // `firstCatchAi`（最初の1枚の分析）が無いと「undefined回」と出ていた（2026-10-03 画面の監査）。
+    backgroundFailures: { tts: 3, photoUpload: 1, thumbUpload: 0, reviewGrade: 0, firstCatchAi: 0 },
   },
   ai: {
     ...aiCostEstimate({

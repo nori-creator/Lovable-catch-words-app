@@ -36,7 +36,6 @@ export function FirstCatchShell({
           <AppNavigation
             cursor={tab}
             onCamera={camera}
-            indicatorOpacity={camera ? 0 : 1}
             renderLink={(item, index, props) => (
               <button
                 type="button"

@@ -410,7 +410,11 @@ export function WordCardSectionsEditor() {
                 size="sm"
                 className={visible ? "" : "opacity-40 grayscale"}
               />
-              <span className={`truncate ${visible ? "" : "text-muted-foreground line-through"}`}>
+              {/* 名前は切らずに折る（2026-10-03 画面の監査:「Synonyms, antonyms & related」が
+                  どの幅でも「Synonyms, antony…」で切れていた）。2行でも行の高さ 44px に収まる。 */}
+              <span
+                className={`min-w-0 py-1 leading-snug [overflow-wrap:anywhere] [text-wrap:pretty] [word-break:auto-phrase] ${visible ? "" : "text-muted-foreground line-through"}`}
+              >
                 {t(`card.${meta.id}`)}
               </span>
             </span>
