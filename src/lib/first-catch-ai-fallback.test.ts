@@ -114,7 +114,8 @@ describe("first-catch AI attempts", () => {
     vi.stubEnv("SUPABASE_SERVICE_ROLE_KEY", "test-only");
     generateText.mockImplementation(stall());
     const { db, inserted } = memberDb();
-    const pending = executeFirstCatchAI(request, { userId: "u1", supabase: db }).catch(
+    const pending = executeFirstCatchAI(request, { userId: "u1", supabase: db }).then(
+      () => new Error("expected failure"),
       (e: unknown) => e as Error,
     );
     await vi.advanceTimersByTimeAsync(40_000);
@@ -136,7 +137,8 @@ describe("first-catch AI attempts", () => {
     generateText.mockResolvedValue({ text: "not json" });
     vi.spyOn(console, "error").mockImplementation(() => {});
     const { db, inserted } = memberDb();
-    const error = await executeFirstCatchAI(request, { userId: "u1", supabase: db }).catch(
+    const error = await executeFirstCatchAI(request, { userId: "u1", supabase: db }).then(
+      () => new Error("expected failure"),
       (e: unknown) => e as Error,
     );
     expect(error.message).toBe("FIRST_CATCH_AI_FORMAT");

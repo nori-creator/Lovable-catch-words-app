@@ -132,7 +132,12 @@ describe("runAiAttempts", () => {
         },
       ],
       { isUnusableReply: (e) => e instanceof Error && e.message === "FIRST_CATCH_AI_FORMAT" },
-    ).catch((e: unknown) => e as AiAttemptsFailed);
+    ).then(
+      () => {
+        throw new Error("expected failure");
+      },
+      (e: unknown) => e as AiAttemptsFailed,
+    );
     expect(error.attempts.map((x) => x.outcome)).toEqual(["unusable", "error"]);
     expect(error.chargeable).toBe(true);
     expect(error.timedOut).toBe(false);
@@ -152,7 +157,12 @@ describe("runAiAttempts", () => {
           throw new TypeError("fetch failed");
         },
       },
-    ]).catch((e: unknown) => e as AiAttemptsFailed);
+    ]).then(
+      () => {
+        throw new Error("expected failure");
+      },
+      (e: unknown) => e as AiAttemptsFailed,
+    );
     await vi.advanceTimersByTimeAsync(500);
     const error = await pending;
     expect(error.chargeable).toBe(false);
