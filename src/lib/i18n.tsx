@@ -1922,15 +1922,17 @@ export const DICT: Record<string, Record<UiLang, string>> = {
     en: "Tap for one quick question",
     "zh-TW": "點一下，只考一題",
   },
+  // **残りの数を出さない**（PRODUCT.md「Never present review backlog as debt」、オーナー決定
+  // 2026-10-02「数字を出すと…やる気がなくなる」）。1分だけ、続けるかは本人が決める。
   "remind.body": {
-    ja: "復習する単語が{n}語あります",
-    en: "You have {n} {n|word|words} to review",
-    "zh-TW": "有 {n} 個單字要複習",
+    ja: "1分だけ、撮った単語に会いに行きませんか",
+    en: "Got a minute? Say hi to the words you caught",
+    "zh-TW": "花一分鐘，和你收集的單字見個面吧",
   },
   "remind.bodySrs": {
-    ja: "忘れかけの単語が{n}語。いまがいちばん覚え直しやすい時です",
-    en: "{n} {n|word is|words are} fading. Now is the best time to {n|refresh it|refresh them}",
-    "zh-TW": "有 {n} 個單字快忘了，現在複習最有效",
+    ja: "いま1分だけ見直すと、ぐっと覚えやすくなります",
+    en: "A one-minute look now helps your words stick",
+    "zh-TW": "現在花一分鐘看一下，會記得更牢",
   },
   "remind.bodyEmpty": {
     ja: "撮った単語を見直しましょう",

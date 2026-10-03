@@ -45,4 +45,18 @@ describe("復習の通知の文面", () => {
   it("1問の語が無いときは、前と同じ語数の文", () => {
     expect(reminderMessage(p, 0, null).body).toBe("撮った単語を見直しましょう");
   });
+
+  it("時が来た語があっても、残りの数を文に出さない（宿題に見せない）", () => {
+    for (const reason of ["srs", "habit"] as const) {
+      const body = reminderMessage({ ...p, reason }, 73, null).body;
+      expect(body).not.toMatch(/73|語あります|\{n\}/);
+      expect(body).toMatch(/1分/);
+    }
+    asEnglish();
+    for (const reason of ["srs", "habit"] as const) {
+      const body = reminderMessage({ ...p, reason }, 73, null).body;
+      expect(body).not.toMatch(/73|\{n\}/);
+      expect(body).toMatch(/minute/);
+    }
+  });
 });
