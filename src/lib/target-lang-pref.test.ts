@@ -113,8 +113,8 @@ describe("撮る道に決め打ちが残っていない", () => {
    */
   const CAPTURE_PATH = [
     "src/components/ScanCatchSheet.tsx",
-    "src/routes/_authenticated/scan.tsx",
-    "src/routes/_authenticated/capture.tsx",
+    "src/components/screens/ScanScreen.tsx",
+    "src/components/screens/CaptureScreen.tsx",
   ];
 
   it("**撮る道のどのファイルも `DEFAULT_TARGET_LANGUAGE` を直に使っていない**", () => {
@@ -148,7 +148,7 @@ describe("撮る道に決め打ちが残っていない", () => {
   });
 
   it("**設定は選んだ瞬間と保存の両方で端末に写す**", () => {
-    const text = fs.readFileSync("src/routes/_authenticated/settings.tsx", "utf8");
+    const text = fs.readFileSync("src/components/screens/SettingsScreen.tsx", "utf8");
     // 3箇所: 選んだとき / 保存したとき / プロフィールが届いたとき。
     expect(text.split("setTargetLang(").length - 1).toBeGreaterThanOrEqual(3);
   });

@@ -12,7 +12,8 @@ import { z } from "zod";
 import { pregenerateDistractors } from "./reviews.functions";
 import { buildBranchPlan } from "./wordtree";
 import { normalizeCategory } from "./category";
-import { isTruncated } from "./pagination";
+import { isTruncated, POSTGREST_PAGE } from "./pagination";
+import { parseStickerPageInput } from "./sticker-pages";
 import { isBuiltinRoom, normalizeShelfProposal, type RawShelfProposal } from "./shelf-proposal";
 import type { UserShelf } from "./shelf-plan";
 import { normalizeExtras, hasExtrasContent, type WordExtrasDTO } from "./extras";
@@ -184,7 +185,7 @@ async function encounterCounts(
  * PostgREST は `db-max-rows`(既定1000)で切るので、これより大きくしても
  * 意味がない。**1000は「1ページの大きさ」であって「合計の上限」ではない。**
  */
-const STICKER_PAGE_SIZE = 1000;
+const STICKER_PAGE_SIZE = POSTGREST_PAGE;
 
 /**
  * 全部で受け取る件数の天井。
@@ -202,10 +203,27 @@ const STICKER_PAGE_SIZE = 1000;
  */
 const STICKER_TOTAL_CAP = 3000;
 
+/**
+ * 自分の札の一覧。
+ *
+ * **入力なし**（iOS 版・MCP など前からの呼び方）: 今までどおり 1000 件ずつ繰って
+ * 3000 件まで一度に返す。
+ *
+ * **`{ offset, limit }` 付き**（2026-10-03 監査「一度に最大 3000 件を読む」）: その1ページ
+ * だけ返す（`limit` は 1〜1000）。画面は最初の1ページで描き、残りを裏で順に読み足す
+ * （`lib/sticker-pages.ts`）。ページごとに署名する写真の数も、そのページの分だけになる。
+ */
 export const listMyStickers = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .handler(async ({ context }) => {
+  .inputValidator((input: unknown) => parseStickerPageInput(input))
+  .handler(async ({ context, data: pageInput }) => {
     const { supabase, userId } = context;
+    // 1ページだけ読む回か（null = 前からの「全部まとめて」）。
+    const paged = pageInput ?? null;
+    const firstFrom = paged?.offset ?? 0;
+    const firstSize = paged?.limit ?? STICKER_PAGE_SIZE;
+    // 総数は最初のページでだけ数える（2ページ目以降は誰も見ない）。
+    const firstCount = firstFrom === 0;
     /**
      * **学習言語で絞る。** オーナー指示「学習言語によってアルバムや図鑑に
      * 表示されるものをすべて区別して。混ぜないで」。
@@ -248,7 +266,12 @@ export const listMyStickers = createServerFn({ method: "GET" })
      * (混ざるが、消えない)。下の JS 側でもう一度同じ規則を掛ける。
      */
     let filterInDb = true;
-    const page = async (cols: string, from: number, withCount: boolean) => {
+    const page = async (
+      cols: string,
+      from: number,
+      withCount: boolean,
+      size: number = STICKER_PAGE_SIZE,
+    ) => {
       const q = supabase
         .from("stickers")
         .select(cols, withCount ? { count: "exact" } : undefined)
@@ -257,23 +280,28 @@ export const listMyStickers = createServerFn({ method: "GET" })
       return await filtered
         .order("created_at", { ascending: false })
         .order("id", { ascending: false })
-        .range(from, from + STICKER_PAGE_SIZE - 1);
+        .range(from, from + size - 1);
     };
 
-    const pageWithJwtClockSkewRetry = async (cols: string, from: number, withCount: boolean) => {
-      let res = await page(cols, from, withCount);
+    const pageWithJwtClockSkewRetry = async (
+      cols: string,
+      from: number,
+      withCount: boolean,
+      size: number = STICKER_PAGE_SIZE,
+    ) => {
+      let res = await page(cols, from, withCount, size);
       for (const delayMs of [400, 900, 1600]) {
         if (!res.error || !/JWT issued at future/i.test(res.error.message)) break;
         // Auth tokens can be accepted by Auth before the database edge accepts
         // their `iat`. A short server-side retry prevents a transient blank app.
         await new Promise((resolve) => setTimeout(resolve, delayMs));
-        res = await page(cols, from, withCount);
+        res = await page(cols, from, withCount, size);
       }
       return res;
     };
 
     let cols = fullCols;
-    let first = await pageWithJwtClockSkewRetry(cols, 0, true);
+    let first = await pageWithJwtClockSkewRetry(cols, firstFrom, firstCount, firstSize);
     // 列がまだ無い / 埋め込みの絞りが通らない環境では、絞りだけ諦める。
     // **`pageWithJwtClockSkewRetry` を通す**(main が足した時計ずれの
     // 待ち直し)。ここだけ素の `page` に戻すと、絞りを外した1回目が
@@ -281,11 +309,11 @@ export const listMyStickers = createServerFn({ method: "GET" })
     if (first.error && /language/.test(first.error.message)) {
       console.warn("[stickers] words.language で絞れないので絞りを外す:", first.error.message);
       filterInDb = false;
-      first = await pageWithJwtClockSkewRetry(cols, 0, true);
+      first = await pageWithJwtClockSkewRetry(cols, firstFrom, firstCount, firstSize);
     }
     if (first.error && /words!inner|words/.test(first.error.message) && filterInDb) {
       filterInDb = false;
-      first = await pageWithJwtClockSkewRetry(cols, 0, true);
+      first = await pageWithJwtClockSkewRetry(cols, firstFrom, firstCount, firstSize);
     }
     /**
      * 紙の上の座標の列がまだ無い環境（オーナー指示 2026-09-15 の移行が
@@ -296,15 +324,15 @@ export const listMyStickers = createServerFn({ method: "GET" })
      */
     if (first.error && /album_(x|y|scale|rot)/.test(first.error.message)) {
       cols = cols.replace(", album_x, album_y, album_scale, album_rot", "");
-      first = await pageWithJwtClockSkewRetry(cols, 0, true);
+      first = await pageWithJwtClockSkewRetry(cols, firstFrom, firstCount, firstSize);
     }
     if (first.error && /hero_role/.test(first.error.message)) {
       cols = noHeroCols.replace(", album_x, album_y, album_scale, album_rot", "");
-      first = await pageWithJwtClockSkewRetry(cols, 0, true);
+      first = await pageWithJwtClockSkewRetry(cols, firstFrom, firstCount, firstSize);
     }
     if (first.error && /capture_type|placeholder/.test(first.error.message)) {
       cols = legacyCols;
-      first = await pageWithJwtClockSkewRetry(cols, 0, true);
+      first = await pageWithJwtClockSkewRetry(cols, firstFrom, firstCount, firstSize);
     }
     // **最初のページの失敗だけが致命的。** ここで読めなければ何も出せない。
     if (first.error) throw new Error(first.error.message);
@@ -326,7 +354,8 @@ export const listMyStickers = createServerFn({ method: "GET" })
      * 誰かが消したときなど)。失敗はすべて「そこで打ち切り」に倒す。
      */
     let stoppedEarly = false;
-    if (typeof count === "number") {
+    // 1ページだけの回は繰らない（続きは画面が `nextOffset` から頼む）。
+    if (!paged && typeof count === "number") {
       const want = Math.min(count, STICKER_TOTAL_CAP);
       while (acc.length < want) {
         const next = await pageWithJwtClockSkewRetry(cols, acc.length, false);
@@ -349,6 +378,15 @@ export const listMyStickers = createServerFn({ method: "GET" })
       }
     }
     const data = acc as typeof first.data;
+    // 絞り（言語・見出しの字）を掛ける**前**の行数。次のページの始まりはこの数で決める。
+    const rawCount = acc.length;
+    const nextOffset =
+      paged &&
+      rawCount >= firstSize &&
+      firstFrom + rawCount < STICKER_TOTAL_CAP &&
+      (typeof count !== "number" || firstFrom + rawCount < count)
+        ? firstFrom + rawCount
+        : null;
 
     type RowShape = {
       id: string;
@@ -389,9 +427,11 @@ export const listMyStickers = createServerFn({ method: "GET" })
     // なる道が残っていた — この周で潰したはずの「黙って途中で止まる」が、
     // 細い経路で生き残っていた。
     const total = typeof count === "number" ? count : null;
+    // 1ページだけの回は、途中まで読んだかを画面が決める（全部のページを読み終えた時）。
     const truncated =
-      stoppedEarly ||
-      isTruncated(total, rows.length, total == null ? STICKER_PAGE_SIZE : STICKER_TOTAL_CAP);
+      !paged &&
+      (stoppedEarly ||
+        isTruncated(total, rows.length, total == null ? STICKER_PAGE_SIZE : STICKER_TOTAL_CAP));
     /**
      * **学習言語の字でない見出し語の札は出さない**（オーナー報告 2026-10-02
      * 「英語の図鑑にノートが出る。言語が混ざってる」）。言語の列は `en` でも、
@@ -476,7 +516,7 @@ export const listMyStickers = createServerFn({ method: "GET" })
      * 数えられなくても画面は出す（飾りなので `null` に倒す）。
      */
     let otherLanguages: number | null = null;
-    if (filterInDb) {
+    if (filterInDb && firstFrom === 0) {
       const all = await supabase
         .from("stickers")
         .select("id", { count: "exact", head: true })
@@ -490,44 +530,57 @@ export const listMyStickers = createServerFn({ method: "GET" })
      * 直近 120 日・500 枚まで。読めなくても一覧は返す（飾りなので空に倒す）。
      */
     let albumEncounters: AlbumEncounter[] = [];
-    try {
-      const ids = new Set(result.map((r) => r.id));
-      const since = new Date(Date.now() - 120 * 86_400_000).toISOString();
-      const { data: encRows, error: encErr } = await supabase
-        .from("encounters")
-        .select("id, sticker_id, created_at, location_name, lat, lng, image_path, cutout_path")
-        .eq("user_id", userId)
-        .gte("created_at", since)
-        .order("created_at", { ascending: false })
-        .limit(500);
-      if (!encErr && encRows) {
-        const withPhoto = encRows.filter(
-          (e) => ids.has(e.sticker_id) && (e.image_path || e.cutout_path),
-        );
-        const encUrls = await signUrlMap(
-          supabase,
-          withPhoto.flatMap((e) => [e.image_path, e.cutout_path, thumbOf(e.image_path)]),
-        );
-        albumEncounters = withPhoto
-          .map((e) => ({
-            id: e.id,
-            sticker_id: e.sticker_id,
-            created_at: e.created_at,
-            location_name: e.location_name ?? null,
-            lat: e.lat ?? null,
-            lng: e.lng ?? null,
-            image_url:
-              (e.image_path ? encUrls.get(e.image_path) : undefined) ??
-              (e.cutout_path ? encUrls.get(e.cutout_path) : undefined) ??
-              "",
-            thumb_url: e.image_path ? (encUrls.get(`${e.image_path}.thumb.webp`) ?? null) : null,
-          }))
-          .filter((e) => e.image_url);
+    // 1ページだけの回は最初のページでだけ返す。札がどのページにあるか分からないので、
+    // **札で絞るのは画面**（全部のページを合わせた一覧で、`lib/sticker-pages.ts`）。
+    if (!paged || firstFrom === 0)
+      try {
+        const ids = new Set(result.map((r) => r.id));
+        const since = new Date(Date.now() - 120 * 86_400_000).toISOString();
+        const { data: encRows, error: encErr } = await supabase
+          .from("encounters")
+          .select("id, sticker_id, created_at, location_name, lat, lng, image_path, cutout_path")
+          .eq("user_id", userId)
+          .gte("created_at", since)
+          .order("created_at", { ascending: false })
+          .limit(500);
+        if (!encErr && encRows) {
+          const withPhoto = encRows.filter(
+            (e) => (paged || ids.has(e.sticker_id)) && (e.image_path || e.cutout_path),
+          );
+          const encUrls = await signUrlMap(
+            supabase,
+            withPhoto.flatMap((e) => [e.image_path, e.cutout_path, thumbOf(e.image_path)]),
+          );
+          albumEncounters = withPhoto
+            .map((e) => ({
+              id: e.id,
+              sticker_id: e.sticker_id,
+              created_at: e.created_at,
+              location_name: e.location_name ?? null,
+              lat: e.lat ?? null,
+              lng: e.lng ?? null,
+              image_url:
+                (e.image_path ? encUrls.get(e.image_path) : undefined) ??
+                (e.cutout_path ? encUrls.get(e.cutout_path) : undefined) ??
+                "",
+              thumb_url: e.image_path ? (encUrls.get(`${e.image_path}.thumb.webp`) ?? null) : null,
+            }))
+            .filter((e) => e.image_url);
+        }
+      } catch {
+        albumEncounters = [];
       }
-    } catch {
-      albumEncounters = [];
-    }
-    return { items: result, truncated, total, targetLanguage, otherLanguages, albumEncounters };
+    return {
+      items: result,
+      truncated,
+      total,
+      targetLanguage,
+      otherLanguages,
+      albumEncounters,
+      // 1ページだけの回: 次のページの始まり（無ければ null）と、絞る前に読んだ行数。
+      nextOffset,
+      rawCount,
+    };
   });
 
 export const getSticker = createServerFn({ method: "GET" })

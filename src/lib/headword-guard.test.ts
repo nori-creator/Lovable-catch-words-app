@@ -227,7 +227,7 @@ describe("画面の道が関所を通っている（ソースの形）", () => {
   const read = (p: string) => readFileSync(resolve(__dirname, "..", p), "utf8");
 
   it("スキャン: 漢字を含む物だけを残す決め打ちを使わない", () => {
-    const src = read("routes/_authenticated/scan.tsx");
+    const src = read("components/screens/ScanScreen.tsx");
     expect(src).not.toMatch(/\/\[㐀-鿿/);
     expect(src).toMatch(/isTargetHeadword\(it\.headword, targetLanguage\)/);
     // 言い換えの候補も絞ってから見せる・渡す。
@@ -245,7 +245,7 @@ describe("画面の道が関所を通っている（ソースの形）", () => {
   });
 
   it("撮る画面: 候補・スキャンの受け渡しを絞り、保存の前に確かめる", () => {
-    const src = read("routes/_authenticated/capture.tsx");
+    const src = read("components/screens/CaptureScreen.tsx");
     expect(src).toMatch(
       /setSuggestions\(keepTargetHeadwords\(suggestRes\.suggestions, targetLanguage\)\)/,
     );
@@ -277,7 +277,7 @@ describe("画面の道が関所を通っている（ソースの形）", () => {
     expect(read("lib/reviews.functions.ts")).toMatch(
       /\.filter\(\(r\) => wordBelongsToTarget\(r\.stickers\?\.words, targetLanguage\)\)\s*\.slice\(0, fetchLimit\)/,
     );
-    expect(read("routes/_authenticated/review.tsx")).toMatch(
+    expect(read("components/screens/ReviewScreen.tsx")).toMatch(
       /batch\.cards\.every\(\(c\) => wordBelongsToTarget\(c, target\)\)/,
     );
   });

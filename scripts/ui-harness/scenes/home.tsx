@@ -26,7 +26,7 @@ import {
   DayCollage,
   MemorialAlbum,
   MemorialEntry,
-} from "@/routes/_authenticated/home";
+} from "@/components/screens/HomeScreen";
 import { groupBySpan, type AlbumSpan } from "@/lib/album-span";
 import type { StickerWithWord } from "@/lib/stickers.functions";
 import type { PendingCapture } from "@/lib/offline-queue";

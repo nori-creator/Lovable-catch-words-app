@@ -10,7 +10,7 @@
 import { useState } from "react";
 import { HomeShelf } from "@/components/HomeShelf";
 import { monthDays } from "@/lib/home-shelf";
-import { BookAlbumEditor } from "@/routes/_authenticated/home";
+import { BookAlbumEditor } from "@/components/screens/HomeScreen";
 import { FIXTURES, HomePastScene, HomeScene, makeSticker } from "./home";
 
 const PHOTOS = [

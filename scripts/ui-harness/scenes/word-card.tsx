@@ -24,7 +24,7 @@ import {
   BackToDexLink,
   StickerDetailBody,
   StickerDetailHero,
-} from "@/routes/_authenticated/dex.$stickerId";
+} from "@/components/screens/StickerDetailScreen";
 import { emptyExtras } from "@/lib/extras";
 
 /**

@@ -3,7 +3,7 @@ import { useT } from "@/lib/i18n";
 import type { FirstCatch } from "@/lib/first-catch";
 import { normalizeReminderPrefs, type ReminderMode } from "@/lib/review-reminder";
 import type { ReactNode } from "react";
-import { sampleStickers } from "./FirstCatchHome";
+import { sampleStickers } from "./first-catch-samples";
 import { AlbumPrint } from "@/components/AlbumPrint";
 import "./first-catch.css";
 

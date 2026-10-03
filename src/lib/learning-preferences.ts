@@ -1,24 +1,8 @@
 import { z } from "zod";
 
-export const FIRST_CATCH_GOALS = [
-  "conversation",
-  "travel",
-  "work",
-  "exams",
-  "culture",
-  "other",
-] as const;
-export const FIRST_CATCH_INTERESTS = [
-  "food",
-  "travel",
-  "animals",
-  "nature",
-  "city",
-  "fashion",
-  "business",
-  "music",
-  "sports",
-] as const;
+import { FIRST_CATCH_GOALS, FIRST_CATCH_INTERESTS } from "./learning-preference-options";
+
+export { FIRST_CATCH_GOALS, FIRST_CATCH_INTERESTS };
 export const DailyMinutesSchema = z.union([
   z.literal(5),
   z.literal(10),

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import fs from "node:fs";
 import { partitionByLanguage, hasMeaning, levelOk } from "./dictionary-import";
-import { csvToRows } from "@/routes/_authenticated/admin.dictionary";
+import { csvToRows } from "@/components/screens/AdminDictionaryScreen";
 import { DEFAULT_TARGET_LANGUAGE, TARGET_LANGUAGES } from "./target-lang";
 
 /**

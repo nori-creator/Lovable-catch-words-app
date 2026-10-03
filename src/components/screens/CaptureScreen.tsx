@@ -1,0 +1,2811 @@
+import { selfieCaptureEnabled } from "@/lib/product-features";
+import { ZhuyinWord, useZhuyinUnits } from "@/components/ZhuyinWord";
+import { useReadableError } from "@/lib/errors";
+import { cardSectionsNow } from "@/lib/card-prefs";
+import { takeScanHandoff } from "@/lib/scan-handoff";
+import { containRect, residualZoom, viewfinderCrop } from "@/lib/capture-framing";
+import { PeelSticker } from "@/components/PeelSticker";
+import { reportSaveFailure } from "@/lib/save-failure";
+import { reportBackgroundFailure } from "@/lib/background-failure";
+import { useNavigate, getRouteApi } from "@tanstack/react-router";
+import { useTargetLang } from "@/lib/target-lang-pref";
+import { CandidatePicker } from "@/components/CandidatePicker";
+import {
+  useEffect,
+  useRef,
+  useState,
+  type CSSProperties,
+  type PointerEvent as ReactPointerEvent,
+  type RefObject,
+} from "react";
+import { useServerFn } from "@tanstack/react-start";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { AppShell } from "@/components/AppShell";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  Camera,
+  Volume2,
+  Loader2,
+  RotateCcw,
+  Sparkles,
+  Check,
+  Keyboard,
+  PartyPopper,
+  WifiOff,
+  ImagePlus,
+  Search,
+} from "lucide-react";
+import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
+import { suggestWords, generateCard, suggestWordCandidates } from "@/lib/ai.functions";
+import { isTargetHeadword, keepTargetHeadwords } from "@/lib/target-language";
+import { TARGET_LANG_LABEL_KEYS } from "@/lib/i18n";
+import { listMyStickers, saveSticker, type StickerWithWord } from "@/lib/stickers.functions";
+import { stickerListQueryFn } from "@/lib/sticker-pages";
+import { prependSticker, type StickerListCache } from "@/lib/optimistic-sticker";
+import { checkOwnedWord, recordEncounter, type OwnedWord } from "@/lib/encounters.functions";
+import {
+  enqueueCapture,
+  getPendingCapture,
+  removePendingCapture,
+  updatePendingCapture,
+} from "@/lib/offline-queue";
+import { makeThumbBlob, thumbPath } from "@/lib/image-resize";
+import { recordCatchTiming, useCatchSpeed } from "@/lib/catch-speed";
+import { putCachedImage } from "@/lib/image-cache";
+import { setCameraScreenOpen } from "@/lib/camera-launch";
+import {
+  CameraFlipButton,
+  CameraLibraryButton,
+  CameraModeStrip,
+  CameraShutter,
+  CameraZoomMeter,
+  type CameraMode,
+} from "@/components/CameraChrome";
+import { uploadStickerImage } from "@/lib/sticker-upload";
+import { WordCard } from "@/components/WordCard";
+import { Term } from "@/components/Term";
+import { Reading, useReadingText } from "@/lib/phonetic";
+import { ScanEffect } from "@/components/ScanEffect";
+import { CatchLandingOverlay, runCatchLanding } from "@/components/CatchLanding";
+import { onPronounced, usePronounce } from "@/lib/use-pronounce";
+import { useFunnelEvent } from "@/lib/use-funnel-event";
+import { useCatchLocation } from "@/lib/use-catch-location";
+import { localeOf, useT } from "@/lib/i18n";
+import { formatCount } from "@/lib/count";
+import { Zh } from "@/components/Zh";
+import { useUiLang } from "@/lib/i18n";
+import { Sound } from "@/lib/sound-engine";
+import { haptic } from "@/lib/haptics";
+import { CameraHelp } from "@/components/CameraHelp";
+import { CameraPrimer } from "@/components/CameraPrimer";
+import {
+  cameraGrantedBefore,
+  cameraProblemOf,
+  cameraStart,
+  inAppBrowser,
+  readCameraPermission,
+  rememberCameraGranted,
+  type CameraProblem,
+} from "@/lib/camera-access";
+import { useLockPageZoom } from "@/hooks/use-lock-page-zoom";
+import { Capacitor } from "@capacitor/core";
+import {
+  focusAt,
+  focusPointFromTap,
+  focusSupport,
+  pinchDistance,
+  type FocusSupport,
+} from "@/lib/camera-focus";
+import {
+  photoLibrarySaveRequiresUserGesture,
+  saveCaptureToPhotoLibrary,
+} from "@/lib/device-photo-library";
+
+/** この画面の検索条件・パラメータ（`Route` は route のファイルにだけ置く）。 */
+const routeApi = getRouteApi("/_authenticated/capture");
+
+type Mode = "photo" | "text";
+type Step =
+  | "mode"
+  | "object"
+  | "selfie"
+  | "processing"
+  | "select"
+  | "textInput"
+  | "imagePick"
+  | "card"
+  | "saving"
+  | "reencounter"
+  | "offlineSaved";
+
+type Suggestion = {
+  headword: string;
+  reading_zhuyin: string;
+  pinyin: string;
+  meaning_ja: string;
+  /** 他の候補との**使い分け**を一言。出ない回もあるので任意。 */
+  distinction?: string;
+  category_key: string;
+  /** ふだん度（並べ替えと2段目の札に使う）。 */
+  register?: "common" | "casual" | "specific" | "proper" | null;
+  /** 写真のどの物か（同じ物の別の呼び方は同じ番号）。無ければ1語で1つ。 */
+  group?: number | null;
+};
+
+type CardData = {
+  /**
+   * 生成側が決めた**学習言語の見出し語**。
+   *
+   * 打った語が母語でも、`generateCard` はここに学習言語の語を入れて返す
+   * （`ai.functions.ts` の `resolvedHead`）。画面はこれを**見ていなかった**
+   * ので、日本語で打つと見出しだけ日本語のまま残っていた
+   * （オーナー報告 2026-08-26、絵つき）。
+   */
+  headword_zh?: string;
+  reading_zhuyin: string;
+  pinyin: string;
+  meaning_ja: string;
+  part_of_speech: string;
+  level: string;
+  category_key: string;
+  example_sentence: string;
+  example_translation: string;
+  extras?: import("@/lib/extras").WordExtrasDTO;
+  /**
+   * AI が「どの棚にも当てはまらない」と判断したときの新しい棚の提案。
+   * 形は信用しない — 保存側の `normalizeShelfProposal` が直すか諦める。
+   */
+  new_shelf?: {
+    key?: string;
+    label?: string;
+    emoji?: string;
+    room_key?: string;
+    room_label?: string;
+  } | null;
+};
+
+async function fileToDataUrl(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result as string);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
+async function dataUrlToBlob(dataUrl: string): Promise<Blob> {
+  const res = await fetch(dataUrl);
+  return await res.blob();
+}
+
+/**
+ * Canvas re-encode: shrinks the image AND strips EXIF metadata (GPS etc.)
+ * embedded by the camera, so uploads and AI calls never leak it.
+ */
+async function compressImage(dataUrl: string, maxEdge: number, quality = 0.85): Promise<string> {
+  if (typeof document === "undefined") return dataUrl;
+  try {
+    const img = new Image();
+    await new Promise<void>((resolve, reject) => {
+      img.onload = () => resolve();
+      img.onerror = () => reject(new Error("image load failed"));
+      img.src = dataUrl;
+    });
+    const scale = Math.min(1, maxEdge / Math.max(img.width, img.height));
+    const w = Math.max(1, Math.round(img.width * scale));
+    const h = Math.max(1, Math.round(img.height * scale));
+    const canvas = document.createElement("canvas");
+    canvas.width = w;
+    canvas.height = h;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return dataUrl;
+    ctx.drawImage(img, 0, 0, w, h);
+    const out = canvas.toDataURL("image/jpeg", quality);
+    // 絵の板はすぐ手放す（iPhone の Safari は板の合計に上限がある）。
+    canvas.width = canvas.height = 0;
+    return out;
+  } catch {
+    return dataUrl;
+  }
+}
+
+export function CapturePage() {
+  const t = useT();
+  const readable = useReadableError();
+  /**
+   * いま撮った物を**何語として扱うか**（設定の学習言語）。
+   * 候補の提案・カードの生成・持っているかの判定・保存の全部が
+   * この1つの値を見る。バラバラに決め打つと、たとえば
+   * 「英語のカードを作ったのに台湾華語として保存する」が起きる。
+   */
+  const targetLanguage = useTargetLang();
+  /** 打った語を学習言語の語へ直す口(`searchWord` の注)。 */
+  const candidatesFn = useServerFn(suggestWordCandidates);
+  // 日付の書式も表示言語に合わせる(2026/7/30 と Jul 30, 2026)。
+  const dateLocale = localeOf(useUiLang());
+  // **何語として読むかを必ず渡す。** 省くと台湾華語の声に落ちるので、
+  // 文字で調べた英語の語が中国語として合成される(オーナー報告①)。
+  const pronounce = usePronounce(targetLanguage);
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  /**
+   * 撮ったあとに図鑑へ飛ぶ演出を速くするための**先読み**（鍵はホームと同じ `["stickers"]`。
+   * 同じ物を別の鍵で取り直さない）。以前はシャッターの左に最後の1枚を出すのにも使っていたが、
+   * 左下は「端末の写真を選ぶ」ボタンになった（2026-09-30）。
+   */
+  const fetchStickers = useServerFn(listMyStickers);
+  useQuery({
+    queryKey: ["stickers"],
+    queryFn: stickerListQueryFn(queryClient, fetchStickers),
+    staleTime: 5 * 60 * 1000,
+    gcTime: 30 * 60 * 1000,
+  });
+  const {
+    word: wordParam,
+    pending: pendingParam,
+    retake: retakeParam,
+    mode: modeParam,
+  } = routeApi.useSearch();
+  const [mode, setMode] = useState<Mode>("photo");
+  // 文字で調べる道も**この画面のまま**通る(オーナー指示 2026-08-26)。
+  const [step, setStep] = useState<Step>("object");
+  const [objectImg, setObjectImg] = useState<string | null>(null);
+  /** 速さのつまみ(要望 #18)。既定は「切り抜きモード」。 */
+  const catchSpeed = useCatchSpeed();
+  const [selfieImg, setSelfieImg] = useState<string | null>(null);
+  const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
+  const [selectedHead, setSelectedHead] = useState<string>("");
+  const [manualWord, setManualWord] = useState<string>("");
+  // カメラの画面に**直接**置く検索の欄(オーナー指示 2026-08-26)。
+  const [typedWord, setTypedWord] = useState("");
+  const [card, setCard] = useState<CardData | null>(null);
+  /**
+   * キャッチの演出に載せる読み。**注音を素で渡さない**(オーナー報告
+   * 2026-08-26「学習言語英語のとき、注音やピンインを決して表示しないで」)。
+   * 学習言語に在る表記だけを返す(`phonetic.tsx` の `useReadingText`)。
+   */
+  const landingReading = useReadingText(targetLanguage, {
+    zhuyin: card?.reading_zhuyin,
+    pinyin: card?.pinyin,
+  });
+  const [caption, setCaption] = useState("");
+  /**
+   * どこで撮ったか。**画面を開いた時から温めておき、保存の直前に短く待つ。**
+   * 以前は解析の頭で `getCurrentPosition` を投げっぱなしにしていたので、
+   * 候補を早く選んだ回や初回フィックスが遅い回で `loc` が null のまま
+   * 保存されていた(オーナー指摘「地図のデータが保存されてない」)。
+   * かざす側は既にこの形で解いてあり、その解がこちらに伝わっていなかった。
+   */
+  const { loc, resolve: resolveLocation, setLoc } = useCatchLocation();
+  const [flipped, setFlipped] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  /**
+   * 文字で調べている最中か。**画面は変えず、検索ボタンだけを回す**
+   * (オーナー指示 2026-08-26)。
+   */
+  const [searching, setSearching] = useState(false);
+  const [reenc, setReenc] = useState<OwnedWord | null>(null);
+  const [reencResult, setReencResult] = useState<{
+    recalled: boolean | null;
+    encounter_count: number;
+    next_due_at: string | null;
+    photo_saved: boolean;
+  } | null>(null);
+  const [pendingId, setPendingId] = useState<string | null>(null);
+  // `pendingId` の同期版。runAi は同じレンダーの中で呼ばれるので、
+  // 直前に setPendingId しても runAi の中からは古い値(null)しか見えない。
+  // 「これは復元されたキャプチャか」は失敗時の分岐に効くので ref で持つ。
+  const pendingIdRef = useRef<string | null>(null);
+  /** 撮った写真を端末に預けている途中の約束。AI が失敗したときだけ待つ。 */
+  const queueingRef = useRef<Promise<unknown> | null>(null);
+  // 解析に失敗して端末に預けたときの**実際の理由**。
+  // これを出さないと、401 や壊れた画像のような二度と直らない失敗まで
+  // 「写真は預かりました(あとで続きができます)」と出て、
+  // ユーザーは直らないものを待ち続けることになる。
+  const [savedReason, setSavedReason] = useState<string | null>(null);
+  // Synchronous re-entrancy guard: `reencResult` is only set after the await, so
+  // a fast double-tap would otherwise record two encounters (double SRS grade).
+  const reencSubmittingRef = useRef(false);
+  /** 再会の記録（写真の保存を含む）。剥がして図鑑へ飛ばす演出の関所に使う。 */
+  const reencPromiseRef = useRef<Promise<boolean> | null>(null);
+  /** 保存が通ったか。通ったあとの失敗を「保存の失敗」と言わないための印。 */
+  const savedRef = useRef(false);
+  // 「いま何を待っているか」— 候補出し(analyze)か、タップ後の切り抜き(cutout)か。
+  // 待ち画面の文言をここで切り替える。
+  const [waitKind, setWaitKind] = useState<"analyze" | "cutout">("analyze");
+  // キャッチ演出中は写真カードを隠し、代わりに飛ぶ画像を出す。
+  const [landing, setLanding] = useState(false);
+  /**
+   * 保存の通信中。**画面は切り替えない**(演出はカードの画面の上で走る)ので、
+   * 押し直しを止める見張りがここに要る。無いと二重登録になる。
+   */
+  const [saving, setSaving] = useState(false);
+  const heroBoxRef = useRef<HTMLDivElement | null>(null);
+  const flyRef = useRef<HTMLImageElement | null>(null);
+  const objectImageRef = useRef<string | null>(null);
+  const selfieImageRef = useRef<string | null>(null);
+  const selfiePendingRef = useRef(false);
+  const analysisNextRef = useRef<Step | null>(null);
+  const [reencFailed, setReencFailed] = useState(false);
+  const captureBusyRef = useRef(false);
+  function showAnalysisStep(next: Step) {
+    if (selfiePendingRef.current) analysisNextRef.current = next;
+    else setStep(next);
+  }
+  const autoOpenedRef = useRef(false);
+  const handledParamRef = useRef<string | null>(null);
+  /**
+   * **ベータの計測**（2026-10-03、`funnel-events.ts`）: カメラを開いた → シャッター → 候補が
+   * 並んだ（待ち時間）→ 選んだ → 最初に発音を聞いた → 保存。送るのは種類と時刻だけ。
+   */
+  const track = useFunnelEvent();
+  const shutterAtRef = useRef<number | null>(null);
+  /** 発音を数え終えたか（候補を選ぶたびに戻す）。選ぶ前の発音は数えない。 */
+  const audioCountedRef = useRef(true);
+  /** この画面を開いてカメラを出したのを数えたか（開くたびに1回）。 */
+  const cameraCountedRef = useRef(false);
+  useEffect(() => {
+    if (step !== "object" || wordParam || pendingParam || cameraCountedRef.current) return;
+    cameraCountedRef.current = true;
+    track("camera_open");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [step]);
+  useEffect(
+    () =>
+      onPronounced(() => {
+        if (audioCountedRef.current) return;
+        audioCountedRef.current = true;
+        track("first_audio_played");
+      }),
+    [track],
+  );
+
+  async function openNativeCamera() {
+    try {
+      const {
+        Camera: NativeCamera,
+        CameraResultType,
+        CameraSource,
+      } = await import("@capacitor/camera");
+      const photo = await NativeCamera.getPhoto({
+        source: CameraSource.Camera,
+        resultType: CameraResultType.Uri,
+        quality: 90,
+        // 撮っただけでは保存しない。「図鑑に追加」が成功した後にだけ
+        // saveCaptureToPhotoLibrary() へ渡す。
+        saveToGallery: false,
+        correctOrientation: true,
+      });
+      if (!photo.webPath) return;
+      const blob = await (await fetch(photo.webPath)).blob();
+      await handleObjectFile(new File([blob], `capture.${photo.format}`, { type: blob.type }));
+    } catch (e) {
+      console.warn("native capture failed", e);
+    }
+  }
+  /**
+   * 「いま有効な作業はどれか」を表す番号。
+   *
+   * 待ち画面の「やめる」は `step` を変えるだけで、**走っている非同期処理は
+   * 止まらなかった**。写真Aの解析が返ってくると `setSuggestions(A)` と
+   * `setStep("select")` を勝手に押し戻すので、やめる → 撮り直す の順に
+   * 操作すると、**写真Bを見ながら写真Aの候補を選ぶ**ことになる。
+   *
+   * 流れを始めるときに番号を取り、await のたびに「まだ自分の番か」を確認する。
+   * やめる / やり直す は番号を進めるだけで、走っている処理を無効化できる。
+   */
+  const runTokenRef = useRef(0);
+
+  const suggestFn = useServerFn(suggestWords);
+  const cardFn = useServerFn(generateCard);
+  const saveFn = useServerFn(saveSticker);
+  const ownedFn = useServerFn(checkOwnedWord);
+  const encounterFn = useServerFn(recordEncounter);
+
+  /**
+   * **撮る画面が出ていることを名乗る。**（`lib/camera-launch.ts`）
+   *
+   * 下のカメラを押したときの「開く演出」は、これが立っている間は出ない。
+   * 道の名前で判断していた頃は、末尾の `/` や移動の途中の値で抜けられて、
+   * **すでに撮っている画面の上に演出が重なって**いた（オーナー報告3回）。
+   */
+  useEffect(() => {
+    setCameraScreenOpen(true);
+    return () => setCameraScreenOpen(false);
+  }, []);
+
+  // 着いたらすぐ**外**カメラを開く(派生キャッチとオフライン復元のときは除く)。
+  //
+  // **自撮り側の自動 click は外したが、こちらは残す。** 壊れ方が違う:
+  // ここは `capture="environment"` で、端末が既定で開くのも外カメラなので、
+  // 自動の click が効かなかったときの結果は「開かない」— 下の `<label>` を
+  // 押せば済む。自撮り側は既定と逆を向いているので、効かなかったときに
+  // **逆のカメラが開く**。1タップ減らす価値と、間違ったカメラが開く害は
+  // 釣り合わない。ここは②「一瞬でも早く」の本線なので、タップを増やさない。
+  useEffect(() => {
+    if (autoOpenedRef.current) return;
+    if (step !== "object") return;
+    if (wordParam || pendingParam) return;
+    autoOpenedRef.current = true;
+    // Native builds do not have an inline browser camera surface. Open the
+    // platform camera as soon as the camera tab arrives; web builds render a
+    // live preview inside CaptureObjectPanel instead of opening a file picker.
+    if (Capacitor.isNativePlatform()) void openNativeCamera();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [step, wordParam, pendingParam]);
+
+  // Derived catch: /capture?word=◯◯ — **この画面のまま**すぐ調べる
+  // (オーナー指示 2026-08-26。別の面を開かない)。
+  useEffect(() => {
+    if (!wordParam || handledParamRef.current === `w:${wordParam}`) return;
+    handledParamRef.current = `w:${wordParam}`;
+    // 打った語と同じ道（`searchWord`）を通す。学習言語の語ならそのまま
+    // `confirmWord` へ進み、そうでなければ学習言語の語に直してから進む。
+    // 直に `confirmWord` へ渡すと、渡された語が何語でも見出しになる。
+    void searchWord(wordParam);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [wordParam]);
+
+  /**
+   * **スキャンで選んだ語を、この画面の流れで足す**（オーナー指示 2026-09-23
+   * 「単語の候補をタップしたら、撮影モードと全く同じように単語を追加する
+   * 流れにして」）。スキャンの写真と場所を受け取り、写真を撮った後の段から
+   * 始める: 迷った語なら「語を選ぶ」、そうでなければそのままカード（持って
+   * いる語なら再会の画面）。受け渡しは1回きり（`lib/scan-handoff.ts`）。
+   */
+  useEffect(() => {
+    const h = takeScanHandoff();
+    if (!h) return;
+    objectImageRef.current = h.image;
+    setObjectImg(h.image);
+    selfieImageRef.current = null;
+    setSelfieImg(null);
+    if (h.loc.lat != null && h.loc.lng != null) setLoc(h.loc);
+    // 撮影モードと同じく、端末の控えに先に入れる（通信が切れても失わない）。
+    void enqueueCapture({
+      object_img: h.image,
+      selfie_img: null,
+      lat: h.loc.lat,
+      lng: h.loc.lng,
+      location_name: h.loc.name,
+    }).then((q) => {
+      if (!q) return;
+      setPendingId(q.id);
+      pendingIdRef.current = q.id;
+    });
+    /**
+     * **学習言語の語だけを受け取る**（オーナー報告 2026-10-02「英語の図鑑に
+     * ノート」「英語の復習に拿鐵」）。スキャンの側でも絞っているが、
+     * 受け渡しは前の版の画面が置いた物かもしれない。1つも残らなければ、
+     * 渡された写真をこの画面の解析にかけ直す（撮り直させない）。
+     */
+    const offered = keepTargetHeadwords(
+      [
+        { headword: h.headword, ...h.hint },
+        ...h.alternatives.map((alt) => ({
+          headword: alt,
+          reading_zhuyin: "",
+          pinyin: "",
+          meaning_ja: "",
+          category_key: h.hint.category_key,
+        })),
+      ],
+      targetLanguage,
+    );
+    if (offered.length === 0) {
+      void runAi(h.image);
+    } else if (offered.length > 1) {
+      setSuggestions(offered);
+      setStep("select");
+    } else {
+      void confirmWord(offered[0].headword, offered[0]);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Offline-queue restore: /capture?pending=<id>.
+  useEffect(() => {
+    if (!pendingParam || handledParamRef.current === `p:${pendingParam}`) return;
+    handledParamRef.current = `p:${pendingParam}`;
+    void (async () => {
+      const item = await getPendingCapture(pendingParam);
+      if (!item) {
+        toast.error(t("cap.pendingNotFound"));
+        return;
+      }
+      setPendingId(item.id);
+      pendingIdRef.current = item.id;
+      objectImageRef.current = item.object_img;
+      selfieImageRef.current = item.selfie_img;
+      setObjectImg(item.object_img);
+      setSelfieImg(item.selfie_img);
+      if (item.lat != null && item.lng != null) {
+        setLoc({ lat: item.lat, lng: item.lng, name: item.location_name });
+      }
+      await runAi(item.object_img);
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingParam]);
+
+  // **自動でカメラを開かない**(オーナー報告 2026-08-21)。
+  //
+  // > 「自撮りを追加ってボタン押しても、カメラが自動的にインカメラに
+  // >  なってない。」
+  //
+  // ここは自撮りの段に入った瞬間に `selfieInputRef.current?.click()` を
+  // `setTimeout` から投げていた。**指で押していない click** なので、
+  // 端末によっては何も起きないか、開いても `capture="user"` が無視されて
+  // 外カメラや選択ダイアログが出る。前の周にスキャン側で同じ形を直したとき、
+  // 「撮る経路は `<label>` なので効いている」と書いたが、**この自動の
+  // click が残っていた**ぶんだけ、そちらも壊れていた。
+  //
+  // 下の `<label>` を指で押せば `capture="user"` はそのまま効く。
+  // 1タップ増えるが、**開いたカメラが逆を向いている**よりよい。
+
+  async function handleObjectFile(file: File, analysisImage?: string) {
+    if (captureBusyRef.current) return;
+    captureBusyRef.current = true;
+    shutterAtRef.current = Date.now();
+    track("shutter");
+    selfiePendingRef.current = selfieCaptureEnabled();
+    analysisNextRef.current = null;
+    setSelfieImg(null);
+    selfieImageRef.current = null;
+    setStep(selfiePendingRef.current ? "selfie" : "processing");
+    // Browser save starts on capture, never during the reward gesture.
+    if (photoLibrarySaveRequiresUserGesture()) {
+      const downloadUrl = URL.createObjectURL(file);
+      syncPhotoToDevice(downloadUrl);
+      setTimeout(() => URL.revokeObjectURL(downloadUrl), 60000);
+    }
+    // **写真を読めなかったことを言う。**
+    //
+    // `fileToDataUrl` の reject を誰も受けておらず、失敗すると画面は
+    // 何も変わらなかった。撮ったのに何も起きない画面は、押せていない
+    // のか壊れているのか区別がつかない(独立監査の指摘)。
+    try {
+      const url = await fileToDataUrl(file);
+      const compressed = await compressImage(url, 1600);
+      objectImageRef.current = compressed;
+      setObjectImg(compressed);
+      if (!photoLibrarySaveRequiresUserGesture()) syncPhotoToDevice(compressed);
+      // **AI を先に走らせる。端末に預けるのを待たない**（オーナー報告
+      // 2026-09-27「iPhone で撮影後に AI 分析が進まない」）。
+      //
+      // 前は預け終わってから AI を呼んでいた。iPhone の Safari では
+      // IndexedDB を開く所が返ってこないことがあり、その回は分析が
+      // 1度も始まらずに「分析中」のまま止まっていた。預けるのは
+      // 失敗したときの保険なので、並べて走らせる。
+      queueingRef.current = enqueueCapture({
+        object_img: compressed,
+        selfie_img: selfieImageRef.current,
+        lat: null,
+        lng: null,
+        location_name: null,
+      }).then((queued) => {
+        if (queued) {
+          setPendingId(queued.id);
+          pendingIdRef.current = queued.id;
+          if (selfieImageRef.current)
+            void updatePendingCapture(queued.id, { selfie_img: selfieImageRef.current });
+        }
+        return queued;
+      });
+      void runAi(analysisImage ?? compressed);
+    } catch (e) {
+      console.error(e);
+      setError(t("cap.photoReadFailed"));
+      toast.error(t("cap.photoReadFailed"));
+      selfiePendingRef.current = false;
+      setStep("object");
+    } finally {
+      captureBusyRef.current = false;
+    }
+  }
+
+  async function handleSelfieFile(file: File | null) {
+    if (file) {
+      if (photoLibrarySaveRequiresUserGesture()) {
+        const url = URL.createObjectURL(file);
+        syncPhotoToDevice(url);
+        setTimeout(() => URL.revokeObjectURL(url), 60000);
+      }
+      try {
+        const url = await fileToDataUrl(file);
+        const compressed = await compressImage(url, 1280);
+        if (!photoLibrarySaveRequiresUserGesture()) syncPhotoToDevice(compressed);
+        selfieImageRef.current = compressed;
+        setSelfieImg(compressed);
+        if (pendingIdRef.current) {
+          void updatePendingCapture(pendingIdRef.current, { selfie_img: compressed });
+        }
+      } catch (e) {
+        // 自撮りは任意。読めなくてもキャッチは止めない。
+        console.warn("selfie read failed", e);
+      }
+    }
+    selfiePendingRef.current = false;
+    setStep(analysisNextRef.current ?? "processing");
+    analysisNextRef.current = null;
+  }
+
+  async function runAi(imgOverride?: string) {
+    const img = imgOverride ?? objectImg;
+    if (!img) return;
+    const token = ++runTokenRef.current;
+    // 候補が並ぶまでの待ち時間: シャッターからの時間（無ければ解析を始めた時から）。
+    const waitFrom = shutterAtRef.current ?? Date.now();
+    shutterAtRef.current = null;
+    setWaitKind("analyze");
+    showAnalysisStep("processing");
+    setError(null);
+    setSavedReason(null);
+
+    try {
+      // The AI only needs a small image — shrinking it cuts upload time and cost.
+      const aiImage = await compressImage(img, 768, 0.8);
+      if (runTokenRef.current !== token) return;
+      // 切り抜きは**候補をタップしてから**走らせる(下の confirmWord)。
+      // どの語を選ぶか決める前から待たされる理由はないし、切り抜かれた絵が
+      // 「タップした結果」として現れるほうが、何が起きたか分かりやすい。
+      const suggestRes = await Promise.race([
+        suggestFn({ data: { imageBase64: aiImage, targetLanguage: targetLanguage } }),
+        new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error(t("cap.networkTimeout"))), 20000),
+        ),
+      ]);
+      if (runTokenRef.current !== token) return;
+      // **学習言語の語だけを並べる**（サーバも絞るが、ここが保存の入口なので
+      // もう一度。オーナー報告 2026-10-02「英語の図鑑にノート」）。
+      setSuggestions(keepTargetHeadwords(suggestRes.suggestions, targetLanguage));
+      track("candidates_shown", Date.now() - waitFrom);
+      showAnalysisStep("select");
+    } catch (e) {
+      console.error(e);
+      if (runTokenRef.current !== token) return;
+      // 生の英語（Failed to fetch 等）や、サーバの日本語の文をそのまま出さない。
+      const reason = readable(e, t("cap.aiFailed"));
+
+      // 撮った写真は**必ず**残す。
+      //
+      // 以前この救済は `!navigator.onLine` のときだけ走っていた。ところが
+      // navigator.onLine は回線がつながっているかしか見ておらず、
+      // キャプティブポータルのWiFi・AIの500・タイムアウトでは true のまま。
+      // つまり**いちばん起きやすい失敗ほど救われず**、ユーザーは
+      // step:"object"(「タップして撮影」)に戻され、撮ったばかりの写真も
+      // 自撮りも画面から消えていた。二度と撮れないものを失わせない。
+      //
+      // ただし**この写真がキューから復元されたものなら、預け直さない**。
+      // 再試行のたびに同じ写真が1件ずつ増え、消えるのは元の1件だけなので、
+      // 3回失敗すれば「解析待ち」に同じ写真が3枚並ぶ。
+      // 撮った直後に預け始めた分が済むのを待つ（上限つき — `offline-queue.ts`）。
+      // 待たないと、同じ写真をもう1枚預けてしまう。
+      if (queueingRef.current) await queueingRef.current.catch(() => null);
+      const here = await resolveLocation();
+      const saved = pendingIdRef.current
+        ? await updatePendingCapture(pendingIdRef.current, {
+            selfie_img: selfieImageRef.current ?? selfieImg,
+            lat: here.lat,
+            lng: here.lng,
+            location_name: here.name,
+          })
+        : await enqueueCapture({
+            object_img: objectImageRef.current ?? img,
+            selfie_img: selfieImageRef.current ?? selfieImg,
+            lat: here.lat,
+            lng: here.lng,
+            location_name: here.name,
+          });
+      if (runTokenRef.current !== token) return;
+      if (saved) {
+        // 預かれたことと、**なぜ失敗したか**は別の話。理由を伏せると、
+        // 401 や壊れた画像のような直らない失敗まで「あとで続きができます」
+        // に見えてしまう。理由を出し、その場で再試行もできるようにする。
+        setSavedReason(reason);
+        showAnalysisStep("offlineSaved");
+        return;
+      }
+      // 保存もできなかったときだけ、撮り直しをお願いする。
+      setError(reason);
+      showAnalysisStep("object");
+      toast.error(t("cap.aiFailedRetry"));
+    }
+  }
+
+  /**
+   * **打った語を、学習言語の語に直してから進む。**
+   *
+   * オーナー報告 2026-08-26（絵つき）:
+   * > 「文字入力、学習言語台湾華語なのに、日本語で入力したら、日本語の単語が
+   * >  出てくる。文字入力は日本語、英語、台湾華語すべての言語で入力を可能に
+   * >  して（学習言語でなんというか分からないときのために）。ただし単語の
+   * >  カードの見出しは必ずユーザーが設定してる学習言語だけを表示して。」
+   *
+   * 届いた絵では見出しが「駅の改札」のまま、読みが `ㄧㄢˋ ㄆㄧㄠˋ ㄓㄚˊ ㄇㄣˊ`
+   * （驗票閘門）だった。**読みと意味は正しく引けていて、見出しだけが
+   * 打った日本語のまま**残っていた。
+   *
+   * ## なぜそうなったか（私が壊した）
+   * 2026-08-26 に「輸入捕捉の頁を消して、この画面のまま検索する」直しを
+   * 入れたとき、打った語をそのまま `confirmWord` へ渡した。消した頁の側には
+   * **母語 → 学習言語の解決**（`suggestWordCandidates`）が入っていて、
+   * その一手だけが道連れになっていた。
+   *
+   * ## 打つ言語は選ばせない
+   * 学習言語で何と言うか分からないから打つので、**日本語でも英語でも
+   * 台湾華語でも受ける**。学習言語の語でそのまま打たれたときだけ、
+   * 解決を挟まずに進む（速い道はそのまま）。
+   */
+  async function searchWord(raw: string) {
+    const word = raw.trim();
+    if (!word) return;
+    setError(null);
+    // すでに学習言語の語。**そのまま進む**（余計な問い合わせを足さない）。
+    if (isTargetHeadword(word, targetLanguage)) {
+      setTypedWord("");
+      void confirmWord(word);
+      return;
+    }
+    /**
+     * **調べている間も検索の画面のまま**（オーナー指示 2026-08-26
+     * 「検索したら AI が分析中と画像を撮ったときと同じ画面が表示されて
+     * いるが、検索した画面で検索ボタンがロード中だとわかるくるくる
+     * まわるやつになって」）。
+     *
+     * ここは撮ったときと同じ全画面の「分析中」に飛ばしていた。
+     * 撮る方はカメラが閉じて他に見る物が無いのでそれでよいが、
+     * 打つ方は**打った語がまだ画面に在る**。飛ばすと、
+     * 打った物も、書き直す口も、いっぺんに消える。
+     *
+     * 打った語も消さない。**失敗したときに書き直せない**のが
+     * 「機能してない」と見える一番の理由だった。
+     */
+    setSearching(true);
+    try {
+      const { candidates } = await candidatesFn({
+        data: { query: word, targetLanguage: targetLanguage },
+      });
+      const usable = candidates.filter((c) => isTargetHeadword(c.headword, targetLanguage));
+      if (usable.length === 0) {
+        // **打った語のままカードを作らない。** 見出しが母語のまま残る。
+        // 何が起きたかを**その人が学んでいる言語の名前で**言う。
+        setError(t("input.notTargetLang", { lang: t(TARGET_LANG_LABEL_KEYS[targetLanguage]) }));
+        return;
+      }
+      if (usable.length === 1) {
+        /**
+         * **候補が1つなら選ばせない**（オーナー指示 2026-08-26
+         * 「学習言語と母語が一対一の関係で…単語の候補の画面をスキップして、
+         * 単語の意味と発音の画面に直接移って」）。
+         *
+         * 選択肢が1つの画面は、押す以外にできることが無い。
+         */
+        const c = usable[0];
+        setTypedWord("");
+        void confirmWord(c.headword, {
+          headword: c.headword,
+          reading_zhuyin: c.reading_zhuyin,
+          pinyin: c.pinyin,
+          meaning_ja: c.meaning_ja,
+          distinction: c.distinction,
+          category_key: "other",
+        });
+        return;
+      }
+      // **複数あるなら選ばせる。** 母語の1語が学習言語では別々の語に割れる
+      // ことが多く、こちらで1つに決めると別の語を覚えることになる。
+      setSuggestions(
+        usable.map((c) => ({
+          headword: c.headword,
+          reading_zhuyin: c.reading_zhuyin,
+          pinyin: c.pinyin,
+          meaning_ja: c.meaning_ja,
+          distinction: c.distinction,
+          category_key: "other",
+        })),
+      );
+      setTypedWord("");
+      setStep("select");
+    } catch (e) {
+      // **本当の理由をそのまま出す。** 上限に達した・鍵が無いなど、
+      // 打ち直しても直らない話をここで握り潰すと「機能してない」になる。
+      // 上限に達した等の理由は `readable` が画面の言語の文に直す。
+      // 生の `e.message`（Failed to fetch・サーバの日本語）は出さない。
+      setError(
+        readable(e, t("input.notTargetLang", { lang: t(TARGET_LANG_LABEL_KEYS[targetLanguage]) })),
+      );
+    } finally {
+      setSearching(false);
+    }
+  }
+
+  /**
+   * **生成が返した学習言語の見出し語を採る。最後の砦。**
+   *
+   * `searchWord` が先に直しているので、ここへ来るのは
+   * 「解決を通らずに母語のまま入った」回だけ。それでも置く理由は、
+   * 見出しが母語のまま保存されると**その語が図鑑に母語で残る**から
+   * （オーナー報告の絵）。保存は `selectedHead` を見るので、
+   * ここで載せ替えれば行にも正しい語が入る。
+   *
+   * 学習言語の語として通らない値は採らない（AI が空や説明文を返した回に、
+   * それを見出しにしてしまわない）。
+   */
+  function adoptResolvedHead(c: CardData) {
+    const resolved = c.headword_zh?.trim();
+    if (!resolved || !isTargetHeadword(resolved, targetLanguage)) return;
+    setSelectedHead((prev) => (prev === resolved ? prev : resolved));
+  }
+
+  async function confirmWord(head: string, hint?: Suggestion) {
+    const token = ++runTokenRef.current;
+    // 写真は ref から読む。スキャンから渡されたときは、同じ描画のうちに
+    // ここへ来るので、`objectImg`（状態）はまだ前の値のまま。
+    const photo = objectImageRef.current ?? objectImg;
+    setSelectedHead(head);
+    // この語で最初に発音を聞いた時を1回だけ数える（`first_audio_played`）。
+    audioCountedRef.current = false;
+    // キャッチ演出の「空中のタメ」で待たせずに鳴らせるよう、ここで先に取る。
+    pronounce.prefetch(head);
+    /**
+     * **候補を選んだ時は「AI が分析中」を出さない**（オーナー報告 2026-09-29「候補を選んだあとに
+     * 謎の AI が分析中のアニメーションが一瞬映る。消して。そのままステッカーの画面に移行して」）。
+     * 候補（`hint`）には読み・意味が入っていてカードはすぐ出せる。待つのは「もう持っている語か」
+     * の確認（1往復）だけなので、その間は今の画面のまま待ち、終わったらカードへ直接移る。
+     * 候補が無い時（打った語など）はカードを作る間を待つので、今までどおり演出を出す。
+     */
+    if (!hint) {
+      setWaitKind("cutout");
+      setStep("processing");
+    }
+    const startedAt = Date.now();
+
+    // **カードは待たせずに出す**(オーナー指摘 2026-08-20)。
+    // 背景の切り抜きは 2026-10-01 に消した（ずっと止めてあった）。保存は元の写真だけ。
+
+    // Already caught this word? Then this is a re-encounter — the best review
+    // moment there is — not a duplicate sticker.
+    try {
+      const { owned } = await ownedFn({
+        data: { headword: head, language: targetLanguage },
+      });
+      if (runTokenRef.current !== token) return;
+      if (owned) {
+        setReenc(owned);
+        setReencResult(null);
+        setStep("reencounter");
+        // **写真をここで捨てない。** そのままその単語の写真として足す。
+        reencPromiseRef.current = recordReencounter(owned, photo);
+        return;
+      }
+    } catch {
+      // Ownership check is best-effort; fall through to the normal flow.
+    }
+
+    try {
+      if (hint) {
+        setCard({
+          reading_zhuyin: hint.reading_zhuyin,
+          pinyin: hint.pinyin,
+          meaning_ja: hint.meaning_ja,
+          part_of_speech: "名詞",
+          level: "TOCFL-2",
+          category_key: hint.category_key,
+          example_sentence: "",
+          example_translation: "",
+        });
+        cardFn({
+          data: {
+            headword: head,
+            targetLanguage: targetLanguage,
+            hintCategory: hint.category_key,
+            sections: cardSectionsNow(),
+          },
+        })
+          .then((c) => {
+            if (runTokenRef.current !== token) return;
+            setCard(c);
+            adoptResolvedHead(c);
+          })
+          .catch(() => {});
+      } else {
+        const c = await cardFn({
+          data: { headword: head, targetLanguage: targetLanguage, sections: cardSectionsNow() },
+        });
+        if (runTokenRef.current !== token) return;
+        setCard(c);
+        adoptResolvedHead(c);
+      }
+      if (runTokenRef.current !== token) return;
+      setStep("card");
+      // 要望 #73「切り抜きあり/なしの時間を計測して比較」。
+      // 端末に貯めて設定の開発者欄で見る(理由は `lib/catch-speed.ts`)。
+      recordCatchTiming({
+        ms: Date.now() - startedAt,
+        speed: catchSpeed,
+        cutout: false,
+      });
+    } catch (e) {
+      console.error(e);
+      if (runTokenRef.current !== token) return;
+      toast.error(t("cap.cardFailed"));
+      setStep("select");
+    }
+  }
+
+  /**
+   * 保存そのもの。**演出を1ミリ秒も待たせない**ように切り出してある。
+   *
+   * 以前は保存と演出が1つの関数に並び、`await` で順番に走っていた。
+   * つまり**通信が終わるまで絵が1ミリも動かなかった** — 押してから
+   * 動き出すまでに、回線しだいで1〜3秒の無音があった。
+   * いまは押した瞬間に演出が始まり、これはその裏で走る。
+   */
+  async function doSave(card: CardData, selectedHead: string) {
+    // 温めてある位置を**ここで確定させる**。状態を直に読むと、
+    // 候補を早く選んだ回はまだ届いていない。
+    const locationPromise = resolveLocation();
+    /**
+     * **`getSession` で足りる**（オーナー報告 2026-09-22「祝福の演出が…
+     * 4秒位停止してる」の一因）。
+     *
+     * `getUser()` は毎回**認証サーバーへ問い合わせる**。ここで要るのは
+     * アップロード先のフォルダ名（自分の id）だけで、本人確認はこの後の
+     * アップロードと保存がそれぞれ鍵付きで行う（保存側は `ownPath` で
+     * 他人のフォルダを弾く）。1往復ぶん、演出が保存を待つ時間が縮む。
+     */
+    const { data: sessionData } = await supabase.auth.getSession();
+    const userId = sessionData.session?.user.id;
+    if (!userId) throw new Error("Not signed in");
+
+    const ts = Date.now();
+    async function upload(dataUrl: string | null, kind: string): Promise<string | null> {
+      if (!dataUrl) return null;
+      const blob = await dataUrlToBlob(dataUrl);
+      const ext = blob.type.includes("png") ? "png" : "jpg";
+      const path = `${userId}/${ts}-${kind}.${ext}`;
+      const thumbPromise = makeThumbBlob(dataUrl); // encode while the main upload runs
+      const { error } = await supabase.storage.from("stickers").upload(path, blob, {
+        contentType: blob.type,
+        upsert: false,
+      });
+      if (error) throw error;
+      // Grid thumbnail alongside — best-effort, the grid falls back to the
+      // original when it's missing (old stickers, encode failure).
+      const thumb = await thumbPromise;
+      if (thumb) {
+        void supabase.storage
+          .from("stickers")
+          .upload(thumbPath(path), thumb, {
+            contentType: thumb.type || "image/webp",
+            upsert: true,
+          })
+          .catch(() => {});
+        void putCachedImage(thumbPath(path), thumb);
+      }
+      // Prime the device cache so the dex shows this image instantly,
+      // without ever downloading what we just uploaded.
+      void putCachedImage(path, blob);
+      return path;
+    }
+
+    // 写真のアップロードは並列。自撮りは任意なので、失敗しても保存は続ける。
+    const cutout_path: string | null = null;
+    const [object_path, selfie_path] = await Promise.all([
+      upload(objectImg, "object"),
+      upload(selfieImg, "selfie").catch((e: unknown) => {
+        reportBackgroundFailure("photo_upload", e, { kind: "selfie" });
+        return null;
+      }),
+    ]);
+
+    const here = await locationPromise;
+    const res = await saveFn({
+      data: {
+        word: {
+          headword: selectedHead,
+          reading_zhuyin: card.reading_zhuyin,
+          pinyin: card.pinyin,
+          meaning_ja: card.meaning_ja,
+          part_of_speech: card.part_of_speech,
+          level: card.level,
+          category_key: card.category_key,
+          example_sentence: card.example_sentence,
+          example_translation: card.example_translation,
+          extras: card.extras,
+        },
+        // AI が「どの棚にも当てはまらない」と言ったときの新しい棚。
+        // ここを渡し忘れると、提案は生成されるのに**保存側に届かない** —
+        // このアプリで何度もやっている「直したものが動く経路に無い」形。
+        new_shelf: card.new_shelf ?? null,
+        language: targetLanguage,
+        object_path,
+        cutout_path,
+        selfie_path,
+        caption: caption || null,
+        location_name: here.name,
+        lat: here.lat,
+        lng: here.lng,
+      },
+    });
+
+    /**
+     * **いま捕まえた札を、図鑑の手元の一覧へ先に入れる**
+     * （`lib/optimistic-sticker.ts` の注。オーナー報告 2026-09-22
+     * 「発音のあとその画面のまま4秒位停止してる」）。
+     *
+     * 入れないと、図鑑は全部の札を読み直し終えるまでこの札のマス目を
+     * 描けず、演出はその間ずっと着地先を待って止まっていた。
+     */
+    const nowIso = new Date().toISOString();
+    queryClient.setQueryData<StickerListCache>(["stickers"], (prev) =>
+      prependSticker(prev, {
+        id: res.id,
+        word_id: res.word_id,
+        caption: caption || null,
+        location_name: here.name,
+        lat: here.lat,
+        lng: here.lng,
+        taken_at: nowIso,
+        created_at: nowIso,
+        // 再会の回数。**初めて捕まえた札は 0**（1 にすると「×1」の札が付く）。
+        encounter_count: 0,
+        // アップロード前の手元の絵。署名付き URL を待たずに出せて、
+        // 読み直しが届いて本物に替わっても同じ絵なので見た目は変わらない。
+        object_url: objectImg,
+        cutout_url: null,
+        selfie_url: selfieImg,
+        object_thumb_url: null,
+        cutout_thumb_url: null,
+        capture_type: "photo",
+        hero_role: null,
+        placeholder_url: null,
+        placeholder_credit: null,
+        word: {
+          headword: selectedHead,
+          language: targetLanguage,
+          reading_zhuyin: card.reading_zhuyin ?? null,
+          pinyin: card.pinyin ?? null,
+          meaning_ja: card.meaning_ja,
+          part_of_speech: card.part_of_speech ?? null,
+          example_sentence: card.example_sentence ?? null,
+          example_translation: card.example_translation ?? null,
+          level: card.level ?? null,
+          category_key: card.category_key ?? null,
+          silhouette_emoji: null,
+          extras: (card.extras ?? null) as StickerWithWord["word"]["extras"],
+        },
+      }),
+    );
+    track("catch_saved");
+    // 図鑑の再取得は待たない(演出中に裏で終わる) — 体感を最短にする。
+    // 届いたら上の仮の札は同じ id の本物に置き換わる。
+    void queryClient.invalidateQueries({ queryKey: ["stickers"] });
+    if (pendingIdRef.current) void removePendingCapture(pendingIdRef.current);
+    return res;
+  }
+
+  /**
+   * 「図鑑に追加」を押したときの段取り。
+   *
+   * ## オーナー指示 2026-09-13
+   * > 「該当の画面のなかの**画像だけ**が動き出し」
+   *
+   * 前はここで `setStep("saving")` を呼んでいた。するとカードの画面が
+   * **丸ごと外れて**黒い覆いに差し替わり、そこに置かれた別の大きさの
+   * 写真のコピー(`w-64`)から飛んでいた。画面が変わってから別の絵が動くので、
+   * **同じ物が動いたようには見えない**。
+   *
+   * いまはカードの画面をそのまま残し、**いま出ているその写真**から飛ばす。
+   *
+   * ## 通信と演出を並走させる
+   * 演出は押した瞬間に始める。通信はその裏。見せ場の1秒が関所も兼ねていて、
+   * まだ届いていなければそこで待つ(`v5_reward` の reveal → transfer)。
+   *
+   * ## 札の id は後から渡す
+   * 飛び始めた時点では保存が終わっていないので `destinationId` は決まって
+   * いない。`getDestinationId` で**その時点の値**を読ませる。
+   */
+  async function handleSave() {
+    if (!card || !selectedHead || saving) return;
+    /**
+     * **学習言語の語でなければ保存しない**（オーナー報告 2026-10-02
+     * 「英語の図鑑にノート」— 英語を学んでいる人の写真のキャッチが、
+     * カタカナの「ノート」を `en` の語として保存していた）。
+     * サーバの関所（`upsertWord`）も同じ判定で止めるが、そこまで行くと
+     * 祝いの演出が始まってから謝ることになる。押した時点で理由を出す。
+     */
+    if (!isTargetHeadword(selectedHead, targetLanguage)) {
+      toast.error(t("err.notTargetLanguage"));
+      return;
+    }
+    pronounce.prepare();
+    const hero = objectImg;
+    // 文字で入れた語には写真が無い。**飛ぶ物が無いのだから飛ばさない。**
+    // ここだけは従来どおり、待つ面を出す(そこには単語しか出ない)。
+    if (!hero) {
+      setStep("saving");
+      // 写真の経路では `v5_reward` の grip 段が鳴らすが、こちらは演出を
+      // 通らない。**押した返事まで消してはいけない**ので、ここで鳴らす。
+      Sound.rewardGrip();
+      haptic("selection");
+      try {
+        const res = await doSave(card, selectedHead);
+        savedRef.current = true;
+        // 捕まえた手応え（写真の経路は `v5_reward` の着地が鳴らす）。
+        haptic("success");
+        navigate({ to: "/dex", search: { justCaught: res.id } });
+      } catch (e) {
+        console.error(e);
+        reportSaveFailure("catch", e, { photo: false });
+        toast.error(readable(e, t("cap.saveFailed")));
+        setStep("card");
+      }
+      return;
+    }
+
+    setSaving(true);
+    setLanding(true);
+    // **ここで音と振動を鳴らさない。** `v5_reward` の grip 段が同じものを
+    // 鳴らす。前は間に通信(1〜3秒)が挟まっていたので別の音に聞こえたが、
+    // 並走にすると**ほぼ同時に2回**鳴る。
+
+    // 保存は裏で走らせる。**id は決まり次第ここに入る。**
+    let savedId: string | undefined;
+    const savePromise = doSave(card, selectedHead).then((res) => {
+      savedId = res.id;
+      savedRef.current = true;
+      // DBへの保存が成功した写真だけを端末へ同期する。保存処理自体の失敗で
+      // キャッチを巻き戻さないため、ここは待たずに実行する。
+      return res;
+    });
+    // **失敗が分かった時点で演出を畳む。** 祝ってから謝るのがいちばん悪い。
+    void savePromise.catch(() => setLanding(false));
+
+    const landingDone = runCatchLanding({
+      startEl: heroBoxRef.current,
+      // ref のまま渡す。覆いの層はこの直前の `setLanding(true)` で
+      // 初めて描かれるので、ここで .current を読むと必ず null になる。
+      fly: flyRef,
+      speakLine: () => pronounce(selectedHead, true),
+      // **先に読ませない。** 押した時点ではまだ決まっていない。
+      getDestinationId: () => savedId,
+      openDex: () => {
+        if (!savedId) return;
+        return navigate({ to: "/dex", search: { justCaught: savedId } });
+      },
+      // 見せ場の1秒がこれを待つ関所。**失敗をそのまま渡す** —
+      // 演出側はこれが転んだら受け渡しへ進まず畳む。飲み込んで渡すと、
+      // 保存に失敗したのに図鑑まで飛んでから謝ることになる。
+      gate: savePromise,
+    });
+
+    try {
+      const res = await savePromise;
+      // **ここから先の失敗は「保存の失敗」ではない。**
+      // 以前は演出も遷移も同じ try の中にあり、catch が一律
+      // 「保存に失敗しました」を出してカード画面へ戻していた。ユーザーは
+      // 押し直し、**同じ写真の同じ語が2枚並ぶ**(重複の確認は語を選ぶ段階に
+      // しか無い)。嘘の失敗が、正しい対処を誤りに変えていた。
+      await landingDone.catch((e) => console.warn("catch landing failed", e));
+      if (window.location.pathname !== "/dex") {
+        navigate({ to: "/dex", search: { justCaught: res.id } });
+      }
+    } catch (e) {
+      console.error(e);
+      setLanding(false);
+      setSaving(false);
+      if (savedRef.current) {
+        toast.error(t("cap.savedButLandingFailed"));
+        navigate({ to: "/dex", search: {} });
+        return;
+      }
+      reportSaveFailure("catch", e, { photo: true });
+      toast.error(readable(e, t("cap.saveFailed")));
+    }
+  }
+
+  function reset() {
+    selfiePendingRef.current = false;
+    analysisNextRef.current = null;
+    // 走っている解析・切り抜きを無効化してから畳む。番号を進めないと、
+    // 前の写真の結果が後から届いて新しい画面を上書きする。
+    runTokenRef.current++;
+    setMode("photo");
+    setStep("object");
+    setObjectImg(null);
+    setSelfieImg(null);
+    setSuggestions([]);
+    setSelectedHead("");
+    setManualWord("");
+    setCard(null);
+    setCaption("");
+    setFlipped(false);
+    setError(null);
+    setLanding(false);
+    setReenc(null);
+    setReencResult(null);
+    // **やり直したら、預けた写真も捨てる。**
+    // ここで id だけ手放すと IndexedDB の行が残り、ホームの
+    // 「解析待ちの写真」が消えないまま撮るたびに積み上がっていた。
+    if (pendingIdRef.current) void removePendingCapture(pendingIdRef.current);
+    setPendingId(null);
+    pendingIdRef.current = null;
+    savedRef.current = false;
+    setSavedReason(null);
+  }
+
+  /**
+   * 待ち画面の「やめる」。
+   *
+   * 切り抜き待ちなら候補一覧に戻す — 写真も候補もまだ手元にあるので、
+   * そこまで捨てる理由がない。解析待ちなら最初からやり直す。
+   * どちらの道でも `reset()`/番号の更新で走っている処理を無効化する。
+   */
+  function cancelProcessing() {
+    if (waitKind === "cutout" && suggestions.length > 0) {
+      runTokenRef.current++;
+      setSelectedHead("");
+      setStep("select");
+      return;
+    }
+    reset();
+  }
+
+  /**
+   * 再会を記録する。**当てものは出さない。**
+   *
+   * これまでは「意味、覚えてる?」と伏せて出し、開くと母語の意味が出て、
+   * 「覚えてた / 忘れてた」を押させていた。撮った本人がその物の母語を
+   * 知らないはずがないので、問いとして成り立っていない(オーナー指摘)。
+   *
+   * 代わりに、**今回撮った写真をその単語に足す**。今まではここで写真を
+   * 捨てていた。復習の間隔は動かさない(`recalled: null`)。
+   */
+  async function recordReencounter(owned: OwnedWord, objectImg: string | null): Promise<boolean> {
+    if (reencSubmittingRef.current) return false;
+    setReencFailed(false);
+    reencSubmittingRef.current = true;
+    try {
+      // 再会も「どこで会い直したか」が残るべき記録。
+      const here = await resolveLocation();
+      const { data: userData } = await supabase.auth.getUser();
+      const userId = userData.user?.id ?? null;
+      const ts = Date.now();
+      // 写真の保存に失敗しても、再会の記録そのものは残す —
+      // 「撮ったのに何も起きなかった」が一番困る。
+      const image_path = userId
+        ? await uploadStickerImage({ userId, dataUrl: objectImg, kind: "encounter", ts })
+        : null;
+
+      if (objectImg && !image_path) throw new Error("Photo upload failed");
+      const res = await encounterFn({
+        data: {
+          sticker_id: owned.sticker_id,
+          recalled: null,
+          lat: here.lat,
+          lng: here.lng,
+          location_name: here.name,
+          image_path,
+        },
+      });
+      setReencResult({
+        recalled: null,
+        encounter_count: res.encounter_count,
+        next_due_at: res.next_due_at,
+        photo_saved: !!image_path,
+      });
+      // 再会も「その写真の役目が終わった」時点。預けた分を消しておかないと
+      // ホームの「解析待ちの写真」が残り続ける。
+      if (pendingIdRef.current) {
+        void removePendingCapture(pendingIdRef.current);
+        pendingIdRef.current = null;
+        setPendingId(null);
+      }
+      await queryClient.invalidateQueries({ queryKey: ["stickers"] });
+      await queryClient.invalidateQueries({ queryKey: ["sticker-photos"] });
+      await queryClient.invalidateQueries({ queryKey: ["sticker", owned.sticker_id] });
+      return true;
+    } catch (e) {
+      console.error(e);
+      reportSaveFailure("reencounter", e);
+      setReencFailed(true);
+      toast.error(t("cap.recordFailed"));
+      return false;
+    } finally {
+      reencSubmittingRef.current = false;
+    }
+  }
+
+  /**
+   * **再会でも、剥がして図鑑へ飛ばす。**（オーナー指示 2026-09-23「再度同じ
+   * 画像を撮った時も、ステッカーを剥がし、図鑑に追加するアニメーション入れて」）
+   *
+   * 新しく捕まえたときと同じ演出（`runCatchLanding`）。着地先は**その語の
+   * 図鑑の枠**（元の札）。関所は再会の記録 — 記録に失敗したら祝わずに畳む。
+   */
+  function landReencounter() {
+    if (!reenc || landing) return;
+    const owned = reenc;
+    setSelectedHead(owned.headword);
+    setLanding(true);
+    const gate = (reencPromiseRef.current ?? Promise.resolve(false)).then((ok) => {
+      if (!ok) throw new Error("re-encounter not recorded");
+    });
+    void gate.catch(() => setLanding(false));
+    const done = runCatchLanding({
+      startEl: heroBoxRef.current,
+      fly: flyRef,
+      speakLine: () => pronounce(owned.headword, true),
+      getDestinationId: () => owned.sticker_id,
+      openDex: () => navigate({ to: "/dex", search: { justCaught: owned.sticker_id } }),
+      gate,
+    });
+    void done
+      .then(() => {
+        if (window.location.pathname !== "/dex") {
+          navigate({ to: "/dex", search: { justCaught: owned.sticker_id } });
+        }
+      })
+      .catch((e) => {
+        console.warn("re-encounter landing failed", e);
+        setLanding(false);
+      });
+  }
+
+  function syncPhotoToDevice(dataUrl: string) {
+    void saveCaptureToPhotoLibrary(dataUrl).then((result) => {
+      if (result === "failed") toast.error(t("cap.photoLibrarySaveFailed"));
+    });
+  }
+
+  return (
+    /**
+     * 撮っている段は**上の帯も出さない**（オーナー指示 2026-09-16
+     * 「カメラのとき、上の集めるの余白いらない。すべてカメラ画面でいい」）。
+     * 撮り終わってカードを見る段からは、ふつうの帯に戻す。
+     */
+    <AppShell
+      title={t("title.capture")}
+      fixedViewport={step === "object" || step === "selfie"}
+      bare={step === "object" || step === "selfie"}
+    >
+      {(step === "object" || step === "selfie") && (
+        <CaptureObjectPanel
+          retakeWord={retakeParam ?? null}
+          onObjectFile={
+            step === "selfie" ? (file) => void handleSelfieFile(file) : handleObjectFile
+          }
+          selfieMode={step === "selfie"}
+          onSkipSelfie={() => void handleSelfieFile(null)}
+          onNativeCapture={
+            Capacitor.isNativePlatform() && step === "object"
+              ? () => void openNativeCamera()
+              : undefined
+          }
+          typedWord={typedWord}
+          setTypedWord={setTypedWord}
+          /**
+           * **この画面のまま調べる**(オーナー指示 2026-08-26
+           * 「文字入力は検索ボタン押すと別のページに移動するけど意味ない
+           * から、輸入捕捉って表示されるページ消して、元のページのまま
+           * 検索して」)。
+           *
+           * 打った語をそのまま候補の段へ渡す。写真を撮ったときと同じ道を
+           * 通るので、候補も学習言語で出る(前は別の面が開いて、その面が
+           * 台湾華語の決め打ちで引いていた)。
+           */
+          onSearch={(w) => void searchWord(w)}
+          searching={searching}
+          initialMode={modeParam ?? "photo"}
+          onOpenScan={() => navigate({ to: "/scan" })}
+          error={error}
+        />
+      )}
+
+      {step === "processing" && (
+        <CaptureAnalyzingPanel
+          image={objectImg}
+          cutout={waitKind === "cutout"}
+          onCancel={cancelProcessing}
+        />
+      )}
+
+      {step === "select" && (
+        <PickWordPanel
+          targetLanguage={targetLanguage}
+          objectImg={objectImg}
+          suggestions={suggestions}
+          manualWord={manualWord}
+          setManualWord={setManualWord}
+          onPick={(s) => {
+            track("candidate_picked");
+            return confirmWord(s.headword, s);
+          }}
+          // **ここも学習言語へ直してから進む**(`searchWord` の注)。
+          // 写真の候補に無い語を手で打つ所なので、母語で書かれることが多い。
+          onManual={() => void searchWord(manualWord)}
+        />
+      )}
+
+      {step === "card" && card && (
+        <CaptureCardPanel
+          card={card}
+          selectedHead={selectedHead}
+          objectImg={objectImg}
+          selfieImg={selfieImg}
+          flipped={flipped}
+          setFlipped={setFlipped}
+          caption={caption}
+          setCaption={setCaption}
+          placeName={loc?.name ?? null}
+          onRedo={reset}
+          onSave={handleSave}
+          // **飛び立つのはこの画面に出ているこの写真**。画面を差し替えない。
+          heroBoxRef={heroBoxRef}
+          landing={landing}
+          saving={saving}
+        />
+      )}
+
+      {step === "saving" && (
+        <CaptureSavingPanel
+          image={objectImg}
+          headword={selectedHead}
+          landing={landing}
+          heroBoxRef={heroBoxRef}
+        />
+      )}
+
+      {step === "reencounter" && reenc && (
+        <ReencounterPanel
+          reenc={reenc}
+          photo={objectImg}
+          heroBoxRef={heroBoxRef}
+          landing={landing}
+          onPeel={landReencounter}
+          failed={reencFailed}
+          onRetry={() => void recordReencounter(reenc, objectImg)}
+          reencResult={reencResult}
+          dateLocale={dateLocale}
+          onAgain={reset}
+          onSeeInDex={() =>
+            navigate({ to: "/dex/$stickerId", params: { stickerId: reenc.sticker_id } })
+          }
+        />
+      )}
+
+      {step === "offlineSaved" && (
+        <OfflineSavedPanel
+          savedReason={savedReason}
+          onRetry={() => void runAi()}
+          onHome={() => navigate({ to: "/home" })}
+          onAgain={() => {
+            // **預けた写真は捨てない**（この面は「あとでホームの『解析待ち』から
+            // 続きができます」と約束している）。`reset` は預けた行を消すので、
+            // 先に手放してから畳む。
+            pendingIdRef.current = null;
+            reset();
+          }}
+        />
+      )}
+      {/* キャッチ演出中だけ載る層: 飛ぶ絵・閃光・大きな単語
+          (スキャンのシートと同じ一式を共有している) */}
+      {landing && (
+        <CatchLandingOverlay
+          ref={flyRef}
+          image={objectImg}
+          headword={selectedHead}
+          lang={targetLanguage}
+          reading={landingReading}
+        />
+      )}
+    </AppShell>
+  );
+}
+
+/**
+ * **分析中の面**（撮った写真の上でスキャン演出が走る全画面）。
+ *
+ * 撮影画面とチュートリアルが**同じこの部品**を描く（オーナー指示 2026-09-29「チュートリアル
+ * 勝手にアプリを再現するのではなく、アプリそのものを使って」）。前はチュートリアルが
+ * 写真と演出と文を自分で並べた別の面を持っていた。
+ */
+export function CaptureAnalyzingPanel({
+  image,
+  cutout = false,
+  onCancel,
+}: {
+  image: string | null;
+  cutout?: boolean;
+  onCancel: () => void;
+}) {
+  const t = useT();
+  return (
+    // 分析中もフルスクリーン。撮った写真の上でスキャン演出が走る
+    // (「少しだけ待ってね」のような待たせる文言は出さない)。
+    <div className="fixed inset-0 z-50 bg-black">
+      {image && <img src={image} alt="" className="absolute inset-0 h-full w-full object-cover" />}
+      <ScanEffect stage={cutout ? "matching" : "reading"} cutout={cutout} />
+      {/* 全画面で覆う画面には**必ず出口を置く**。ここには閉じるボタンも
+          戻るも無く、処理が返ってこないとアプリを強制終了するしか
+          逃げ道が無かった(§16 Freedom & Recovery)。 */}
+      <button
+        onClick={onCancel}
+        className="absolute right-4 top-[calc(1rem+env(safe-area-inset-top))] inline-flex min-h-11 items-center rounded-full bg-white/15 px-4 text-body font-medium text-white backdrop-blur-sm active:scale-95 motion-reduce:active:scale-100"
+      >
+        {t("capture.cancel")}
+      </button>
+    </div>
+  );
+}
+
+/**
+ * 保存中の面 — **撮るたびに必ず通るのに、一度も測っていなかった。**
+ *
+ * 「保存中…」で止めない: 写真がふわっと浮き上がり、そのまま図鑑へ。
+ * 見せ場は暗転した中で始まる。明るい背景だと切り抜きの縁も「キラッ」も
+ * 沈んでしまう(スキャンのシートも同じく暗い)。
+ *
+ * ルートが状態機械を持つので、描く所だけを出して検査の雛形から呼べるようにする。
+ */
+export function CaptureSavingPanel({
+  image,
+  headword,
+  landing,
+  heroBoxRef,
+}: {
+  image: string | null;
+  headword: string;
+  /** 飛行が始まったか。始まったら元の絵と字を消して、上に載る層へ渡す。 */
+  landing: boolean;
+  heroBoxRef?: RefObject<HTMLDivElement | null>;
+}) {
+  // **その語の字で組むために要る**(`Term` の注)。撮っている最中の語なので、
+  // 出所は端末の学習言語(`target-lang-pref.ts`)。
+  const targetLanguage = useTargetLang();
+  return (
+    <div className="fixed inset-0 z-50 grid place-items-center material-thick">
+      {/* 保存が終わるとこの枠から絵が飛び立つ(runCatchLanding の startEl)。
+          飛行中は元の絵を消して、上に載る「飛ぶ画像」に見た目を渡す。 */}
+      {image && (
+        <div
+          ref={heroBoxRef}
+          className={`grid aspect-square w-64 max-w-[78vw] place-items-center ${landing ? "opacity-0" : ""}`}
+        >
+          <img
+            src={image}
+            alt=""
+            className="max-h-full max-w-full rounded-2xl object-contain shadow-2xl"
+          />
+        </div>
+      )}
+      {!landing && (
+        <Term
+          as="p"
+          lang={targetLanguage}
+          className="mt-6 text-headline font-bold tracking-tight text-foreground"
+        >
+          {headword}
+        </Term>
+      )}
+    </div>
+  );
+}
+
+/**
+ * 同じものにもう一度出会ったときの面。
+ *
+ * **意味は伏せない。** 撮った本人がその物の母語を知らないはずがないので、
+ * 「覚えてる?」と伏せる問いは成り立たない(オーナー指摘)。
+ * ここでやるのは「前にいつ撮ったか」を思い出させることと、
+ * 今回の1枚をその単語に足すこと。
+ *
+ * ルートが状態機械を持つので、描く所だけを出して検査の雛形から呼べるように
+ * する。**この面は今まで一度も機械の目に映っていなかった。**
+ */
+export function ReencounterPanel({
+  reenc,
+  reencResult,
+  dateLocale,
+  onAgain,
+  onSeeInDex,
+  photo,
+  failed = false,
+  onRetry,
+  heroBoxRef,
+  landing = false,
+  onPeel,
+}: {
+  /** 剥がす札の枠。演出はここから飛び立つ（`runCatchLanding` の startEl）。 */
+  heroBoxRef?: RefObject<HTMLDivElement | null>;
+  /** 飛行が始まったか。始まったら元の絵を消す。 */
+  landing?: boolean;
+  /** 剥がしたとき（図鑑へ飛ばす）。渡さなければ写真だけ出す（見本用）。 */
+  onPeel?: () => void;
+  reenc: OwnedWord;
+  reencResult: { encounter_count: number; photo_saved?: boolean } | null;
+  dateLocale: string;
+  onAgain: () => void;
+  onSeeInDex: () => void;
+  photo?: string | null;
+  failed?: boolean;
+  onRetry?: () => void;
+}) {
+  const t = useT();
+  const language = useTargetLang();
+  /** 注音を字の右に縦に組めるなら、その組（オーナー指示 2026-09-27）。 */
+  const reencUnits = useZhuyinUnits(language, reenc.headword, reenc.reading_zhuyin);
+  const image = photo || reenc.cutout_url;
+  return (
+    <div className="mx-auto max-w-md space-y-5">
+      <div className="overflow-hidden rounded-[32px] border border-border bg-card shadow-[0_16px_45px_#1175c514]">
+        {image && onPeel ? (
+          /* **新しく捕まえたときと同じ、剥がす札**（オーナー指示 2026-09-23）。
+             剥がすと図鑑のその語の枠へ飛んで着地する。 */
+          <div className="relative p-3">
+            <div
+              ref={heroBoxRef}
+              className={`mx-auto grid aspect-square w-full max-w-xs place-items-center ${landing ? "opacity-0" : ""}`}
+            >
+              <PeelSticker
+                photoUrl={image}
+                label={reenc.headword}
+                actionLabel={t("capture.addToDex")}
+                hint={t("capture.peelHint")}
+                disabled={landing || failed}
+                onPeel={onPeel}
+              />
+            </div>
+            <span className="absolute left-6 top-6 rounded-full bg-card/95 px-4 py-2 text-footnote font-semibold text-primary-ink shadow-sm">
+              {t("capture.reunion")}
+            </span>
+          </div>
+        ) : image ? (
+          <div className="relative p-3">
+            <img
+              src={image}
+              alt={reenc.headword}
+              className="aspect-[4/3] w-full rounded-[24px] object-cover"
+            />
+            <span className="absolute bottom-6 left-6 rounded-full bg-card/95 px-4 py-2 text-footnote font-semibold text-primary-ink shadow-sm">
+              {t("capture.reunion")}
+            </span>
+          </div>
+        ) : null}
+        <div className="space-y-3 px-6 pb-6 pt-3">
+          {reencUnits ? (
+            <ZhuyinWord
+              as="h1"
+              units={reencUnits}
+              lang={language}
+              className="text-hero font-bold tracking-tight"
+            />
+          ) : (
+            <>
+              <Term as="h1" lang={language} className="text-hero font-bold tracking-tight">
+                {reenc.headword}
+              </Term>
+              <Reading
+                lang={language}
+                zhuyin={reenc.reading_zhuyin}
+                pinyin={reenc.pinyin}
+                className="block text-footnote text-muted-foreground"
+              />
+            </>
+          )}
+          <p className="text-title font-medium">{reenc.meaning_ja}</p>
+          <p className="text-footnote text-muted-foreground">
+            {new Date(reenc.taken_at).toLocaleDateString(dateLocale)}
+            {reenc.location_name ? ` · ${reenc.location_name}` : ""}
+          </p>
+          <div
+            className="flex items-center gap-2 rounded-2xl bg-primary/5 p-4 text-footnote text-primary-ink"
+            role="status"
+          >
+            {reencResult ? (
+              <Check className="h-5 w-5" />
+            ) : failed ? (
+              <RotateCcw className="h-5 w-5" />
+            ) : (
+              <Loader2 className="h-5 w-5 animate-spin" />
+            )}
+            {failed
+              ? t("cap.recordFailed")
+              : reencResult?.photo_saved
+                ? t("cap.photoAdded")
+                : reencResult
+                  ? t("cap.reunionNth", { n: formatCount(reencResult.encounter_count) })
+                  : t("cap.reunionSaving")}
+          </div>
+          {failed && (
+            <Button className="w-full rounded-full" onClick={onRetry}>
+              {t("cap.reencRetry")}
+            </Button>
+          )}
+          {reencResult && (
+            <Button className="w-full rounded-full" onClick={onSeeInDex}>
+              {t("capture.seeInDex")}
+            </Button>
+          )}
+        </div>
+      </div>
+      <Button variant="outline" className="w-full rounded-full" onClick={onAgain}>
+        <Camera className="mr-2 h-4 w-4" />
+        {t("capture.shootAnother")}
+      </Button>
+    </div>
+  );
+}
+
+/**
+ * 撮ったあとに語を選ぶ面。
+ *
+ * 候補には**使い分けの一言**と**発音ボタン**が付く(オーナー指摘)。
+ * 日本語の1語が台湾華語では複数の別語になるので、意味だけ並べても
+ * 「どれも同じに見える」。
+ *
+ * ルートが状態機械とカメラを持つので、描く所だけを出す。
+ * **カメラが要るのは撮る2段だけ**で、ここから先は写真の data URL さえ
+ * あれば描ける。
+ */
+export function PickWordPanel({
+  objectImg,
+  suggestions,
+  manualWord,
+  setManualWord,
+  onPick,
+  onManual,
+  targetLanguage,
+}: {
+  objectImg: string | null;
+  suggestions: Suggestion[];
+  manualWord: string;
+  setManualWord: (v: string) => void;
+  onPick: (s: Suggestion) => void;
+  onManual: () => void;
+  /** 候補の語の学習言語。**渡さないと台湾華語の声で読まれる。** */
+  targetLanguage: string;
+}) {
+  const t = useT();
+  return (
+    // **横には動かさない**（オーナー指示 2026-09-27「撮影後の単語候補画面を
+    // 横スライドできないよう固定」）。はみ出す物があっても横に送れないよう、
+    // この面は縦だけに動く。
+    // 背の低い画面（高さ 700px 以下 = iPhone SE / 8）では写真と間を詰め、下の「違う単語を
+    // 入力」まで1画面に収める（2026-10-03 全画面の点検: 375×667 で下のタブの下に隠れていた）。
+    <div className="space-y-4 overflow-x-hidden overscroll-x-none [touch-action:pan-y] [@media(max-height:700px)]:space-y-2">
+      {/* 撮った写真が上に小さく残る — どれを撮ったかを見ながら語を選べる */}
+      {objectImg && (
+        <div className="mx-auto grid aspect-square w-40 max-w-full place-items-center overflow-hidden rounded-3xl bg-secondary shadow-lg [@media(max-height:700px)]:w-20 [@media(max-height:700px)]:rounded-2xl">
+          <img
+            src={objectImg}
+            alt={t("cap.photoTaken")}
+            className="h-full w-full object-cover pop-in"
+          />
+        </div>
+      )}
+      {/* 「ステップ 3: 単語を選ぶ」は画面に出さない（オーナー指示 2026-09-23
+          「ステップ３の文字消して」）。読み上げには見出しとして残す。 */}
+      <h2 className="sr-only">{t("capture.pickTitle")}</h2>
+      {/* 下の細かい説明文は出さない（オーナー指示 2026-09-15
+          「ステップ3の単語を選ぶの小さな文細かいは消して」）。
+          候補が並んでいれば、選ぶ所であることは見れば分かる。 */}
+      {/* **物ごとに1語 → 押した物のほかの言い方**の2段（`CandidatePicker`、
+          オーナー指示 2026-09-27）。横には動かず、長い訳は折り返す。 */}
+      <CandidatePicker suggestions={suggestions} language={targetLanguage} onPick={onPick} />
+      {/*
+        候補に無かったとき。**見出しは右端、決めるのは検索の釦**
+        （オーナー指示 2026-09-15「ステップ3の違う単語を入力するのは
+         一番右の。これにするは検索ボタンに変えて」）。
+
+        見出しを右に寄せるのは、上の候補の列と**同じ側で終わらせない**
+        ため。候補は左から読むので、そこに無かった人の行き先は逆の端に
+        置いたほうが見つかる。釦は撮る画面の検索と同じ虫眼鏡にして、
+        「ここに打って調べる」が一目で分かる形に揃えた。
+      */}
+      <div className="rounded-2xl border border-dashed border-border bg-card p-3 [@media(max-height:700px)]:p-2">
+        <Label htmlFor="manual" className="block text-end text-footnote text-muted-foreground">
+          {t("capture.otherWord")}
+        </Label>
+        <form
+          className="mt-1 flex gap-2"
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (manualWord.trim()) onManual();
+          }}
+        >
+          <Input
+            id="manual"
+            value={manualWord}
+            onChange={(e) => setManualWord(e.target.value)}
+            placeholder={t("cap.wordPlaceholder")}
+            enterKeyHint="search"
+            className="search-field"
+          />
+          <Button type="submit" disabled={!manualWord.trim()} className="gap-1.5">
+            <Search className="h-4 w-4" />
+            {t("capture.useThis")}
+          </Button>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * 圏外で撮って、端末に預かった面。**オフラインのときにしか出ない**ので、
+ * 今まで誰も見ていなかった。
+ *
+ * その場でもう一度試せる道を必ず残す — ここが「ホームへ」と「もう一枚撮る」
+ * だけだと、一時的な失敗で作業が途切れる。
+ */
+export function OfflineSavedPanel({
+  savedReason,
+  onRetry,
+  onHome,
+  onAgain,
+}: {
+  savedReason: string | null;
+  onRetry: () => void;
+  onHome: () => void;
+  onAgain: () => void;
+}) {
+  const t = useT();
+  return (
+    <div className="space-y-4">
+      <div className="rounded-3xl border border-border bg-card p-8 text-center">
+        {/* 圏外の絵は**圏外のときだけ**。オンラインで500が返ったときに
+              WiFiの絵を出すと、原因を取り違えたまま電波を探しに行かせる。 */}
+        {typeof navigator !== "undefined" && navigator.onLine === false ? (
+          <WifiOff className="mx-auto mb-3 h-8 w-8 text-muted-foreground" />
+        ) : (
+          <Sparkles className="mx-auto mb-3 h-8 w-8 text-muted-foreground" />
+        )}
+        <p className="text-body font-semibold">{t("capture.offlineTitle")}</p>
+        {/* 中央に2行で置くと決めた案内文。行の長さを揃える。 */}
+        <p className="ja-phrase mt-1 text-balance text-body text-muted-foreground">
+          {t("capture.offlineHint")}
+        </p>
+        {savedReason && (
+          <p className="ja-phrase mt-3 text-balance break-words text-footnote text-muted-foreground">
+            {t("capture.savedReason", { reason: savedReason })}
+          </p>
+        )}
+      </div>
+      {/* その場でもう一度試せる道を必ず残す。ここが「ホームへ」と
+            「もう一枚撮る」だけだと、一時的な失敗でも作業が途切れる。 */}
+      <Button onClick={onRetry} className="lift w-full">
+        <RotateCcw className="mr-1 h-4 w-4" /> {t("capture.savedRetry")}
+      </Button>
+      <div className="flex gap-2">
+        <Button variant="outline" onClick={onHome} className="flex-1">
+          {t("capture.toHome")}
+        </Button>
+        <Button variant="outline" onClick={onAgain} className="flex-1">
+          <Camera className="mr-1 h-4 w-4" /> {t("capture.oneMore")}
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * 生成が終わったカードの面。**撮るたびに必ず通る。**
+ *
+ * 表は切り抜き(または撮った写真)、裏は解説。押すと裏返る。
+ * 下に一言を書く欄と、図鑑へ入れるボタン。
+ *
+ * `<video>` は使わない — ここまで来ると写真は静止画になっている。
+ */
+export function CaptureCardPanel({
+  card,
+  selectedHead,
+  objectImg,
+  selfieImg,
+  flipped,
+  setFlipped,
+  caption,
+  setCaption,
+  placeName,
+  onRedo,
+  onSave,
+  heroBoxRef,
+  landing = false,
+  saving = false,
+}: {
+  card: CardData;
+  selectedHead: string;
+  objectImg: string | null;
+  /** 裏面。自撮りが無ければ「まだ無い」と描く。 */
+  selfieImg: string | null;
+  flipped: boolean;
+  setFlipped: (f: (v: boolean) => boolean) => void;
+  caption: string;
+  setCaption: (v: string) => void;
+  placeName: string | null;
+  onRedo: () => void;
+  onSave: () => void;
+  /**
+   * 飛び立つ枠。**いま画面に出ているこの写真そのもの**を指す。
+   *
+   * 以前は保存を押すと `setStep("saving")` で画面ごと黒い覆いに差し替わり、
+   * そこに置かれた**別の大きさの写真のコピー**(`w-64`)から飛んでいた。
+   * オーナー指摘「該当の画面のなかの画像だけが動き出し」が成立して
+   * いなかったのはこれ — 画面が変わってから別の絵が動くので、
+   * 同じ物が動いたようには見えない。
+   */
+  heroBoxRef?: RefObject<HTMLDivElement | null>;
+  /** 飛行が始まったか。始まったら元の絵を消して、上に載る層へ見た目を渡す。 */
+  landing?: boolean;
+  /** 保存の通信中。押し直して二重登録されないように止める。 */
+  saving?: boolean;
+}) {
+  const t = useT();
+  return (
+    <div className="space-y-4">
+      <div className="perspective-[1200px]" onClick={() => setFlipped((f) => !f)}>
+        <div
+          data-tour="peel"
+          ref={heroBoxRef}
+          className={`card-flip relative mx-auto aspect-square w-full max-w-sm cursor-pointer transition-opacity duration-150 ${flipped ? "flipped" : ""} ${landing ? "opacity-0" : ""}`}
+        >
+          <div className="card-face absolute inset-0 overflow-hidden rounded-3xl">
+            <div className="grid h-full place-items-center">
+              <PeelSticker
+                photoUrl={objectImg}
+                label={selectedHead}
+                actionLabel={t("capture.addToDex")}
+                hint={t("capture.peelHint")}
+                disabled={saving || landing || flipped}
+                onPeel={onSave}
+              />
+            </div>
+          </div>
+          <div className="card-face card-back absolute inset-0 overflow-hidden rounded-3xl border border-border bg-card shadow-xl">
+            {selfieImg ? (
+              <img src={selfieImg} alt={t("cap.selfie")} className="h-full w-full object-cover" />
+            ) : (
+              <div className="grid h-full place-items-center text-body text-muted-foreground">
+                {t("capture.noSelfie")}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+      <div className="flex gap-2">
+        <Button variant="outline" onClick={onRedo} disabled={saving} className="flex-1">
+          {t("capture.redo")}
+        </Button>
+        <Button onClick={onSave} disabled={saving} className="lift flex-1">
+          <Check className="mr-1 h-4 w-4" /> {t("capture.addToDex")}
+        </Button>
+      </div>
+      <button
+        type="button"
+        // 押せる高さは 44px（2026-10-03 全画面の点検: 字の高さ 17px しかなかった）。
+        // 上下の余白は外側へ逃がし、並びの間隔は前と同じに見せる。
+        className="-mt-3 mb-1 mx-auto flex min-h-11 items-center px-3 text-caption text-muted-foreground"
+        disabled={saving || landing}
+        onClick={() => setFlipped((f) => !f)}
+      >
+        {t("capture.flipHint")}
+      </button>
+
+      <section data-tour="detail">
+        <WordCard
+          word={{
+            headword: selectedHead,
+            reading_zhuyin: card.reading_zhuyin,
+            pinyin: card.pinyin,
+            meaning_ja: card.meaning_ja,
+            part_of_speech: card.part_of_speech,
+            level: card.level,
+            example_sentence: card.example_sentence,
+            example_translation: card.example_translation,
+            extras: card.extras ?? null,
+          }}
+          // 撮った直後は**意味と発音だけ**。残りは裏の生成が届いた順に現れる
+          // (オーナー指摘 2026-08-21)。
+          minimal
+        />
+      </section>
+
+      <div>
+        <Label htmlFor="caption" className="text-footnote text-muted-foreground">
+          {t("capture.note")}
+        </Label>
+        <Textarea
+          id="caption"
+          value={caption}
+          onChange={(e) => setCaption(e.target.value)}
+          placeholder={t("capture.notePlaceholder")}
+          rows={2}
+          className="mt-1"
+        />
+      </div>
+
+      {placeName && <p className="text-footnote text-muted-foreground">📍 {placeName}</p>}
+    </div>
+  );
+}
+
+/**
+ * 撮る前の画面。**このアプリで最初に見る面**。
+ *
+ * ## なぜ切り出したか
+ * ここは長らく検査の雛形に**場面が無かった**ので、一度も機械の目に
+ * 映っていなかった。この作業場では「場面が無い部品は測られない」で
+ * 何度も落ちている(項目の並べ替えの 22×22 の指はその典型)。
+ * ルートは10個の状態を持っていて雛形からは描けないので、**描く所だけ**
+ * をここへ出す(撮った後のカードや保存中の面と同じ扱い)。
+ *
+ * ## 検索の欄がここに在る
+ * オーナー指示 2026-08-26「検索欄をカメラの画面に直接置いて」。
+ * 前は「文字で打つ」のボタンで、押して面が開いてからようやく打てた。
+ */
+/**
+ * レンズにいま効いている倍率を読む。
+ *
+ * `zoom` は標準の `MediaTrackSettings` に無い（端末依存の拡張）ので
+ * `unknown` 経由で読む — 型が無いからといって `any` にしない。
+ * 読めなければ 1（＝レンズは何もしていない）と見なす。
+ */
+function readTrackZoom(track: MediaStreamTrack | null | undefined): number {
+  const settings = (track?.getSettings as undefined | (() => { zoom?: number }))?.call(track);
+  const z = settings?.zoom;
+  return typeof z === "number" && Number.isFinite(z) && z > 0 ? z : 1;
+}
+
+/** 許可の後、絵が届くのを待つ上限。 */
+const CAMERA_FRAME_WAIT_MS = 5000;
+
+/**
+ * 撮った絵が**ほぼ真っ黒**か。小さく縮めて明るさの平均を見る（重さは 16×16 の1回ぶん）。
+ * 夜の暗い写真まで落とさないよう、閾値はごく低くしてある。
+ */
+function isBlankFrame(source: HTMLCanvasElement): boolean {
+  try {
+    const probe = document.createElement("canvas");
+    probe.width = probe.height = 16;
+    const ctx = probe.getContext("2d");
+    if (!ctx) return false;
+    ctx.drawImage(source, 0, 0, 16, 16);
+    const px = ctx.getImageData(0, 0, 16, 16).data;
+    let sum = 0;
+    let max = 0;
+    for (let i = 0; i < px.length; i += 4) {
+      const y = 0.299 * px[i] + 0.587 * px[i + 1] + 0.114 * px[i + 2];
+      sum += y;
+      if (y > max) max = y;
+    }
+    probe.width = probe.height = 0;
+    return sum / (px.length / 4) < 4 && max < 12;
+  } catch {
+    return false;
+  }
+}
+
+export function CaptureObjectPanel({
+  selfieMode = false,
+  onSkipSelfie,
+  retakeWord,
+  onObjectFile,
+  onNativeCapture,
+  typedWord,
+  setTypedWord,
+  onSearch,
+  searching = false,
+  initialMode = "photo",
+  onOpenScan,
+  error,
+  onShutterReady,
+  primer,
+}: {
+  /**
+   * シャッターが「次に押す物」になったか（映像が届いていて、前置きも直し方も出ていない）。
+   * チュートリアルはこれが true の間だけシャッターを照らす — 前置き・ブラウザの確認・
+   * 直し方の上に案内の札を重ねない（2026-10-02 オーナーの画面写真では、Brave の確認の
+   * 後ろに「…学べることばを提案します。」の札が重なっていた）。
+   */
+  onShutterReady?: (ready: boolean) => void;
+  /**
+   * **カメラを頼む前の一枚**（`CameraPrimer`）を使うか。使う画面（チュートリアル）だけ、
+   * 許可がまだの時にこれを先に見せ、押してもらってからブラウザに頼む。使わない画面
+   * （ログイン後の撮る画面）は今まで通りすぐ頼む — 毎回1タップ増やさない。
+   */
+  primer?: boolean;
+  /** 復習の「もう一度撮ってみる?」から来たときの語。 */
+  selfieMode?: boolean;
+  onSkipSelfie?: () => void;
+  retakeWord: string | null;
+  onObjectFile: (f: File, analysisImage?: string) => void;
+  onNativeCapture?: () => void;
+  typedWord: string;
+  setTypedWord: (v: string) => void;
+  onSearch: (word: string) => void;
+  /** 調べている最中か。**画面は変えず、このボタンだけを回す**。 */
+  searching?: boolean;
+  /** どの撮り方で開くか（`/capture?mode=search` から来たとき）。 */
+  initialMode?: CameraMode;
+  onOpenScan: () => void;
+  error: string | null;
+}) {
+  const t = useT();
+  /**
+   * いまの撮り方。**「検索」はこの画面のまま欄が開く**だけで、画面は
+   * 移らない(オーナー指示 2026-09-15「そのアイコンを押した時に検索欄が
+   * 出てくる」)。「スキャン」だけは別の画面へ渡す。
+   */
+  const [mode, setMode] = useState<CameraMode>(initialMode);
+  const textOpen = !selfieMode && mode === "search";
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+  const [cameraReady, setCameraReady] = useState(false);
+  /**
+   * **映像が取れない理由**（βテスト 2026-09-30、父の報告「チュートリアルのカメラが
+   * 起動しない、撮り直せと出るけど撮れない」／オーナー指示「どんなブラウザで開いても、
+   * LINEのリンクから開いても…カメラの許可をとる、必要であればスマホの設定を変えるように
+   * 誘導して。必ずアプリ内のカメラで撮影させたい」）。
+   *
+   * 前は枠が黒いまま何も言わず、シャッターは黒い絵をそのまま AI に渡していたので
+   * 「言葉が見つからない → 撮り直す → また黒い絵」で止まっていた。理由が分かったら
+   * 枠の中に**直し方**（許可のやり直し・設定の手順・ふつうのブラウザで開き直す）を出す。
+   *
+   * 2026-10-02（オーナー指示「どこからでも…新規登録前にこのアプリを体験できるように」）から、
+   * 直し方の面には「写真を選ぶ」も置き、使えない時に行き止まりにしない。端末のカメラアプリ
+   * へは渡さない（2026-10-03「スマホのカメラで撮る機能は消して」）。
+   */
+  const [cameraProblem, setCameraProblem] = useState<CameraProblem | null>(null);
+  /** 増やすと、カメラをもう一度頼む（許可を変えて戻ってきたとき・「もう一度」）。 */
+  const [cameraAttempt, setCameraAttempt] = useState(0);
+  /** 写真を選ぶ画面を開いたところか（戻ってきた時に頼み直さないため）。 */
+  const pickingRef = useRef(false);
+  /**
+   * ブラウザにカメラを頼んでよいか。前置きを使う画面では、許可済みと分かるか、
+   * 前置きの「カメラを使う」が押されるまで頼まない（ブラウザの確認を不意に出さない）。
+   */
+  const [requested, setRequested] = useState(!primer || !!onNativeCapture);
+  const [showPrimer, setShowPrimer] = useState(false);
+  const retryCamera = () => {
+    setShowPrimer(false);
+    setCameraProblem(null);
+    setRequested(true);
+    setCameraAttempt((n) => n + 1);
+  };
+  /**
+   * **最初に何をするか**を決める（`cameraStart`。許可済みならすぐ映す・まだなら前置き・
+   * 断られている／仕組みが無いなら直し方と写真を選ぶ道）。前置きを使う画面だけ。
+   */
+  useEffect(() => {
+    if (!primer || onNativeCapture) return;
+    let cancelled = false;
+    void readCameraPermission().then((permission) => {
+      if (cancelled) return;
+      const start = cameraStart({
+        ua: navigator.userAgent,
+        hasGetUserMedia: !!navigator.mediaDevices?.getUserMedia,
+        secure: window.isSecureContext !== false,
+        permission,
+        primer: true,
+        grantedBefore: cameraGrantedBefore(),
+      });
+      if (start === "live") setRequested(true);
+      else if (start === "primer") setShowPrimer(true);
+      else setCameraProblem(start);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [primer, onNativeCapture]);
+  const shutterReady = cameraReady && cameraProblem === null && !showPrimer;
+  const readyRef = useRef(onShutterReady);
+  readyRef.current = onShutterReady;
+  useEffect(() => {
+    readyRef.current?.(shutterReady);
+  }, [shutterReady]);
+  /**
+   * 設定アプリで許可を変えて戻ってきたら、**押さなくても**もう一度頼む。
+   * 許可の状態が変わったと知らせてくれるブラウザでは、それでも頼み直す。
+   */
+  useEffect(() => {
+    if (!cameraProblem || cameraProblem === "unsupported") return;
+    const onVisible = () => {
+      if (document.visibilityState !== "visible") return;
+      // 写真を選ぶ画面から戻っただけなら頼み直さない（選んだ写真の分析と
+      // ブラウザの確認が重ならないように）。
+      if (pickingRef.current) {
+        pickingRef.current = false;
+        return;
+      }
+      retryCamera();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    let status: PermissionStatus | null = null;
+    const onChange = () => {
+      if (status?.state === "granted") retryCamera();
+    };
+    void navigator.permissions
+      ?.query({ name: "camera" as PermissionName })
+      .then((s) => {
+        status = s;
+        s.addEventListener("change", onChange);
+      })
+      .catch(() => {});
+    return () => {
+      document.removeEventListener("visibilitychange", onVisible);
+      status?.removeEventListener("change", onChange);
+    };
+  }, [cameraProblem]);
+  /** 映像の縦横比。枠をこれに合わせて、映像を**切らずに全部**見せる。 */
+  const [camAspect, setCamAspect] = useState(3 / 4);
+  /**
+   * 前後の切り替え(オーナー指示 2026-09-15「インカメラも付けて」)。
+   * スキャン画面には前からあったが、撮る画面には無かった — **同じ操作が
+   * 片方にしか無い**状態だったので、共通の部品にして両方へ載せた。
+   */
+  const [facing, setFacing] = useState<"environment" | "user">("environment");
+  useEffect(() => {
+    setFacing(selfieMode ? "user" : "environment");
+    setCameraReady(false);
+  }, [selfieMode]);
+  /** カメラロールから選ぶ口（撮る口と違い `capture` を付けない — 付けると
+      カメラしか開かない端末がある）。 */
+  const libraryInputRef = useRef<HTMLInputElement | null>(null);
+  /** 倍率。端末が本当に出せる範囲は `zoomCaps` に入る(出せなければ null)。 */
+  const [zoom, setZoom] = useState(1);
+  const zoomCapsRef = useRef<{ min: number; max: number } | null>(null);
+  const [zoomCaps, setZoomCaps] = useState<{ min: number; max: number } | null>(null);
+  /**
+   * **レンズに本当に効いた倍率。**（`track.getSettings().zoom`）
+   *
+   * 「端末が倍率を持っている」と言われただけで任せてはいけない。
+   * `applyConstraints` は受け取っておきながら何も変えないことがあり
+   * （約束は解決するのに設定は 1 のまま）、そのとき覗いている絵と
+   * 撮れる写真が食い違う。覗く側も撮る側も、この数から出した
+   * `residualZoom` **1つだけ**を見る。
+   */
+  const [hwZoom, setHwZoom] = useState(1);
+  /** 見た目と切り出しの両方が使う、補うぶんの倍率。 */
+  const shownZoom = residualZoom(zoom, hwZoom);
+  /** タップでピントを合わせられるか（端末とブラウザが持っている時だけ。`camera-focus.ts`）。 */
+  const [focusCap, setFocusCap] = useState<FocusSupport>(null);
+  /** ピントを合わせた所の印（枠の中の位置）。`key` を変えて押すたびに描き直す。 */
+  const [reticle, setReticle] = useState<{ x: number; y: number; key: number } | null>(null);
+  const reticleTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  /** 枠に触れている指。1本なら「押してピント」、2本なら「つまんで寄る」。 */
+  const pointers = useRef(new Map<number, { x: number; y: number }>());
+  const tap = useRef<{ id: number; x: number; y: number; at: number } | null>(null);
+  const pinch = useRef<{ d0: number; z0: number } | null>(null);
+  const pinchFrame = useRef(0);
+
+  /**
+   * **撮る画面そのものは拡大させない。**（オーナー指示 2026-09-30「この画面で画像と
+   * 関係ないところズームできるのおかしいから修正して。写真撮影の画面は固定して」→
+   * 「まだ謎にズームできる」）ページ全体の拡大は `useLockPageZoom` が、この画面にいる間だけ
+   * 止める。つまむ動きは、枠の中では**カメラの倍率**に使う（iPhone のカメラと同じ）。
+   */
+  useLockPageZoom();
+  useEffect(
+    () => () => {
+      clearTimeout(reticleTimer.current);
+      cancelAnimationFrame(pinchFrame.current);
+    },
+    [],
+  );
+
+  useEffect(() => {
+    if (onNativeCapture || !requested) return;
+    const app = inAppBrowser(navigator.userAgent);
+    if (!navigator.mediaDevices?.getUserMedia) {
+      setCameraProblem(app ? "inapp" : "unsupported");
+      return;
+    }
+    let cancelled = false;
+    /** 許可は出たのに絵が1枚も届かない端末がある。待っても来なければ取れない扱い。 */
+    let noFrames: ReturnType<typeof setTimeout> | undefined;
+    void navigator.mediaDevices
+      .getUserMedia({
+        video: {
+          facingMode: { ideal: facing },
+          /**
+           * **センサーの全部を使う 4:3 を頼む**（2026-09-27「寄りすぎ」）。
+           * 16:9 を返す設定の多くはセンサーの上下を捨てているので、同じ
+           * 位置から撮っても写る範囲が狭い。端末の向きに合わせて縦横は
+           * ブラウザが入れ替える。
+           */
+          width: { ideal: 1920 },
+          height: { ideal: 1440 },
+        },
+        audio: false,
+      })
+      .then(async (stream) => {
+        if (cancelled) {
+          stream.getTracks().forEach((track) => track.stop());
+          return;
+        }
+        streamRef.current = stream;
+        rememberCameraGranted();
+        const video = videoRef.current;
+        if (!video) return;
+        video.srcObject = stream;
+        await video.play().catch(() => {});
+        if (video.videoWidth && video.videoHeight)
+          setCamAspect(video.videoWidth / video.videoHeight);
+        setCameraReady(true);
+        noFrames = setTimeout(() => {
+          if (!cancelled && !videoRef.current?.videoWidth)
+            setCameraProblem(app ? "inapp" : "unavailable");
+        }, CAMERA_FRAME_WAIT_MS);
+        /**
+         * **倍率を持っているかは端末に聞く。**（持っていない端末に
+         * 動かないつまみを置かないため。標準外の項目なので `unknown`
+         * 経由で読む — 型が無いからといって `any` にはしない。）
+         */
+        const track = stream.getVideoTracks()[0];
+        const caps = (
+          track?.getCapabilities as undefined | (() => { zoom?: { min: number; max: number } })
+        )?.call(track);
+        const z = caps?.zoom;
+        const next = z && z.max > z.min ? { min: z.min, max: z.max } : null;
+        zoomCapsRef.current = next;
+        setZoomCaps(next);
+        setZoom(1);
+        setHwZoom(readTrackZoom(track));
+        setFocusCap(focusSupport(track));
+      })
+      .catch((e) => {
+        if (cancelled) return;
+        setCameraReady(false);
+        setCameraProblem(cameraProblemOf(e, app));
+      });
+    return () => {
+      cancelled = true;
+      clearTimeout(noFrames);
+      setFocusCap(null);
+      setReticle(null);
+      streamRef.current?.getTracks().forEach((track) => track.stop());
+      streamRef.current = null;
+      zoomCapsRef.current = null;
+    };
+  }, [onNativeCapture, facing, cameraAttempt, requested]);
+
+  /**
+   * 倍率を当てる。端末が持っていれば本物のレンズへ、無ければ**見た目だけ**
+   * を拡大して代用する(スキャン画面と同じやり方)。
+   */
+  const applyZoom = (v: number) => {
+    setZoom(v);
+    const caps = zoomCapsRef.current;
+    const track = streamRef.current?.getVideoTracks()[0];
+    if (!caps || !track) {
+      // レンズを持たない端末。見た目と切り出しで補う（`shownZoom` が効く）。
+      setHwZoom(1);
+      return;
+    }
+    // `zoom` は標準の型に無い(端末依存の拡張)。
+    void track
+      .applyConstraints?.({ advanced: [{ zoom: v }] } as never)
+      .then(() => {
+        // **約束が解決しても、効いたとは限らない。** 読み直して確かめる。
+        setHwZoom(readTrackZoom(track));
+      })
+      .catch(() => {
+        zoomCapsRef.current = null;
+        setZoomCaps(null);
+        setHwZoom(1);
+      });
+  };
+
+  /**
+   * **押した物にピントを合わせる。** 端末が持っていない時は何もしない（印も出さない —
+   * 合っていないのに合ったように見せない）。
+   */
+  const focusHere = (clientX: number, clientY: number, frame: HTMLElement) => {
+    const video = videoRef.current;
+    const track = streamRef.current?.getVideoTracks()[0];
+    if (!focusCap || !video || !track) return;
+    const point = focusPointFromTap(
+      clientX,
+      clientY,
+      video.getBoundingClientRect(),
+      video.videoWidth,
+      video.videoHeight,
+    );
+    if (!point) return;
+    const box = frame.getBoundingClientRect();
+    const key = Date.now();
+    setReticle({ x: clientX - box.left, y: clientY - box.top, key });
+    haptic("selection");
+    clearTimeout(reticleTimer.current);
+    reticleTimer.current = setTimeout(() => setReticle(null), 1400);
+    void focusAt(track, focusCap, point).then((ok) => {
+      if (!ok) setReticle((r) => (r?.key === key ? null : r));
+    });
+  };
+  const zoomMin = zoomCaps?.min ?? 1;
+  const zoomMax = zoomCaps?.max ?? 3;
+  const frameGestures = {
+    onPointerDown: (e: ReactPointerEvent<HTMLDivElement>) => {
+      pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      if (pointers.current.size === 1) {
+        tap.current = { id: e.pointerId, x: e.clientX, y: e.clientY, at: Date.now() };
+      } else {
+        tap.current = null;
+        const [a, b] = [...pointers.current.values()];
+        pinch.current = { d0: Math.max(1, pinchDistance(a, b)), z0: zoom };
+      }
+    },
+    onPointerMove: (e: ReactPointerEvent<HTMLDivElement>) => {
+      if (!pointers.current.has(e.pointerId)) return;
+      pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      const t0 = tap.current;
+      if (t0 && Math.hypot(e.clientX - t0.x, e.clientY - t0.y) > 10) tap.current = null;
+      const p = pinch.current;
+      if (!p || pointers.current.size < 2 || onNativeCapture || !cameraReady) return;
+      const [a, b] = [...pointers.current.values()];
+      const next = Math.min(zoomMax, Math.max(zoomMin, (p.z0 * pinchDistance(a, b)) / p.d0));
+      cancelAnimationFrame(pinchFrame.current);
+      pinchFrame.current = requestAnimationFrame(() => applyZoom(Math.round(next * 10) / 10));
+    },
+    onPointerUp: (e: ReactPointerEvent<HTMLDivElement>) => {
+      const t0 = tap.current;
+      pointers.current.delete(e.pointerId);
+      if (pointers.current.size < 2) pinch.current = null;
+      if (t0 && t0.id === e.pointerId && Date.now() - t0.at < 600)
+        focusHere(e.clientX, e.clientY, e.currentTarget);
+      tap.current = null;
+    },
+    onPointerCancel: (e: ReactPointerEvent<HTMLDivElement>) => {
+      pointers.current.delete(e.pointerId);
+      if (pointers.current.size < 2) pinch.current = null;
+      tap.current = null;
+    },
+  };
+
+  const openCamera = () => {
+    if (onNativeCapture) {
+      onNativeCapture();
+      return;
+    }
+    const video = videoRef.current;
+    if (cameraReady && video?.videoWidth) {
+      const canvas = document.createElement("canvas");
+      /**
+       * **撮るのは映像のすべて**（倍率ぶんだけ真ん中を切る）。枠は映像と同じ
+       * 縦横比で、映像は枠に収めて見せているので、覗いた絵と撮れる写真が
+       * 一致する（前は画面いっぱいに覆って見えている所だけを切り出していた）。
+       */
+      const frame = video.parentElement!.getBoundingClientRect();
+      const crop = viewfinderCrop(
+        video.videoWidth,
+        video.videoHeight,
+        video.videoWidth,
+        video.videoHeight,
+        shownZoom,
+      );
+      canvas.width = Math.round(crop.sw);
+      canvas.height = Math.round(crop.sh);
+      const context = canvas.getContext("2d");
+      if (context) {
+        context.drawImage(
+          video,
+          crop.sx,
+          crop.sy,
+          crop.sw,
+          crop.sh,
+          0,
+          0,
+          canvas.width,
+          canvas.height,
+        );
+        /**
+         * **真っ黒な絵は AI に渡さない。** 映像が「在る」ことになっていても、
+         * アプリ内ブラウザなどでは黒い絵しか来ないことがある。渡すと AI は
+         * 何も見つけられず、撮り直しても同じ所で止まる。端末のカメラへ切り替える。
+         */
+        if (isBlankFrame(canvas)) {
+          canvas.width = canvas.height = 0;
+          setCameraProblem(inAppBrowser(navigator.userAgent) ? "inapp" : "unavailable");
+          return;
+        }
+        const full = canvas.toDataURL("image/jpeg", 0.9);
+        // AI sees the visible guide first; keep the full photo for the user's album.
+        const focus = video.parentElement!.querySelector(".capture-focus")?.getBoundingClientRect();
+        let analysisImage: string | undefined;
+        if (focus && !selfieMode) {
+          // 枠の中で絵が実際に描かれている四角（帯を除く）から、案内の枠の位置を出す。
+          const shown = containRect(video.videoWidth, video.videoHeight, frame.width, frame.height);
+          const fx = (focus.left - frame.left - shown.x) / shown.w;
+          const fy = (focus.top - frame.top - shown.y) / shown.h;
+          const ai = document.createElement("canvas");
+          ai.width = 768;
+          ai.height = Math.round((768 * focus.height) / focus.width);
+          ai.getContext("2d")?.drawImage(
+            canvas,
+            fx * canvas.width,
+            fy * canvas.height,
+            (focus.width / shown.w) * canvas.width,
+            (focus.height / shown.h) * canvas.height,
+            0,
+            0,
+            ai.width,
+            ai.height,
+          );
+          analysisImage = ai.toDataURL("image/jpeg", 0.85);
+          ai.width = ai.height = 0;
+        }
+        // **使い終わった絵の板をすぐ手放す。** iPhone の Safari は絵の板の
+        // 合計に上限があり、撮るたびに 1920×1440 の板が残ると、何枚か目で
+        // 板が作れなくなる（`getContext` が null を返し、撮れなくなる）。
+        canvas.width = canvas.height = 0;
+        const bytes = Uint8Array.from(atob(full.split(",")[1]), (c) => c.charCodeAt(0));
+        onObjectFile(new File([bytes], "capture.jpg", { type: "image/jpeg" }), analysisImage);
+        return;
+      }
+    }
+    // 映像がまだ無い。**端末の別のカメラアプリへは逃がさない**（オーナー指示 2026-09-30
+    // 「必ずアプリ内のカメラで撮影させたい」・2026-10-03「スマホのカメラで撮る機能は消して」）。
+    // 取れない理由が出ていれば頼み直す。
+    if (cameraProblem) retryCamera();
+  };
+  const openLibrary = () => {
+    pickingRef.current = true;
+    libraryInputRef.current?.click();
+  };
+  /** 前置き・直し方が下の操作の上に重なっているか（チュートリアル）。下の操作は触れなくする。 */
+  const covering = !!primer && (showPrimer || cameraProblem !== null) && !onNativeCapture;
+
+  return (
+    /**
+     * **カメラは画面いっぱい。**（オーナー指示 2026-09-15「カメラのアイコンを
+     * タップした時に、今のスキャンモードのように画面全体にカメラが写るように」）
+     *
+     * 前は角の丸いカードの中に映像を入れていた。スキャン画面は前から
+     * 画面いっぱいだったので、**同じ「カメラを覗いている」状態なのに
+     * 見た目が2種類**あった。広いほうへ揃える。
+     */
+    <div className="capture-viewfinder">
+      {/*
+        **映像は画面いっぱい。操作はその上に浮く。**（オーナー指示 2026-09-16、
+        参考画像のとおり）
+
+        前は上半分が映像・下半分が地色の帯、という2段だった。参考画像は
+        いちばん下まで映像が続いていて、名前も釦もその上に載っている。
+        「いま何が見えているか」が最後まで隠れないので、構図を決めながら
+        撮り方を選べる。
+      */}
+      <div className="capture-viewfinder__light absolute inset-0" aria-hidden="true" />
+
+      {/*
+        **アプリの名前を映像の上に出す**（参考画像のとおり）。帯は作らない —
+        帯を置くとその高さだけ映像が削られる。上の安全域（切り欠き・時計）は
+        避ける。参考画像の右上にある言語の札は**置かない**（オーナー指示
+        2026-09-16「右上の台湾華語のような言語設定はいらない」）。
+      */}
+      <p className="capture-brand" aria-hidden="true">
+        CatchWords
+      </p>
+
+      {/* 復習の「もう一度撮ってみる?」から来たとき、何を撮りに来たかを
+          思い出させる。ここに来るまでに数タップ挟まるので、
+          単語を持ってこないと目的が消える。 */}
+      {retakeWord && (
+        <p className="capture-retake ja-phrase">{t("retake.hint", { w: retakeWord })}</p>
+      )}
+
+      {/*
+        枠の四隅だけ。**真ん中の青い点は置かない**（オーナー指示 2026-09-16
+        「カメラ向けた時の真ん中の青い点消して」）。
+
+        あれは「ここに合わせる」を示す息づく点だったが、ピントを自分で
+        合わせられるわけではないので、**動いているのに触れない物**だった。
+        四隅の枠だけで「この中へ」は伝わる。
+      */}
+      {/*
+        **映像は枠に収めて、全部を見せる。**（オーナー指示 2026-09-27「カメラを
+        全画面に表示しているのが原因なら全画面表示は辞めて」）
+
+        前は画面いっぱいに覆っていたので、横長の映像の3分の1ほどしか見えず、
+        撮る写真もそこだけだった。枠は映像と同じ縦横比（`--cam-aspect`）。
+        四隅の案内（シールに収まる範囲）も枠の中に置く。
+      */}
+      <div
+        className="capture-frame"
+        style={{ "--cam-aspect": String(camAspect) } as CSSProperties}
+        {...frameGestures}
+      >
+        {!onNativeCapture && (
+          <video
+            ref={videoRef}
+            playsInline
+            muted
+            className="capture-frame__video"
+            aria-hidden="true"
+            onLoadedMetadata={(e) => {
+              const v = e.currentTarget;
+              if (v.videoWidth && v.videoHeight) setCamAspect(v.videoWidth / v.videoHeight);
+            }}
+            onResize={(e) => {
+              const v = e.currentTarget;
+              if (v.videoWidth && v.videoHeight) setCamAspect(v.videoWidth / v.videoHeight);
+            }}
+            // 倍率を持たない端末では、見た目だけを拡大して代用する
+            // (スキャン画面と同じ扱い)。
+            // **覗く側と撮る側は同じ数を見る。** レンズが効いたぶんは
+            // `shownZoom` が 1 になるので、ここでは何も起きない。
+            style={{ scale: String(shownZoom) }}
+          />
+        )}
+        {cameraProblem && !onNativeCapture && !primer && (
+          <CameraHelp problem={cameraProblem} onRetry={retryCamera} onLibrary={openLibrary} />
+        )}
+        {!selfieMode && (
+          <div className="capture-focus" aria-hidden="true">
+            <span />
+            <span />
+            <span />
+            <span />
+          </div>
+        )}
+        {reticle && (
+          <span
+            key={reticle.key}
+            className="capture-focus-ring"
+            data-testid="capture-focus-ring"
+            style={{ left: reticle.x, top: reticle.y }}
+            aria-hidden="true"
+          />
+        )}
+      </div>
+      {selfieMode && (
+        <div className="absolute inset-x-5 top-24 z-10 text-center text-white">
+          <p className="text-lg font-semibold">{t("capture.selfieLive")}</p>
+          <button
+            type="button"
+            className="mt-3 min-h-11 rounded-full bg-black/35 px-6"
+            onClick={onSkipSelfie}
+          >
+            {t("capture.selfieSkip")}
+          </button>
+        </div>
+      )}
+
+      {error && <p className="capture-error">{error}</p>}
+
+      {/*
+        下の操作。映像の上に浮くので、**字が読めるだけの陰**を下から敷く
+        （`styles.css` の `.capture-controls`）。明るい景色に白い字を直に
+        置くと読めない（検査で 1.17 と出たことがある）。
+      */}
+      <div className="capture-controls" inert={covering}>
+        {textOpen && (
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              const w = typedWord.trim();
+              if (w) onSearch(w);
+            }}
+            className="capture-search mb-4 flex items-center gap-2"
+          >
+            <div className="relative flex-1">
+              <Keyboard className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                /**
+                 * **鍵盤はユーザーが欄を押してから出す。**（オーナー指示
+                 * 2026-09-16「ユーザーが検索欄タップするまでキーボード表示
+                 * しないで」）
+                 */
+                value={typedWord}
+                onChange={(e) => setTypedWord(e.target.value)}
+                placeholder={t("capture.searchPlaceholder")}
+                aria-label={t("capture.typeWord")}
+                enterKeyHint="search"
+                disabled={searching}
+                className="search-field h-11 rounded-xl pl-9 text-foreground"
+              />
+            </div>
+            {/* 端末の写真で調べる口は、左下の「写真」に1つにまとめた（R17「検索の横のカメラロール
+                から追加するボタンを消して、…すべてのモードで左下からスマホにある画像を分析」）。 */}
+            <Button type="submit" disabled={searching || !typedWord.trim()} size="icon">
+              {searching ? <Loader2 className="animate-spin" /> : <Search />}
+            </Button>
+          </form>
+        )}
+
+        {/* 倍率。撮り方の帯のすぐ上（iPhone と同じ位置）。 */}
+        {!onNativeCapture && cameraReady && (
+          <div className="mb-3 flex justify-center">
+            <CameraZoomMeter
+              zoom={zoom}
+              min={zoomMin}
+              // 倍率を持たない端末でも、**見た目の拡大**なら 3× まで出せる。
+              max={zoomMax}
+              onZoom={applyZoom}
+            />
+          </div>
+        )}
+
+        {/*
+          **撮り方は横に3つ並べる**（オーナー指示 2026-09-16、参考画像のとおり）。
+          押しても、指で払っても変わる。「スキャン」だけは別の画面なので渡す。
+        */}
+        {!selfieMode && (
+          <CameraModeStrip
+            mode={mode}
+            onChange={(m) => {
+              if (m === "scan") {
+                onOpenScan();
+                return;
+              }
+              setMode(m);
+            }}
+          />
+        )}
+
+        {/* 写真 ／ シャッター ／ 切替。左右は同じ形・同じ大きさにする。 */}
+        <div className="capture-actions">
+          {/* **左下は端末の写真を選んで分析する口**（R17「検索、スキャン、カメラのすべてのモードで
+              左下からスマホにある画像を分析できるようにして。今ある過去に撮った画像のアイコンを
+              その機能に変更して」）。選んだ写真は撮った写真と同じ道（写っている物の語を出す）を通る。
+              スキャンの画面も同じ位置で同じ動き（`scan.tsx`）。 */}
+          <CameraLibraryButton onOpen={() => libraryInputRef.current?.click()} />
+          <CameraShutter
+            mode={mode}
+            label={t("capture.tapToShoot")}
+            busy={searching}
+            onPress={() => {
+              // 「検索」に居るときの真ん中は**撮るのではなく調べる**。
+              // 絵が虫眼鏡に変わっているので、押した先もそれに合わせる。
+              if (!selfieMode && mode === "search") {
+                const w = typedWord.trim();
+                if (w) onSearch(w);
+                return;
+              }
+              openCamera();
+            }}
+          />
+          {onNativeCapture ? (
+            <span className="camera-side camera-side--empty" aria-hidden="true" />
+          ) : (
+            <CameraFlipButton
+              facing={facing}
+              withLabel
+              onFlip={() => setFacing((f) => (f === "environment" ? "user" : "environment"))}
+            />
+          )}
+        </div>
+      </div>
+      {/* 撮る前の一枚・直し方の面（チュートリアル）。下の操作の上に重ねる。 */}
+      {primer && showPrimer && !cameraProblem && !onNativeCapture && (
+        <CameraPrimer onAllow={retryCamera} onLibrary={openLibrary} />
+      )}
+      {primer && cameraProblem && !onNativeCapture && (
+        <CameraHelp screen problem={cameraProblem} onRetry={retryCamera} onLibrary={openLibrary} />
+      )}
+      {/* 写真を選ぶ控えの口。下の操作（`inert` になることがある）の外に置く — 前置き・直し方の
+          面の「写真を選ぶ」が `.click()` で開けるように。**これは人が触る欄ではない。**
+          `sr-only` のままだとキーボードの順番にも声の案内にも「名前の無い欄」として
+          現れていた。目から隠すだけでなく、両方から外す。`capture` は付けない（端末の
+          カメラアプリへは渡さない。2026-10-03「スマホのカメラで撮る機能は消して」）。 */}
+      <input
+        ref={libraryInputRef}
+        type="file"
+        accept="image/*"
+        className="sr-only"
+        tabIndex={-1}
+        aria-hidden="true"
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          // 同じ写真をもう一度選んでも走るように、値を空に戻す。
+          e.target.value = "";
+          if (file) onObjectFile(file);
+        }}
+      />
+    </div>
+  );
+}

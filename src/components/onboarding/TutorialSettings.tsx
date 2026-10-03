@@ -1,4 +1,3 @@
-import { createContext, useContext } from "react";
 import { ArrowLeft, RotateCcw, ListRestart, LogIn } from "lucide-react";
 import { TARGET_LANG_LABEL_KEYS, UI_LANGS, UI_LANG_LABEL_KEYS, useT } from "@/lib/i18n";
 import { webTargetChoices } from "@/lib/target-lang";
@@ -9,16 +8,10 @@ import {
   PhoneticRow,
   SettingsCard,
   SoundAndHapticsPanel,
-} from "@/routes/_authenticated/settings";
+} from "@/components/screens/SettingsScreen";
 import { PickerRow } from "@/components/PickerRow";
 
-/**
- * 下のタブの「設定」から開く口（`FirstCatchShell` が読む）。
- */
-export const TutorialSettingsContext = createContext<(() => void) | null>(null);
-export function useOpenTutorialSettings() {
-  return useContext(TutorialSettingsContext);
-}
+export { TutorialSettingsContext, useOpenTutorialSettings } from "./tutorial-settings-context";
 
 /**
  * **チュートリアル中の設定画面**（オーナー指示 2026-09-30「言語を選び直せるボタンを

@@ -16,7 +16,7 @@ import { useEffect, useState } from "react";
 import { paintAlbumDay, type DaySpread } from "@/components/shelf3d/textures";
 import { layoutDayAlbum } from "@/lib/album-day-layout";
 import type { StickerWithWord } from "@/lib/stickers.functions";
-import { BookAlbumEditor, DayCollage, DiaryDate } from "@/routes/_authenticated/home";
+import { BookAlbumEditor, DayCollage, DiaryDate } from "@/components/screens/HomeScreen";
 import { makeSticker } from "./home";
 
 const PHOTOS = [

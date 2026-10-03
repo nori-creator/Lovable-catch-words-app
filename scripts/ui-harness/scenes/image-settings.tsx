@@ -1,4 +1,4 @@
-import { ImageGenerationPanel } from "@/routes/_authenticated/settings";
+import { ImageGenerationPanel } from "@/components/screens/SettingsScreen";
 
 const previewData = {
   effective: { provider: "lovable" as const, model: "openai/gpt-image-1-mini" },

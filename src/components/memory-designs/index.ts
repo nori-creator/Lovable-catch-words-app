@@ -3,7 +3,7 @@
  * デザイン案を複数提案して」）。**本番の画面はまだ使っていない** — 見比べは
  * `?scene=memory-designs`（`scripts/ui-harness/scenes/memory-designs.tsx`）。
  *
- * 選ばれた案は `ReviewSessionHeader`（`routes/_authenticated/review.tsx`）の
+ * 選ばれた案は `ReviewSessionHeader`（`components/screens/ReviewScreen.tsx`）の
  * 記憶の帯・一覧・折れ線の位置へ、同じ props（`MemoryDesignProps`）で差し替える。
  * 選ばれなかった案はこのフォルダごと消す。
  */

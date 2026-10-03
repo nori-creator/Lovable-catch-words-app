@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import { useState } from "react";
 import { FirstCatchFlow } from "@/components/onboarding/FirstCatchFlow";
-import { AuthView } from "@/routes/auth";
+import { AuthView } from "@/components/screens/AuthScreen";
 import { initialUiLang } from "@/lib/i18n";
 import { getTargetLang } from "@/lib/target-lang-pref";
 import { CardSchema } from "@/lib/card-schema";

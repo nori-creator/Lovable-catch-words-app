@@ -12,7 +12,7 @@ import { LegalShell } from "@/components/legal/LegalShell";
 import { PrivacyDocument, TermsDocument } from "@/components/legal/LegalDocuments";
 import { TokushohoDocument } from "@/components/legal/TokushohoDocument";
 import { ProPlanCardView } from "@/components/ProPlanCardView";
-import { SettingsCard } from "@/routes/_authenticated/settings";
+import { SettingsCard } from "@/components/screens/SettingsScreen";
 import type { BillingStatus } from "@/lib/billing.functions";
 import { getUiLang, tStatic as t } from "@/lib/i18n";
 import { EMPTY_LEGAL, type LegalPublicInfo } from "@/lib/legal-config";

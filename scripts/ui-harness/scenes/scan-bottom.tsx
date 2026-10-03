@@ -23,7 +23,7 @@ import {
   CameraShutter,
   type CameraMode,
 } from "@/components/CameraChrome";
-import { ScanCameraControls } from "@/routes/_authenticated/scan";
+import { ScanCameraControls } from "@/components/screens/ScanScreen";
 import { photo } from "./peel-sticker";
 
 /** 多くの端末のカメラと同じ縦 3:4 の景色（正方形の絵を切って作る）。 */

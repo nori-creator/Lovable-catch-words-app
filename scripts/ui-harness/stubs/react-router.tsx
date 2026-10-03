@@ -71,6 +71,14 @@ export function useParams() {
   return {};
 }
 
+/**
+ * 画面の部品（`components/screens/*`）が route の検索条件を読む口。2026-10-03 から
+ * 画面の中身は route のファイルの外にあり、`Route.useSearch()` ではなくこれを使う。
+ */
+export function getRouteApi(_id: string) {
+  return { useSearch, useParams };
+}
+
 /** ルート前処理はハーネスでは実行されない。import を成立させる印だけ返す。 */
 export function redirect(options: unknown) {
   return options;

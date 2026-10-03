@@ -189,7 +189,7 @@ describe("Web ではまだ選べない(iOS が先)", () => {
 
   it("Web の学習言語の選択肢は WEB_TARGET_CHOICES から作る", () => {
     for (const f of [
-      "src/routes/_authenticated/settings.tsx",
+      "src/components/screens/SettingsScreen.tsx",
       "src/components/onboarding/TutorialSettings.tsx",
       "src/components/onboarding/FirstCatchQuestions.tsx",
     ]) {

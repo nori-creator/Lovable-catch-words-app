@@ -1,17 +1,15 @@
 import { categoryOptions, dayOptions, NO_FILTER } from "@/lib/dex-filter";
-import { FirstCatchDex, FirstCatchReview } from "./FirstCatchPractice";
 import { preloadFirstCatchImages } from "@/lib/first-catch-images";
-import { CatchLandingOverlay, runCatchLanding } from "@/components/CatchLanding";
 import { usePronounce } from "@/lib/use-pronounce";
 import { useTargetLang } from "@/lib/target-lang-pref";
-import { useEffect, useRef, useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
 import { ArrowRight, Check } from "lucide-react";
 import { Reading } from "@/lib/phonetic";
 import { Term } from "@/components/Term";
 import { useServerFn } from "@tanstack/react-start";
 import { useNavigate } from "@tanstack/react-router";
 import { supabase } from "@/integrations/supabase/client";
-import { initialUiLang, useT } from "@/lib/i18n";
+import { initialUiLang, tStatic, useT } from "@/lib/i18n";
 import { FirstCatchQuestions } from "./FirstCatchQuestions";
 import { FirstCatchIntro, FirstCatchNotifications, FirstCatchReady } from "./FirstCatchPages";
 import { getTargetLang } from "@/lib/target-lang-pref";
@@ -40,18 +38,25 @@ import {
   firstCatchSticker,
   type FirstCatch,
 } from "@/lib/first-catch";
+import { JUST_CAUGHT_VIEW } from "@/lib/dex-view";
 import {
   CaptureAnalyzingPanel,
-  CaptureObjectPanel,
   CaptureCardPanel,
+  CaptureObjectPanel,
+  CatchLandingOverlay,
+  DexSurface,
+  FirstCatchDex,
+  FirstCatchHome,
+  FirstCatchReview,
+  FirstCatchShell,
   PickWordPanel,
-} from "@/routes/_authenticated/capture";
-import { DexSurface, JUST_CAUGHT_VIEW } from "@/routes/_authenticated/dex";
-
-import { StickerSheet } from "@/components/StickerSheet";
-import { FirstCatchHome, FirstCatchShell } from "./FirstCatchHome";
+  prefetchFirstCatchStages,
+  runCatchLanding,
+  StickerSheet,
+  TutorialSettings,
+} from "./first-catch-lazy";
 import { Spotlight } from "./Spotlight";
-import { TutorialSettings, TutorialSettingsContext } from "./TutorialSettings";
+import { TutorialSettingsContext } from "./tutorial-settings-context";
 import "./first-catch.css";
 
 type Suggestion = Awaited<ReturnType<typeof suggestWords>>["suggestions"][number];
@@ -141,7 +146,36 @@ function freshFirstCatch(): FirstCatch {
   };
 }
 
-export function FirstCatchFlow({
+/**
+ * チュートリアル全体。2画面目から先の部品は後から読む（`first-catch-lazy.tsx`）ので、
+ * ここで受け止める。最初の画面が出たら、残りを裏で読み始める。
+ */
+export function FirstCatchFlow(props: Parameters<typeof FirstCatchFlowInner>[0]) {
+  useEffect(() => {
+    // 最初の画面の写真と字を先に通す（遅い回線で取り合わないように 2.5 秒待つ）。それから
+    // 手の空いた時に裏で読む。質問に答えている間（7画面）に読み終わる。
+    let idleId: number | undefined;
+    const timer = window.setTimeout(() => {
+      idleId = window.requestIdleCallback
+        ? window.requestIdleCallback(() => prefetchFirstCatchStages(), { timeout: 2000 })
+        : window.setTimeout(() => prefetchFirstCatchStages(), 0);
+    }, 2500);
+    return () => {
+      window.clearTimeout(timer);
+      if (idleId !== undefined) {
+        if (window.cancelIdleCallback) window.cancelIdleCallback(idleId);
+        else window.clearTimeout(idleId);
+      }
+    };
+  }, []);
+  return (
+    <Suspense fallback={null}>
+      <FirstCatchFlowInner {...props} />
+    </Suspense>
+  );
+}
+
+function FirstCatchFlowInner({
   services,
   onAccount,
   initialDraft,
@@ -241,6 +275,14 @@ export function FirstCatchFlow({
       mounted.current = false;
     };
   }, []);
+  /**
+   * タブの題も表示言語に合わせる（2026-10-03 監査: 英語・中文のブラウザでも「ようこそ —
+   * CatchWords」だった）。サーバは表示言語を知らないので、最初の題は日本語で届く。
+   */
+  const uiLanguage = draft?.uiLanguage;
+  useEffect(() => {
+    if (uiLanguage && typeof document !== "undefined") document.title = tStatic("page.onboarding");
+  }, [uiLanguage]);
   /**
    * 撮る画面にいる間だけ、答えを URL に載せておく（開き直した先で続きから始めるため）。
    * 他の画面では外す — 写真を撮った後の下書きは載せない。

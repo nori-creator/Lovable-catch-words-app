@@ -8,7 +8,7 @@
  */
 import { useEffect } from "react";
 import { DexDayMap } from "@/components/DexDayMap";
-import { DexHeader, DexOverlay } from "@/routes/_authenticated/dex";
+import { DexHeader, DexOverlay } from "@/components/screens/DexScreen";
 import { NO_FILTER, stickerDayKey } from "@/lib/dex-filter";
 import { FIXTURES, makeSticker } from "./home";
 

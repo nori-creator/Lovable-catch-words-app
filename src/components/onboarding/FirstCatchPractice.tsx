@@ -3,15 +3,16 @@ import { useEffect, useMemo, useState } from "react";
 import { useT } from "@/lib/i18n";
 import { useTargetLang } from "@/lib/target-lang-pref";
 import { firstCatchSticker, type FirstCatch } from "@/lib/first-catch";
-import { sampleStickers, FirstCatchShell } from "./FirstCatchHome";
-import { DexSurface, filterDexStickers, type ViewMode } from "@/routes/_authenticated/dex";
+import { FirstCatchShell } from "./FirstCatchHome";
+import { sampleStickers } from "./first-catch-samples";
+import { DexSurface, filterDexStickers, type ViewMode } from "@/components/screens/DexScreen";
 import { NO_FILTER, categoryOptions, dayOptions } from "@/lib/dex-filter";
 import {
   ReviewQuestion,
   ReviewSessionHeader,
   memWordOf,
   ForgettingCurveModal,
-} from "@/routes/_authenticated/review";
+} from "@/components/screens/ReviewScreen";
 import type { DueReviewCard, MemoryWord } from "@/lib/reviews.functions";
 import { Spotlight } from "./Spotlight";
 
