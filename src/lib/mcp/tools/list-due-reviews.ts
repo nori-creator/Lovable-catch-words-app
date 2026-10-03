@@ -1,13 +1,12 @@
 import { defineTool } from "@lovable.dev/mcp-js";
 import { z } from "zod";
 import { supabaseForCaller, errorContent } from "../supabase";
-import { dueNowOrFilter } from "../../srs";
 
 export default defineTool({
   name: "list_due_reviews",
   title: "List due reviews",
   description:
-    "List the caller's SRS reviews that are due now (due_at ≤ now, or last reviewed 180+ days ago — the interval cap). Each row includes the sticker id, the associated Mandarin word, reading, and Japanese meaning, and the current SRS interval and ease.",
+    "List the caller's SRS reviews that are due now (due_at ≤ now). Each row includes the sticker id, the associated Mandarin word, reading, and Japanese meaning, and the current SRS interval and ease.",
   inputSchema: {
     limit: z
       .number()
@@ -31,8 +30,7 @@ export default defineTool({
         "id, sticker_id, due_at, interval_days, ease, repetitions, stickers!inner(user_id, words(headword, reading_zhuyin, pinyin, meaning_ja))",
       )
       .eq("stickers.user_id", userId)
-      // 期限は「最後の復習 + 180 日」で頭打ち（`dueNowOrFilter`）。
-      .or(dueNowOrFilter(Date.parse(nowIso)))
+      .lte("due_at", nowIso)
       .order("due_at", { ascending: true })
       .limit(take);
     if (error) return errorContent(error.message);

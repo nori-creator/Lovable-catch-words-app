@@ -1,24 +1,26 @@
 import { createFileRoute } from "@tanstack/react-router";
 import type {} from "@tanstack/react-start";
-import { adsTxtBody } from "@/lib/web-ads";
+import { adsTxtBody } from "@/lib/adsense";
 
 /**
- * **`/ads.txt`**（Google AdSense の「この番号の人だけがこのサイトの広告を売ってよい」の表）。
+ * **`/ads.txt`**（オーナー指示 2026-10-03「アプリ内の広告が動く 機能するようにしたい。」）。
  *
- * 番号（`ca-pub-…`）はオーナーの AdSense アカウントの物で、まだ決まっていない。偽の番号を
- * リポジトリに置かないよう、環境変数 `VITE_ADSENSE_CLIENT`（ブラウザの広告と同じ番号）から
- * その場で作る。サーバだけの `ADSENSE_CLIENT` でもよい。無ければ 404（AdSense は「見つからない」と
- * 出すだけで、広告の表示は止まらない）。手順は `docs/monetization.md` §5-2。
+ * Google AdSense は、サイトの一番上（`https://catchwords.lovable.app/ads.txt`）に
+ * 「この運営者の広告を売ってよい」という1行を置くことを強く勧めている。`ads.txt` が
+ * 在るのに運営者 ID が載っていないと、広告の注文が断られる。
+ *
+ * 中身は開発者の設定（`AdConfig.adsensePublisherId`）から作るので、設定に ID を
+ * 貼るだけで出る。ID が無い間は 404（空の `ads.txt` を置くと「載っていない」扱いになる）。
+ * 広告のオン・オフとは関係なく出す — 審査はオンにする前に受けるため。
  */
 export const Route = createFileRoute("/ads.txt")({
   server: {
     handlers: {
       GET: async () => {
-        const fromServer = typeof process !== "undefined" ? process.env?.ADSENSE_CLIENT : undefined;
-        const client = (fromServer || import.meta.env.VITE_ADSENSE_CLIENT || "").trim();
-        const body = adsTxtBody(client || null);
+        const { loadAdConfig } = await import("@/lib/ad-config.server");
+        const body = adsTxtBody(await loadAdConfig());
         if (!body) {
-          return new Response("Not found\n", {
+          return new Response("", {
             status: 404,
             headers: { "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "no-store" },
           });

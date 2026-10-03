@@ -67,8 +67,6 @@ import { LoadFailed } from "@/components/LoadFailed";
 // このファイルには復習用の `EmptyState` が既にあるので別名で受ける。
 import { EmptyState as EmptyStateCard } from "@/components/EmptyState";
 import { batchEndKind, type ReviewBatchState } from "@/lib/review-batch";
-import { useWebAdSlot, WebAdUnit } from "@/components/WebAdSlot";
-import { onReviewBatchEnd, readWebAdHistory, writeWebAdHistory } from "@/lib/web-ads";
 import {
   Eye,
   Sparkles,
@@ -85,6 +83,9 @@ import { tStatic } from "@/lib/i18n";
 import { readerMeaning, readerText } from "@/lib/note-language";
 import { pickReviewExplain, quizPromptMeaning } from "@/lib/review-explain";
 import { useReaderMeaningFor } from "@/lib/reader-meanings";
+import { useFunnelEvent } from "@/lib/use-funnel-event";
+import { useWebAds } from "@/hooks/use-web-ads";
+import { ReviewEndAd } from "@/components/ads/ReviewEndAd";
 import {
   useReviewReaderExplanations,
   type ReaderReviewView,
@@ -137,6 +138,7 @@ function ReviewPage() {
   const fetchDue = useServerFn(getDueReviews);
   const fetchStats = useServerFn(getOverallMemoryStats);
   const qc = useQueryClient();
+  const webAds = useWebAds();
   // 場所の知らせから来たときは、その1枚を先頭に置いて始める。
   const { sticker: wantedSticker } = Route.useSearch();
   /**
@@ -393,33 +395,21 @@ function ReviewPage() {
   const done = cards && idx >= cards.length;
 
   /**
-   * **Web 版の広告: 復習の束の区切り**（2026-10-03）。AdSense には好きな時に出せる全画面が
-   * 無いので、終わりの画面の**下に**ページの中の枠を1つ置く（ボタンからは離す）。
-   * 何束ごと・間隔・1日の上限は全画面と同じ決まり（`ad-policy.ts` の `decideInterstitial`）。
-   * 束が終わるたびに1回だけ数える（答えていない束は数えない）。
+   * **ベータの計測**（2026-10-03、`funnel-events.ts`）: 束の1枚目が出たら `review_started`、
+   * 出し切ったら `review_session_done`。答えた数は各問（`review_answered`）。種類と時刻だけ。
    */
-  const reviewAd = useWebAdSlot("review_end");
-  const [reviewAdShown, setReviewAdShown] = useState(false);
-  const reviewAdCounted = useRef(false);
+  const track = useFunnelEvent();
+  const reviewOpenRef = useRef(false);
   useEffect(() => {
-    if (!done) {
-      reviewAdCounted.current = false;
-      setReviewAdShown(false);
-      return;
+    if (!cards?.length) return;
+    if (!done && !reviewOpenRef.current) {
+      reviewOpenRef.current = true;
+      track("review_started");
+    } else if (done && reviewOpenRef.current) {
+      reviewOpenRef.current = false;
+      track("review_session_done");
     }
-    if (reviewAdCounted.current || !reviewAd || tally.answered === 0) return;
-    reviewAdCounted.current = true;
-    const now = Date.now();
-    const r = onReviewBatchEnd({
-      cfg: reviewAd.cfg,
-      isPro: false,
-      accountCreatedAt: reviewAd.accountCreatedAt,
-      now,
-      history: readWebAdHistory(now),
-    });
-    writeWebAdHistory(r.next);
-    setReviewAdShown(r.show);
-  }, [done, reviewAd, tally.answered]);
+  }, [cards, done, track]);
 
   /**
    * **束の写真を、届いた時点で全部端末へ**（`warmCachedImages`）。
@@ -563,9 +553,8 @@ function ReviewPage() {
               void refetch();
             }}
           />
-          {reviewAdShown && reviewAd && (
-            <WebAdUnit client={reviewAd.client} slot={reviewAd.slot} className="mt-10" />
-          )}
+          {/* 区切りの広告は**終わりの画面の下の札**（Web に全画面は無い）。回数は ad-policy。 */}
+          <ReviewEndAd ads={webAds} />
         </>
       ) : replacing.current && isFetching ? (
         /**
@@ -1261,6 +1250,7 @@ export function LightModeCard({
   reader?: ReaderReviewView;
 }) {
   const grade = useServerFn(gradeReview);
+  const trackAnswer = useFunnelEvent();
   const t = useT();
   const uiLang = useUiLang();
   /**
@@ -1345,6 +1335,7 @@ export function LightModeCard({
     setPicked(pickedValue);
     void pronounce(card.headword);
     if (practice) return;
+    trackAnswer("review_answered");
     void grade({
       data: {
         review_id: card.review_id,

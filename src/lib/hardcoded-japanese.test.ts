@@ -18,7 +18,7 @@ const KANA = /[ぁ-ゟァ-ヺ]/;
 
 /**
  * いま残っている所（ファイル → 行数）。
- * - 規約・プライバシーは日本語版そのもの（英語版と並べて持つ）
+ * - 規約・プライバシー・特商法の表記は日本語版そのもの（英語版・繁體中文版と並べて持つ）
  * - admin.* と scan.tsx の計測欄は開発者だけが見る画面
  */
 const KNOWN: Record<string, number> = {
@@ -35,13 +35,15 @@ const KNOWN: Record<string, number> = {
   "src/routes/_authenticated/scan.tsx": 4,
   // 設定の開発者欄「文字検索のAI画像」（管理者だけが見る。2026-09-28 main から）。
   "src/routes/_authenticated/settings.tsx": 12,
-  // 利用状況の閲覧・決済・広告の条項を足した（2026-09-28。日本語版そのもの）。
-  // 2026-10-03 外部サービスを実際に送っている先の通りに書き直し、有料プラン（自動更新・解約・
-  // 返金・値段の変更）の条と Web 版の広告（AdSense・Cookie）の記載を足した（日本語版そのもの。英語版・繁體中文版と並べて持つ）。
-  "src/routes/privacy.tsx": 52,
-  "src/routes/terms.tsx": 32,
-  // 特定商取引法に基づく表記の日本語版そのもの（正本。英語・繁體中文の訳と並べて持つ）。
-  "src/components/CommerceDisclosure.tsx": 17,
+  // 法務文書の**日本語版そのもの**（2026-10-03 に route から components/legal/ へ移し、
+  // 繁體中文版を足した。英語・繁體中文の版は別のファイルで、ここには数えられない）。
+  // 外部事業者・広告・保存期間・有料プランの条項を書き直したので行数が増えた。
+  "src/components/legal/privacy-ja.tsx": 92,
+  "src/components/legal/terms-ja.tsx": 48,
+  // 特商法の表記の日本語の見出しと固定の文（3言語の表の ja の列。ja: の鍵の形でないので数える）。
+  "src/components/legal/TokushohoDocument.tsx": 20,
+  // 運営者の欄の日本語の見出し（同上、3言語の表の ja の列）。
+  "src/components/legal/operator.tsx": 4,
 };
 
 function walk(dir: string): string[] {

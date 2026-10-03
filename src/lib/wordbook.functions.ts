@@ -5,7 +5,7 @@ import { generateText } from "ai";
 import { z } from "zod";
 import { assertWithinDailyCap, getAiFor, getUserTargetLanguage } from "./ai-provider.server";
 import { targetProfile, type WordbookPhrases } from "./target-profile";
-import { effectiveDueMs, nextSrs } from "./srs";
+import { nextSrs } from "./srs";
 import {
   cleanWordbookEntries,
   wordbookTitle,
@@ -274,7 +274,7 @@ export const getWordbookDue = createServerFn({ method: "POST" })
     const { data: rows, error } = await supabase
       .from("wordbook_entries")
       .select(
-        "id, headword, reading_zhuyin, pinyin, meaning_ja, repetitions, interval_days, due_at, last_reviewed_at",
+        "id, headword, reading_zhuyin, pinyin, meaning_ja, repetitions, interval_days, due_at",
       )
       .eq("user_id", userId)
       .eq("wordbook_id", data.wordbook_id)
@@ -291,13 +291,11 @@ export const getWordbookDue = createServerFn({ method: "POST" })
       repetitions: number;
       interval_days: number;
       due_at: string | null;
-      last_reviewed_at: string | null;
     };
     const all = (rows ?? []) as Row[];
     const now = Date.now();
     const due = all
-      // 期限は「最後の復習 + 180 日」で頭打ち（`effectiveDueMs`。srs.ts の 2026-10-03）。
-      .filter((r) => !r.due_at || (effectiveDueMs(r.due_at, r.last_reviewed_at) ?? 0) <= now)
+      .filter((r) => !r.due_at || new Date(r.due_at).getTime() <= now)
       .slice(0, data.limit);
 
     const pool = all.map((r) => r.headword);

@@ -59,9 +59,9 @@ import { PromoFilmScene } from "./scenes/promo-film";
 import { ScanPickDesignsScene } from "./scenes/scan-pick-designs";
 import { NotifyBarDesignsScene } from "./scenes/notify-bar-designs";
 import { AdminUsersScene } from "./scenes/admin-users";
+import { AdminBetaScene } from "./scenes/admin-beta";
 import { MonetizationDesignsScene } from "./scenes/monetization-designs";
-import { WebAdsScene } from "./scenes/web-ads";
-import { CommerceScene, PricingScene } from "./scenes/pricing";
+import { DexAdsScene, HomeAdsScene, ReviewEndAdsScene, SettingsAdsScene } from "./scenes/ads";
 import { FxLabScene } from "./scenes/fx-lab";
 import { WordDetailDesignsScene } from "./scenes/word-detail-designs";
 import { WordDetailRefineScene } from "./scenes/word-detail-refine";
@@ -75,6 +75,12 @@ import { CatchSoundScene } from "./scenes/catch-sound";
 import { DexMapScene } from "./scenes/dex-map";
 import { ScanCameraScene, ScanChipScene, ScanDotsScene, ScanNothingScene } from "./scenes/scan";
 import { AuthScene, ResetPasswordScene } from "./scenes/auth";
+import {
+  LegalPrivacyScene,
+  LegalTermsScene,
+  LegalTokushohoScene,
+  ProPlanScene,
+} from "./scenes/legal";
 import {
   HomeAlbumScene,
   HomeMemorialScene,
@@ -147,6 +153,11 @@ const SCENES: Record<string, ((p: { q: URLSearchParams }) => ReactNode) | undefi
   "chunk-designs": ChunkDesignsScene,
   auth: AuthScene,
   "reset-password": ResetPasswordScene,
+  // 法務の頁と Pro の購入口（2026-10-03 課金の準備）。`&legal=missing` で未設定、`&lang=` で言語。
+  "legal-privacy": LegalPrivacyScene,
+  "legal-terms": LegalTermsScene,
+  "legal-tokushoho": LegalTokushohoScene,
+  "pro-plan": ProPlanScene,
   home: HomeScene,
   "home-shelf": HomeShelfScene,
   "install-app": InstallAppScene,
@@ -186,10 +197,14 @@ const SCENES: Record<string, ((p: { q: URLSearchParams }) => ReactNode) | undefi
   "scan-pick-designs": ScanPickDesignsScene,
   "notify-bar-designs": NotifyBarDesignsScene,
   "admin-users": AdminUsersScene,
+  // ベータの指標（ファネル・継続・使い方・費用・解析の確かさ。2026-10-03）。
+  "admin-beta": AdminBetaScene,
   "monetization-designs": MonetizationDesignsScene,
-  "web-ads": WebAdsScene,
-  pricing: PricingScene,
-  commerce: CommerceScene,
+  // Web 版の広告（AdSense。2026-10-03「アプリ内の広告が動く 機能するようにしたい。」）。
+  "dex-ads": DexAdsScene,
+  "home-ads": HomeAdsScene,
+  "review-end-ads": ReviewEndAdsScene,
+  "settings-ads": SettingsAdsScene,
   "fx-lab": FxLabScene,
   "word-detail-designs": WordDetailDesignsScene,
   "word-detail-refine": WordDetailRefineScene,
@@ -319,12 +334,16 @@ function Frame({ children, immersive = false }: { children: ReactNode; immersive
  * どちらも「別の画面を見ている」なので、場面ごとに決める。
  */
 /** 本番で上の帯を出さない画面（`AppShell immersive`）。 */
-const IMMERSIVE = new Set(["dex-cards", "dex-drag"]);
+const IMMERSIVE = new Set(["dex-cards", "dex-drag", "dex-ads"]);
 
 const BARE = new Set([
   "first-catch",
   "auth",
   "reset-password",
+  // 法務の頁は本番でもアプリの枠の外（ログイン前にも開く）。
+  "legal-privacy",
+  "legal-terms",
+  "legal-tokushoho",
   "sticker-peel",
   "onboarding",
   "sticker-sheet",
@@ -360,16 +379,23 @@ const q = new URLSearchParams(location.search);
  * 「これを見てください」と差し出すことになる。
  */
 const REVIEW_SCENES: Array<{ scene: string; label: string }> = [
-  // 2026-10-03「Web 版でお金を受け取れるように」— 料金の画面・特定商取引法の表記。
-  { scene: "pricing&state=signup", label: "料金: ログイン前（アカウントを作って始める）" },
-  { scene: "pricing&state=checkout&lang=en", label: "料金: ログイン後（英語）" },
-  { scene: "pricing&state=checkout&lang=zh-TW", label: "料金: ログイン後（繁體中文）" },
-  { scene: "pricing&state=manage", label: "料金: Pro の人（お支払いの管理・解約）" },
-  { scene: "pricing&state=hidden", label: "料金: 購入口がまだオフ" },
-  { scene: "pricing&state=checkout&theme=dark", label: "料金（暗いテーマ）" },
-  { scene: "commerce", label: "特定商取引法の表記（未設定の欄は請求で開示）" },
-  { scene: "commerce&seller=1&lang=en", label: "特定商取引法の表記（英語・入れた形）" },
-  { scene: "commerce&lang=zh-TW", label: "特定商取引法の表記（繁體中文）" },
+  // 2026-10-03「アプリ内の広告が動く 機能するようにしたい」— Google AdSense のウェブ広告。
+  // 見本は本物の広告の代わりに「広告」の箱を出す。`&fill=unfilled` で広告が来ない時（枠が閉じる）。
+  { scene: "dex-ads", label: "広告: 図鑑の一覧の途中" },
+  { scene: "dex-ads&view=list", label: "広告: 図鑑のリスト表示" },
+  { scene: "home-ads", label: "広告: ホームの日と日の間" },
+  { scene: "review-end-ads", label: "広告: 復習の終わり（カード）" },
+  { scene: "dex-ads&fill=unfilled", label: "広告: 来ない時は枠が閉じる" },
+  { scene: "settings-ads", label: "開発者設定: 広告の ID と枠の番号" },
+  // 2026-10-03「続けて」— ベータで使う計測（ファネル・継続率・費用・解析の安定）。管理者だけ。
+  { scene: "admin-beta", label: "管理: ベータの指標" },
+  // 売り始める準備: 規約・プライバシー（広告の項を含む）・特商法の表記・値段と解約の口。
+  { scene: "pro-plan", label: "Pro の案内: 値段・自動更新・解約の口（全部の状態）" },
+  { scene: "legal-tokushoho&legal=missing", label: "特商法の表記: 未設定（販売しない）" },
+  { scene: "legal-tokushoho&legal=ready", label: "特商法の表記: 設定済み（見本の値）" },
+  { scene: "legal-privacy&legal=ready", label: "プライバシーポリシー" },
+  { scene: "legal-privacy&legal=ready&lang=zh-TW", label: "プライバシーポリシー（繁體中文）" },
+  { scene: "legal-terms&legal=ready", label: "利用規約" },
 ];
 
 /**

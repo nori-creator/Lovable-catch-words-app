@@ -70,48 +70,8 @@
  * 長くもっていた語ほど学び直しも速い（Ebbinghaus の節約）。間隔 90 日の語を
  * 間違えると 4 日ほど、若い語は 1 日（下限）で戻ってくる。
  *
- * ---
- *
- * # 2026-10-03 4択の正解で記憶を言い過ぎない（監査「6回正解で次が3年後」）
- *
- * FSRS の既定の重みは、Anki の**自分で思い出す**カード（表を見て裏を思い出す）の
- * 記録から作られている。このアプリの復習は**4択で見分ける**問い（`LightModeCard`。
- * `modeFor` の形式は画面では使われず、採点はどれも 4択）。見分けられることは
- * 思い出せることより易しく（Kang, McDermott & Roediger 2007: 4択の練習より
- * 短答の練習の方が長くもつ）、当てずっぽうでも 25% 当たる。それなのに正解を
- * 「思い出せた」と同じだけ数えていたので、予定どおり 6 回正解すると
- * 2 → 11 → 46 → 163 → 497 → **1346 日（3.7 年）**になり、% は言い過ぎ、
- * 語は復習から消えていた。
- *
- * ## 直し方（2つ、どちらも控えめな方へ）
- *
- * 1. **4択の正解は、安定度の伸びを半分にする**（`CHOICE_GAIN` 0.5）。
- *    FSRS の正解後の安定度は `S' = S·(1 + (SInc − 1)·w15)`（w15 は Hard のときだけ
- *    0.60、ほかは 1）と、**伸びの分（SInc − 1）に係数を掛ける形**で「弱い正解」を
- *    表している。同じ形で、4択の正解は伸びの分に 0.5 を掛ける — FSRS 自身の Hard
- *    （0.60）より少し弱い証拠と見なす（当てずっぽうの 25% の分）。Hard（ぼかし・
- *    時間切れ）ならさらに w15 が掛かる（0.30）。難しさ D の動きはこれまでどおり
- *    評価で決める（正解を一律 Hard にすると D が上がり続け、「難しい語」と
- *    「見分けただけの語」の区別が消えるのでしない）。
- * 2. **間隔の上限 180 日**（`MAX_INTERVAL_DAYS`。FSRS の既定は 100 年、Anki の
- *    「最大間隔」の設定と同じもの）。見分けただけの証拠で半年より先を約束しない
- *    — 半年に 1 回は顔を見せる。**読むときにも 180 日で頭を打つ**（`stabilityOf`）
- *    ので、もう DB に入っている長い間隔は一括で書き換えずに、% の表示・次の
- *    計算・出題（`effectiveDueMs`: 最後の復習から 180 日で期限が来た扱い）で
- *    180 日として働く。採点し直した時に 180 日以下の値が書かれる。
- *
- * 予定どおり Good を重ねると 2 → 6 → 17 → 42 → 96 → **180（上限）**。
- * 最初の復習（未復習から）はこれまでどおり（Good 2 日・Hard 1 日・Again 1 日）、
- * 間違えたときの縮み方もこれまでどおり。
- *
- * **思い出す形の答え（話す・打つ）を採点するようになったら** `evidence: "recall"`
- * を渡す: 伸びは FSRS のまま（半分にしない）。上限 180 日はどちらにも掛かる —
- * DB に「どの形で答えたか」の列が無く、読むときに見分けられないため（列を足すのは
- * 移行が要るので別の判断）。
- *
  * 出典: open-spaced-repetition/ts-fsrs（MIT）、
- * https://github.com/open-spaced-repetition/fsrs4anki/wiki/The-Algorithm 、
- * `docs/memory-algorithm-options.md` の「2026-10-03」
+ * https://github.com/open-spaced-repetition/fsrs4anki/wiki/The-Algorithm
  */
 
 import { FSRSAlgorithm, computeDecayFactor, default_w } from "ts-fsrs";
@@ -133,26 +93,8 @@ export const MIN_EASE = 1.3;
 export const MAX_EASE = 3.0;
 /** 列は整数なので 1 日が下限（「明日」より早くは出さない）。 */
 export const MIN_INTERVAL_DAYS = 1;
-/**
- * 間隔（= 安定度）の上限。**180 日**（2026-10-03。冒頭の注）。4択で見分けただけの
- * 証拠で、半年より先の約束はしない。読むとき（`stabilityOf`）も書くとき
- * （`storedStability`）もこれで頭を打つ。
- */
-export const MAX_INTERVAL_DAYS = 180;
-/** FSRS の計算そのものの上限（ts-fsrs の既定 100 年）。上限は外で `MAX_INTERVAL_DAYS` を掛ける。 */
-const FSRS_MAX_INTERVAL_DAYS = 36500;
-/**
- * 4択の正解で、安定度の伸びの分（`S' − S`）に掛ける係数（2026-10-03。冒頭の注）。
- * FSRS の Hard の係数 w15（0.60）と同じ形で、それより少し弱い。
- */
-export const CHOICE_GAIN = 0.5;
-
-/**
- * 答えの証拠の強さ。
- * - `choice`: 4択で見分けた（いまの復習はすべてこれ）。伸びは `CHOICE_GAIN` 倍。
- * - `recall`: 自分で思い出して話した・打った。伸びは FSRS のまま。
- */
-export type SrsEvidence = "choice" | "recall";
+/** FSRS の上限（100 年）。 */
+export const MAX_INTERVAL_DAYS = 36500;
 
 /**
  * 狙いの定着度。**出題日にこれくらい残っているようにする。**
@@ -167,7 +109,7 @@ const fsrs = new FSRSAlgorithm({
   request_retention: TARGET_RETENTION,
   enable_short_term: false,
   enable_fuzz: false,
-  maximum_interval: FSRS_MAX_INTERVAL_DAYS,
+  maximum_interval: MAX_INTERVAL_DAYS,
 });
 
 /** べき関数の忘却曲線の定数（FSRS-6: decay = −w20、factor = 0.9^(1/decay) − 1）。 */
@@ -217,12 +159,8 @@ export function storedStability(stability: number): number {
 export function nextSrs(
   prev: SrsState,
   score: number,
-  opts: {
-    /** 前の復習から実際に経った日数（分かる時だけ）。 */
-    elapsedDays?: number | null;
-    /** 答えの証拠の強さ。既定は `choice`（4択。いまの復習はすべてこれ）。 */
-    evidence?: SrsEvidence;
-  } = {},
+  /** 前の復習から実際に経った日数（分かる時だけ）。 */
+  opts: { elapsedDays?: number | null } = {},
 ): SrsState {
   const rating = ratingOf(score);
   const learned = prev.interval_days > 0;
@@ -231,71 +169,22 @@ export function nextSrs(
     : null;
   const elapsed = learned ? Math.max(0, opts.elapsedDays ?? stabilityOf(prev.interval_days)) : 0;
   const next = fsrs.next_state(memory, elapsed, rating);
-  let stability = next.stability;
-  // 4択の正解は伸びの分を半分に（FSRS の Hard の w15 と同じ形。冒頭の注）。
-  // 未復習からの初期値と、間違えたときの縮み方には掛けない。
-  if (memory && rating > 1 && (opts.evidence ?? "choice") === "choice") {
-    stability = memory.stability + (next.stability - memory.stability) * CHOICE_GAIN;
-  }
   return {
     ease: difficultyToEase(next.difficulty),
-    interval_days: storedStability(stability),
+    interval_days: storedStability(next.stability),
     repetitions: rating === 1 ? 0 : prev.repetitions + 1,
   };
 }
 
 /**
- * 記憶の安定度(日)。**列の `interval_days` そのもの**（0 = 未復習 = 安定度なし）を
- * `MAX_INTERVAL_DAYS`（180 日）で頭打ちにしたもの。2026-10-03 より前に書かれた
- * 長い間隔（4択の正解だけで数年）は、DB を書き換えずに**ここで 180 日として読む**
- * — % の表示も、次の間隔の計算も、これを通る。
+ * 記憶の安定度(日)。**列の `interval_days` そのもの**（0 = 未復習 = 安定度なし）。
  *
  * 第2引数は以前の `S = 間隔 × ease × K` の名残で、呼ぶ側の形を変えないために
  * 残してある。難しさは次の S の伸び方に効き、いまの曲線の形には効かない（FSRS）。
  */
 export function stabilityOf(interval_days: number, _ease?: number): number {
   if (!Number.isFinite(interval_days) || interval_days <= 0) return 0;
-  return clamp(interval_days, MIN_INTERVAL_DAYS, MAX_INTERVAL_DAYS);
-}
-
-/**
- * 実際に出題する時刻（ミリ秒）。`due_at` と「最後の復習 + 180 日」の早い方。
- *
- * 2026-10-03 より前に書かれた `due_at` は数年先のことがある（4択の正解だけで
- * 伸びた間隔）。DB を一括で書き換えずに、読むときにここで上限を掛ける。
- * どちらも無ければ null（出題の予定が無い）。
- */
-export function effectiveDueMs(
-  dueAt: string | null | undefined,
-  lastReviewedAt: string | null | undefined,
-): number | null {
-  const due = dueAt ? new Date(dueAt).getTime() : NaN;
-  const last = lastReviewedAt ? new Date(lastReviewedAt).getTime() : NaN;
-  const capped = Number.isFinite(last) ? last + MAX_INTERVAL_DAYS * 86400_000 : NaN;
-  if (Number.isFinite(due) && Number.isFinite(capped)) return Math.min(due, capped);
-  if (Number.isFinite(due)) return due;
-  // 期限が無い札は今まで通り出題の予定なし（最後の復習だけで期限を作らない）。
-  return null;
-}
-
-/** `effectiveDueMs` の ISO 文字列版（画面に出す「次の復習日」用）。 */
-export function effectiveDueIso(
-  dueAt: string | null | undefined,
-  lastReviewedAt: string | null | undefined,
-): string | null {
-  const ms = effectiveDueMs(dueAt, lastReviewedAt);
-  return ms == null ? null : new Date(ms).toISOString();
-}
-
-/**
- * 「いま出せる札」を DB で選ぶ PostgREST の `or` 条件（`.or(...)` にそのまま渡す）。
- * `due_at <= 今` か、`last_reviewed_at <= 今 − 180 日`（`effectiveDueMs` と同じ規則）。
- * どちらも `due_at` のある札だけ（期限の無い札は今まで通り出さない）。
- */
-export function dueNowOrFilter(nowMs: number): string {
-  const nowIso = new Date(nowMs).toISOString();
-  const staleIso = new Date(nowMs - MAX_INTERVAL_DAYS * 86400_000).toISOString();
-  return `due_at.lte."${nowIso}",and(due_at.not.is.null,last_reviewed_at.lte."${staleIso}")`;
+  return Math.max(MIN_INTERVAL_DAYS, interval_days);
 }
 
 /**

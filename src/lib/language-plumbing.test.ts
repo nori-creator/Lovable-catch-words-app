@@ -2122,9 +2122,6 @@ describe("独自ドメインへ移れる形になっているか", () => {
     "routes/auth.tsx",
     "routes/terms.tsx",
     "routes/privacy.tsx",
-    // 料金の画面・特定商取引法の表記（2026-10-03）。どちらも canonical を出す。
-    "routes/pro.tsx",
-    "routes/legal.commerce.tsx",
     "routes/sitemap[.]xml.ts",
   ];
 
@@ -4851,17 +4848,14 @@ describe("ホームは今日の誌面", () => {
     );
     // 2026-09-24「過去のものが多すぎで画面で確認できないから、過去のものは全て
     // 削除して」: 帯には**今回の依頼の面だけ**。
-    // 2026-10-03「Web 版でお金を受け取れるように」の回。先頭は料金の画面（ログイン前）。
-    expect(list.slice(0, list.indexOf("},"))).toMatch(/scene: "pricing&state=signup"/);
+    // 2026-10-03「アプリ内の広告が動く 機能するようにしたい」とベータの計測の回。
+    // 先頭は図鑑の一覧の広告。
+    expect(list.slice(0, list.indexOf("},"))).toMatch(/scene: "dex-ads"/);
+    for (const sc of ["home-ads", "review-end-ads", "settings-ads", "admin-beta"]) {
+      expect(list).toContain(`scene: "${sc}"`);
+    }
     expect(list).not.toMatch(/layout=/);
     expect(list).not.toMatch(/primer=/);
-    expect(list).toContain('scene: "pricing&state=manage"');
-    expect(list).toContain('scene: "commerce"');
-    expect(main).toContain("pricing: PricingScene");
-    expect(main).toContain("commerce: CommerceScene");
-    // 前の回（海邊の字体・ブラウザの言語・品質検査）の面は残さない。
-    expect(list).not.toMatch(/scene: "first-catch/);
-    expect(list).not.toMatch(/scene: "place-memory/);
     // 前の回（表示言語の復習・図鑑、単語の詳細の見出し、学習言語でない見出し）の面は残さない。
     // （`review-choice&lang=en` は品質検査の回でまた並べる。）
     expect(list).not.toMatch(/scene: "dex-cards&lang=/);
@@ -5607,10 +5601,8 @@ describe("Jev の使い方の約束（予定は Jev が決める: オーナー�
     expect(srs).toBeGreaterThan(0);
     expect(ask).toBeGreaterThan(srs);
     expect(pick).toBeGreaterThan(ask);
-    // 保存する予定は柵を通した値（さらに上限 180 日。srs.ts の 2026-10-03）。
-    expect(body).toMatch(
-      /const next = \{ \.\.\.srs, interval_days: Math\.min\(picked\.days, MAX_INTERVAL_DAYS\) \};/,
-    );
+    // 保存する予定は柵を通した値。
+    expect(body).toMatch(/const next = \{ \.\.\.srs, interval_days: picked\.days \};/);
     expect(body).toMatch(/interval_days: next\.interval_days,/);
     // 思い出せなかった語には聞かない（明日のまま）。
     expect(body).toMatch(/score >= LAPSE_SCORE\s*\?\s*await jevScheduleDays\(/);

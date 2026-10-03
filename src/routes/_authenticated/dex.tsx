@@ -57,9 +57,6 @@ import { FilterMenu } from "@/components/FilterMenu";
 import { DexDayMap } from "@/components/DexDayMap";
 import { DexCoverFlow } from "@/components/DexCoverFlow";
 import { DexShelf } from "@/components/DexShelf";
-import { useWebAdSlot, WebAdUnit } from "@/components/WebAdSlot";
-import { nativeSlots } from "@/lib/ad-policy";
-import { splitForAds } from "@/lib/web-ads";
 import { CategorySheet } from "@/components/CategorySheet";
 import { toast } from "sonner";
 import { DexCategoryDrag } from "@/components/DexCategoryDrag";
@@ -74,6 +71,10 @@ import { haptic } from "@/lib/haptics";
 import { DEX_SHELF_ENABLED } from "@/lib/features";
 import { motionReducedNow } from "@/hooks/use-reduced-motion";
 import { neutralizeMeasureGe } from "@/lib/tw-neutral-tone";
+import { useWebAds, type WebAds } from "@/hooks/use-web-ads";
+import { nativeSlots } from "@/lib/ad-policy";
+import { groupAdSlots } from "@/lib/adsense";
+import { AdCard } from "@/components/ads/AdCard";
 
 /**
  * 落ちてきたモノが棚板に触れる瞬間(演出の開始から何ミリ秒か)。
@@ -123,6 +124,7 @@ function DexPage() {
   const fetchShelves = useServerFn(listMyShelves);
   const navigate = useNavigate();
   const { justCaught } = Route.useSearch();
+  const webAds = useWebAds();
   const {
     data: stickers,
     isLoading,
@@ -299,16 +301,6 @@ function DexPage() {
     () => filterDexStickers(captured, filter, search, t, shelves),
     [captured, search, filter, t, shelves],
   );
-  /**
-   * **Web 版の広告の枠**（2026-10-03）。札 `nativeEvery` 枚ごとに1枠（`ad-policy.ts`）。
-   * 捕まえた直後の着地の演出（`justCaught`）の間は出さない（保存の最中・いちばん嬉しい所）。
-   */
-  const webAd = useWebAdSlot("dex");
-  const adCfg = webAd?.cfg;
-  const adSlots = useMemo(
-    () => (adCfg && !justCaught ? nativeSlots(filtered.length, adCfg, false) : []),
-    [adCfg, justCaught, filtered.length],
-  );
 
   return (
     // **全画面**（オーナー指示 2026-09-23「図鑑の全ての種類は下のバーを含む全画面で
@@ -337,13 +329,9 @@ function DexPage() {
         targetLanguage={stickers?.targetLanguage}
         activeCategory={activeCategory}
         justCaught={justCaught}
+        // 捕まえて戻ってきた瞬間（着地の演出）には広告を並べない（いちばん嬉しい所）。
+        ads={justCaught ? undefined : webAds}
         shelves={shelves}
-        adSlots={adSlots}
-        renderAd={
-          webAd
-            ? (n) => <WebAdUnit key={`ad-${n}`} client={webAd.client} slot={webAd.slot} />
-            : undefined
-        }
         onManageCategories={() => {
           setEditCatKey(null);
           setManageCats(true);
@@ -469,12 +457,11 @@ export function DexSurface({
   targetLanguage,
   activeCategory = null,
   justCaught,
+  ads,
   shelves = [],
   onManageCategories,
   onMoveToCategory,
   onEditCategory,
-  adSlots,
-  renderAd,
 }: {
   captured: StickerWithWord[];
   filtered: StickerWithWord[];
@@ -504,13 +491,12 @@ export function DexSurface({
   targetLanguage?: string;
   activeCategory?: string | null;
   justCaught?: string;
-  shelves?: React.ComponentProps<typeof DexShelf>["userShelves"];
   /**
-   * 一覧（アルバム・縦の一覧）で広告の枠を置く位置（全体の何番目の札の後か。`ad-policy.ts` の
-   * `nativeSlots`）。本物の図鑑（`DexPage`）だけが渡す — チュートリアルには出さない。
+   * Web の広告（`useWebAds`）。渡した時だけ、写真の並び・縦の一覧に札の形の広告を挟む
+   * （`ad-policy` の `nativeSlots`: 最初の `nativeFirst` 枚の中と一番下には置かない）。
    */
-  adSlots?: readonly number[];
-  renderAd?: (slot: number) => React.ReactNode;
+  ads?: WebAds;
+  shelves?: React.ComponentProps<typeof DexShelf>["userShelves"];
 }) {
   const t = useT();
   const userCatKeys = useMemo(() => new Set(shelves.map((c) => c.key)), [shelves]);
@@ -524,16 +510,20 @@ export function DexSurface({
     }
     return Array.from(map.entries()).sort((a, b) => b[1].length - a[1].length);
   }, [filtered, userCatKeys]);
-  /** カテゴリーごとの札を、広告の枠の位置で切った塊（枠が無ければ1つ）。 */
-  const chunked = useMemo(() => {
-    const slots = new Set(renderAd ? (adSlots ?? []) : []);
-    let start = 0;
-    return groups.map(([key, items]) => {
-      const chunks = splitForAds(items, start, slots);
-      start += items.length;
-      return [key, items, chunks] as const;
-    });
-  }, [groups, adSlots, renderAd]);
+  /** 組ごとの「何枚目の後に広告」（写真の並びは3列なので行の終わりへ送る）。 */
+  const adAfter = useMemo(() => {
+    if (!ads?.show || !ads.placements.dex || (view !== "gallery" && view !== "list")) return null;
+    return groupAdSlots(
+      groups.map(([, items]) => items.length),
+      nativeSlots(filtered.length, ads.cfg, false),
+      view === "gallery" ? 3 : 1,
+    );
+  }, [ads, view, groups, filtered.length]);
+  const renderAd = ads
+    ? (framed = true) => (
+        <AdCard client={ads.client} slot={ads.cfg.slotDexInFeed} minHeight={120} framed={framed} />
+      )
+    : undefined;
   return (
     <div data-tour="dex">
       <style>{`
@@ -686,7 +676,7 @@ export function DexSurface({
           onMove={(id, key) => onMoveToCategory?.(id, key)}
           onEditCategory={onEditCategory}
         >
-          {chunked.map(([key, items, chunks]) => (
+          {groups.map(([key, items], gi) => (
             <section key={key} className="dex-cat mb-6" data-dex-cat={key}>
               <div className="mb-2 flex items-baseline justify-between">
                 <h3
@@ -700,23 +690,25 @@ export function DexSurface({
                 <span className="text-footnote text-muted-foreground">{items.length}</span>
               </div>
 
-              {chunks.map((c, ci) => (
-                <Fragment key={ci}>
-                  {view === "gallery" ? (
-                    // 試作品(Capture&Converse)のアルバム: 写真がタイルいっぱいに
-                    // 表示される3列グリッド+下端のグラデーションに単語名。
-                    <DexAlbumGrid
-                      items={c.items}
-                      memory={memory}
-                      justCaught={justCaught}
-                      onOpen={setOpenId}
-                    />
-                  ) : (
-                    <DexList items={c.items} onOpen={setOpenId} />
-                  )}
-                  {c.ad !== null && renderAd?.(c.ad)}
-                </Fragment>
-              ))}
+              {view === "gallery" ? (
+                // 試作品(Capture&Converse)のアルバム: 写真がタイルいっぱいに
+                // 表示される3列グリッド+下端のグラデーションに単語名。
+                <DexAlbumGrid
+                  items={items}
+                  memory={memory}
+                  justCaught={justCaught}
+                  onOpen={setOpenId}
+                  adAfter={adAfter?.[gi]}
+                  renderAd={renderAd}
+                />
+              ) : (
+                <DexList
+                  items={items}
+                  onOpen={setOpenId}
+                  adAfter={adAfter?.[gi]}
+                  renderAd={renderAd}
+                />
+              )}
             </section>
           ))}
         </DexCategoryDrag>
@@ -867,10 +859,15 @@ export function DexAlbumGrid({
   justCaught,
   onOpen,
   memory,
+  adAfter,
+  renderAd,
 }: {
   items: StickerWithWord[];
   justCaught?: string;
   onOpen: (id: string) => void;
+  /** この番号（0始まり）の札の後に、横いっぱいの広告を挟む（`groupAdSlots`）。 */
+  adAfter?: readonly number[];
+  renderAd?: (framed?: boolean) => React.ReactNode;
   /**
    * 札の id → 記憶の印。渡さなければ復習と同じ問い合わせから読む
    * （`useMemoryBadges`）。雛形は通信できないので、こちらで渡す。
@@ -882,7 +879,7 @@ export function DexAlbumGrid({
   const memoryById = memory ?? fetched;
   return (
     <div className="grid grid-cols-3 gap-2.5">
-      {items.map((s) => {
+      {items.map((s, i) => {
         const photo = s.object_thumb_url ?? s.object_url;
         // 下端の帯を出すかの判定。絵が1枚も無いときだけ false。
         const hasImage = Boolean(photo || s.cutout_url || s.placeholder_url);
@@ -890,7 +887,7 @@ export function DexAlbumGrid({
           typeof document !== "undefined" && Boolean(document.documentElement.dataset.rewardFlight);
         // 飛んで着いた札は、図鑑の側で落とし直さない（`catch-flight.ts`）。
         const slam = s.id === justCaught && !sharedFlightActive && !wasFlown(s.id);
-        return (
+        const cell = (
           <button
             key={s.id}
             data-dex-item={s.id}
@@ -988,6 +985,14 @@ export function DexAlbumGrid({
             </div>
           </button>
         );
+        if (!renderAd || !adAfter?.includes(i)) return cell;
+        // 横いっぱい・上下に間（押し間違えない距離）。札と同じ角丸の箱。
+        return (
+          <Fragment key={s.id}>
+            {cell}
+            <div className="col-span-3 my-3 has-[[data-ad-card][hidden]]:hidden">{renderAd()}</div>
+          </Fragment>
+        );
       })}
     </div>
   );
@@ -997,72 +1002,85 @@ export function DexAlbumGrid({
 export function DexList({
   items,
   onOpen,
+  adAfter,
+  renderAd,
 }: {
   items: StickerWithWord[];
   onOpen: (id: string) => void;
+  /** この番号（0始まり）の行の後に広告の行を挟む（`groupAdSlots`）。 */
+  adAfter?: readonly number[];
+  renderAd?: (framed?: boolean) => React.ReactNode;
 }) {
   const t = useT();
   return (
     <ul className="overflow-hidden rounded-3xl border border-border bg-card shadow-sm">
       {items.map((s, i) => (
-        <li
-          key={s.id}
-          className={`flex items-center gap-1 pr-2 transition-colors hover:bg-accent/40 ${i > 0 ? "border-t border-border" : ""}`}
-        >
-          <button
-            data-dex-item={s.id}
-            onClick={() => onOpen(s.id)}
-            className="flex min-w-0 flex-1 items-center gap-3 p-3 text-left active:bg-accent/50"
+        <Fragment key={s.id}>
+          <li
+            key={s.id}
+            className={`flex items-center gap-1 pr-2 transition-colors hover:bg-accent/40 ${i > 0 ? "border-t border-border" : ""}`}
           >
-            <div className="grid h-14 w-14 shrink-0 place-items-center overflow-hidden rounded-xl bg-secondary">
-              {/* 撮った写真 → 切り抜き → ネット画像 の順に、そのまま見せる */}
-              {(s.object_thumb_url ?? s.object_url) ? (
-                <CachedImg
-                  src={(s.object_thumb_url ?? s.object_url)!}
-                  alt={t("common.photoOf", { word: s.word.headword })}
-                  loading="lazy"
-                  decoding="async"
-                  className="h-full w-full object-cover"
-                />
-              ) : s.cutout_url ? (
-                <CachedImg
-                  src={s.cutout_thumb_url ?? s.cutout_url}
-                  alt={t("common.stickerOf", { word: s.word.headword })}
-                  loading="lazy"
-                  decoding="async"
-                  className="h-full w-full object-contain p-1"
-                />
-              ) : s.placeholder_url ? (
-                <CachedImg
-                  src={s.placeholder_url}
-                  alt=""
-                  loading="lazy"
-                  decoding="async"
-                  className="h-full w-full object-cover"
-                />
-              ) : (
-                <span
-                  lang="zh-Hant"
-                  className="px-1 text-center text-caption font-semibold text-muted-foreground"
-                >
-                  {s.word.headword}
-                </span>
-              )}
-            </div>
-            <div className="min-w-0 flex-1">
-              <ListHeadword word={s.word} />
-              <div className="truncate text-body text-muted-foreground">
-                <ReaderMeaning text={s.word.meaning_ja} wordId={s.word_id} />
+            <button
+              data-dex-item={s.id}
+              onClick={() => onOpen(s.id)}
+              className="flex min-w-0 flex-1 items-center gap-3 p-3 text-left active:bg-accent/50"
+            >
+              <div className="grid h-14 w-14 shrink-0 place-items-center overflow-hidden rounded-xl bg-secondary">
+                {/* 撮った写真 → 切り抜き → ネット画像 の順に、そのまま見せる */}
+                {(s.object_thumb_url ?? s.object_url) ? (
+                  <CachedImg
+                    src={(s.object_thumb_url ?? s.object_url)!}
+                    alt={t("common.photoOf", { word: s.word.headword })}
+                    loading="lazy"
+                    decoding="async"
+                    className="h-full w-full object-cover"
+                  />
+                ) : s.cutout_url ? (
+                  <CachedImg
+                    src={s.cutout_thumb_url ?? s.cutout_url}
+                    alt={t("common.stickerOf", { word: s.word.headword })}
+                    loading="lazy"
+                    decoding="async"
+                    className="h-full w-full object-contain p-1"
+                  />
+                ) : s.placeholder_url ? (
+                  <CachedImg
+                    src={s.placeholder_url}
+                    alt=""
+                    loading="lazy"
+                    decoding="async"
+                    className="h-full w-full object-cover"
+                  />
+                ) : (
+                  <span
+                    lang="zh-Hant"
+                    className="px-1 text-center text-caption font-semibold text-muted-foreground"
+                  >
+                    {s.word.headword}
+                  </span>
+                )}
               </div>
-            </div>
-          </button>
-          {/* 発音ボタンは右側に (縦並びリスト) */}
-          <PronounceButton
-            text={s.word.headword}
-            language={s.word.language ?? undefined}
-            tone="hero"
-          />
-        </li>
+              <div className="min-w-0 flex-1">
+                <ListHeadword word={s.word} />
+                <div className="truncate text-body text-muted-foreground">
+                  <ReaderMeaning text={s.word.meaning_ja} wordId={s.word_id} />
+                </div>
+              </div>
+            </button>
+            {/* 発音ボタンは右側に (縦並びリスト) */}
+            <PronounceButton
+              text={s.word.headword}
+              language={s.word.language ?? undefined}
+              tone="hero"
+            />
+          </li>
+          {renderAd && adAfter?.includes(i) && (
+            // 行の中の広告。縁は一覧の物を使い、上下に間を取って隣の行と押し間違えないようにする。
+            <li className="border-t border-border px-3 py-4 has-[[data-ad-card][hidden]]:hidden">
+              {renderAd(false)}
+            </li>
+          )}
+        </Fragment>
       ))}
     </ul>
   );

@@ -9,6 +9,7 @@ import { uploadStickerImage } from "@/lib/sticker-upload";
 import { readFirstCatch, writeFirstCatch, type FirstCatch } from "@/lib/first-catch";
 import { useT } from "@/lib/i18n";
 import { reportSaveFailure } from "@/lib/save-failure";
+import { trackTutorialStep } from "@/lib/tutorial-funnel-client";
 import { supabase } from "@/integrations/supabase/client";
 import { learningPreferencesOf, LearningPreferencesSchema } from "@/lib/learning-preferences";
 import { FirstCatchHome } from "./FirstCatchHome";
@@ -106,6 +107,8 @@ export function FirstCatchTransfer({
     transfers
       .get(key)!
       .then(() => {
+        // 登録して、チュートリアルの1枚が口座に移った（人を特定しない日ごとの数）。
+        trackTutorialStep("signup_done");
         if (active) onDone();
       })
       .catch((e) => {

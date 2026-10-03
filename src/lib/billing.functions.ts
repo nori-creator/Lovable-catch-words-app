@@ -3,16 +3,14 @@ import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { siteUrlFor } from "@/lib/site-url";
 import { checkoutForm } from "@/lib/stripe-billing";
+import { checkoutAllowedByLegal, readLegalConfig } from "@/lib/legal-config";
 import {
-  createTtlCache,
-  hadSubscriptionBefore,
-  parseStripePrice,
-  pickPortalCustomer,
-  portalForm,
-  trialDaysFromEnv,
+  BILLING_ERRORS,
+  createPortalSession,
+  findStripeCustomerId,
+  readPlanPrices,
   type PriceInfo,
-  type PublicPrice,
-} from "@/lib/pricing";
+} from "@/lib/stripe-catalog";
 
 /**
  * **Pro の購入口（Stripe）**。計算は `stripe-billing.ts`、知らせの受け口は
@@ -22,6 +20,8 @@ import {
  * - `STRIPE_SECRET_KEY` … Stripe の秘密鍵（テスト中は `sk_test_…`）
  * - `STRIPE_PRICE_MONTHLY` / `STRIPE_PRICE_YEARLY` … 値段の番号（`price_…`）
  * - `STRIPE_WEBHOOK_SECRET` … 知らせの署名の鍵（`whsec_…`）
+ * - `STRIPE_PORTAL_CONFIGURATION` …（任意）管理画面の設定 ID（`bpc_…`）。無ければ既定の設定
+ * - `LEGAL_*` … 運営者の表記（`legal-config.ts`）。そろうまで本番の購入口は開かない
  *
  * **開発者のスイッチ（`subscriptionEnabled`）がオフの間は、開発者にしか購入口を
  * 出さない**（オーナー指示「開発者の私だけ広告やサブスクの ON/OFF を切り替えられるように」）。
@@ -44,122 +44,89 @@ async function subscriptionSwitch(): Promise<boolean> {
   }
 }
 
-/** `profiles.plan` が `pro` か（Stripe の知らせで書かれる。開発者の扱いは足さない）。 */
-async function paidProUser(userId: string): Promise<boolean> {
+/** その人の `profiles.plan` が本当に pro か（開発者の「Pro 扱い」とは別。払っている人）。 */
+async function hasPaidPlan(userId: string): Promise<boolean> {
   try {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const { data, error } = await supabaseAdmin
+    const { data } = await supabaseAdmin
       .from("profiles")
       .select("plan")
       .eq("id", userId)
       .maybeSingle();
-    if (error) return false;
     return (data as { plan?: string } | null)?.plan === "pro";
   } catch {
     return false;
   }
 }
 
-/**
- * Stripe の値段の覚え書き（10分）。管理画面で値段を変えても10分以内に画面に出る。
- * 読めなかった時は覚えない（次に開いた時にまた聞く）。
- */
-const priceCache = createTtlCache<PriceInfo>(10 * 60_000);
-
-async function readStripePrice(key: string, priceId: string): Promise<PriceInfo | null> {
-  const hit = priceCache.get(priceId);
-  if (hit) return hit;
-  try {
-    const res = await fetch(`https://api.stripe.com/v1/prices/${encodeURIComponent(priceId)}`, {
-      headers: { Authorization: `Bearer ${key}` },
-      signal: AbortSignal.timeout(8_000),
-    });
-    if (!res.ok) {
-      console.error("[billing] could not read the Stripe price", { status: res.status });
-      return null;
-    }
-    const price = parseStripePrice(await res.json());
-    if (price) priceCache.set(priceId, price);
-    return price;
-  } catch (e) {
-    console.error("[billing] could not read the Stripe price", {
-      message: (e as Error)?.message,
-    });
-    return null;
-  }
-}
-
-/**
- * **料金の画面（`/pro`）の中身**。ログインしていない人も見られる（値段を知ってから
- * 登録できるように）。値段は Stripe から読む — **コードに値段を書かない**。
- *
- * - `enabled` … 開発者のスイッチ（ログイン前は開発者か分からないので、スイッチだけ）
- * - `configured` … Stripe の鍵と値段の番号が入っているか
- * - `monthly` / `yearly` … Stripe から読めた値段（読めない・未設定は null）
- *
- * 秘密鍵・値段の番号そのものは返さない（返すのは金額・通貨・期間だけ）。
- */
-export const getPublicPricing = createServerFn({ method: "GET" }).handler(async () => {
-  const key = process.env.STRIPE_SECRET_KEY;
-  const monthlyId = process.env.STRIPE_PRICE_MONTHLY;
-  const yearlyId = process.env.STRIPE_PRICE_YEARLY;
-  const configured = Boolean(key && (monthlyId || yearlyId));
-  const enabled = await subscriptionSwitch();
-  const trial = trialDaysFromEnv(process.env.STRIPE_TRIAL_DAYS);
-  const [monthly, yearly] =
-    key && configured
-      ? await Promise.all([
-          monthlyId ? readStripePrice(key, monthlyId) : Promise.resolve(null),
-          yearlyId ? readStripePrice(key, yearlyId) : Promise.resolve(null),
-        ])
-      : [null, null];
-  return {
-    enabled,
-    configured,
-    monthly: publicPrice(monthly),
-    yearly: publicPrice(yearly),
-    trialDays: trial,
-  };
-});
-
-/** 画面へ返す値段（値段の番号 `price_…` は返さない）。 */
-function publicPrice(p: PriceInfo | null): PublicPrice | null {
-  return p
-    ? {
-        unitAmount: p.unitAmount,
-        currency: p.currency,
-        interval: p.interval,
-        intervalCount: p.intervalCount,
-      }
-    : null;
-}
+export type BillingStatus = {
+  /** 購入口を出してよいか（スイッチ、または開発者）。 */
+  enabled: boolean;
+  /** Stripe の鍵と値段が入っているか（無ければ押しても買えない）。 */
+  configured: boolean;
+  /** Pro の機能が使えるか（開発者は Pro 扱い）。 */
+  isPro: boolean;
+  /** 実際に払っている（`profiles.plan = pro`）。スイッチがオフでも解約の口は出す。 */
+  paidPro: boolean;
+  isAdmin: boolean;
+  /** Stripe から読んだ値段（読めない・設定が無い方は null）。 */
+  prices: { monthly: PriceInfo | null; yearly: PriceInfo | null };
+  /** 設定されている値段のどれかを読めなかった。 */
+  priceError: boolean;
+  /** 運営者の表記（特商法）がそろっているか。 */
+  legalReady: boolean;
+  /** 購入ボタンを押してよいか（表記がそろう、またはテスト用の鍵で開発者）。 */
+  checkoutAllowed: boolean;
+  /** 無料体験の日数（0 は無し）。 */
+  trialDays: number;
+  /** 開発者にだけ返す: 足りない設定の名前。 */
+  adminIssues: string[];
+};
 
 export const getBillingStatus = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .handler(async ({ context }) => {
+  .handler(async ({ context }): Promise<BillingStatus> => {
     const { isProUser } = await import("./ai-provider.server");
     const { data: isAdmin } = await context.supabase.rpc("has_role", {
       _user_id: context.userId,
       _role: "admin",
     });
+    const env = process.env;
     const configured = Boolean(
-      process.env.STRIPE_SECRET_KEY &&
-      (process.env.STRIPE_PRICE_MONTHLY || process.env.STRIPE_PRICE_YEARLY),
+      env.STRIPE_SECRET_KEY && (env.STRIPE_PRICE_MONTHLY || env.STRIPE_PRICE_YEARLY),
     );
     const enabled = (await subscriptionSwitch()) || Boolean(isAdmin);
+    const paidPro = await hasPaidPlan(context.userId);
+    const legal = readLegalConfig(env);
+    // 値段は購入口を出すときだけ読む（出さない人のために Stripe を呼ばない）。
+    const prices =
+      configured && (enabled || paidPro)
+        ? await readPlanPrices(env)
+        : { monthly: null, yearly: null, error: false };
+    const adminIssues: string[] = [];
+    if (isAdmin) {
+      if (!env.STRIPE_SECRET_KEY) adminIssues.push("STRIPE_SECRET_KEY");
+      if (!env.STRIPE_PRICE_MONTHLY && !env.STRIPE_PRICE_YEARLY)
+        adminIssues.push("STRIPE_PRICE_MONTHLY / STRIPE_PRICE_YEARLY");
+      if (prices.error) adminIssues.push("STRIPE_PRICE_* (Stripe price not readable)");
+      adminIssues.push(...legal.missing);
+    }
     return {
-      /** 購入口を出してよいか（スイッチ、または開発者）。 */
       enabled,
-      /** Stripe の鍵と値段が入っているか（無ければ押しても買えない）。 */
       configured,
       isPro: await isProUser(context.userId),
-      /** Stripe で払っている Pro か（開発者の「Pro 扱い」を含めない）。解約の窓口はこちらで出す。 */
-      paidPro: await paidProUser(context.userId),
+      paidPro,
       isAdmin: Boolean(isAdmin),
-      prices: {
-        monthly: Boolean(process.env.STRIPE_PRICE_MONTHLY),
-        yearly: Boolean(process.env.STRIPE_PRICE_YEARLY),
-      },
+      prices: { monthly: prices.monthly, yearly: prices.yearly },
+      priceError: prices.error,
+      legalReady: legal.ready,
+      checkoutAllowed: checkoutAllowedByLegal({
+        legalReady: legal.ready,
+        isAdmin: Boolean(isAdmin),
+        secretKey: env.STRIPE_SECRET_KEY,
+      }),
+      trialDays: legal.trialDays,
+      adminIssues,
     };
   });
 
@@ -172,27 +139,30 @@ export const createCheckoutSession = createServerFn({ method: "POST" })
     const key = process.env.STRIPE_SECRET_KEY;
     const price =
       data.period === "yearly" ? process.env.STRIPE_PRICE_YEARLY : process.env.STRIPE_PRICE_MONTHLY;
-    if (!key || !price) throw new Error("BILLING_NOT_CONFIGURED");
+    if (!key || !price) throw new Error(BILLING_ERRORS.notConfigured);
     const { data: isAdmin } = await context.supabase.rpc("has_role", {
       _user_id: context.userId,
       _role: "admin",
     });
-    if (!(await subscriptionSwitch()) && !isAdmin) throw new Error("BILLING_DISABLED");
+    if (!(await subscriptionSwitch()) && !isAdmin) throw new Error(BILLING_ERRORS.disabled);
+    // 運営者の表記（特商法）がそろうまで、本番の支払いは受けない（嘘・空の表記で売らない）。
+    const legal = readLegalConfig(process.env);
+    if (
+      !checkoutAllowedByLegal({
+        legalReady: legal.ready,
+        isAdmin: Boolean(isAdmin),
+        secretKey: key,
+      })
+    )
+      throw new Error(BILLING_ERRORS.legalNotReady);
     const { data: u } = await context.supabase.auth.getUser();
-    // 無料体験は1人1回だけ（前に定期購入が在れば付けない）。検索できない時は体験を付ける
-    // （Stripe の検索が止まった時に、初めての人から体験を取り上げない）。
-    let trial = trialDaysFromEnv(process.env.STRIPE_TRIAL_DAYS);
-    if (trial > 0) {
-      const subs = await searchUserSubscriptions(key, context.userId);
-      if (subs.ok && hadSubscriptionBefore(subs.data, context.userId)) trial = 0;
-    }
     const form = checkoutForm({
       priceId: price,
       userId: context.userId,
       email: u.user?.email ?? null,
       successUrl: siteUrlFor("/settings?pro=ok"),
       cancelUrl: siteUrlFor("/settings?pro=cancel"),
-      trialDays: trial,
+      trialDays: legal.trialDays,
     });
     const res = await fetch("https://api.stripe.com/v1/checkout/sessions", {
       method: "POST",
@@ -208,71 +178,36 @@ export const createCheckoutSession = createServerFn({ method: "POST" })
   });
 
 /**
- * **お支払いの管理・解約の画面（Stripe Billing Portal）を開く**（2026-10-03）。
+ * **定期購入の管理（解約・支払い方法・領収書）— Stripe の Billing Portal**。
  *
- * 解約・カードの変更・領収書は Stripe が用意する画面でやる（こちらで作り直さない）。
- * 解約しても、**払った期間の終わりまでは Pro のまま**（Stripe の管理画面 → 設定 →
- * Billing → カスタマーポータル で「請求期間の終了時にキャンセル」を選んでおく。
- * 手順は `docs/monetization.md` §5-1）。期間が終わると Stripe が
- * `customer.subscription.deleted` を送り、知らせの受け口が無料に戻す。
- *
- * Stripe のお客さまの番号はデータベースに保存していない。Checkout が定期購入に付けた
- * `metadata.user_id` で Stripe を検索して見つける（`pickPortalCustomer`）。
- * そのため**データベースの変更は要らない**。
- *
- * 失敗の印（画面が言葉に直す）:
- * - `BILLING_NOT_CONFIGURED` … Stripe の鍵が無い
- * - `NO_SUBSCRIPTION` … この人の定期購入が Stripe に見つからない（買った直後は Stripe の
- *   検索に出るまで1分ほどかかることがある）
- * - `STRIPE_PORTAL_FAILED` … Stripe が画面を作れなかった（カスタマーポータルの設定がまだ等）
+ * 顧客 ID は新しい列に持たない。定期購入の `metadata.user_id`、無ければメールで探す
+ * （`stripe-catalog.ts`）。スイッチがオフでも、**実際に払っている人は解約できる**
+ * （解約の口を閉じて請求だけ続く、を作らない）。
  */
-export const createPortalSession = createServerFn({ method: "POST" })
+export const createBillingPortalSession = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
     const key = process.env.STRIPE_SECRET_KEY;
-    if (!key) throw new Error("BILLING_NOT_CONFIGURED");
-    const auth = { Authorization: `Bearer ${key}` };
-    const found = await searchUserSubscriptions(key, context.userId);
-    if (!found.ok) throw new Error(`STRIPE_PORTAL_FAILED ${found.status}`);
-    const customer = pickPortalCustomer(found.data, context.userId);
-    if (!customer) throw new Error("NO_SUBSCRIPTION");
-    const res = await fetch("https://api.stripe.com/v1/billing_portal/sessions", {
-      method: "POST",
-      headers: { ...auth, "Content-Type": "application/x-www-form-urlencoded" },
-      body: portalForm({ customer, returnUrl: siteUrlFor("/settings") }).toString(),
-      signal: AbortSignal.timeout(8_000),
+    if (!key) throw new Error(BILLING_ERRORS.notConfigured);
+    const { data: isAdmin } = await context.supabase.rpc("has_role", {
+      _user_id: context.userId,
+      _role: "admin",
     });
-    const json = (await res.json().catch(() => null)) as { url?: string } | null;
-    if (!res.ok || !json?.url) {
-      console.error("[billing] could not open the billing portal", { status: res.status });
-      throw new Error(`STRIPE_PORTAL_FAILED ${res.status}`);
-    }
-    return { url: json.url };
-  });
-
-/**
- * その人の Stripe の定期購入を探す（Checkout が付けた `metadata.user_id` で検索）。
- * 買った直後は検索に出るまで1分ほどかかることがある（Stripe の検索の仕様）。
- */
-async function searchUserSubscriptions(
-  key: string,
-  userId: string,
-): Promise<{ ok: true; data: unknown } | { ok: false; status: number }> {
-  // 検索の式に入れる値。利用者の番号（UUID）に引用符は無いが、念のため落とす。
-  const q = encodeURIComponent(`metadata['user_id']:'${userId.replace(/'/g, "")}'`);
-  try {
-    const found = await fetch(
-      `https://api.stripe.com/v1/subscriptions/search?query=${q}&limit=20`,
-      { headers: { Authorization: `Bearer ${key}` }, signal: AbortSignal.timeout(8_000) },
+    const allowed =
+      (await subscriptionSwitch()) || Boolean(isAdmin) || (await hasPaidPlan(context.userId));
+    if (!allowed) throw new Error(BILLING_ERRORS.disabled);
+    const { data: u } = await context.supabase.auth.getUser();
+    const customer = await findStripeCustomerId(
+      { userId: context.userId, email: u.user?.email ?? null },
+      key,
     );
-    const list = (await found.json().catch(() => null)) as { data?: unknown } | null;
-    if (!found.ok) {
-      console.error("[billing] could not search subscriptions", { status: found.status });
-      return { ok: false, status: found.status };
-    }
-    return { ok: true, data: list?.data };
-  } catch {
-    console.error("[billing] could not search subscriptions", { status: 0 });
-    return { ok: false, status: 0 };
-  }
-}
+    if (!customer) throw new Error(BILLING_ERRORS.noCustomer);
+    return createPortalSession(
+      {
+        customer,
+        returnUrl: siteUrlFor("/settings"),
+        configuration: process.env.STRIPE_PORTAL_CONFIGURATION || null,
+      },
+      key,
+    );
+  });

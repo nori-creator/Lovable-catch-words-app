@@ -16,7 +16,6 @@ import { Route as AuthRouteImport } from './routes/auth'
 import { Route as McpRouteImport } from './routes/mcp'
 import { Route as NativeAuthRouteImport } from './routes/native-auth'
 import { Route as PrivacyRouteImport } from './routes/privacy'
-import { Route as ProRouteImport } from './routes/pro'
 import { Route as ResetPasswordRouteImport } from './routes/reset-password'
 import { Route as SitemapDotxmlRouteImport } from './routes/sitemap[.]xml'
 import { Route as TermsRouteImport } from './routes/terms'
@@ -35,9 +34,10 @@ import { Route as ApiNativeAiRouteImport } from './routes/api.native-ai'
 import { Route as ApiNativeFnRouteImport } from './routes/api.native-fn'
 import { Route as ApiObject3dModelRouteImport } from './routes/api.object3d-model'
 import { Route as ApiStripeWebhookRouteImport } from './routes/api.stripe-webhook'
-import { Route as LegalCommerceRouteImport } from './routes/legal.commerce'
+import { Route as LegalTokushohoRouteImport } from './routes/legal.tokushoho'
 import { Route as DotlovableOauthConsentRouteImport } from './routes/[.]lovable.oauth.consent'
 import { Route as Char91DotmcpChar93InvokeToolToolRouteImport } from './routes/[.mcp]/invoke-tool/$tool'
+import { Route as AuthenticatedAdminBetaRouteImport } from './routes/_authenticated/admin.beta'
 import { Route as AuthenticatedAdminDictionaryRouteImport } from './routes/_authenticated/admin.dictionary'
 import { Route as AuthenticatedAdminMetricsRouteImport } from './routes/_authenticated/admin.metrics'
 import { Route as AuthenticatedAdminUsersRouteImport } from './routes/_authenticated/admin.users'
@@ -75,11 +75,6 @@ const NativeAuthRoute = NativeAuthRouteImport.update({
 const PrivacyRoute = PrivacyRouteImport.update({
   id: '/privacy',
   path: '/privacy',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ProRoute = ProRouteImport.update({
-  id: '/pro',
-  path: '/pro',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ResetPasswordRoute = ResetPasswordRouteImport.update({
@@ -174,9 +169,9 @@ const ApiStripeWebhookRoute = ApiStripeWebhookRouteImport.update({
   path: '/api/stripe-webhook',
   getParentRoute: () => rootRouteImport,
 } as any)
-const LegalCommerceRoute = LegalCommerceRouteImport.update({
-  id: '/legal/commerce',
-  path: '/legal/commerce',
+const LegalTokushohoRoute = LegalTokushohoRouteImport.update({
+  id: '/legal/tokushoho',
+  path: '/legal/tokushoho',
   getParentRoute: () => rootRouteImport,
 } as any)
 const DotlovableOauthConsentRoute = DotlovableOauthConsentRouteImport.update({
@@ -190,6 +185,11 @@ const Char91DotmcpChar93InvokeToolToolRoute =
     path: '/.mcp/invoke-tool/$tool',
     getParentRoute: () => rootRouteImport,
   } as any)
+const AuthenticatedAdminBetaRoute = AuthenticatedAdminBetaRouteImport.update({
+  id: '/admin/beta',
+  path: '/admin/beta',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 const AuthenticatedAdminDictionaryRoute =
   AuthenticatedAdminDictionaryRouteImport.update({
     id: '/admin/dictionary',
@@ -221,7 +221,6 @@ export interface FileRoutesByFullPath {
   '/mcp': typeof McpRoute
   '/native-auth': typeof NativeAuthRoute
   '/privacy': typeof PrivacyRoute
-  '/pro': typeof ProRoute
   '/reset-password': typeof ResetPasswordRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/terms': typeof TermsRoute
@@ -240,9 +239,10 @@ export interface FileRoutesByFullPath {
   '/api/native-fn': typeof ApiNativeFnRoute
   '/api/object3d-model': typeof ApiObject3dModelRoute
   '/api/stripe-webhook': typeof ApiStripeWebhookRoute
-  '/legal/commerce': typeof LegalCommerceRoute
+  '/legal/tokushoho': typeof LegalTokushohoRoute
   '/.lovable/oauth/consent': typeof DotlovableOauthConsentRoute
   '/.mcp/invoke-tool/$tool': typeof Char91DotmcpChar93InvokeToolToolRoute
+  '/admin/beta': typeof AuthenticatedAdminBetaRoute
   '/admin/dictionary': typeof AuthenticatedAdminDictionaryRoute
   '/admin/metrics': typeof AuthenticatedAdminMetricsRoute
   '/admin/users': typeof AuthenticatedAdminUsersRoute
@@ -255,7 +255,6 @@ export interface FileRoutesByTo {
   '/mcp': typeof McpRoute
   '/native-auth': typeof NativeAuthRoute
   '/privacy': typeof PrivacyRoute
-  '/pro': typeof ProRoute
   '/reset-password': typeof ResetPasswordRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/terms': typeof TermsRoute
@@ -274,9 +273,10 @@ export interface FileRoutesByTo {
   '/api/native-fn': typeof ApiNativeFnRoute
   '/api/object3d-model': typeof ApiObject3dModelRoute
   '/api/stripe-webhook': typeof ApiStripeWebhookRoute
-  '/legal/commerce': typeof LegalCommerceRoute
+  '/legal/tokushoho': typeof LegalTokushohoRoute
   '/.lovable/oauth/consent': typeof DotlovableOauthConsentRoute
   '/.mcp/invoke-tool/$tool': typeof Char91DotmcpChar93InvokeToolToolRoute
+  '/admin/beta': typeof AuthenticatedAdminBetaRoute
   '/admin/dictionary': typeof AuthenticatedAdminDictionaryRoute
   '/admin/metrics': typeof AuthenticatedAdminMetricsRoute
   '/admin/users': typeof AuthenticatedAdminUsersRoute
@@ -291,7 +291,6 @@ export interface FileRoutesById {
   '/mcp': typeof McpRoute
   '/native-auth': typeof NativeAuthRoute
   '/privacy': typeof PrivacyRoute
-  '/pro': typeof ProRoute
   '/reset-password': typeof ResetPasswordRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/terms': typeof TermsRoute
@@ -310,9 +309,10 @@ export interface FileRoutesById {
   '/api/native-fn': typeof ApiNativeFnRoute
   '/api/object3d-model': typeof ApiObject3dModelRoute
   '/api/stripe-webhook': typeof ApiStripeWebhookRoute
-  '/legal/commerce': typeof LegalCommerceRoute
+  '/legal/tokushoho': typeof LegalTokushohoRoute
   '/.lovable/oauth/consent': typeof DotlovableOauthConsentRoute
   '/.mcp/invoke-tool/$tool': typeof Char91DotmcpChar93InvokeToolToolRoute
+  '/_authenticated/admin/beta': typeof AuthenticatedAdminBetaRoute
   '/_authenticated/admin/dictionary': typeof AuthenticatedAdminDictionaryRoute
   '/_authenticated/admin/metrics': typeof AuthenticatedAdminMetricsRoute
   '/_authenticated/admin/users': typeof AuthenticatedAdminUsersRoute
@@ -327,7 +327,6 @@ export interface FileRouteTypes {
     | '/mcp'
     | '/native-auth'
     | '/privacy'
-    | '/pro'
     | '/reset-password'
     | '/sitemap.xml'
     | '/terms'
@@ -346,9 +345,10 @@ export interface FileRouteTypes {
     | '/api/native-fn'
     | '/api/object3d-model'
     | '/api/stripe-webhook'
-    | '/legal/commerce'
+    | '/legal/tokushoho'
     | '/.lovable/oauth/consent'
     | '/.mcp/invoke-tool/$tool'
+    | '/admin/beta'
     | '/admin/dictionary'
     | '/admin/metrics'
     | '/admin/users'
@@ -361,7 +361,6 @@ export interface FileRouteTypes {
     | '/mcp'
     | '/native-auth'
     | '/privacy'
-    | '/pro'
     | '/reset-password'
     | '/sitemap.xml'
     | '/terms'
@@ -380,9 +379,10 @@ export interface FileRouteTypes {
     | '/api/native-fn'
     | '/api/object3d-model'
     | '/api/stripe-webhook'
-    | '/legal/commerce'
+    | '/legal/tokushoho'
     | '/.lovable/oauth/consent'
     | '/.mcp/invoke-tool/$tool'
+    | '/admin/beta'
     | '/admin/dictionary'
     | '/admin/metrics'
     | '/admin/users'
@@ -396,7 +396,6 @@ export interface FileRouteTypes {
     | '/mcp'
     | '/native-auth'
     | '/privacy'
-    | '/pro'
     | '/reset-password'
     | '/sitemap.xml'
     | '/terms'
@@ -415,9 +414,10 @@ export interface FileRouteTypes {
     | '/api/native-fn'
     | '/api/object3d-model'
     | '/api/stripe-webhook'
-    | '/legal/commerce'
+    | '/legal/tokushoho'
     | '/.lovable/oauth/consent'
     | '/.mcp/invoke-tool/$tool'
+    | '/_authenticated/admin/beta'
     | '/_authenticated/admin/dictionary'
     | '/_authenticated/admin/metrics'
     | '/_authenticated/admin/users'
@@ -432,7 +432,6 @@ export interface RootRouteChildren {
   McpRoute: typeof McpRoute
   NativeAuthRoute: typeof NativeAuthRoute
   PrivacyRoute: typeof PrivacyRoute
-  ProRoute: typeof ProRoute
   ResetPasswordRoute: typeof ResetPasswordRoute
   SitemapDotxmlRoute: typeof SitemapDotxmlRoute
   TermsRoute: typeof TermsRoute
@@ -443,7 +442,7 @@ export interface RootRouteChildren {
   ApiNativeFnRoute: typeof ApiNativeFnRoute
   ApiObject3dModelRoute: typeof ApiObject3dModelRoute
   ApiStripeWebhookRoute: typeof ApiStripeWebhookRoute
-  LegalCommerceRoute: typeof LegalCommerceRoute
+  LegalTokushohoRoute: typeof LegalTokushohoRoute
   DotlovableOauthConsentRoute: typeof DotlovableOauthConsentRoute
   Char91DotmcpChar93InvokeToolToolRoute: typeof Char91DotmcpChar93InvokeToolToolRoute
 }
@@ -497,13 +496,6 @@ declare module '@tanstack/react-router' {
       path: '/privacy'
       fullPath: '/privacy'
       preLoaderRoute: typeof PrivacyRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/pro': {
-      id: '/pro'
-      path: '/pro'
-      fullPath: '/pro'
-      preLoaderRoute: typeof ProRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/reset-password': {
@@ -632,11 +624,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiStripeWebhookRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/legal/commerce': {
-      id: '/legal/commerce'
-      path: '/legal/commerce'
-      fullPath: '/legal/commerce'
-      preLoaderRoute: typeof LegalCommerceRouteImport
+    '/legal/tokushoho': {
+      id: '/legal/tokushoho'
+      path: '/legal/tokushoho'
+      fullPath: '/legal/tokushoho'
+      preLoaderRoute: typeof LegalTokushohoRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/.lovable/oauth/consent': {
@@ -652,6 +644,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/.mcp/invoke-tool/$tool'
       preLoaderRoute: typeof Char91DotmcpChar93InvokeToolToolRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/_authenticated/admin/beta': {
+      id: '/_authenticated/admin/beta'
+      path: '/admin/beta'
+      fullPath: '/admin/beta'
+      preLoaderRoute: typeof AuthenticatedAdminBetaRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/admin/dictionary': {
       id: '/_authenticated/admin/dictionary'
@@ -704,6 +703,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedReviewRoute: typeof AuthenticatedReviewRoute
   AuthenticatedScanRoute: typeof AuthenticatedScanRoute
   AuthenticatedSettingsRoute: typeof AuthenticatedSettingsRoute
+  AuthenticatedAdminBetaRoute: typeof AuthenticatedAdminBetaRoute
   AuthenticatedAdminDictionaryRoute: typeof AuthenticatedAdminDictionaryRoute
   AuthenticatedAdminMetricsRoute: typeof AuthenticatedAdminMetricsRoute
   AuthenticatedAdminUsersRoute: typeof AuthenticatedAdminUsersRoute
@@ -718,6 +718,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedReviewRoute: AuthenticatedReviewRoute,
   AuthenticatedScanRoute: AuthenticatedScanRoute,
   AuthenticatedSettingsRoute: AuthenticatedSettingsRoute,
+  AuthenticatedAdminBetaRoute: AuthenticatedAdminBetaRoute,
   AuthenticatedAdminDictionaryRoute: AuthenticatedAdminDictionaryRoute,
   AuthenticatedAdminMetricsRoute: AuthenticatedAdminMetricsRoute,
   AuthenticatedAdminUsersRoute: AuthenticatedAdminUsersRoute,
@@ -734,7 +735,6 @@ const rootRouteChildren: RootRouteChildren = {
   McpRoute: McpRoute,
   NativeAuthRoute: NativeAuthRoute,
   PrivacyRoute: PrivacyRoute,
-  ProRoute: ProRoute,
   ResetPasswordRoute: ResetPasswordRoute,
   SitemapDotxmlRoute: SitemapDotxmlRoute,
   TermsRoute: TermsRoute,
@@ -746,7 +746,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiNativeFnRoute: ApiNativeFnRoute,
   ApiObject3dModelRoute: ApiObject3dModelRoute,
   ApiStripeWebhookRoute: ApiStripeWebhookRoute,
-  LegalCommerceRoute: LegalCommerceRoute,
+  LegalTokushohoRoute: LegalTokushohoRoute,
   DotlovableOauthConsentRoute: DotlovableOauthConsentRoute,
   Char91DotmcpChar93InvokeToolToolRoute: Char91DotmcpChar93InvokeToolToolRoute,
 }
