@@ -6559,6 +6559,19 @@ html[data-motion="reduce"] .tabbar__lens--gone {
  * 枠も地も影も持たせない。紙に字を書いただけにする — 白い札を置くと
  * 「写真の代わりに何か貼ってある」ように見えて、誌面の流れが切れる。
  */
+/* 上の帯のアプリ名（ホームへの道）。字の高さ（24px）しか無いので、見た目は変えずに
+   当たり判定だけ上下に広げて 44px にする（2026-10-03 画面の監査）。 */
+.app-title-link {
+  position: relative;
+}
+.app-title-link::before {
+  content: "";
+  position: absolute;
+  inset-inline: 0;
+  top: 50%;
+  height: 44px;
+  translate: 0 -50%;
+}
 /* §11: 指の当たり判定は 44px を下回らない。枠は字の高さしか無いので、
    紙が細い画面では `PLAIN_RATIO` だけでは足りない。余るぶんは字の**下**に
    付く（字は枠の上端から書く）ので、隠れるのは空白だけ。 */
@@ -6951,6 +6964,7 @@ html[data-motion="reduce"] .tabbar__lens--gone {
 }
 .auth-switch__link {
   /* §11: 小さく見えるが、当たり判定は上下に伸ばして 44px を確保する。 */
+  position: relative;
   display: inline-block;
   margin-left: 0.35rem;
   padding: 0.85rem 0.25rem;
@@ -6959,6 +6973,17 @@ html[data-motion="reduce"] .tabbar__lens--gone {
   font-weight: 700;
   color: var(--primary-ink);
   text-decoration: underline;
+}
+/* 横も 44px を割らない（2026-10-03 画面の監査: 繁體中文の「登入」は字が2つで幅 34px だった）。
+   見た目は変えず、当たり判定だけを左右に広げる。 */
+.auth-switch__link::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: max(100%, 44px);
+  translate: -50% 0;
 }
 .auth-legal {
   display: flex;
@@ -7659,6 +7684,7 @@ html[data-motion="reduce"] .dex-day__card {
   margin-top: 0.25rem;
 }
 .dex-cf__dot-hit {
+  position: relative;
   display: grid;
   place-items: center;
   width: 24px;
@@ -7666,6 +7692,18 @@ html[data-motion="reduce"] .dex-day__card {
   padding: 0;
   border: 0;
   background: none;
+}
+/* 当たり判定だけ広げる（2026-10-03 画面の監査: 24px で 44px を割っていた）。縦は 44px、
+   横は隣の点との間（0.15rem）まで埋めて点の並びの間に押せない隙間を残さない。
+   見える点と並びの幅は変えない（横を 44px にすると隣の点の当たりを奪う）。 */
+.dex-cf__dot-hit::before {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: -0.075rem;
+  right: -0.075rem;
+  height: 44px;
+  translate: 0 -50%;
 }
 .dex-cf__dot {
   display: block;

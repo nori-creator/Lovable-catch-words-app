@@ -474,7 +474,10 @@ export function AppShellFrame({
                 アイコンを押した人は必ずホームへ飛ばされていた。
                 行き先は名前のほうが持つ。 */}
               {brandMenu ?? <BrandMark />}
-              <Link to="/home" className="transition-transform duration-150 active:scale-95">
+              <Link
+                to="/home"
+                className="app-title-link transition-transform duration-150 active:scale-95"
+              >
                 {/* §15: app title is a small headline — tight tracking, no wrapping.
                   **ここは h1 にしない。** 一度 h1 にしたが、ホーム・復習・
                   単語カードにはすでに h1 があるので、**全ページが h1 を2つ
