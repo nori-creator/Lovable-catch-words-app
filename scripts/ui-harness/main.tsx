@@ -76,6 +76,12 @@ import { DexMapScene } from "./scenes/dex-map";
 import { ScanCameraScene, ScanChipScene, ScanDotsScene, ScanNothingScene } from "./scenes/scan";
 import { AuthScene, ResetPasswordScene } from "./scenes/auth";
 import {
+  LegalPrivacyScene,
+  LegalTermsScene,
+  LegalTokushohoScene,
+  ProPlanScene,
+} from "./scenes/legal";
+import {
   HomeAlbumScene,
   HomeMemorialScene,
   HomeEmptyScene,
@@ -147,6 +153,11 @@ const SCENES: Record<string, ((p: { q: URLSearchParams }) => ReactNode) | undefi
   "chunk-designs": ChunkDesignsScene,
   auth: AuthScene,
   "reset-password": ResetPasswordScene,
+  // 法務の頁と Pro の購入口（2026-10-03 課金の準備）。`&legal=missing` で未設定、`&lang=` で言語。
+  "legal-privacy": LegalPrivacyScene,
+  "legal-terms": LegalTermsScene,
+  "legal-tokushoho": LegalTokushohoScene,
+  "pro-plan": ProPlanScene,
   home: HomeScene,
   "home-shelf": HomeShelfScene,
   "install-app": InstallAppScene,
@@ -329,6 +340,10 @@ const BARE = new Set([
   "first-catch",
   "auth",
   "reset-password",
+  // 法務の頁は本番でもアプリの枠の外（ログイン前にも開く）。
+  "legal-privacy",
+  "legal-terms",
+  "legal-tokushoho",
   "sticker-peel",
   "onboarding",
   "sticker-sheet",
@@ -364,7 +379,7 @@ const q = new URLSearchParams(location.search);
  * 「これを見てください」と差し出すことになる。
  */
 const REVIEW_SCENES: Array<{ scene: string; label: string }> = [
-  // 2026-10-03「アプリ内の広告が動く　機能するようにしたい」— Google AdSense のウェブ広告。
+  // 2026-10-03「アプリ内の広告が動く 機能するようにしたい」— Google AdSense のウェブ広告。
   // 見本は本物の広告の代わりに「広告」の箱を出す。`&fill=unfilled` で広告が来ない時（枠が閉じる）。
   { scene: "dex-ads", label: "広告: 図鑑の一覧の途中" },
   { scene: "dex-ads&view=list", label: "広告: 図鑑のリスト表示" },
@@ -374,6 +389,13 @@ const REVIEW_SCENES: Array<{ scene: string; label: string }> = [
   { scene: "settings-ads", label: "開発者設定: 広告の ID と枠の番号" },
   // 2026-10-03「続けて」— ベータで使う計測（ファネル・継続率・費用・解析の安定）。管理者だけ。
   { scene: "admin-beta", label: "管理: ベータの指標" },
+  // 売り始める準備: 規約・プライバシー（広告の項を含む）・特商法の表記・値段と解約の口。
+  { scene: "pro-plan", label: "Pro の案内: 値段・自動更新・解約の口（全部の状態）" },
+  { scene: "legal-tokushoho&legal=missing", label: "特商法の表記: 未設定（販売しない）" },
+  { scene: "legal-tokushoho&legal=ready", label: "特商法の表記: 設定済み（見本の値）" },
+  { scene: "legal-privacy&legal=ready", label: "プライバシーポリシー" },
+  { scene: "legal-privacy&legal=ready&lang=zh-TW", label: "プライバシーポリシー（繁體中文）" },
+  { scene: "legal-terms&legal=ready", label: "利用規約" },
 ];
 
 /**
