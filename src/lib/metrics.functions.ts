@@ -2,6 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { z } from "zod";
 import { taipeiDay } from "./taipei-day";
+import { readAllPages } from "./pagination";
 import {
   FUNNEL_LATENCY_LOOP,
   LATENCY_EVENTS,
@@ -167,25 +168,51 @@ export const getAdminDashboard = createServerFn({ method: "GET" })
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const since = new Date(Date.now() - 14 * 86400 * 1000).toISOString();
 
+    // `.limit(20000)` と書いても PostgREST は 1000 行で切る（2026-10-03 監査）。14日の数も
+    // 漏斗の人数も黙って少なくなっていたので、全部 `readAllPages` で 1000 行ずつ読む。
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const db = supabaseAdmin as any;
+    const big = { maxRows: 1_000_000 };
     const [usageRes, scanRes, stickerRes, profileCountRes, kpiRes] = await Promise.all([
-      supabaseAdmin
-        .from("usage_events")
-        .select("kind, user_id, created_at")
-        .gte("created_at", since)
-        .limit(20000),
-      supabaseAdmin
-        .from("scan_events")
-        .select("created_at, tapped")
-        .gte("created_at", since)
-        .limit(20000),
-      supabaseAdmin.from("stickers").select("created_at").gte("created_at", since).limit(20000),
+      readAllPages<{ kind: string; user_id: string; created_at: string }>(
+        (a, b) =>
+          db
+            .from("usage_events")
+            .select("kind, user_id, created_at")
+            .gte("created_at", since)
+            .order("id")
+            .range(a, b),
+        big,
+      ),
+      readAllPages<{ created_at: string; tapped: boolean }>(
+        (a, b) =>
+          db
+            .from("scan_events")
+            .select("created_at, tapped")
+            .gte("created_at", since)
+            .order("id")
+            .range(a, b),
+        big,
+      ),
+      readAllPages<{ created_at: string }>(
+        (a, b) =>
+          db.from("stickers").select("created_at").gte("created_at", since).order("id").range(a, b),
+        big,
+      ),
       supabaseAdmin.from("profiles").select("id", { count: "exact", head: true }),
-      supabaseAdmin
-        .from("usage_events")
-        .select("kind, user_id, created_at")
-        .in("kind", ["app_open", "onboarding_done", "first_scan", "first_catch"])
-        .limit(50000),
+      readAllPages<{ kind: string; user_id: string; created_at: string }>(
+        (a, b) =>
+          db
+            .from("usage_events")
+            .select("kind, user_id, created_at")
+            .in("kind", ["app_open", "onboarding_done", "first_scan", "first_catch"])
+            .order("id")
+            .range(a, b),
+        big,
+      ),
     ]);
+    for (const [name, r] of Object.entries({ usageRes, scanRes, stickerRes, kpiRes }))
+      if (r.truncated) console.warn(`[getAdminDashboard] ${name}: 安全の上限で読むのを止めた`);
 
     const byDay = new Map<
       string,
@@ -196,16 +223,16 @@ export const getAdminDashboard = createServerFn({ method: "GET" })
         byDay.set(day, { scans: 0, taps: 0, catches: 0, users: new Set(), reviews: 0 });
       return byDay.get(day)!;
     };
-    for (const e of usageRes.data ?? []) {
+    for (const e of usageRes.rows) {
       const b = bucket(dayKey(e.created_at));
       if (e.kind === "scan_detect") b.scans += 1;
       if (e.kind === "app_open") b.users.add(e.user_id);
       if (e.kind === "speaking_feedback") b.reviews += 1;
     }
-    for (const e of scanRes.data ?? []) {
+    for (const e of scanRes.rows) {
       if (e.tapped) bucket(dayKey(e.created_at)).taps += 1;
     }
-    for (const e of stickerRes.data ?? []) {
+    for (const e of stickerRes.rows) {
       bucket(dayKey(e.created_at)).catches += 1;
     }
 
@@ -223,9 +250,9 @@ export const getAdminDashboard = createServerFn({ method: "GET" })
 
     // Funnel: distinct users per KPI marker + naive D1 (first open → opened next day).
     const usersBy = (kind: string) =>
-      new Set((kpiRes.data ?? []).filter((e) => e.kind === kind).map((e) => e.user_id));
+      new Set(kpiRes.rows.filter((e) => e.kind === kind).map((e) => e.user_id));
     const opensByUser = new Map<string, Set<string>>();
-    for (const e of kpiRes.data ?? []) {
+    for (const e of kpiRes.rows) {
       if (e.kind !== "app_open") continue;
       if (!opensByUser.has(e.user_id)) opensByUser.set(e.user_id, new Set());
       opensByUser.get(e.user_id)!.add(dayKey(e.created_at));

@@ -98,6 +98,109 @@ export const BETA_LABELS = {
     en: "Shutter → candidates shown",
     "zh-TW": "拍照到顯示候選字",
   },
+  latency: {
+    ja: "待ち時間（p50 / p90 / p99）",
+    en: "Latency (p50 / p90 / p99)",
+    "zh-TW": "等待時間（p50 / p90 / p99）",
+  },
+  latencyNote: {
+    ja: "登録した人の実機の計測（QA.md の4つ）。平均ではなく順位で見ます。n が少ない間は p99 は最大値とほぼ同じです。",
+    en: "Measured on members' devices (the four QA.md checks). Percentiles, not averages. With small n, p99 is close to the maximum.",
+    "zh-TW": "會員裝置上的實測（QA.md 的四項）。以百分位而非平均值呈現。n 少時 p99 接近最大值。",
+  },
+  latencyStep: {
+    ja: "区間",
+    en: "Span",
+    "zh-TW": "區間",
+  },
+  accuracy: {
+    ja: "候補の当たり方（写真の候補）",
+    en: "Candidate accuracy (photo candidates)",
+    "zh-TW": "候選字命中率（照片候選）",
+  },
+  accuracyNote: {
+    ja: "分母 = 写真の候補から選んだ回 + 候補に無く母語で調べ直した回。Top-1 = AI の1番目を選んだ割合、Top-3 = 3番目までを選んだ割合。打った語・スキャンからの候補は入れません。",
+    en: "Denominator = picks from the photo candidates + re-searches in the native language (candidate missed). Top-1 = picked the AI's first candidate; Top-3 = picked one of the first three. Typed words and scan hand-offs are excluded.",
+    "zh-TW":
+      "分母 = 從照片候選中選擇的次數 + 候選中沒有而改用母語搜尋的次數。Top-1 = 選了 AI 第一個候選的比例，Top-3 = 選了前三個之一的比例。不含手動輸入與掃描帶入的候選。",
+  },
+  nativeSearch: {
+    ja: "母語で調べ直した",
+    en: "Native-language re-search",
+    "zh-TW": "改用母語搜尋",
+  },
+  picks: {
+    ja: "選んだ回",
+    en: "Picks",
+    "zh-TW": "選擇次數",
+  },
+  northStar: {
+    ja: "North-star: 覚えている語 / 週",
+    en: "North-star: Personal Words Retained / Week",
+    "zh-TW": "北極星：每週記得的單字",
+  },
+  northStarNote: {
+    ja: "週の終わりに「いま思い出せる確率」が目標（{target}%）以上だった、その人が撮った語の数。1人あたりはその週に使った人で割ります（0語の人も入れる）。AI 費用は同じ週の推定（会員 + 登録前）。",
+    en: "Words the user caught whose current recall probability was at or above target ({target}%) at the end of the week. Per-user figures divide by that week's active users (including those with 0). AI cost is that week's estimate (members + pre-signup).",
+    "zh-TW":
+      "週末時「現在能想起的機率」達到目標（{target}%）以上、且是本人捕捉的單字數。每人數值以當週活躍人數計算（含 0 字的人）。AI 費用為同週估算（會員 + 註冊前）。",
+  },
+  retainedWords: {
+    ja: "覚えている語",
+    en: "Retained words",
+    "zh-TW": "記得的單字",
+  },
+  retainedPerUser: {
+    ja: "1人あたり",
+    en: "Per active user",
+    "zh-TW": "每人",
+  },
+  median: {
+    ja: "中央値",
+    en: "Median",
+    "zh-TW": "中位數",
+  },
+  aiPerUserWeek: {
+    ja: "AI 費用 / 人・週",
+    en: "AI cost / active user / week",
+    "zh-TW": "AI 費用 / 人・週",
+  },
+  calibration: {
+    ja: "記憶の見込みの較正（復習の式 と Jev の影）",
+    en: "Recall calibration (scheduler vs. Jev shadow)",
+    "zh-TW": "記憶預測校準（排程公式 vs. Jev 影子模式）",
+  },
+  calibrationNote: {
+    ja: "model_shadow_predictions の recall の行のうち、両方の見込みと実際の正誤が揃った問い。Brier と対数損失は小さいほど良く、表は見込みの箱ごとに「見込みの平均」と「実際に思い出せた割合」を並べます。",
+    en: "Recall rows in model_shadow_predictions where both predictions and the actual outcome exist. Lower Brier / log loss is better; the table compares mean prediction with the observed recall rate per bin.",
+    "zh-TW":
+      "取自 model_shadow_predictions 中兩種預測與實際結果都齊全的 recall 紀錄。Brier 與對數損失越小越好；表格逐區間比較預測平均與實際記得的比例。",
+  },
+  scheduler: {
+    ja: "復習の式",
+    en: "Scheduler",
+    "zh-TW": "排程公式",
+  },
+  jev: {
+    ja: "Jev（影）",
+    en: "Jev (shadow)",
+    "zh-TW": "Jev（影子）",
+  },
+  bin: {
+    ja: "見込み",
+    en: "Predicted",
+    "zh-TW": "預測",
+  },
+  observed: {
+    ja: "実際",
+    en: "Observed",
+    "zh-TW": "實際",
+  },
+  baseRate: {
+    ja: "実際に思い出せた割合",
+    en: "Observed recall rate",
+    "zh-TW": "實際記得的比例",
+  },
   retention: {
     ja: "継続（登録日ごと）",
     en: "Retention (by signup day)",
@@ -359,10 +462,20 @@ export const MEMBER_EVENT_LABELS: Record<MemberFunnelEvent, Text> = {
     en: "Candidate picked",
     "zh-TW": "選擇候選字",
   },
+  meaning_shown: {
+    ja: "意味が出た",
+    en: "Meaning shown",
+    "zh-TW": "顯示字義",
+  },
   first_audio_played: {
     ja: "発音を聞いた",
     en: "First audio played",
     "zh-TW": "播放發音",
+  },
+  catch_started: {
+    ja: "図鑑に追加を押した",
+    en: "Catch started",
+    "zh-TW": "按下加入圖鑑",
   },
   catch_saved: {
     ja: "図鑑に保存",

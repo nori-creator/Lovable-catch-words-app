@@ -4,6 +4,7 @@ import { InstallAppScene } from "./scenes/install-app";
 import { ChunkDesignsScene } from "./scenes/chunk-designs";
 import { PeelStickerScene } from "./scenes/peel-sticker";
 import { MemoryDesignsScene } from "./scenes/memory-designs";
+import { CatchAnimationScene, HomeResurfaceScene, SettingsSavedScene } from "./scenes/ux-gaps";
 /**
  * 画面の検査用ハーネス — **本物のコンポーネントを描く**。
  *
@@ -142,6 +143,10 @@ import "@/styles.css";
 // 型に嘘をつかせない。
 const SCENES: Record<string, ((p: { q: URLSearchParams }) => ReactNode) | undefined> = {
   "regen-magic": RegenMagicScene,
+  // 2026-10-03 仕様の穴: キャッチの演出（A/B/C）・設定の「保存しました」・昔の1枚。
+  "catch-animation": CatchAnimationScene,
+  "settings-saved": SettingsSavedScene,
+  "home-resurface": HomeResurfaceScene,
   // `auth` は下の `AuthScene`（作り直した迎える面まるごと）。main に在った
   // 「ボタン2つだけ」の場面は、同じ鍵で実物より狭い面を撮ることになるので外した。
   "sticker-peel": PeelStickerScene,
@@ -357,6 +362,7 @@ const BARE = new Set([
   // 地＝黒い映像で 1.12 と出た）。
   "capture-object",
   "reward-catch",
+  "catch-animation",
   // 押した札から詳細が広がる絵。全画面の面なので枠は要らない。
   "home-tap",
   // 本の左ページを長押しして開く面は全画面。
@@ -379,6 +385,15 @@ const q = new URLSearchParams(location.search);
  * 「これを見てください」と差し出すことになる。
  */
 const REVIEW_SCENES: Array<{ scene: string; label: string }> = [
+  // 2026-10-03 仕様の穴（PRODUCT・ROADMAP Phase 4 / 7 / 8、ARCHITECTURE「Preferences」）。
+  // キャッチの演出は帯の A/B/C で見比べる（普段は B 短く、節目は A しっかり、C は発音だけ）。
+  { scene: "catch-animation&plan=short", label: "キャッチの演出: 短く（普段・既定）" },
+  { scene: "catch-animation&plan=full", label: "キャッチの演出: しっかり（節目）" },
+  { scene: "catch-animation&plan=off", label: "キャッチの演出: オフ（発音だけ）" },
+  { scene: "settings-saved", label: "設定: 保存しました・キャッチの演出の選択" },
+  { scene: "settings-saved&state=live", label: "設定: 触って保存を確かめる" },
+  { scene: "home-resurface", label: "ホーム: 3か月前のこの言葉、まだ言える？" },
+  { scene: "home-resurface&days=400", label: "ホーム: 1年前のこの言葉" },
   // 2026-10-03「アプリ内の広告が動く 機能するようにしたい」— Google AdSense のウェブ広告。
   // 見本は本物の広告の代わりに「広告」の箱を出す。`&fill=unfilled` で広告が来ない時（枠が閉じる）。
   { scene: "dex-ads", label: "広告: 図鑑の一覧の途中" },

@@ -6,7 +6,12 @@ import {
   matchesTargetLanguage,
   headwordMatchesTarget,
 } from "./language-filter";
-import { getUserTargetLanguage } from "./ai-provider.server";
+import { getExplanationLanguage, getUserTargetLanguage } from "./ai-provider.server";
+import {
+  DICTIONARY_SELECT,
+  resolveDictionaryFields,
+  type RawDictionaryRow,
+} from "./dictionary-entry";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { z } from "zod";
 import { pregenerateDistractors } from "./reviews.functions";
@@ -27,8 +32,13 @@ import {
   fillEmptySharedColumns,
   fillEmptySharedExtras,
   isExplanationLangCode,
+  sharedColumnsFromCard,
   type SharedWordColumn,
 } from "./shared-word-guard";
+import { findGeneratedCard, type GeneratedCardLookup, type TrustedCard } from "./generated-cards";
+import { explanationKey } from "./word-explanation";
+import { keepShownFields } from "./explanation-cache";
+import { runAfterResponse } from "./after-response";
 
 import type { AlbumEncounter } from "./album-encounters";
 
@@ -749,6 +759,120 @@ export type WordUpsertInput = z.infer<typeof SaveStickerInput>["word"] & {
   entry_type?: "word" | "phrase";
 };
 
+/** 共有の解説が、その言語で書かれているか（目印が空なら古いデータ = 日本語）。 */
+function sharedExtrasInLang(raw: unknown, lang: string): boolean {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return false;
+  const v = (raw as Record<string, unknown>).explain_lang;
+  return ((typeof v === "string" && v.trim()) || "ja") === lang;
+}
+
+/** 一意の制約に当たった（同じ行が既に在る）か。 */
+function isUniqueViolation(error: { code?: string; message?: string } | null | undefined): boolean {
+  if (!error) return false;
+  return error.code === "23505" || /duplicate key|unique constraint/i.test(error.message ?? "");
+}
+
+/**
+ * 新しい共有の語の行に入れる中身を決める（監査 2026-10-03 M3）。
+ *
+ * 1. サーバの控え（`generated_cards`）— `generateCard` のカード全体を候補より優先
+ * 2. 辞書（`dictionary_entries`）— 読みと、その人の解説の言語の意味・品詞
+ * 3. どちらも無ければ空（見出しだけ）
+ *
+ * **画面の送った文（意味・例文・級・解説）は使わない。** 例外は控えの表がまだ無い環境
+ * （移行待ち）だけで、そのときは前の動きのまま送られた物を入れる。
+ */
+export async function newSharedWordContent(
+  admin: unknown,
+  userId: string,
+  word: WordUpsertInput,
+  language: string,
+): Promise<{
+  columns: Partial<Record<SharedWordColumn, string>>;
+  extras: Record<string, unknown>;
+  categoryKey: string | null;
+  from: "card" | "candidate" | "dictionary" | "client" | "none";
+}> {
+  // 共有の意味は「最初に作った人の言語」で入る（`ARCHITECTURE.md`）。その人の解説の言語の
+  // カードがあればそれを先に使う。
+  let explainLang: string | undefined;
+  try {
+    explainLang = await getExplanationLanguage(userId);
+  } catch {
+    explainLang = undefined;
+  }
+  const lookup = await findGeneratedCard(admin, {
+    language,
+    headword: word.headword,
+    preferExplainLang: explainLang,
+  });
+  if (!lookup.available) {
+    console.warn("upsertWord: 控えの表がまだ無い — 送られた中身で新しい語を作る");
+    return {
+      columns: sharedColumnsFromCard(word as unknown as Record<string, unknown>),
+      extras: (word.extras ?? {}) as Record<string, unknown>,
+      categoryKey: null,
+      from: "client",
+    };
+  }
+  if (lookup.card) {
+    const card: TrustedCard = lookup.card;
+    return {
+      columns: sharedColumnsFromCard(card as Record<string, unknown>),
+      extras: card.extras ?? {},
+      categoryKey: card.category_key ?? null,
+      from: lookup.kind ?? "card",
+    };
+  }
+  try {
+    const db = admin as {
+      from: (t: string) => {
+        select: (c: string) => {
+          eq: (
+            k: string,
+            v: string,
+          ) => {
+            eq: (
+              k: string,
+              v: string,
+            ) => {
+              limit: (n: number) => PromiseLike<{
+                data: Array<RawDictionaryRow & { pos?: string | null }> | null;
+                error: { message: string } | null;
+              }>;
+            };
+          };
+        };
+      };
+    };
+    const { data: rows, error } = await db
+      .from("dictionary_entries")
+      .select(DICTIONARY_SELECT)
+      .eq("language", language)
+      .eq("headword", word.headword)
+      .limit(1);
+    const entry = !error ? rows?.[0] : undefined;
+    if (entry) {
+      const f = resolveDictionaryFields(entry, explainLang ?? "ja");
+      return {
+        columns: sharedColumnsFromCard({
+          meaning_ja: f.meaning,
+          reading_zhuyin: f.reading ?? "",
+          pinyin: f.readingAlt ?? "",
+          part_of_speech: entry.pos ?? "",
+        }),
+        extras: {},
+        categoryKey: null,
+        from: "dictionary",
+      };
+    }
+    if (error) console.warn("upsertWord: 辞書を引けない", error.message);
+  } catch (e) {
+    console.warn("upsertWord: 辞書を引けない", e instanceof Error ? e.message : e);
+  }
+  return { columns: {}, extras: {}, categoryKey: null, from: "none" };
+}
+
 /**
  * Shared word upsert: find by (language, headword) or insert as source='ai'.
  * Used by both photo catches (saveSticker) and ghost catches (§5.2/5.3).
@@ -775,22 +899,41 @@ export async function upsertWord(
    * 言語は付け替えない・見出しも直さない（`assertTargetHeadword` の注）。
    */
   assertTargetHeadword(word.headword, language);
-  const { data: existing } = await supabase
-    .from("words")
-    .select("id")
-    .eq("language", language)
-    .eq("headword", word.headword)
-    .maybeSingle();
+  const findExisting = async (): Promise<string | undefined> => {
+    const { data: existing } = await supabase
+      .from("words")
+      .select("id")
+      .eq("language", language)
+      .eq("headword", word.headword)
+      .maybeSingle();
+    return (existing?.id as string | undefined) ?? undefined;
+  };
 
-  let wordId: string | undefined = existing?.id;
+  let wordId: string | undefined = await findExisting();
   if (!wordId) {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    /**
+     * **新しい語の行の中身は、サーバが作った物だけ**（監査 2026-10-03 M3）。
+     *
+     * 前は画面の送った意味・例文・級・解説をそのまま、サーバの権限で共有の行に入れていた。
+     * 最初に保存した人の文が、後から同じ語を撮る全員のカードになる。いまは
+     * `newSharedWordContent` が、サーバの控え（`generateCard` / 候補）→ 辞書 の順に
+     * 中身を決める。どちらも無ければ見出しだけの行を作り、`generateCard` が作り終えた
+     * 時（`fillSharedWordFromCard`）と単語の詳細の自動生成が空の所を埋める
+     * （見出しの直し `setStickerHeadword` と同じ形）。
+     */
+    const content = await newSharedWordContent(supabaseAdmin, userId, word, language);
     // カテゴリー正規化(2026-07-23の不具合修正):
     // 以前はここで「categories 表に無いキー→ other」に落とすだけだった。
     // 表には20キーしか無くコードは54キーを使っていたため、body/kitchenware/
     // medicine 等に分類された語がすべて「その他」に潰れていた。
     // いまは (1) 見出し語から確実に補正 → (2) それでも表に無ければ other、の順。
     // 表の不足キーは 20260723090000_seed_missing_categories.sql で投入済み。
-    let categoryKey: string = normalizeCategory(word.headword, word.category_key);
+    // 棚の鍵は決まった一覧の中の値なので、画面の送った物も使ってよい（文ではない）。
+    let categoryKey: string = normalizeCategory(
+      word.headword,
+      content.categoryKey || word.category_key,
+    );
     const { data: catRow } = await supabase
       .from("categories")
       .select("key")
@@ -798,18 +941,20 @@ export async function upsertWord(
       .maybeSingle();
     if (!catRow) categoryKey = "other";
 
+    const cols = content.columns;
     const row = {
       language,
       headword: word.headword,
-      reading_zhuyin: word.reading_zhuyin || null,
-      pinyin: word.pinyin || null,
-      meaning_ja: word.meaning_ja,
-      part_of_speech: word.part_of_speech,
-      level: word.level,
+      reading_zhuyin: cols.reading_zhuyin || null,
+      pinyin: cols.pinyin || null,
+      // 列は空を許さない。中身が無ければ空の文字列（空の行は後から埋まる）。
+      meaning_ja: cols.meaning_ja ?? "",
+      part_of_speech: cols.part_of_speech || null,
+      level: cols.level || null,
       category_key: categoryKey,
-      example_sentence: word.example_sentence || null,
-      example_translation: word.example_translation || null,
-      extras: (word.extras ?? {}) as never,
+      example_sentence: cols.example_sentence || null,
+      example_translation: cols.example_translation || null,
+      extras: content.extras as never,
       source: "ai",
       entry_type: word.entry_type ?? "word",
     };
@@ -821,7 +966,6 @@ export async function upsertWord(
      * ブラウザの追加口は閉じてある
      * （`supabase/migrations/20261001100200_words_server_only_insert.sql`、本番に 2026-10-02 適用）。
      */
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const rowWithOwner = { ...row, created_by: userId };
     let ins = await supabaseAdmin
       .from("words")
@@ -836,21 +980,37 @@ export async function upsertWord(
         .select("id")
         .single();
     }
+    /**
+     * **同じ新しい語を2人が同時に初めて撮った**（監査 2026-10-03 M4）。探してから足すまでの
+     * 間に相手の行が入ると、`(language, headword)` の一意の制約で落ちる。落ちたのは
+     * 「もう在る」という意味なので、探し直してその行を使う（キャッチは失敗させない）。
+     */
+    if (ins.error && isUniqueViolation(ins.error)) {
+      const raced = await findExisting();
+      if (raced) return raced;
+    }
     if (ins.error) throw new Error(ins.error.message);
     wordId = ins.data.id as string;
 
-    // Pre-generate quiz distractors off the review path. Fire-and-forget:
-    // reviews fall back to the user's own deck when this hasn't landed.
-    void pregenerateDistractors(
-      supabase,
-      userId,
-      wordId,
-      word.headword,
-      word.meaning_ja,
-      categoryKey,
-      // 学習言語を渡す(誤答の指示文で「◯◯の単語」と呼ぶため。2026-10-01)。
-      language,
-    ).catch(() => {});
+    // Pre-generate quiz distractors off the review path. Reviews fall back to the
+    // user's own deck when this hasn't landed.
+    // **Workers で黙って捨てられないよう、返事の後まで預ける**（`after-response.ts`、L5）。
+    // 正解の意味は**共有の行に入れた物**（画面の送った文はプロンプトにも入れない）。
+    if (row.meaning_ja.trim()) {
+      const newId = wordId;
+      await runAfterResponse("pregenerateDistractors", () =>
+        pregenerateDistractors(
+          supabase,
+          userId,
+          newId,
+          word.headword,
+          row.meaning_ja,
+          categoryKey,
+          // 学習言語を渡す(誤答の指示文で「◯◯の単語」と呼ぶため。2026-10-01)。
+          language,
+        ),
+      );
+    }
   } else if (word.extras && hasExtrasContent(word.extras)) {
     // Fill extras for an existing word when the AI generated rich ones.
     //
@@ -862,23 +1022,29 @@ export async function upsertWord(
     // keeping constitution §2-1 intact — only ever touch the `extras` supplement
     // (the UI already labels it AI-generated), never verified base fields.
     //
-    // **空の項目だけ埋める**（監査 2026-10-03）。中身は画面が送ってきた物なので、
-    // 既に在る共有の解説を上書きさせない（`fillEmptySharedExtras`）。
+    // **空の項目だけ埋める**（監査 2026-10-03）。中身は**サーバの控え**から取る
+    // （画面の送った物は、控えの表がまだ無い環境でだけ使う。`newSharedWordContent` と同じ）。
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const { data: cur } = await supabaseAdmin
-      .from("words")
-      .select("extras")
-      .eq("id", wordId)
-      .maybeSingle();
-    const filled = fillEmptySharedExtras(
-      cur?.extras,
-      word.extras as unknown as Record<string, unknown>,
-    );
-    if (filled) {
-      await supabaseAdmin
+    const lookup = await findGeneratedCard(supabaseAdmin, {
+      language,
+      headword: word.headword,
+    });
+    const incoming = lookup.available
+      ? (lookup.card?.extras ?? null)
+      : (word.extras as unknown as Record<string, unknown>);
+    if (incoming) {
+      const { data: cur } = await supabaseAdmin
         .from("words")
-        .update({ extras: filled as never })
-        .eq("id", wordId);
+        .select("extras")
+        .eq("id", wordId)
+        .maybeSingle();
+      const filled = fillEmptySharedExtras(cur?.extras, incoming);
+      if (filled) {
+        await supabaseAdmin
+          .from("words")
+          .update({ extras: filled as never })
+          .eq("id", wordId);
+      }
     }
   }
   return wordId;
@@ -1102,6 +1268,16 @@ export type WordExtrasDeps = {
   /** サーバの鍵の client（共有の語を書く）。 */
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   admin: any;
+  /**
+   * サーバが作った中身の控えを引く（`generated-cards.ts`）。共有の行にはこれだけを書く。
+   * 渡さなければ `admin` から引く。
+   */
+  findCard?: (opts: {
+    language: string;
+    headword: string;
+    explainLang: string;
+    l1: string;
+  }) => Promise<GeneratedCardLookup>;
   /** 読む人の言語の解説の行を置く（`saveWordExplanation`）。 */
   saveExplanation: (input: {
     word_id: string;
@@ -1141,7 +1317,7 @@ export async function applyWordExtrasUpdate(
   deps: WordExtrasDeps,
   userId: string,
   data: UpdateWordExtrasData,
-): Promise<{ ok: true }> {
+): Promise<{ ok: true; saved: boolean }> {
   const { supabase, admin: supabaseAdmin } = deps;
   // Ownership check (docs/design/03 §1): words is a shared table — only a
   // user who owns a sticker referencing this word may edit it.
@@ -1178,16 +1354,74 @@ export async function applyWordExtrasUpdate(
     // ときにまた作りに行く — 止めたかった作り直しがそのまま復活する。
     // 共有の列はすべて読む — 空の列だけを埋めるため（`fillEmptySharedColumns`）。
     .select(
-      "id, source, extras, meaning_ja, reading_zhuyin, pinyin, part_of_speech, level, example_sentence, example_translation",
+      "id, headword, language, source, extras, meaning_ja, reading_zhuyin, pinyin, part_of_speech, level, example_sentence, example_translation",
     )
     .eq("id", data.word_id)
     .maybeSingle();
   if (readErr) throw new Error(readErr.message);
   if (!word) throw new Error("単語が見つかりません");
   const shared = word as unknown as Record<SharedWordColumn, string | null> & {
+    headword?: string | null;
+    language?: string | null;
     source: string | null;
     extras?: unknown;
   };
+
+  /**
+   * **書く中身は、サーバが作った控えから取る**（監査 2026-10-03 H2）。
+   *
+   * 画面は `generateCard` の返したカードをそのまま送ってくるが、その文を信じると
+   * アプリを通さずに好きな文を共有の行に置ける。同じカードは `generateCard` が
+   * 控え（`generated_cards`）に残しているので、**鍵（解説の言語・母語）が同じ控え**を
+   * 引いて、その中身で空の所を埋める。控えが無ければ何も書かない（次に開いたとき、
+   * また作って控えが残る）。
+   *
+   * 控えの表がまだ無い環境（移行待ち）だけ、前の動き（送られた物で空の所だけ埋める）。
+   */
+  const key = explanationKey(String(ex.explain_lang ?? ""), String(ex.explain_l1 ?? ""));
+  const lookup: GeneratedCardLookup =
+    shared.headword && shared.language
+      ? await (deps.findCard ?? ((o) => findGeneratedCard(supabaseAdmin, o)))({
+          language: shared.language,
+          headword: shared.headword,
+          explainLang: key.explainLang,
+          l1: key.l1,
+        })
+      : { available: true, card: null, kind: null };
+  let content: {
+    extras: Record<string, unknown>;
+    patch: Partial<Record<string, string>> | undefined;
+    readerMeaning: string | undefined;
+  };
+  if (!lookup.available) {
+    console.warn("applyWordExtrasUpdate: 控えの表がまだ無い — 送られた物で空の所だけ埋める");
+    content = { extras: ex, patch: data.patch, readerMeaning: data.reader_meaning };
+  } else if (!lookup.card) {
+    // サーバの作った物が無い。**送られた文は共有の行に書かない。**
+    return { ok: true, saved: false };
+  } else {
+    const card = lookup.card;
+    const fresh = {
+      ...(card.extras ?? {}),
+      explain_lang: key.explainLang,
+      explain_l1: key.l1,
+    };
+    content = {
+      /**
+       * **いま見えている項目は残す**（R14「チャンクが表示され、すぐに違うものに変化する」）。
+       * 画面は前から、その人向けの行がまだ無い語では共有の解説（読む人の言語で書かれた物）を
+       * 先に出し、作り終えても見えている項目は差し替えない（`keepShownFields`）。送られた
+       * 文を使わなくなったので、同じ判断をここでする。その人向けの行が在る時は、下の
+       * `saveExplanation` が空の項目だけ埋める（同じ結果）。
+       */
+      extras: sharedExtrasInLang(shared.extras, key.explainLang)
+        ? keepShownFields(shared.extras as Record<string, unknown>, fresh)
+        : fresh,
+      // 共有の列は、画面が「欠けている」と送ってきた回だけ（今までと同じ回数）。
+      patch: data.patch ? sharedColumnsFromCard(card) : undefined,
+      readerMeaning: card.meaning_ja,
+    };
+  }
 
   /**
    * **共有の行は、空の所を埋めるだけ**（監査 2026-10-03「札を1枚持てば他人のカードの
@@ -1201,14 +1435,20 @@ export async function applyWordExtrasUpdate(
    * 画面が出すのはそちらなので、作り直した本人の見え方は変わらない。
    */
   const prevRaw = shared.extras;
-  const merged: Record<string, unknown> =
-    prevRaw && typeof prevRaw === "object" && !Array.isArray(prevRaw)
-      ? { ...(prevRaw as Record<string, unknown>), ...ex }
-      : ex;
-  const update: Record<string, unknown> = fillEmptySharedColumns(shared, data.patch, {
+  // 読む人の行に重ねる共有の解説は、**同じ言語で書かれている時だけ**（控えを使う道）。
+  // 別の言語の項目を読む人の行の空きに入れると、その人の画面に読めない言語が出る。
+  const mergePrev =
+    prevRaw &&
+    typeof prevRaw === "object" &&
+    !Array.isArray(prevRaw) &&
+    (!lookup.available || sharedExtrasInLang(prevRaw, key.explainLang));
+  const merged: Record<string, unknown> = mergePrev
+    ? { ...(prevRaw as Record<string, unknown>), ...content.extras }
+    : content.extras;
+  const update: Record<string, unknown> = fillEmptySharedColumns(shared, content.patch, {
     verified: shared.source === "verified",
   });
-  const filledExtras = fillEmptySharedExtras(prevRaw, ex);
+  const filledExtras = fillEmptySharedExtras(prevRaw, content.extras);
   if (filledExtras) update.extras = filledExtras;
   if (Object.keys(update).length > 0) {
     const { error } = await supabaseAdmin
@@ -1238,18 +1478,21 @@ export async function applyWordExtrasUpdate(
    * 次に開くまで（最大30分の読み置き）古い解説が出続けていた。
    * 失敗しても投げない関数なので、カードの保存は巻き込まない。
    */
-  await deps.saveExplanation({
+  const saved = (await deps.saveExplanation({
     word_id: data.word_id,
     explain_lang: String(ex.explain_lang ?? ""),
     l1: String(ex.explain_l1 ?? ""),
     // 意味は共有の列にも在るが、**読む人の言語の物**なのでこちらが正。
     meaning: String(
-      data.reader_meaning?.trim() || data.patch?.meaning_ja || shared.meaning_ja || "",
+      content.readerMeaning?.trim() || content.patch?.meaning_ja || shared.meaning_ja || "",
     ),
-    example_translation: data.patch?.example_translation ?? shared.example_translation ?? null,
+    example_translation:
+      (lookup.available ? lookup.card?.example_translation : data.patch?.example_translation) ??
+      shared.example_translation ??
+      null,
     extras: merged,
-  });
-  return { ok: true };
+  })) as { saved?: boolean } | undefined;
+  return { ok: true, saved: saved?.saved ?? true };
 }
 
 // --- User feedback: report a wrong word (§ self-improvement) -----------------
@@ -1523,6 +1766,41 @@ export const updateStickerCaption = createServerFn({ method: "POST" })
     return { caption };
   });
 
+/** `save_album_layout` に渡す形（列の名前のまま。無い座標は null）。 */
+export function albumLayoutRpcItems(
+  items: ReadonlyArray<{
+    sticker_id: string;
+    order: number;
+    size: string;
+    x?: number;
+    y?: number;
+    scale?: number;
+    rot?: number;
+  }>,
+): Array<Record<string, unknown>> {
+  return items.map((it) => ({
+    sticker_id: it.sticker_id,
+    album_order: it.order,
+    album_size: it.size,
+    album_x: it.x ?? null,
+    album_y: it.y ?? null,
+    album_scale: it.scale ?? null,
+    album_rot: it.rot ?? null,
+  }));
+}
+
+/** その関数がまだ DB に無い（移行待ち）か。 */
+export function isMissingRpc(
+  error: { message?: string; code?: string } | null | undefined,
+  fn: string,
+): boolean {
+  if (!error) return false;
+  if (error.code === "PGRST202" || error.code === "42883") return true;
+  return (
+    new RegExp(fn).test(error.message ?? "") && /not find|does not exist/i.test(error.message ?? "")
+  );
+}
+
 /** 同じ日のアルバム配置を一括保存する。RLSに加えuser_idでも本人の札に限定。 */
 export const saveAlbumLayout = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
@@ -1555,6 +1833,31 @@ export const saveAlbumLayout = createServerFn({ method: "POST" })
   )
   .handler(async ({ context, data }) => {
     const { supabase, userId } = context;
+    if (data.items.length === 0) return { saved: true, placement: true };
+    /**
+     * **1回の問い合わせで、全部か何も無しかで書く**（監査 2026-10-03 M6）。
+     *
+     * 前は札の数だけ（最大500回）順に UPDATE していた。遅いうえに、途中で落ちると
+     * 半分だけ並べ替わった日が残る。`save_album_layout`（移行
+     * `20261003130200_save_album_layout_rpc.sql`）は呼んだ人の権限（SECURITY INVOKER・RLS）
+     * で動き、`user_id = auth.uid()` の札だけを1つの文で書く。
+     *
+     * 関数がまだ無い環境（移行待ち）だけ、下の1枚ずつの書き方に戻る。
+     */
+    const rpc = await (
+      supabase as unknown as {
+        rpc: (
+          fn: string,
+          args: Record<string, unknown>,
+        ) => PromiseLike<{
+          data: unknown;
+          error: { message: string; code?: string } | null;
+        }>;
+      }
+    ).rpc("save_album_layout", { p_items: albumLayoutRpcItems(data.items) });
+    if (!rpc.error) return { saved: true, placement: true };
+    if (!isMissingRpc(rpc.error, "save_album_layout")) throw new Error(rpc.error.message);
+    console.warn("saveAlbumLayout: 関数がまだ無い — 1枚ずつ書く", rpc.error.message);
     /**
      * **列がまだ無い環境では、座標を諦めて並び順だけ保存する。**
      *

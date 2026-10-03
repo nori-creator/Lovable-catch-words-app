@@ -975,8 +975,10 @@ function HeaderRow({
   }
 
   // その言語の声(サーバ合成)で読む。端末の声は控え。
+  /** 読み（多音字の音を取り違えない、`tts-cache.ts` の `speechIdentity`）。 */
+  const speechIdent = { pinyin: word.pinyin, zhuyin: word.reading_zhuyin };
   function play() {
-    void pronounce(word.headword);
+    void pronounce(word.headword, false, speechIdent);
   }
 
   useEffect(() => {
@@ -1093,6 +1095,7 @@ function HeaderRow({
             language={word.language ?? undefined}
             tone="hero"
             label={t("card.playPron")}
+            ident={speechIdent}
           />
         )}
       </div>

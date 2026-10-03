@@ -86,7 +86,7 @@ Preserve guest Catch state across signup.
 1. Never expose accumulated due reviews as intimidating debt.
 2. Default to a tiny session such as “1-minute review”.
 3. Prioritize the highest-value/most-at-risk items internally.
-4. Adapt modality from recognition toward recall/production.
+4. Adapt modality from recognition toward recall/production. — **Owner decision 2026-10-03: four-choice only for Web v1** (closed; revisit after beta data).
 5. Allow voluntary continuation after the minimum session.
 6. Preserve fast access back to the corresponding Collection entry.
 
@@ -103,7 +103,7 @@ Preserve guest Catch state across signup.
 
 1. Remove “load thousands of stickers at once” patterns; paginate/infinite-scroll and query only what each screen needs.
 2. Use thumbnails/clustered map data where appropriate.
-3. Audit RLS/auth/privacy and minimize admin access to personal photos, exact location, journal/audio content.
+3. Audit RLS/auth/privacy and minimize admin access to personal photos, exact location, journal/audio content. — **Owner decision 2026-10-03:** the developer (admin) keeps access to per-user photos and place names for support/QA; this is disclosed in the privacy policy. Journal/audio content stays out of admin views.
 4. Expand analytics funnel:
    camera_open → shutter → candidates → selection → first_audio → catch_started → catch_saved.
 5. Measure candidate accuracy, p50/p90/p99 latency, D1/D7 retention, review behavior, later recall and AI/TTS cost.

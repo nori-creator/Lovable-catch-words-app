@@ -30,6 +30,25 @@ Status: Web MVP v3
 Create one authoritative preferences abstraction.
 UI changes should autosave and expose lightweight saved/error state. Avoid parallel unsynchronized server/local/React-state sources.
 
+Saved/error state (2026-10-03): Settings shows a small inline "保存しました / Saved / 已儲存" pill for 2 s after a successful autosave (`src/lib/save-status.ts` + `src/components/SaveStatus.tsx`; height-0 sticky, no layout shift, `role="status"`). Server saves report saving → saved; a partial save (server dropped columns) stays silent and names the fields in a warning toast; a failure keeps the error toast. Device-local rows (theme, motion, catch animation, photo preference, selfie step, sound, haptics) report saved immediately.
+
+### Device-local preferences that affect learning (not synced across devices)
+
+These live only in `localStorage`, so a learner who switches phone/browser silently gets defaults. Not migrated yet (task 2026-10-03 only lists them); move to `profiles` when the single preferences abstraction lands.
+
+| Key | Module | Learning effect |
+|---|---|---|
+| `reading-pref-v1` (legacy `phonetic-pref-v1`) | `phonetic.tsx` | Zhuyin vs pinyin (or kana/romaji) shown everywhere — changes what the learner reads. |
+| `level-pref-v1` | `level-pref.ts` | Local copy of current/goal level; the screen trusts it over the server when the column is missing. Mirrored to `profiles`, but the device copy wins on read. |
+| `target-lang-v1`, `ui-lang-v1`, `lang-prefs-owner-v1` | `target-lang-pref.ts`, `i18n.tsx`, `use-language-prefs.ts` | Mirrored to `profiles` (reconciled on profile load); listed because the capture path reads the device copy before the profile arrives. |
+| `wordcard-prefs-v6` | `card-prefs.ts` | Which word-detail sections are shown/hidden and their order (what the learner studies on each card). |
+| `review-reminder-prefs-v1` | `review-reminder.ts` | Review reminder time/on-off (local notifications are per device by nature). |
+| `place-reminder-enabled` | `place-reminder.ts` | Place-based review prompts. |
+| `catch-animation-v1` | `catch-animation-pref.ts` | Full / short / off Catch celebration (pronunciation always plays). |
+| `photo-pref-v1`, `cw-selfie-capture` | `photo-pref.ts`, `product-features.ts` | Which photo is the memory cue; whether the selfie step follows a Catch. |
+| `home-resurface-v1` | `resurface.ts` | Which past word was resurfaced today / dismissed (another device may show a different one the same day). |
+| `motion`, `cw-sound-level`, `cw-haptics` | `motion-pref.ts`, `sound-engine.ts`, `haptics.ts` | Presentation only, but they decide whether celebration audio and pronunciation-adjacent cues are heard. |
+
 ## AI pipeline
 
 Use task-oriented interfaces rather than model names throughout UI/business logic.
@@ -151,9 +170,19 @@ User-facing "today" counts use Taiwan time (`Asia/Taipei`; `startOfAppDay` in `t
 
 - Shared `words` rows: client-sent canonical columns and `extras` only **fill empty fields** (`shared-word-guard.ts`; same-language extras only; `verified` words untouched). The caller's full explanation goes to the reader-language `word_explanations` row, size-capped. Server-verified writes (`reportAndFixSection`, `regenerateCardSection`) are separate paths.
 - AI caps (`ai-cap.ts`): fail closed when usage can't be counted; one usage row is reserved **before** the provider call (callers no longer `logUsage` the same kind afterwards); a global per-Taipei-day ceiling across all users (`AI_GLOBAL_DAILY_CAP`, default 5,000, TTS excluded) is counted in server-only `app_config` slots (`budget-slots.ts`), old slots pruned. Errors carry codes (`AI_DAILY_CAP`, `AI_GLOBAL_CAP`, `AI_USAGE_CHECK_FAILED`) localised via `errors.ts`.
+- AI caps, abuse hardening (2026-10-03 audit H3/H4/M1/M7/M8): the per-user reservation is atomic — `reserve_usage_event` (Postgres, advisory lock per user+kind, service role only; migration `20261003130000`) counts and inserts in one call (`usage-reserve.ts`; falls back to count-then-insert only while the function is missing). Caller tier (`aiCallerTier`: `auth.users.is_anonymous` via the admin API, then `isProUser`, cached 60 s) picks the caps: anonymous accounts get `ANONYMOUS_DAILY_CAPS` (much smaller; `first_catch_ai` unchanged at 24), and non-Pro calls must also fit a sub-bucket of the global ceiling — anonymous `ai-anon-budget:` (`AI_ANON_DAILY_CAP`, default 500), free `ai-free-budget:` (`AI_FREE_DAILY_CAP`, default 2,500) — so Pro keeps at least 2,000 of the 5,000. If a bucket refuses, the user's usage row is released. Kinds added: `image_gen` (20/day; every paid image generation in `searchImageCandidates`, reserved right before the provider call; the photo-candidate path skips the AI image instead of failing), `jev_rank` (300/day, exempt from the global ceiling like `tts`; on refusal the scan keeps its order), `first_catch_ai` (the member tutorial path now uses the same reservation and global buckets; cap errors map to `FIRST_CATCH_LIMIT` / `FIRST_CATCH_TRIAL_FULL` / `FIRST_CATCH_AI_UNAVAILABLE`). Guest trial: 15 per network per day (IPv6 /64), 1,000 overall; when the overall guest budget is drained the gate answers `FIRST_CATCH_TRIAL_FULL` (and returns the network slot), the client falls back to the per-device anonymous account, and if that bucket is drained too the tutorial shows `first.trialFull`. Recommended owner step (needs an owner account): enable Supabase Auth CAPTCHA (Cloudflare Turnstile) for anonymous sign-ins and put Turnstile in front of `firstCatchAI`. Proxy hardening: `fetchImageAsDataUrl` and Higgsfield downloads are capped at 10 MB (`byte-cap.ts`); `/api/object3d-model` and `checkObject3d` are admin-only like `startObject3d`.
 - Shared TTS cache: only headwords and dictionary example sentences are stored (`tts-share.ts`); other text is synthesized and returned uncached.
 - `/api/native-ai` is off unless `NATIVE_AI_ENABLED=1` (no shipped client; iOS design is `/api/v1/*`).
 - Stripe webhook re-reads the subscription from Stripe instead of trusting event order.
+
+## Shared word content: server-made only (audit 2026-10-03, second pass)
+
+- **No personal material in shared rows (H1).** `runSectionRegen` no longer reads the caller's caption, place, date or diary (`journal_entries.user_draft`); shared example prompts use `sharedExampleSourceRule` (world side only). `personalExampleRule` stays for a future per-sticker target (like `stickers.speaking_scaffold`). `word_explanations` is no longer readable by `anon` (`20261003130000`).
+- **Server receipts (H2 / M3).** Every server function that writes word content for the client — `generateCard` (full card, keyed by explanation language × L1, written **before** it returns), `suggestWords` / `suggestWordCandidates` / `detectScan` / `generatePhraseCard` (meaning + readings as `candidate`), the tutorial card — records it in the server-only `generated_cards` table (`generated-cards.ts`, 14-day TTL, `20261003130100`). `upsertWord` builds a **new** shared word from the receipt (full card first), else the dictionary, else headword only (filled later by `generateCard` → `fillSharedWordFromCard` and the detail auto-fill); `updateWordExtras` fills shared columns/extras and the reader row only from the receipt with the same key. Client-sent meaning/example/extras/level are ignored. If the table is missing (migration not applied) both fall back to the previous client-content fill-empty behaviour.
+- **Reader rows fill only.** `saveWordExplanation` inserts a missing row or fills empty fields (`fillReaderExplanation`); a meaning/translation not in the reader's language counts as empty, a wrong-language explanation is replaced; `verified` rows untouched. Only server regeneration (`mergeIntoReaderExplanation`) overwrites.
+- **Concurrent first catch (M4).** A unique violation on insert re-selects the winner's row.
+- **Album layout (M6).** `saveAlbumLayout` calls `save_album_layout(jsonb)` (`20261003130200`, SECURITY INVOKER, `user_id = auth.uid()`, one statement); per-row updates only when the function is missing.
+- **Background work (L5).** `runAfterResponse` (`after-response.ts`) hands work to the Workers `waitUntil` that nitro puts on the request, else awaits it for at most 3 s; failures are logged with a label. Used for distractor pre-generation and receipts that the response does not need.
 
 ## Beta analytics (2026-10-03, roadmap 9.4 / 11)
 

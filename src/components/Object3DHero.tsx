@@ -3,6 +3,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { Box, Loader2, X } from "lucide-react";
 import { checkObject3d, startObject3d } from "@/lib/object3d.functions";
 import { useT } from "@/lib/i18n";
+import { supabase } from "@/integrations/supabase/client";
 import { motionReducedNow } from "@/hooks/use-reduced-motion";
 import type { ObjectViewer } from "@/components/three/object-viewer";
 
@@ -119,8 +120,11 @@ export function Object3DLayer({
         }));
         if (!alive) return;
         if (st.status === "success" && "modelUrl" in st && st.modelUrl) {
-          const url = await storeModel(stickerId, st.modelUrl).catch(() => st.modelUrl as string);
-          if (alive) setState({ k: "ready", url });
+          // 中継はログインした開発者だけが読める（トークンを付けて取る）。読めなければ
+          // 失敗として出す（トークンの無い URL を描く道に渡しても読めない）。
+          const url = await storeModel(stickerId, st.modelUrl).catch(() => null);
+          if (!alive) return;
+          setState(url ? { k: "ready", url } : { k: "error", reason: "failed", detail: "model" });
           return;
         }
         if (st.status === "failed") {
@@ -221,7 +225,9 @@ async function readCached(stickerId: string): Promise<string | null> {
 
 /** 出来た形を端末に置き、その場所（blob URL）を返す。 */
 async function storeModel(stickerId: string, modelUrl: string): Promise<string> {
-  const r = await fetch(modelUrl);
+  const { data } = await supabase.auth.getSession();
+  const token = data.session?.access_token;
+  const r = await fetch(modelUrl, token ? { headers: { Authorization: `Bearer ${token}` } } : {});
   if (!r.ok) throw new Error("model fetch failed");
   const blob = await r.blob();
   try {

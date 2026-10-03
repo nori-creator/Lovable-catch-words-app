@@ -73,6 +73,10 @@ import { ScanEffect } from "@/components/ScanEffect";
 import { CatchLandingOverlay, runCatchLanding } from "@/components/CatchLanding";
 import { onPronounced, usePronounce } from "@/lib/use-pronounce";
 import { useFunnelEvent } from "@/lib/use-funnel-event";
+import { useCandidatePick } from "@/lib/use-candidate-pick";
+import type { CandidatePickVia } from "@/lib/funnel-events";
+import { canWarmUp, warmUpTarget } from "@/lib/warm-up";
+import { groupCandidates } from "@/lib/candidate-order";
 import { useCatchLocation } from "@/lib/use-catch-location";
 import { localeOf, useT } from "@/lib/i18n";
 import { formatCount } from "@/lib/count";
@@ -343,6 +347,20 @@ export function CapturePage() {
    * 並んだ（待ち時間）→ 選んだ → 最初に発音を聞いた → 保存。送るのは種類と時刻だけ。
    */
   const track = useFunnelEvent();
+  /** 候補のどれを選んだか（`candidate_picked` + 何番目か。語は送らない）。 */
+  const logPick = useCandidatePick();
+  /** いま並んでいる候補がどこから来たか（写真の AI・母語で調べ直した・打った・スキャン）。 */
+  const suggestSourceRef = useRef<CandidatePickVia>("photo");
+  /** 「図鑑に追加」を押した時刻（`catch_saved` の待ち時間）。 */
+  const catchStartedAtRef = useRef<number | null>(null);
+  /**
+   * いちばん確からしい候補の「もう持っている語か」の確認を、押す前に始めておいた物
+   * （`warm-up.ts`。DB を1回引くだけ、AI は呼ばない）。押した語が同じなら待たずに使う。
+   */
+  const ownedWarmRef = useRef<{
+    head: string;
+    job: Promise<{ owned: OwnedWord | null }>;
+  } | null>(null);
   const shutterAtRef = useRef<number | null>(null);
   /** 発音を数え終えたか（候補を選ぶたびに戻す）。選ぶ前の発音は数えない。 */
   const audioCountedRef = useRef(true);
@@ -356,10 +374,11 @@ export function CapturePage() {
   }, [step]);
   useEffect(
     () =>
-      onPronounced(() => {
+      onPronounced((ms) => {
         if (audioCountedRef.current) return;
         audioCountedRef.current = true;
-        track("first_audio_played");
+        // 頼んでから音が鳴り始めるまで（QA.md「request → first audio playback」）。
+        track("first_audio_played", ms);
       }),
     [track],
   );
@@ -499,9 +518,11 @@ export function CapturePage() {
     if (offered.length === 0) {
       void runAi(h.image);
     } else if (offered.length > 1) {
+      suggestSourceRef.current = "scan";
       setSuggestions(offered);
       setStep("select");
     } else {
+      logPick({ via: "scan", rank: 1, n: 1 });
       void confirmWord(offered[0].headword, offered[0]);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -661,8 +682,11 @@ export function CapturePage() {
       if (runTokenRef.current !== token) return;
       // **学習言語の語だけを並べる**（サーバも絞るが、ここが保存の入口なので
       // もう一度。オーナー報告 2026-10-02「英語の図鑑にノート」）。
-      setSuggestions(keepTargetHeadwords(suggestRes.suggestions, targetLanguage));
+      const shown = keepTargetHeadwords(suggestRes.suggestions, targetLanguage);
+      suggestSourceRef.current = "photo";
+      setSuggestions(shown);
       track("candidates_shown", Date.now() - waitFrom);
+      warmUpTop(shown);
       showAnalysisStep("select");
     } catch (e) {
       console.error(e);
@@ -717,6 +741,25 @@ export function CapturePage() {
   }
 
   /**
+   * **押す前の下ごしらえ**（PRODUCT.md › Catch、ROADMAP Phase 3.5、2026-10-03）。
+   * 候補が並んだ瞬間に、いちばん確からしい1語（画面の1段目の先頭）の発音を取りに行き、
+   * 「もう持っている語か」の確認も始めておく。どちらも押せばどうせ取りに行く物なので、
+   * AI の費用は増えない（発音は作り置き・共有の置き場に在れば落とすだけ）。
+   * 自撮りの段で候補の画面がまだ出ていない時も先に進む。圏外・データセーバーでは何もしない。
+   */
+  function warmUpTop(list: Suggestion[]) {
+    ownedWarmRef.current = null;
+    if (!canWarmUp()) return;
+    const top = warmUpTarget(groupCandidates(list).map((g) => g.main));
+    if (!top) return;
+    pronounce.prefetch(top.headword, { pinyin: top.pinyin, zhuyin: top.reading_zhuyin });
+    const job = ownedFn({ data: { headword: top.headword, language: targetLanguage } });
+    // 使われなかった確認の失敗で、未処理の拒否を出さない。
+    job.catch(() => undefined);
+    ownedWarmRef.current = { head: top.headword, job };
+  }
+
+  /**
    * **打った語を、学習言語の語に直してから進む。**
    *
    * オーナー報告 2026-08-26（絵つき）:
@@ -741,12 +784,19 @@ export function CapturePage() {
    * 解決を挟まずに進む（速い道はそのまま）。
    */
   async function searchWord(raw: string) {
+    /**
+     * 写真の候補の画面から打ち直した = 写真の候補に欲しい語が無かった（外れ）。
+     * 写真を撮らずに打った語は精度に数えない（`funnel-events.ts` の `CandidatePickVia`）。
+     */
+    const via: CandidatePickVia =
+      step === "select" && suggestSourceRef.current === "photo" ? "native_search" : "typed";
     const word = raw.trim();
     if (!word) return;
     setError(null);
     // すでに学習言語の語。**そのまま進む**（余計な問い合わせを足さない）。
     if (isTargetHeadword(word, targetLanguage)) {
       setTypedWord("");
+      logPick({ via, rank: 1, n: 1 });
       void confirmWord(word);
       return;
     }
@@ -786,6 +836,7 @@ export function CapturePage() {
          */
         const c = usable[0];
         setTypedWord("");
+        logPick({ via, rank: 1, n: 1 });
         void confirmWord(c.headword, {
           headword: c.headword,
           reading_zhuyin: c.reading_zhuyin,
@@ -798,6 +849,7 @@ export function CapturePage() {
       }
       // **複数あるなら選ばせる。** 母語の1語が学習言語では別々の語に割れる
       // ことが多く、こちらで1つに決めると別の語を覚えることになる。
+      suggestSourceRef.current = via;
       setSuggestions(
         usable.map((c) => ({
           headword: c.headword,
@@ -850,7 +902,7 @@ export function CapturePage() {
     // この語で最初に発音を聞いた時を1回だけ数える（`first_audio_played`）。
     audioCountedRef.current = false;
     // キャッチ演出の「空中のタメ」で待たせずに鳴らせるよう、ここで先に取る。
-    pronounce.prefetch(head);
+    pronounce.prefetch(head, hint ? { pinyin: hint.pinyin, zhuyin: hint.reading_zhuyin } : null);
     /**
      * **候補を選んだ時は「AI が分析中」を出さない**（オーナー報告 2026-09-29「候補を選んだあとに
      * 謎の AI が分析中のアニメーションが一瞬映る。消して。そのままステッカーの画面に移行して」）。
@@ -870,9 +922,13 @@ export function CapturePage() {
     // Already caught this word? Then this is a re-encounter — the best review
     // moment there is — not a duplicate sticker.
     try {
-      const { owned } = await ownedFn({
-        data: { headword: head, language: targetLanguage },
-      });
+      // 候補が並んだ時に始めておいた確認が同じ語なら、それを待つだけ（`warmUpTop`）。
+      const warm = ownedWarmRef.current?.head === head ? ownedWarmRef.current.job : null;
+      ownedWarmRef.current = null;
+      const { owned } = await (warm ??
+        ownedFn({
+          data: { headword: head, language: targetLanguage },
+        }));
       if (runTokenRef.current !== token) return;
       if (owned) {
         setReenc(owned);
@@ -922,6 +978,8 @@ export function CapturePage() {
       }
       if (runTokenRef.current !== token) return;
       setStep("card");
+      // 候補を押してから意味の載ったカードが出るまで（QA.md「selection → usable meaning」）。
+      track("meaning_shown", Date.now() - startedAt);
       // 要望 #73「切り抜きあり/なしの時間を計測して比較」。
       // 端末に貯めて設定の開発者欄で見る(理由は `lib/catch-speed.ts`)。
       recordCatchTiming({
@@ -1081,7 +1139,12 @@ export function CapturePage() {
         },
       }),
     );
-    track("catch_saved");
+    // 「図鑑に追加」を押してから保存が通るまで（QA.md「Catch → persisted item」）。
+    track(
+      "catch_saved",
+      catchStartedAtRef.current == null ? undefined : Date.now() - catchStartedAtRef.current,
+    );
+    catchStartedAtRef.current = null;
     // 図鑑の再取得は待たない(演出中に裏で終わる) — 体感を最短にする。
     // 届いたら上の仮の札は同じ id の本物に置き換わる。
     void queryClient.invalidateQueries({ queryKey: ["stickers"] });
@@ -1124,6 +1187,8 @@ export function CapturePage() {
       return;
     }
     pronounce.prepare();
+    track("catch_started");
+    catchStartedAtRef.current = Date.now();
     const hero = objectImg;
     // 文字で入れた語には写真が無い。**飛ぶ物が無いのだから飛ばさない。**
     // ここだけは従来どおり、待つ面を出す(そこには単語しか出ない)。
@@ -1171,7 +1236,8 @@ export function CapturePage() {
       // ref のまま渡す。覆いの層はこの直前の `setLanding(true)` で
       // 初めて描かれるので、ここで .current を読むと必ず null になる。
       fly: flyRef,
-      speakLine: () => pronounce(selectedHead, true),
+      speakLine: () =>
+        pronounce(selectedHead, true, { pinyin: card.pinyin, zhuyin: card.reading_zhuyin }),
       // **先に読ませない。** 押した時点ではまだ決まっていない。
       getDestinationId: () => savedId,
       openDex: () => {
@@ -1423,7 +1489,13 @@ export function CapturePage() {
           manualWord={manualWord}
           setManualWord={setManualWord}
           onPick={(s) => {
-            track("candidate_picked");
+            // AI の並びで何番目を選んだか（Top-1 / Top-3、`beta-metrics.ts`）。
+            const rank = suggestions.findIndex((x) => x.headword === s.headword) + 1;
+            logPick({
+              via: suggestSourceRef.current,
+              rank: rank > 0 ? rank : suggestions.length,
+              n: Math.max(1, suggestions.length),
+            });
             return confirmWord(s.headword, s);
           }}
           // **ここも学習言語へ直してから進む**(`searchWord` の注)。

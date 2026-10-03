@@ -246,8 +246,9 @@ describe("画面の道が関所を通っている（ソースの形）", () => {
 
   it("撮る画面: 候補・スキャンの受け渡しを絞り、保存の前に確かめる", () => {
     const src = read("components/screens/CaptureScreen.tsx");
+    // 並べる候補も、押す前に下ごしらえする1語（`warmUpTop`）も、絞った後の一覧から。
     expect(src).toMatch(
-      /setSuggestions\(keepTargetHeadwords\(suggestRes\.suggestions, targetLanguage\)\)/,
+      /const shown = keepTargetHeadwords\(suggestRes\.suggestions, targetLanguage\);[\s\S]{0,120}?setSuggestions\(shown\);[\s\S]{0,120}?warmUpTop\(shown\)/,
     );
     expect(src).toMatch(
       /async function handleSave\(\) \{[\s\S]{0,700}?if \(!isTargetHeadword\(selectedHead, targetLanguage\)\)/,
@@ -275,7 +276,7 @@ describe("画面の道が関所を通っている（ソースの形）", () => {
       /rows = rows\.filter\(\(r\) => headwordMatchesTarget\(r\.words\?\.headword, targetLanguage\)\)/,
     );
     expect(read("lib/reviews.functions.ts")).toMatch(
-      /\.filter\(\(r\) => wordBelongsToTarget\(r\.stickers\?\.words, targetLanguage\)\)\s*\.slice\(0, fetchLimit\)/,
+      /\.filter\(\(r\) => wordBelongsToTarget\(r\.stickers\?\.words, targetLanguage\)\);[\s\S]{0,800}?ordered\.slice\(0, fetchLimit\)/,
     );
     expect(read("components/screens/ReviewScreen.tsx")).toMatch(
       /batch\.cards\.every\(\(c\) => wordBelongsToTarget\(c, target\)\)/,

@@ -9563,3 +9563,66 @@ html[data-motion="reduce"] .object3d-layer {
 html[data-motion="reduce"] .install-banner {
   animation: none;
 }
+
+/*
+ * キャッチの演出「短く」（`lib/catch-animation-pref.ts`。普段のキャッチの既定）。
+ * 飛んで・読んで・収まるの流れは同じ。光の輪・粒・放射の光・溜めの光を省き、
+ * 名前は弾ませずにそっと出す（大きく祝うのは節目だけ）。
+ */
+.reward-catch[data-intensity="short"] .reward-catch__shockwave,
+.reward-catch[data-intensity="short"] .reward-catch__particles,
+.reward-catch[data-intensity="short"] .reward-catch__charge,
+.reward-catch[data-intensity="short"] .reward-catch__field::before {
+  display: none;
+}
+.reward-catch[data-intensity="short"][data-stage="break"] .reward-catch__copy {
+  animation: rewardNameSoft 220ms cubic-bezier(0.32, 0.72, 0, 1) both;
+}
+@keyframes rewardNameSoft {
+  from {
+    transform: translateY(6px);
+    opacity: 0;
+  }
+  to {
+    transform: none;
+    opacity: 1;
+  }
+}
+
+/*
+ * 設定の「保存しました」（`components/SaveStatus.tsx`）。押した物の邪魔をしない小さな札。
+ */
+.save-status {
+  animation: saveStatusIn 180ms cubic-bezier(0.32, 0.72, 0, 1) both;
+}
+@keyframes saveStatusIn {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+html[data-motion="reduce"] .save-status {
+  animation: none;
+}
+
+/* ホームの「〇か月前のこの言葉」（`components/ResurfaceCard.tsx`）。 */
+.resurface-card {
+  animation: resurfaceIn 320ms cubic-bezier(0.32, 0.72, 0, 1) both;
+}
+@keyframes resurfaceIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+html[data-motion="reduce"] .resurface-card {
+  animation: none;
+}

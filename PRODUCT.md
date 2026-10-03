@@ -73,7 +73,7 @@ A first failed attempt remains evidence of failure even if a retry succeeds; ret
 Internally distinguish recognition, recall and production when practical. The card/Dex can show one primary probability, with deeper dimensions available on demand.
 Use a validated scheduling baseline (e.g. FSRS-style concepts) and test experimental predictors/models such as Jev in shadow mode before allowing them to control scheduling. (Owner override 2026-09-23: Jev sets intervals now, within the guardrails in ARCHITECTURE.md › Memory, while its decisions keep being logged for calibration.)
 Never present review backlog as debt (“73 reviews due”). Always provide a low-friction session such as a one-minute review and allow the user to continue voluntarily.
-Question difficulty/modality should adapt to memory state and evidence, moving from recognition toward recall and production rather than only increasing by raw repetition count.
+Question difficulty/modality should adapt to memory state and evidence, moving from recognition toward recall and production rather than only increasing by raw repetition count. — **Owner decision 2026-10-03:** Web v1 reviews stay four-choice only. The scheduler treats a correct four-choice answer as recognition evidence (half growth, 180-day cap; `srs.ts`).
 
 ## Collection
 Do not optimize for completion of all words; language is effectively unbounded.
@@ -100,7 +100,7 @@ Past memories should be resurfaced selectively (e.g. “three months ago — can
 Initial public testing is a free beta. Do not prematurely hard-code a restrictive daily Catch limit without observing behavior.
 Core product value — Catch, collection, trustworthy basic meaning/pronunciation and basic review — must be experienced in Free.
 Paid value should primarily expand depth, volume, advanced linguistic intelligence, speaking/coaching and other high-cost/power-user features.
-Do not make poor-quality pronunciation the free experience and natural pronunciation the paid experience.
+Do not make poor-quality pronunciation the free experience and natural pronunciation the paid experience. — **Owner verification 2026-10-03:** Taiwan Mandarin uses Azure (`app_config.tts_voice.taiwan.provider = azure`); a native Taiwanese listener confirmed it sounds natural.
 
 ## Design principles
 - One coherent CatchWords visual language, not a collage of Apple/Pokémon/Instagram aesthetics.
@@ -108,7 +108,7 @@ Do not make poor-quality pronunciation the free experience and natural pronuncia
 - Camera and review are clean and focused; collection may have more physical/photo materiality.
 - Brand color has a stable role; memory-state colors communicate memory, not arbitrary decoration.
 - Sound/haptics are meaningful and restrained.
-- Accessibility and reduced-motion preferences must be respected.
+- Accessibility and reduced-motion preferences must be respected. — **Owner decision 2026-10-03:** the app default stays "motion on" (`motion-pref.ts` `DEFAULT_MOTION="full"`); the in-app motion setting can turn it down. The OS reduced-motion setting does not change the default.
 - Prefer progressive disclosure to information overload.
 
 ## North-star outcome

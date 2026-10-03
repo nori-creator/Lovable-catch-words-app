@@ -250,15 +250,31 @@ export async function hadSubscriptionBefore(
   }
 }
 
+/** Stripe の行の `metadata.user_id`（無ければ null）。 */
+function ownerOf(r: Record<string, unknown>): string | null {
+  const m = r.metadata;
+  if (!m || typeof m !== "object") return null;
+  const v = (m as Record<string, unknown>).user_id;
+  return typeof v === "string" && v.length > 0 ? v : null;
+}
+
 /**
  * その人の Stripe の顧客 ID を探す。見つからなければ null。
  * 定期購入の検索が失敗しても、メールの検索は試す（どちらも駄目なら null）。
+ *
+ * **メールだけで顧客を選ばない**（2026-10-03 監査）。Stripe のメールは確かめられた物では
+ * なく、同じメールの顧客は別の人（前に同じアドレスを使った人・Stripe の画面で手で作った
+ * 顧客）でもありうる。メールで当たった顧客は `metadata.user_id` が呼んだ本人のものだけを
+ * 使う（違う・空なら使わない）。そうしないと**ほかの人の管理画面**（支払い方法・領収書・
+ * 解約）を開けてしまう。定期購入の検索の結果も念のため同じく本人の物だけにする。
  */
 export async function findStripeCustomerId(
   p: { userId: string; email: string | null },
   secretKey: string,
   fetchImpl: StripeFetch = fetch,
 ): Promise<string | null> {
+  const mine = (rows: Array<Record<string, unknown>>) =>
+    rows.filter((r) => ownerOf(r) === p.userId);
   try {
     const q = encodeURIComponent(`metadata['user_id']:'${quote(p.userId)}'`);
     const subs = await stripeGetJson(
@@ -266,7 +282,7 @@ export async function findStripeCustomerId(
       secretKey,
       fetchImpl,
     );
-    const viaSub = pickCustomer(subs?.data ?? [], "sub");
+    const viaSub = pickCustomer(mine(subs?.data ?? []), "sub");
     if (viaSub) return viaSub;
   } catch {
     // 検索が使えない（地域・権限）。メールで探す。
@@ -279,7 +295,7 @@ export async function findStripeCustomerId(
         secretKey,
         fetchImpl,
       );
-      return pickCustomer(found?.data ?? [], "customer");
+      return pickCustomer(mine(found?.data ?? []), "customer");
     } catch {
       return null;
     }

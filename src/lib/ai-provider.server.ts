@@ -3,8 +3,17 @@ import { targetProfile } from "@/lib/target-profile";
 import { generateText, Output } from "ai";
 import type { z } from "zod";
 import { UI_LANG_PROMPT_NAMES } from "./i18n";
-import { DAILY_CAPS, USAGE_CHECK_FAILED_MESSAGE, globalAiDailyCap, reserveAiCall } from "./ai-cap";
+import {
+  DAILY_CAPS,
+  USAGE_CHECK_FAILED_MESSAGE,
+  aiBudgetLimits,
+  reserveAiCall,
+  resolveCallerTier,
+  type AiCallerTier,
+  type AiReservation,
+} from "./ai-cap";
 import type { BudgetDb } from "./budget-slots";
+import { reserveUsageRow, type UsageReserveDb } from "./usage-reserve";
 
 /**
  * Single switch point for every AI call in the app.
@@ -914,8 +923,9 @@ export async function logUsage(supabase: unknown, userId: string, kind: string):
 /**
  * **AI を呼ぶ前の上限の確かめと、1回ぶんの確保**（中身と理由は `ai-cap.ts`）。
  *
- * - その人の 24 時間の上限（種類ごと）
- * - 全員を合わせた 1 日の上限（`AI_GLOBAL_DAILY_CAP`、既定 5,000）
+ * - その人の 24 時間の上限（種類ごと。匿名の人は小さい `ANONYMOUS_DAILY_CAPS`）
+ * - 全員を合わせた 1 日の上限（`AI_GLOBAL_DAILY_CAP`、既定 5,000）と、Pro でない人の
+ *   子の枠（無料 `AI_FREE_DAILY_CAP` 既定 2,500・匿名 `AI_ANON_DAILY_CAP` 既定 500）
  * - 数えられないときは断る（2026-10-03 から。前は通していた）
  *
  * **呼ぶ前に1回ぶんを `usage_events` に記録する**ので、呼ぶ側は成功の後に同じ種類を
@@ -923,7 +933,15 @@ export async function logUsage(supabase: unknown, userId: string, kind: string):
  * authenticated role has no SELECT grant on other users' usage_events.
  */
 export async function assertWithinDailyCap(userId: string, kind: string): Promise<void> {
-  if (!DAILY_CAPS[kind]) return;
+  await reserveAiCallFor(userId, kind);
+}
+
+/**
+ * `assertWithinDailyCap` と同じ。確保した `usage_events` の行の番号を返す（返事を
+ * 1つも受け取れなかった回に返す道 — チュートリアルの AI — が使う）。
+ */
+export async function reserveAiCallFor(userId: string, kind: string): Promise<AiReservation> {
+  if (!DAILY_CAPS[kind]) return { usageId: null };
   let supabaseAdmin: (typeof import("@/integrations/supabase/client.server"))["supabaseAdmin"];
   try {
     ({ supabaseAdmin } = await import("@/integrations/supabase/client.server"));
@@ -932,28 +950,43 @@ export async function assertWithinDailyCap(userId: string, kind: string): Promis
     console.warn("[usage] cap check failed", { kind, message: (e as Error)?.message ?? e });
     throw new Error(USAGE_CHECK_FAILED_MESSAGE);
   }
-  await reserveAiCall(
+  const tier = await aiCallerTier(userId);
+  const limits = aiBudgetLimits(process.env);
+  return reserveAiCall(
     {
-      countUserKindSince: async (uid, k, since) => {
-        const res = await supabaseAdmin
-          .from("usage_events")
-          .select("id", { count: "exact", head: true })
-          .eq("user_id", uid)
-          .eq("kind", k)
-          .gte("created_at", since);
-        if (res.error || res.count == null) {
-          throw new Error(res.error?.message ?? "no count");
-        }
-        return res.count;
-      },
-      insertUsage: async (uid, k) => {
-        const res = await supabaseAdmin.from("usage_events").insert({ user_id: uid, kind: k });
-        if (res.error) throw new Error(res.error.message);
+      reserveUsage: (uid, k, limit, since) =>
+        reserveUsageRow(supabaseAdmin as unknown as UsageReserveDb, uid, k, limit, since),
+      releaseUsage: async (id) => {
+        const res = await supabaseAdmin.from("usage_events").delete().eq("id", id);
+        if (res.error) console.warn("[usage] release failed", { kind });
       },
       budgetDb: supabaseAdmin as unknown as BudgetDb,
-      globalLimit: globalAiDailyCap(process.env.AI_GLOBAL_DAILY_CAP),
+      globalLimit: limits.global,
+      freeLimit: limits.free,
+      anonymousLimit: limits.anonymous,
+      tier,
     },
     userId,
     kind,
+  );
+}
+
+/**
+ * 呼ぶ人の種類（匿名・無料・Pro）。匿名かどうかは Supabase の利用者の記録
+ * （`is_anonymous`）で見る — `requireSupabaseAuth` の claims を上限の関数まで渡さない
+ * 道（`/api/native-ai`・上限を呼ぶ関数の全部）もあるので、ここで1か所で調べる。
+ */
+export async function aiCallerTier(userId: string): Promise<AiCallerTier> {
+  return resolveCallerTier(
+    {
+      isAnonymous: async (uid) => {
+        const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+        const { data, error } = await supabaseAdmin.auth.admin.getUserById(uid);
+        if (error || !data?.user) throw new Error(error?.message ?? "no user");
+        return data.user.is_anonymous === true;
+      },
+      isPro: isProUser,
+    },
+    userId,
   );
 }

@@ -480,6 +480,11 @@ export const DICT: Record<string, Record<UiLang, string>> = {
     en: "The trial is busy right now. Your photo is kept; please try again in a little while.",
     "zh-TW": "目前體驗人數較多。照片仍保留著，請稍後再試一次。",
   },
+  "first.trialFull": {
+    ja: "今日の体験の受け付けはいっぱいになりました。写真は残っています。明日もう一度試すか、アカウントを作ってアプリから使ってください。",
+    en: "Today's trial slots are full. Your photo is kept. Please try again tomorrow, or create an account to use the app.",
+    "zh-TW": "今天的體驗名額已滿。照片仍保留著。請明天再試一次，或註冊帳號後從 App 使用。",
+  },
   "first.storage": {
     ja: "この端末に保存できませんでした。空き容量やブラウザの保存設定を確認してください。",
     en: "Could not save on this device. Check free space and browser storage settings.",
@@ -1922,15 +1927,17 @@ export const DICT: Record<string, Record<UiLang, string>> = {
     en: "Tap for one quick question",
     "zh-TW": "點一下，只考一題",
   },
+  // **残りの数を出さない**（PRODUCT.md「Never present review backlog as debt」、オーナー決定
+  // 2026-10-02「数字を出すと…やる気がなくなる」）。1分だけ、続けるかは本人が決める。
   "remind.body": {
-    ja: "復習する単語が{n}語あります",
-    en: "You have {n} {n|word|words} to review",
-    "zh-TW": "有 {n} 個單字要複習",
+    ja: "1分だけ、撮った単語に会いに行きませんか",
+    en: "Got a minute? Say hi to the words you caught",
+    "zh-TW": "花一分鐘，和你收集的單字見個面吧",
   },
   "remind.bodySrs": {
-    ja: "忘れかけの単語が{n}語。いまがいちばん覚え直しやすい時です",
-    en: "{n} {n|word is|words are} fading. Now is the best time to {n|refresh it|refresh them}",
-    "zh-TW": "有 {n} 個單字快忘了，現在複習最有效",
+    ja: "いま1分だけ見直すと、ぐっと覚えやすくなります",
+    en: "A one-minute look now helps your words stick",
+    "zh-TW": "現在花一分鐘看一下，會記得更牢",
   },
   "remind.bodyEmpty": {
     ja: "撮った単語を見直しましょう",
@@ -2127,6 +2134,45 @@ export const DICT: Record<string, Record<UiLang, string>> = {
     "zh-TW": "無法儲存版面。請檢查連線後再試一次。",
   },
   "settings.motion": { ja: "アニメーション", en: "Animation", "zh-TW": "動畫" },
+  // キャッチの演出の大きさ（`lib/catch-animation-pref.ts`。ROADMAP Phase 4）。
+  "settings.catchAnimation": { ja: "キャッチの演出", en: "Catch animation", "zh-TW": "捕捉動畫" },
+  "settings.catchAnimationFull": { ja: "しっかり", en: "Full", "zh-TW": "完整" },
+  "settings.catchAnimationShort": { ja: "短く", en: "Short", "zh-TW": "簡短" },
+  "settings.catchAnimationOff": { ja: "オフ", en: "Off", "zh-TW": "關閉" },
+  "settings.catchAnimationFullDesc": {
+    ja: "毎回、音楽つきで大きく祝います。",
+    en: "Every catch gets the full celebration with music.",
+    "zh-TW": "每次都以音樂和完整動畫慶祝。",
+  },
+  "settings.catchAnimationShortDesc": {
+    ja: "ふだんは短く。1・10・50・100匹目などの節目は大きく祝います。",
+    en: "Short for everyday catches. Milestones like your 1st, 10th, 50th and 100th get the full celebration.",
+    "zh-TW": "平常簡短。第 1、10、50、100 個等重要時刻會盛大慶祝。",
+  },
+  "settings.catchAnimationOffDesc": {
+    ja: "動きは出さず、発音だけ聞かせます。",
+    en: "No animation — you'll still hear the pronunciation.",
+    "zh-TW": "不播放動畫，仍會播放發音。",
+  },
+  // 設定の自動保存の小さな札（`components/SaveStatus.tsx`）。
+  "settings.savedInline": { ja: "保存しました", en: "Saved", "zh-TW": "已儲存" },
+  // ホームの「〇か月前のこの言葉」（`components/ResurfaceCard.tsx`、`lib/resurface.ts`）。
+  "home.resurface.months": {
+    ja: "{n}か月前のこの言葉、まだ言える？",
+    en: "From {n} {n|month|months} ago — can you still say it?",
+    "zh-TW": "{n} 個月前的這個詞，還說得出來嗎？",
+  },
+  "home.resurface.years": {
+    ja: "{n}年前のこの言葉、まだ言える？",
+    en: "From {n} {n|year|years} ago — can you still say it?",
+    "zh-TW": "{n} 年前的這個詞，還說得出來嗎？",
+  },
+  "home.resurface.open": {
+    ja: "{word} を開く",
+    en: "Open {word}",
+    "zh-TW": "打開 {word}",
+  },
+  "home.resurface.close": { ja: "今日は閉じる", en: "Hide for today", "zh-TW": "今天先關閉" },
   // **なぜ消えているのかが分かる言葉にする。** 端末の設定で消えている人は、
   // 自分で入れた覚えが無いので「動きを減らす」とだけ書かれても辿り着けない。
   "settings.motion.osReduces": {

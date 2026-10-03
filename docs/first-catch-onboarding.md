@@ -13,34 +13,42 @@ Branch implementation: `/welcome` introduction → five questions → notificati
 
 ## Review
 
-Netlify Deploy Preview opens `first-catch` by default without a developer menu. It uses the production components and an authenticated preview endpoint for the actual AI path. AI and Auth are unavailable until the intended environment has configured publishable Supabase and AI keys and reviewed anonymous sign-in. The preview fails explicitly; it never presents a canned word as though detected in the visitor's photo. In-memory sample screens and account form are for visual review only.
+Netlify Deploy Preview opens `first-catch` by default without a developer menu. It uses the production components; the static preview has no server, so the real AI path is only exercised on a deployment with publishable Supabase and AI keys configured. The preview fails explicitly; it never presents a canned word as though detected in the visitor's photo. In-memory sample screens and account form are for visual review only.
 
 Useful additional scenes: `?scene=first-catch&step=home&tour=1` (chapter selector + replay button to watch the beat timing), `?scene=first-catch&step=pick` (sample candidates for the sample cafe photo), `?scene=first-catch&step=card`, `?scene=first-catch&step=added`, `?scene=first-catch&step=explore`, `?scene=first-catch&step=account`, and `?scene=first-catch&step=card&fail=storage`. Sample screens are explicitly labelled; camera capture still uses the real camera component.
 
-## Production gate (not enabled by this PR)
+## Pre-signup AI access (current code, checked 2026-10-03)
 
-The project's public Auth settings were read on 2026-09-22. `external.anonymous_users` is **false**. The app's AI functions require authentication. This implementation uses Supabase anonymous sign-in for pre-signup AI access; it does not remove middleware, expose an unauthenticated paid AI endpoint, use a service key in the browser, or silently register permanent accounts.
+The **main path does not use Supabase anonymous sign-in.** `FirstCatchEntry` (`src/components/onboarding/FirstCatchFlow.tsx`) chooses the endpoint per request:
 
-Before merging/releasing:
+1. **Already signed in** (a real account, or a device that already holds an anonymous session): `firstCatchMemberAI` — the authenticated, per-account metered route (24 calls per account per day).
+2. **Signed out (the normal pre-signup case):** `firstCatchAI` — the isolated, server-metered guest route (`src/lib/first-catch-guest.server.ts`). It needs no Auth session; the server uses `SUPABASE_SERVICE_ROLE_KEY` only to reserve atomic budget slots in `app_config` (`GUEST_IP_LIMIT_PER_DAY` = 30 per originating address/day, `GUEST_GLOBAL_LIMIT_PER_DAY` = 1000 globally/day). No photo, word or address is stored there. It fails closed if a reservation or the provider fails.
+3. **Fallback only:** if the guest route refuses _at the gate_ (`FIRST_CATCH_LIMIT`, `FIRST_CATCH_ORIGIN`, `FIRST_CATCH_AI_UNAVAILABLE`, see `isGuestRefusal` in `src/lib/first-catch-services.ts`), the client calls `ensureFirstCatchSession()` — Supabase anonymous sign-in — and retries once on the member route. Genuine AI failures are not retried on the other path. If anonymous sign-in is disabled in the environment, `FIRST_CATCH_GUEST_UNAVAILABLE` is shown and the photo stays local.
 
-1. Review existing RLS/server authorization for anonymous users (they receive the authenticated role), AI spend caps, signup rate limits, bot protection and anonymous-account cleanup.
-2. Enable anonymous sign-ins in the intended environment after that review. No Auth configuration or RLS changes are applied here.
+So anonymous sign-in is an optional safety net, not a release requirement. The 2026-09-22 note that the project's `external.anonymous_users` was **false** is still relevant only to that fallback.
+
+Photos/catches remain local (IndexedDB) until permanent signup; sign-in to an existing account imports under that authenticated account, preserving its existing profile preferences. If the fallback created an anonymous session, it holds AI usage/profile preferences only, and anonymous-session cleanup remains an operational task.
+
+## Production gate
+
+Before release:
+
+1. Confirm the deployment has the AI provider keys and `SUPABASE_SERVICE_ROLE_KEY` (server only) so the guest route can reserve budget slots; check the guest caps against expected trial traffic.
+2. Decide whether to enable anonymous sign-ins for the fallback. If enabled, review RLS/server authorization for anonymous users (they receive the authenticated role), signup rate limits, bot protection and anonymous-account cleanup first. No Auth configuration or RLS changes are applied by the app code.
 3. Exercise an actual camera → candidates → peel → Dex → email confirmation / Google / Apple → same-photo import journey with dedicated test accounts in that environment, including failed network/save and duplicate retry.
 4. Approve the mobile visual experience before merge, as required by AGENTS.md.
 
-If anonymous access is unavailable, the captured photo remains local and a retry message is shown. The app does not jump to signup early or fabricate an AI result.
-
-Anonymous sessions hold AI usage/profile preferences only. Photos/catches remain local until permanent signup; sign-in to an existing account imports under that authenticated account, preserving its existing profile preferences. Anonymous-session cleanup is an operational requirement.
+The app never jumps to signup early or fabricates an AI result when AI access fails; the captured photo remains local with a retry message.
 
 ## 2026-09-24 owner revision
 
 The guided path is Home → actual camera/photo AI → durable local Catch + landing animation → real Collection cover flow swipe and gallery view → own word detail → two local photo-review questions → congratulations → signup/signin. Account transfer is allowed only after review completion. Registration is not required to operate the camera or view the tutorial. Generated sample photos are preloaded and shown on welcome, Home, Collection and review; they never stand in for AI candidates from the learner's actual camera photo.
 
-The pre-signup AI endpoint uses server-side `SUPABASE_SERVICE_ROLE_KEY` only to reserve atomic budget slots in the existing `app_config` table (12 requests per originating address/day and 200 globally/day). No personal photo or word enters that table. Calls fail closed if reservation or provider fails. Confirm runtime environment and a real device capture in the PR Deploy Preview and the eventual Lovable deployment.
+The pre-signup AI endpoint uses server-side `SUPABASE_SERVICE_ROLE_KEY` only to reserve atomic budget slots in the existing `app_config` table (12 requests per originating address/day and 200 globally/day). No personal photo or word enters that table. Calls fail closed if reservation or provider fails. Confirm runtime environment and a real device capture in the PR Deploy Preview and the eventual Lovable deployment. — **Owner verification 2026-10-03:** sign-up works on real iPhone and Android devices on the live deployment.
 
 ## 2026-09-30 pre-signup AI: caps, fallback and error codes
 
-- A tutorial needs at least three AI calls (candidates, card, personal lesson), plus retakes and retries, so the caps are 30 calls per address per day and 1000 globally per day (`GUEST_IP_LIMIT_PER_DAY`, `GUEST_GLOBAL_LIMIT_PER_DAY`). The earlier 12 / 200 were exhausted by a handful of trials and every later visitor failed with a generic message.
+- A tutorial needs at least three AI calls (candidates, card, personal lesson), plus retakes and retries, so the caps are 30 calls per address per day and 1000 globally per day (`GUEST_IP_LIMIT_PER_DAY`, `GUEST_GLOBAL_LIMIT_PER_DAY`). The earlier 12 / 200 were exhausted by a handful of trials and every later visitor failed with a generic message. 2026-10-03 audit: the per-address cap is now 15 (IPv6 counted per /64) so a few networks cannot drain the 1000; a refused guest falls back to the per-device anonymous account (smaller anonymous caps and its own global sub-bucket, see ARCHITECTURE.md › AI caps), and when both are drained the tutorial says so (`FIRST_CATCH_TRIAL_FULL` → `first.trialFull`).
 - The caller address is read from `cf-connecting-ip`, `x-nf-client-connection-ip`, `x-real-ip` or `x-forwarded-for`. When none exists the per-address cap is skipped (only the global cap applies); it is never shared under a single `unknown` key.
 - The same-origin check also accepts the forwarded host, for hosts that proxy the request to a different internal URL.
 - If the guest endpoint refuses at the gate (`FIRST_CATCH_LIMIT`, `FIRST_CATCH_ORIGIN`, `FIRST_CATCH_AI_UNAVAILABLE`), the client falls back to a per-device anonymous account and the authenticated endpoint (24 calls per account per day). If anonymous sign-in is disabled, `FIRST_CATCH_GUEST_UNAVAILABLE` is shown. Genuine AI failures are not retried on the other path.

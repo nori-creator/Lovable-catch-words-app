@@ -1,6 +1,8 @@
 import { z } from "zod";
 import { ExtrasSchema, hasExtrasContent, normalizeExtras } from "./extras";
 import { DEFAULT_TARGET_LANGUAGE } from "./target-lang";
+import { readerMeaning, readerText } from "./note-language";
+import { lacksNotes } from "./explanation-cache";
 
 /**
  * **共有の語（`words`）を、利用者の送った中身で書き換えさせない関所**（監査 2026-10-03）。
@@ -16,7 +18,10 @@ import { DEFAULT_TARGET_LANGUAGE } from "./target-lang";
  *   埋まっている列は誰の送った物でも上書きしない。人が確かめた語（`verified`）は一切触らない。
  * - 共有の `extras` も同じ。空の解説なら丸ごと入れてよいが、中身がある解説には
  *   **同じ言語で空の項目だけ**を足す（別の言語の解説を混ぜない）。
- * - 読む人ごとの解説（`word_explanations`）は書き換えてよいが、大きさに上限を置く。
+ * - 読む人ごとの解説（`word_explanations`）も同じ言語・母語で読む全員の行なので、
+ *   **空の所だけ**埋める（`fillReaderExplanation`、2026-10-03 H2）。大きさにも上限を置く。
+ * - **埋める中身はサーバが作った物**（`generated-cards.ts` の控え）。画面の送った文は、
+ *   控えの表がまだ無い環境（移行待ち）でだけ使う（2026-10-03 H2 / M3）。
  *
  * 報告からの直し（`reportAndFixSection`）と項目の作り直し（`regenerateCardSection`）は
  * サーバが自分で作って確かめた物を書く別の道なので、ここは通らない。
@@ -101,6 +106,116 @@ export function fillEmptySharedExtras(
     changed = true;
   }
   return changed ? out : null;
+}
+
+/**
+ * サーバの控え（`generated-cards.ts` の `TrustedCard`）から、共有の列に書いてよい値だけを
+ * 取り出す。`fillEmptySharedColumns` の `patch` と、新しい語の行（`upsertWord`）に使う。
+ */
+export function sharedColumnsFromCard(
+  card: Partial<Record<string, unknown>> | null | undefined,
+): Partial<Record<SharedWordColumn, string>> {
+  const out: Partial<Record<SharedWordColumn, string>> = {};
+  if (!card) return out;
+  for (const col of SHARED_WORD_COLUMNS) {
+    const v = card[col];
+    if (filledText(v)) out[col] = (v as string).trim();
+  }
+  return out;
+}
+
+// --- 読む人ごとの解説の行（`word_explanations`）--------------------------------
+
+export type ReaderRowContent = {
+  meaning: string;
+  example_translation?: string | null;
+  extras: Record<string, unknown>;
+};
+
+export type ReaderRowWrite =
+  | { kind: "insert"; row: ReaderRowContent }
+  | { kind: "update"; patch: Partial<ReaderRowContent> }
+  | { kind: "skip"; reason: "verified" | "nothing" };
+
+/**
+ * **読む人ごとの解説の行も、空の所だけ埋める**（監査 2026-10-03 H2）。
+ *
+ * `word_explanations` は `(語, 解説の言語, 母語)` が同じ全員で共有する行。前は
+ * `updateWordExtras` の送った解説で**行ごと上書き**していたので、札を1枚持てば同じ言語で
+ * 読む全員の解説を好きな文に変えられた。
+ *
+ * - 行が無い → 置く
+ * - 人が確かめた行（`verified`）→ 触らない
+ * - 意味・例文訳: いまの値が空か、**読む人の言語で書かれていない**（昔、共有の意味＝
+ *   別の言語を写していた行。`ARCHITECTURE.md` の 2026-10-02）ときだけ埋める
+ * - 解説: いまの解説が別の言語で書かれていれば丸ごと入れ替える（同じ鍵の行に別の言語の
+ *   解説が載っているのは壊れた行）。同じ言語なら**空の項目だけ**足す
+ *
+ * 画面（`keepShownFields`）も「見えている項目は残し、空だけ埋める」ので、正しく使っている
+ * 人の見え方は変わらない。
+ */
+export function fillReaderExplanation(
+  existing: {
+    meaning?: string | null;
+    example_translation?: string | null;
+    extras?: unknown;
+    source?: string | null;
+  } | null,
+  incoming: ReaderRowContent,
+  readerLang: string,
+): ReaderRowWrite {
+  const meaningFits = (t: string) => readerMeaning(t, readerLang).trim().length > 0;
+  const textFits = (t: string) => readerText(t, readerLang).trim().length > 0;
+  if (!existing) return { kind: "insert", row: incoming };
+  if (existing.source === "verified") return { kind: "skip", reason: "verified" };
+  const patch: Partial<ReaderRowContent> = {};
+
+  const curMeaning = (existing.meaning ?? "").trim();
+  const nextMeaning = (incoming.meaning ?? "").trim();
+  if (nextMeaning && (!curMeaning || !meaningFits(curMeaning))) {
+    if (nextMeaning !== curMeaning) patch.meaning = nextMeaning;
+  }
+
+  const curTr = (existing.example_translation ?? "").trim();
+  const nextTr = (incoming.example_translation ?? "").trim();
+  if (nextTr && textFits(nextTr) && (!curTr || !textFits(curTr))) {
+    if (nextTr !== curTr) patch.example_translation = nextTr;
+  }
+
+  const prev =
+    existing.extras && typeof existing.extras === "object" && !Array.isArray(existing.extras)
+      ? (existing.extras as Record<string, unknown>)
+      : {};
+  const inc = incoming.extras ?? {};
+  if (hasExtrasContent(normalizeExtras(inc))) {
+    const prevLang = typeof prev.explain_lang === "string" ? prev.explain_lang.trim() : "";
+    const prevHas = hasExtrasContent(normalizeExtras(prev));
+    if (!prevHas || (prevLang && prevLang !== readerLang)) {
+      patch.extras = { ...prev, ...inc };
+    } else {
+      const out: Record<string, unknown> = { ...prev };
+      let changed = false;
+      for (const [k, v] of Object.entries(inc)) {
+        if (k === "explain_lang" || k === "explain_l1") {
+          if (!filledValue(prev[k]) && filledValue(v)) {
+            out[k] = v;
+            changed = true;
+          }
+          continue;
+        }
+        // 語だけで解説（note）が1つも無い関連語は「中身がある」に数えない
+        // （`keepShownFields` と同じ。2026-09-30 保溫瓶）。
+        const prevFilled = filledValue(prev[k]) && !(k === "related_words" && lacksNotes(prev[k]));
+        if (!filledValue(v) || prevFilled) continue;
+        out[k] = v;
+        changed = true;
+      }
+      if (changed) patch.extras = out;
+    }
+  }
+  return Object.keys(patch).length > 0
+    ? { kind: "update", patch }
+    : { kind: "skip", reason: "nothing" };
 }
 
 // --- 大きさの上限 ------------------------------------------------------------

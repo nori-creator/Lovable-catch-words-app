@@ -1836,8 +1836,10 @@ describe("ネットの画像は、届いてから並べる", () => {
     const fn = codeOnly(read("lib/images.functions.ts"));
     expect(fn).toMatch(/commonsSearchUrl\(data\.query\)/);
     expect(fn).toMatch(/source: "commons"/);
+    // 写真の候補が無い時の最後の控え（AI の1枚）は、コモンズを探した後。
+    // 2026-10-03 から控えの1枚は枠を確保してから作る（`optionalAiImage`）。
     expect(fn.indexOf("commonsSearchUrl")).toBeLessThan(
-      fn.indexOf("generateOneAiImage(data.query)"),
+      fn.lastIndexOf("optionalAiImage(data.query"),
     );
   });
 
@@ -4862,10 +4864,13 @@ describe("ホームは今日の誌面", () => {
     );
     // 2026-09-24「過去のものが多すぎで画面で確認できないから、過去のものは全て
     // 削除して」: 帯には**今回の依頼の面だけ**。
-    // 2026-10-03「アプリ内の広告が動く 機能するようにしたい」とベータの計測の回。
-    // 先頭は図鑑の一覧の広告。
-    expect(list.slice(0, list.indexOf("},"))).toMatch(/scene: "dex-ads"/);
-    for (const sc of ["home-ads", "review-end-ads", "settings-ads", "admin-beta"]) {
+    // 2026-10-03 仕様の穴（キャッチの演出・保存しました・昔の1枚）の回。先頭はキャッチの演出。
+    // その前の回（広告・ベータの計測）の面も、まだ見てもらう途中なので後ろに残す。
+    expect(list.slice(0, list.indexOf("},"))).toMatch(/scene: "catch-animation&plan=short"/);
+    for (const sc of ["settings-saved", "home-resurface", "catch-animation&plan=full"]) {
+      expect(list).toContain(`scene: "${sc}"`);
+    }
+    for (const sc of ["dex-ads", "home-ads", "review-end-ads", "settings-ads", "admin-beta"]) {
       expect(list).toContain(`scene: "${sc}"`);
     }
     expect(list).not.toMatch(/layout=/);
@@ -5627,8 +5632,11 @@ describe("Jev の使い方の約束（予定は Jev が決める: オーナー�
   it("**記録は待たない**（復習の返事を遅らせない）", () => {
     const grade = reviews.slice(reviews.indexOf("export const gradeReview"));
     const body = grade.slice(0, grade.indexOf("export const", 10));
-    expect(body).toMatch(/void logScheduleDecision\(/);
-    expect(body).toMatch(/void recordRecallShadow\(/);
+    // 投げっぱなしにはしない — Workers が返事の後に止めても落ちないよう、
+    // `runAfterResponse` が `waitUntil` に預ける（2026-10-03 監査）。
+    expect(body).toMatch(/shadowTasks\.push\(\(\) =>\s*logScheduleDecision\(/);
+    expect(body).toMatch(/shadowTasks\.push\(\(\) =>\s*recordRecallShadow\(/);
+    expect(body).toMatch(/await runAfterResponse\("review shadow log"/);
     // 記録の表を読んで判断を変える所はどこにも無い。
     for (const f of ["lib/reviews.functions.ts", "lib/ai.functions.ts", "lib/srs.ts"]) {
       expect([f, /model_shadow_predictions/.test(codeOnly(read(f)))]).toEqual([f, false]);
@@ -5807,16 +5815,22 @@ describe("キャッチの祝福の BGM（オーナー指示 2026-09-23）", () =
   const landing = codeOnly(read("components/CatchLanding.tsx"));
 
   it("浮き上がる間に溜め、止まる瞬間に打撃、語の後に二度目の山、着地で主音", () => {
-    expect(v5).toMatch(/root\.dataset\.stage = "lift";\s*Score\.build\(\);/);
-    expect(v5).toMatch(/root\.dataset\.stage = "break";\s*haptic\("success"\);\s*Score\.hit\(\);/);
-    expect(v5).toMatch(/root\.dataset\.stage = "reveal";\s*Score\.resolve\(\);/);
+    // 2026-10-03: BGM は「しっかり」の演出（節目・設定で選んだ人）だけ。普段の「短く」は
+    // 鳴らさない（`catch-animation-pref.ts`）。しっかりの時の流れはそのまま。
+    expect(v5).toMatch(/root\.dataset\.stage = "lift";\s*if \(!short\) Score\.build\(\);/);
+    expect(v5).toMatch(
+      /root\.dataset\.stage = "break";\s*haptic\("success"\);\s*if \(short\) Sound\.itemGlint\(\);\s*else Score\.hit\(\);/,
+    );
+    expect(v5).toMatch(
+      /root\.dataset\.stage = "reveal";\s*if \(short\) \{\s*await wait\(120\);\s*\} else \{\s*Score\.resolve\(\);/,
+    );
     // 着地は柔らかい音（R14「ドスンと強すぎる」）→ 着地の和音。
-    expect(v5).toMatch(/Sound\.softLand\(\);\s*Score\.land\(\);/);
+    expect(v5).toMatch(/Sound\.softLand\(\);\s*if \(!short\) Score\.land\(\);/);
   });
 
   it("語は打撃の後に、BGM を下げてから読む（発音を聞き取れることが先）", () => {
     expect(v5).toMatch(
-      /wait\(SCORE\.speechDelayMs\)\s*\.then\(\(\) => \{\s*Score\.duck\(true\);\s*return speakLine\?\.\(\);/,
+      /wait\(short \? 0 : SCORE\.speechDelayMs\)\s*\.then\(\(\) => \{\s*if \(!short\) Score\.duck\(true\);\s*return speakLine\?\.\(\);/,
     );
     expect(landing).toMatch(/Score\.duck\(true\);\s*return ctx\.speakLine\?\.\(\);/);
   });
@@ -6209,10 +6223,11 @@ describe("Pro: 単語の詳細の写真を 3D にする（R17）", () => {
     const hero = codeOnly(read("components/Object3DHero.tsx"));
     expect(hero).toMatch(/const cached = await readCached\(stickerId\);/);
     expect(hero).toMatch(/await c\.put\(/);
-    // サーバ側でも開発者か確かめる（画面の条件だけに頼らない）。2つの入口の両方で。
+    // サーバ側でも開発者か確かめる（画面の条件だけに頼らない）。作る2つの入口と、
+    // 進み具合を聞く入口（2026-10-03 監査で追加）の3つで。
     const fns = codeOnly(read("lib/object3d.functions.ts"));
     expect(fns.match(/if \(!object3dAllowed\(\{ isAdmin: Boolean\(isAdmin\) \}\)\)/g)?.length).toBe(
-      2,
+      3,
     );
     expect(fns).not.toMatch(/isProUser/);
   });

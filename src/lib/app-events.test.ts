@@ -31,7 +31,18 @@ describe("logAppEvent の許可リスト（ベータの計測）", () => {
   });
 
   it("accepts latency only on latency events, as a bounded integer", () => {
-    expect(LATENCY_EVENTS).toEqual(["candidates_shown"]);
+    // QA.md › Performance checks の4つ（2026-10-03）。
+    expect(LATENCY_EVENTS).toEqual([
+      "candidates_shown",
+      "meaning_shown",
+      "first_audio_played",
+      "catch_saved",
+    ]);
+    expect(AppEventInput.parse({ kind: "first_audio_played", ms: 420 })).toEqual({
+      kind: "first_audio_played",
+      ms: 420,
+    });
+    expect(() => AppEventInput.parse({ kind: "catch_started", ms: 10 })).toThrow();
     expect(AppEventInput.parse({ kind: "candidates_shown", ms: 2300 })).toEqual({
       kind: "candidates_shown",
       ms: 2300,
