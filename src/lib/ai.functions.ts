@@ -236,7 +236,6 @@ ${distinctionRule(profile.promptName, profile.capture.distinctionExamples)}
     }
     if (!content) throw new Error("AIから候補が返りませんでした。もう一度お試しください。");
 
-    await logUsage(context.supabase, context.userId, "suggest");
 
     try {
       const parsed = SuggestionSchema.parse(parseJsonFromAiText(content));
@@ -733,7 +732,6 @@ ${data.hintCategory ? `カテゴリのヒント: ${data.hintCategory}` : ""}`;
         /* keep the first result */
       }
     }
-    await logUsage(context.supabase, context.userId, "card");
     const resolvedHead = card.headword_zh?.trim() || data.headword;
 
     /**
@@ -916,7 +914,6 @@ export const generatePhraseCard = createServerFn({ method: "POST" })
         throw new Error("AI did not return a structured phrase card");
       }
     })();
-    await logUsage(context.supabase, context.userId, "phrase_card");
     return card;
   });
 
@@ -1503,7 +1500,6 @@ async function runSectionRegen(
     (word.extras ?? null) as Parameters<typeof mergeExtras>[0],
     extrasPatch as Parameters<typeof mergeExtras>[1],
   );
-  await logUsage(context.supabase, userId, "card");
   if (mode === "propose") {
     return {
       ok: true,

@@ -1,10 +1,14 @@
 import { createServerFn } from "@tanstack/react-start";
 import { internalFailure } from "./safe-error";
-import { DEFAULT_TARGET_LANGUAGE } from "./target-lang";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { z } from "zod";
-import { upsertWord } from "./stickers.functions";
-import { ExtrasSchema } from "./extras";
+import { CAPTION_MAX, upsertWord } from "./stickers.functions";
+import {
+  LOCATION_NAME_MAX,
+  LanguageCodeSchema,
+  STORAGE_PATH_MAX,
+  WordInputSchema,
+} from "./shared-word-guard";
 import { buildBranchPlan } from "./wordtree";
 
 /**
@@ -21,22 +25,13 @@ import { buildBranchPlan } from "./wordtree";
 // extras の形は src/lib/extras.ts の共有スキーマを使う。
 
 const GhostInput = z.object({
-  word: z.object({
-    headword: z.string().min(1),
-    reading_zhuyin: z.string().optional().default(""),
-    pinyin: z.string().optional().default(""),
-    meaning_ja: z.string().min(1),
-    part_of_speech: z.string().optional().default("名詞"),
-    level: z.string().optional().default("TOCFL-2"),
-    category_key: z.string().min(1),
-    example_sentence: z.string().optional().default(""),
-    example_translation: z.string().optional().default(""),
-    extras: ExtrasSchema.optional(),
+  // 語の形と上限は写真のキャッチと同じ物（`shared-word-guard.ts`）。
+  word: WordInputSchema.extend({
     entry_type: z.enum(["word", "phrase"]).default("word"),
   }),
-  language: z.string().default(DEFAULT_TARGET_LANGUAGE),
+  language: LanguageCodeSchema,
   capture_type: z.enum(["text", "voice"]),
-  caption: z.string().nullable().optional(),
+  caption: z.string().max(CAPTION_MAX).nullable().optional(),
   /**
    * どこで拾った言葉か。
    *
@@ -46,18 +41,18 @@ const GhostInput = z.object({
    * 場所で思い出す仕組み(`PlaceMemory`)も、地図の画面も、この経路の語だけ
    * 素通りしていた。
    */
-  location_name: z.string().nullable().optional(),
+  location_name: z.string().max(LOCATION_NAME_MAX).nullable().optional(),
   lat: z.number().nullable().optional(),
   lng: z.number().nullable().optional(),
   // B2: ユーザーが自分の画像を添付した場合の実写パス。設定されると
   // object_image_url が入り、そのカードはゴーストでなくなる(実物あり)。
-  object_path: z.string().nullable().optional(),
-  placeholder_path: z.string().nullable().optional(),
+  object_path: z.string().max(STORAGE_PATH_MAX).nullable().optional(),
+  placeholder_path: z.string().max(STORAGE_PATH_MAX).nullable().optional(),
   placeholder_credit: z
     .object({
-      name: z.string().optional(),
-      link: z.string().optional(),
-      source: z.string(),
+      name: z.string().max(300).optional(),
+      link: z.string().max(2_000).optional(),
+      source: z.string().max(100),
     })
     .nullable()
     .optional(),

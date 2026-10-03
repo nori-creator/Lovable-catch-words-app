@@ -14,7 +14,6 @@ import {
   explanationLanguageName,
   l1Rule,
   isProUser,
-  logUsage,
   getUserTargetLanguage,
 } from "./ai-provider.server";
 import { targetProfile } from "./target-profile";
@@ -206,7 +205,6 @@ export const correctMyJournal = createServerFn({ method: "POST" })
         throw internalFailure("journal", error, "日記を保存できませんでした");
       }
     }
-    await logUsage(supabase, userId, "correction");
     return inserted as JournalEntry;
   });
 
@@ -390,7 +388,6 @@ export const getJournalPrompts = createServerFn({ method: "GET" })
         `**書き出しの形**(穴埋めできる形)、ja はどんなときに使うかの一言(${NL})。`,
     });
 
-    await logUsage(supabase, userId, "journal_prompt");
 
     // **番号は信じきらない。** 範囲外なら結び付けを諦めて null にする —
     // 間違った1枚を指すより、指さないほうが害が小さい。

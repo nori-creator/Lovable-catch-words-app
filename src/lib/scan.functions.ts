@@ -15,7 +15,6 @@ import {
   getAi,
   getAiFor,
   getAiRuntime,
-  logUsage,
 } from "./ai-provider.server";
 import { normalizeDetection } from "./scan-detect-parse";
 import { targetProfile, type CoachPhrases } from "./target-profile";
@@ -210,7 +209,6 @@ export const detectScan = createServerFn({ method: "POST" })
     }
     const parsed = { items: found };
 
-    await logUsage(supabase, userId, "scan_detect");
 
     // **返ってきた物を実際に絞る。** プロンプトには「名詞だけ」と書いてあるが、
     // 書いてあることと返ってくる物は別(この app で何度も踏んでいる)。
@@ -343,7 +341,6 @@ export const detectParts = createServerFn({ method: "POST" })
     if (!partItems) throw new Error("AI did not return valid parts JSON");
     const parsed = { items: partItems };
 
-    await logUsage(context.supabase, context.userId, "scan_parts");
 
     // 部品の候補も名詞だけ(上の検出と同じ約束)。学習言語の字の語だけ(同じく)。
     parsed.items = keepTargetHeadwords(

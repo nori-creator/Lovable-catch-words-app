@@ -7,7 +7,6 @@ import {
   assertWithinDailyCap,
   getAiFor,
   getUserTargetLanguage,
-  logUsage,
 } from "./ai-provider.server";
 import { targetProfile, type WordbookPhrases } from "./target-profile";
 import { nextSrs } from "./srs";
@@ -145,7 +144,6 @@ export const extractWordbook = createServerFn({ method: "POST" })
       throw new Error("単語帳の形が読み取れませんでした。もう一度撮ってみてください。");
     }
 
-    await logUsage(supabase, userId, "wordbook");
     const entries = cleanWordbookEntries(parsed.entries, undefined, target);
     if (entries.length === 0) {
       throw new Error(

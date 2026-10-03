@@ -9,6 +9,7 @@ import {
   NativeAiRequest,
   bearerToken,
   isDailyCapError,
+  nativeAiEnabled,
 } from "@/lib/native-ai";
 
 /**
@@ -18,11 +19,22 @@ import {
  * （Web 版と同じ寛容な読み取りを Swift に移植済み）。
  * 失敗時は `{ "error": "利用者に見せてよい日本語" }` と状態コード
  * （401 未ログイン / 400 形が違う / 429 上限 / 502 AI 側の失敗）。
+ *
+ * ## 既定では閉じてある（監査 2026-10-03）
+ * ログインした人なら**誰でも好きな指示文を送れる** AI の中継になっていた（費用は
+ * こちら持ち）。この repo の中で呼んでいる画面は無い（Web 版・`android/`・
+ * `docs/ios-spec` を確認。iOS の設計は `/api/v1/*` の機能ごとの口で、指示文は
+ * サーバが組む — `docs/ios-spec/00-architecture.md`）。なのでサーバの環境変数
+ * `NATIVE_AI_ENABLED=1` が無い限り 404 を返す。iOS 版で使うことになったら、開ける前に
+ * 自由な指示文をやめ、用途ごとにサーバで指示文を組む形にすること。
  */
 export const Route = createFileRoute("/api/native-ai")({
   server: {
     handlers: {
       POST: async ({ request }) => {
+        if (!nativeAiEnabled(process.env.NATIVE_AI_ENABLED)) {
+          return new Response("Not Found", { status: 404 });
+        }
         const token = bearerToken(request.headers.get("authorization"));
         if (!token) return fail(401, "ログインし直してください。");
 
@@ -71,7 +83,7 @@ export const Route = createFileRoute("/api/native-ai")({
             });
             return r.text;
           });
-          await ai.logUsage(supabase, userId, kind);
+          // 上限の数え方は呼ぶ前に済ませてある（`assertWithinDailyCap` が1回ぶんを確保する）。
           return Response.json({ text });
         } catch (e) {
           console.warn(`[native-ai] ${input.feature} failed: ${(e as Error)?.message}`);

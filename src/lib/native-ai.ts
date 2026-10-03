@@ -66,7 +66,21 @@ export function bearerToken(header: string | null): string | null {
   return m ? m[1] : null;
 }
 
-/** 1日の上限に達したときの文言か（429 で返すため）。 */
+/** 1日の上限（その人の上限・全体の上限）に達したときの失敗か（429 で返すため）。 */
 export function isDailyCapError(e: unknown): boolean {
-  return e instanceof Error && e.message.includes("1日の利用上限");
+  return (
+    e instanceof Error &&
+    (e.message.includes("1日の利用上限") ||
+      e.message.includes("AI_DAILY_CAP") ||
+      e.message.includes("AI_GLOBAL_CAP"))
+  );
+}
+
+/**
+ * この窓口を開けてよいか。**既定は閉じる**（監査 2026-10-03。`routes/api.native-ai.ts` の注）。
+ * サーバの環境変数 `NATIVE_AI_ENABLED` が `1` / `true` のときだけ開く。
+ */
+export function nativeAiEnabled(flag: string | undefined | null): boolean {
+  const v = (flag ?? "").trim().toLowerCase();
+  return v === "1" || v === "true";
 }

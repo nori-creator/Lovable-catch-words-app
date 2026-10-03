@@ -1,0 +1,236 @@
+import { z } from "zod";
+import { ExtrasSchema, hasExtrasContent, normalizeExtras } from "./extras";
+import { DEFAULT_TARGET_LANGUAGE } from "./target-lang";
+
+/**
+ * **共有の語（`words`）を、利用者の送った中身で書き換えさせない関所**（監査 2026-10-03）。
+ *
+ * `words` は `(language, headword)` で全員が同じ1行を見る。書くのはサーバ（service role）
+ * だけだが、中身は画面が送ってくる（`updateWordExtras` の `patch` / `extras`、
+ * `saveSticker` → `upsertWord` の `word.extras`）。前は「その語の札を持っている」ことしか
+ * 確かめていなかったので、札を1枚持てば**他人のカードの意味・例文・読みを好きな文に
+ * 書き換えられた**。
+ *
+ * ここで決める約束（サーバが守る。画面の `shouldWriteSharedColumns` は送る量を減らすだけ）:
+ * - 共有の列（意味・読み・品詞・級・例文・例文訳）は**いま空の列だけ埋めてよい**。
+ *   埋まっている列は誰の送った物でも上書きしない。人が確かめた語（`verified`）は一切触らない。
+ * - 共有の `extras` も同じ。空の解説なら丸ごと入れてよいが、中身がある解説には
+ *   **同じ言語で空の項目だけ**を足す（別の言語の解説を混ぜない）。
+ * - 読む人ごとの解説（`word_explanations`）は書き換えてよいが、大きさに上限を置く。
+ *
+ * 報告からの直し（`reportAndFixSection`）と項目の作り直し（`regenerateCardSection`）は
+ * サーバが自分で作って確かめた物を書く別の道なので、ここは通らない。
+ */
+
+/** 共有の語の、正としての列。 */
+export const SHARED_WORD_COLUMNS = [
+  "meaning_ja",
+  "reading_zhuyin",
+  "pinyin",
+  "part_of_speech",
+  "level",
+  "example_sentence",
+  "example_translation",
+] as const;
+export type SharedWordColumn = (typeof SHARED_WORD_COLUMNS)[number];
+
+const filledText = (v: unknown): boolean => typeof v === "string" && v.trim().length > 0;
+
+const filledValue = (v: unknown): boolean =>
+  Array.isArray(v)
+    ? v.length > 0
+    : typeof v === "string"
+      ? v.trim().length > 0
+      : v != null && !(typeof v === "object" && Object.keys(v as object).length === 0);
+
+/**
+ * 共有の列のうち、**書いてよい分だけ**を返す。
+ *
+ * - 人が確かめた語（`verified`）は何も書かない
+ * - いま空の列だけ、送られた空でない値で埋める
+ * - 知らない鍵は捨てる（`SHARED_WORD_COLUMNS` だけ）
+ */
+export function fillEmptySharedColumns(
+  current: Partial<Record<SharedWordColumn, string | null | undefined>> | null | undefined,
+  patch: Partial<Record<string, string | null | undefined>> | null | undefined,
+  opts: { verified: boolean },
+): Partial<Record<SharedWordColumn, string>> {
+  const out: Partial<Record<SharedWordColumn, string>> = {};
+  if (!patch || opts.verified) return out;
+  for (const col of SHARED_WORD_COLUMNS) {
+    const next = patch[col];
+    if (!filledText(next)) continue;
+    if (filledText(current?.[col])) continue;
+    out[col] = (next as string).trim();
+  }
+  return out;
+}
+
+/** 解説の言語の目印。空なら古いデータの既定（日本語）。 */
+function extrasLanguage(e: Record<string, unknown>): string {
+  const v = e.explain_lang;
+  return (typeof v === "string" && v.trim()) || "ja";
+}
+
+/**
+ * 共有の `extras` に**足してよい分だけ**を足した全体を返す。変わらなければ null。
+ *
+ * - 送られた解説が空 → 何もしない
+ * - いまの共有の解説が空 → 送られた物を入れる（初めての解説。知らない鍵は残す）
+ * - いまの共有の解説に中身があり、言語が違う → 何もしない（混ぜると読めない言語が出る。
+ *   その人向けの解説は `word_explanations` に入る）
+ * - 同じ言語 → **空の項目だけ**埋める。埋まっている項目は上書きしない
+ */
+export function fillEmptySharedExtras(
+  prevRaw: unknown,
+  incoming: Record<string, unknown> | null | undefined,
+): Record<string, unknown> | null {
+  if (!incoming || !hasExtrasContent(normalizeExtras(incoming))) return null;
+  const prev =
+    prevRaw && typeof prevRaw === "object" && !Array.isArray(prevRaw)
+      ? (prevRaw as Record<string, unknown>)
+      : {};
+  if (!hasExtrasContent(normalizeExtras(prev))) return { ...prev, ...incoming };
+  if (extrasLanguage(prev) !== extrasLanguage(incoming)) return null;
+  const out: Record<string, unknown> = { ...prev };
+  let changed = false;
+  for (const [k, v] of Object.entries(incoming)) {
+    if (k === "explain_lang" || k === "explain_l1") continue;
+    if (!filledValue(v) || filledValue(prev[k])) continue;
+    out[k] = v;
+    changed = true;
+  }
+  return changed ? out : null;
+}
+
+// --- 大きさの上限 ------------------------------------------------------------
+
+/**
+ * 画面から届く解説（extras）の大きさの上限。今の一番大きいカード（全項目・追加例文・型の
+ * 入れ替え候補つき）の数倍に置く。超えた物は**断る**（黙って切ると半端な解説が残る）。
+ */
+export const EXTRAS_LIMITS = {
+  /** 1つの文字列の長さ。 */
+  maxStringChars: 4_000,
+  /** 1つの配列の長さ。 */
+  maxArrayItems: 100,
+  /** 1つの入れ物の鍵の数。 */
+  maxObjectKeys: 120,
+  /** 入れ子の深さ（extras → 追加例文 → 型 → 部品 → 入れ替え候補 で 8）。 */
+  maxDepth: 10,
+  /** 全体を JSON にした長さ。 */
+  maxTotalChars: 100_000,
+} as const;
+
+export type JsonLimits = { [K in keyof typeof EXTRAS_LIMITS]: number };
+
+/** 上限を超えた所の説明。収まっていれば null。 */
+export function jsonBoundsProblem(
+  value: unknown,
+  limits: JsonLimits = EXTRAS_LIMITS,
+): string | null {
+  const walk = (v: unknown, depth: number, path: string): string | null => {
+    if (depth > limits.maxDepth) return `${path}: too deep`;
+    if (typeof v === "string") {
+      return v.length > limits.maxStringChars ? `${path}: string too long` : null;
+    }
+    if (Array.isArray(v)) {
+      if (v.length > limits.maxArrayItems) return `${path}: too many items`;
+      for (let i = 0; i < v.length; i++) {
+        const p = walk(v[i], depth + 1, `${path}[${i}]`);
+        if (p) return p;
+      }
+      return null;
+    }
+    if (v && typeof v === "object") {
+      const entries = Object.entries(v as Record<string, unknown>);
+      if (entries.length > limits.maxObjectKeys) return `${path}: too many keys`;
+      for (const [k, child] of entries) {
+        if (k.length > 100) return `${path}: key too long`;
+        const p = walk(child, depth + 1, `${path}.${k}`);
+        if (p) return p;
+      }
+      return null;
+    }
+    return null;
+  };
+  const shape = walk(value, 0, "extras");
+  if (shape) return shape;
+  let total = 0;
+  try {
+    total = JSON.stringify(value ?? null)?.length ?? 0;
+  } catch {
+    return "extras: not serialisable";
+  }
+  return total > limits.maxTotalChars ? "extras: too large" : null;
+}
+
+/** 大きさを確かめてから、いつもの extras の形に直す。 */
+export const BoundedExtrasSchema = z
+  .unknown()
+  .superRefine((v, ctx) => {
+    const problem = jsonBoundsProblem(v);
+    if (problem) ctx.addIssue({ code: "custom", message: problem });
+  })
+  .pipe(ExtrasSchema);
+
+// --- 語の入力の形（保存の道で共有）-------------------------------------------
+
+/**
+ * 文字列の上限。画面で作る値の数倍に置く — キャッチの保存は止めてはいけない道なので、
+ * 普通の値が引っかかる幅にはしない（巨大な値で共有の行を膨らませないための蓋）。
+ */
+export const WORD_TEXT_LIMITS = {
+  headword: 100,
+  reading: 500,
+  meaning: 1_000,
+  partOfSpeech: 100,
+  level: 60,
+  categoryKey: 64,
+  example: 2_000,
+  language: 16,
+} as const;
+
+/** 写真のキャッチ・文字や声のキャッチが送る語（`upsertWord` に渡る形）。 */
+export const WordInputSchema = z.object({
+  headword: z.string().min(1).max(WORD_TEXT_LIMITS.headword),
+  reading_zhuyin: z.string().max(WORD_TEXT_LIMITS.reading).optional().default(""),
+  pinyin: z.string().max(WORD_TEXT_LIMITS.reading).optional().default(""),
+  meaning_ja: z.string().min(1).max(WORD_TEXT_LIMITS.meaning),
+  part_of_speech: z.string().max(WORD_TEXT_LIMITS.partOfSpeech).optional().default("名詞"),
+  level: z.string().max(WORD_TEXT_LIMITS.level).optional().default("TOCFL-2"),
+  category_key: z.string().min(1).max(WORD_TEXT_LIMITS.categoryKey),
+  example_sentence: z.string().max(WORD_TEXT_LIMITS.example).optional().default(""),
+  example_translation: z.string().max(WORD_TEXT_LIMITS.example).optional().default(""),
+  extras: BoundedExtrasSchema.optional(),
+});
+
+/** 写真の置き場所（`<uid>/<時刻>-object.jpg` など）の長さ。 */
+export const STORAGE_PATH_MAX = 512;
+/** 地名の長さ。 */
+export const LOCATION_NAME_MAX = 300;
+
+/** 学習言語（`zh-TW` / `en` …）。 */
+export const LanguageCodeSchema = z
+  .string()
+  .max(WORD_TEXT_LIMITS.language)
+  .default(DEFAULT_TARGET_LANGUAGE);
+
+/** `updateWordExtras` の `patch`（共有の列。空の列を埋めるときだけ使われる）。 */
+export const SharedColumnsPatchSchema = z.object({
+  reading_zhuyin: z.string().max(WORD_TEXT_LIMITS.reading).optional(),
+  pinyin: z.string().max(WORD_TEXT_LIMITS.reading).optional(),
+  part_of_speech: z.string().max(WORD_TEXT_LIMITS.partOfSpeech).optional(),
+  level: z.string().max(WORD_TEXT_LIMITS.level).optional(),
+  example_sentence: z.string().max(WORD_TEXT_LIMITS.example).optional(),
+  example_translation: z.string().max(WORD_TEXT_LIMITS.example).optional(),
+  meaning_ja: z.string().max(WORD_TEXT_LIMITS.meaning).optional(),
+});
+
+/**
+ * 解説の行の鍵（`explain_lang` / `explain_l1`）として受け付ける形。言語の符号だけ
+ * （`ja` / `en` / `zh-TW` / `ko` …）。それ以外の値で行を作らせない。
+ */
+export function isExplanationLangCode(v: unknown): boolean {
+  return typeof v === "string" && (v === "" || /^[a-z]{2,3}(-[A-Za-z]{2,4})?$/.test(v));
+}
