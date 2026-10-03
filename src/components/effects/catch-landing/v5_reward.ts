@@ -50,7 +50,15 @@ export const v5reward: LandingRunner = async ({
   getDestinationId,
   openDex,
   gate,
+  intensity = "full",
 }) => {
+  /**
+   * **普段のキャッチは短く**（`lib/catch-animation-pref.ts`）。同じ動きの流れのまま、
+   * BGM（溜め・打撃・解決）・紙吹雪・光の輪を省き、間を詰める。語は必ず読み、
+   * 読み終わるまでは次へ進まない（発音が芯）。
+   */
+  const short = intensity === "short";
+  const ms = (full: number, brief: number) => (short ? brief : full);
   const root = document.getElementById("reward-catch");
   if (!root || !startEl || !fly) {
     speakLine?.();
@@ -103,25 +111,29 @@ export const v5reward: LandingRunner = async ({
   // 0–120ms release; 120–600ms entrance + signature; 600ms name/voice;
   // voice end: glint 180ms + 280ms afterglow; ascent 320ms; drop 240ms; bounce 560ms.
   root.dataset.stage = "grip";
+  root.dataset.intensity = short ? "short" : "full";
   // 着地の音（録った「シュッ→ドン」）を先に読み解いておく。着地まで2秒以上ある。
   // 弾ける瞬間の 3D の紙吹雪も、ここで読み始める（three.js は重いので、この演出の
   // 時にだけ読む）。0.6 秒後の「弾ける」には間に合う。
   // 2026-10-03: 読むだけでなく**ここで用意まで済ませる**（canvas・WebGL・材質の組み立て）。
   // 弾ける瞬間に組み立てていた時は、ここで主の処理が数秒固まっていた（UI 監査）。
-  const confetti = loadConfetti3d()
-    .then((m) => m.prepareConfetti3d({ from: { x: 0.5, y: 0.38 }, count: 120 }, 83, root))
-    .catch(() => null);
+  const confetti = short
+    ? Promise.resolve(null)
+    : loadConfetti3d()
+        .then((m) => m.prepareConfetti3d({ from: { x: 0.5, y: 0.38 }, count: 120 }, 83, root))
+        .catch(() => null);
   Sound.rewardGrip();
   haptic("selection");
   await fly.animate(
     [{ transform: "translateY(0) scale(1)" }, { transform: "translateY(-8px) scale(1.025)" }],
-    { duration: 120, easing: EASE_IOS, fill: "forwards" },
+    { duration: ms(120, 80), easing: EASE_IOS, fill: "forwards" },
   ).finished;
 
   root.dataset.stage = "lift";
   // 祝福の BGM（`celebration-score.ts`）。浮き上がる間に溜め、止まる瞬間に解放。
-  Score.build();
-  haptic("medium");
+  // 短い版は鳴らさない（毎回の BGM は2回目から待ち時間に聞こえる）。
+  if (!short) Score.build();
+  haptic(short ? "light" : "medium");
   await fly.animate(
     [
       { transform: "translateY(-8px) scale(1.025)" },
@@ -131,21 +143,23 @@ export const v5reward: LandingRunner = async ({
       },
       { transform: `translate(${heroX}px,${heroY}px) scale(${heroScale}) rotate(0deg)` },
     ],
-    { duration: 480, easing: "cubic-bezier(.16,.8,.22,1)", fill: "forwards" },
+    { duration: ms(480, 340), easing: "cubic-bezier(.16,.8,.22,1)", fill: "forwards" },
   ).finished;
 
   root.dataset.stage = "break";
   haptic("success");
-  Score.hit();
+  if (short) Sound.itemGlint();
+  else Score.hit();
   // 札の後ろから、光を受けて明滅する本物の紙と金の箔が弾ける（`confetti3d.ts`）。
   // 演出の層の中で、札（z 84）の後ろ・光の粒（z 83）の手前に置く。WebGL が無ければ
   // 何も出さない（今まで通り）。
   void confetti.then((ready) => ready?.fire());
   // **語は打撃の響きが引いてから読む**。読む間は BGM を 20dB 下げる
   // （発音を聞き取れることが、このアプリでいちばん大事）。
-  const spoken = wait(SCORE.speechDelayMs)
+  // 短い版は BGM が無いので、待たずに読む。
+  const spoken = wait(short ? 0 : SCORE.speechDelayMs)
     .then(() => {
-      Score.duck(true);
+      if (!short) Score.duck(true);
       return speakLine?.();
     })
     .catch(() => {});
@@ -158,24 +172,29 @@ export const v5reward: LandingRunner = async ({
       },
       { transform: `translate(${heroX}px,${heroY}px) scale(${heroScale})` },
     ],
-    { duration: 280, easing: EASE_IOS, fill: "forwards" },
+    { duration: ms(280, 200), easing: EASE_IOS, fill: "forwards" },
   ).finished;
   // Keep burst running, and don't leave while the word is still being read.
   await Promise.race([spoken, wait(2600)]);
   root.dataset.stage = "reveal";
-  // 二度目の山: ソの和音からドの和音へ（BGM もここで元の大きさに戻る）。
-  Score.resolve();
-  Sound.itemGlint();
-  haptic("light");
-  await fly.animate(
-    [
-      { filter: "brightness(1) drop-shadow(0 22px 30px #0008)" },
-      { filter: "brightness(1.45) drop-shadow(0 0 26px #90edff99)", offset: 0.35 },
-      { filter: "brightness(1) drop-shadow(0 22px 30px #0008)" },
-    ],
-    { duration: 180, easing: "ease-out" },
-  ).finished;
-  await wait(280);
+  if (short) {
+    // 短い版は二度目の山を省く。読み終えたら一息だけ置いて渡る。
+    await wait(120);
+  } else {
+    // 二度目の山: ソの和音からドの和音へ（BGM もここで元の大きさに戻る）。
+    Score.resolve();
+    Sound.itemGlint();
+    haptic("light");
+    await fly.animate(
+      [
+        { filter: "brightness(1) drop-shadow(0 22px 30px #0008)" },
+        { filter: "brightness(1.45) drop-shadow(0 0 26px #90edff99)", offset: 0.35 },
+        { filter: "brightness(1) drop-shadow(0 22px 30px #0008)" },
+      ],
+      { duration: 180, easing: "ease-out" },
+    ).finished;
+    await wait(280);
+  }
   if (gate) {
     // Slow storage must not leave a frozen reward image. Do not claim a landing
     // until persistence succeeds; keep the photo gently airborne while it waits.
@@ -291,7 +310,7 @@ export const v5reward: LandingRunner = async ({
           { transform: "translate(0,0) scale(1)" },
           { transform: `translate(${apexX}px,${apexY}px) scale(.82) rotate(-5deg)` },
         ],
-        { duration: 320, easing: "cubic-bezier(.12,.8,.22,1)", fill: "forwards" },
+        { duration: ms(320, 240), easing: "cubic-bezier(.12,.8,.22,1)", fill: "forwards" },
       ).finished,
       ...backgroundMotion,
     ]);
@@ -304,12 +323,12 @@ export const v5reward: LandingRunner = async ({
         { transform: `translate(${apexX}px,${apexY}px) scale(.82) rotate(-5deg)` },
         { transform: `translate(${dx}px,${dy}px) scale(${sx},${sy}) rotate(0deg)` },
       ],
-      { duration: 240, easing: "cubic-bezier(.65,0,1,.45)", fill: "forwards" },
+      { duration: ms(240, 200), easing: "cubic-bezier(.65,0,1,.45)", fill: "forwards" },
     ).finished;
 
     handoff.dataset.stage = "impact";
     Sound.softLand();
-    Score.land();
+    if (!short) Score.land();
     haptic("light");
     /**
      * **着地した瞬間に、本物の札へ入れ替える**（オーナー指示 2026-09-28「着地すると
@@ -348,7 +367,7 @@ export const v5reward: LandingRunner = async ({
           { transform: "scale(1.01, 0.99)", offset: 0.75 },
           { transform: "scale(1, 1)" },
         ],
-        { duration: 460, easing: "cubic-bezier(.2,.9,.3,1)" },
+        { duration: ms(460, 340), easing: "cubic-bezier(.2,.9,.3,1)" },
       ).finished;
     } finally {
       target.style.transformOrigin = origin;
@@ -363,5 +382,6 @@ export const v5reward: LandingRunner = async ({
     // 覆いの層は呼ぶ側が畳むので普通は残らないが、畳まれなかったときに
     // 透明のまま次の演出に入らないよう、掴んだ見た目は返しておく。
     root.style.opacity = "";
+    delete root.dataset.intensity;
   }
 };

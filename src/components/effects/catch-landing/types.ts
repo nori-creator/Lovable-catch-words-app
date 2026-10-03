@@ -47,6 +47,12 @@ export type LandingCtx = {
   getDestinationId?: () => string | undefined;
   /** 最大表示のまま図鑑を背後に開く。 */
   openDex?: () => void | Promise<void>;
+  /**
+   * 演出の大きさ（`lib/catch-animation-pref.ts`）。`short` は普段のキャッチ用:
+   * BGM・紙吹雪・光の輪を省き、間を詰める。**語はどちらでも読む。**
+   * 渡さなければ `full`（今までどおり）。
+   */
+  intensity?: "full" | "short";
 };
 
 export type LandingRunner = (ctx: LandingCtx) => Promise<void>;

@@ -1,6 +1,8 @@
 import { QueryClient } from "@tanstack/react-query";
 import { createRouter } from "@tanstack/react-router";
 import { routeTree } from "./routeTree.gen";
+import { registerCollectionReader } from "./lib/catch-animation-pref";
+import { STICKERS_KEY, type StickerList } from "./lib/sticker-pages";
 
 export const getRouter = () => {
   const queryClient = new QueryClient({
@@ -20,6 +22,17 @@ export const getRouter = () => {
         retryDelay: 800,
       },
     },
+  });
+
+  /**
+   * キャッチの演出が「今回は節目か」を知るための口（`catch-animation-pref.ts`）。
+   * 演出は React の外で走るので、一覧のキャッシュの読み方だけをここで渡す。
+   */
+  registerCollectionReader(() => {
+    const list = queryClient.getQueryData<StickerList>(STICKERS_KEY);
+    if (!list) return null;
+    const ids = new Set(list.items.map((s) => s.id));
+    return { count: Math.max(list.items.length, list.total ?? 0), has: (id) => ids.has(id) };
   });
 
   const router = createRouter({

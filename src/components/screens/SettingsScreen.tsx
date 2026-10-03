@@ -39,6 +39,15 @@ import { useEffect, useId, useLayoutEffect, useRef, useState, type ReactNode } f
 import { SlidingIndicator } from "@/components/SlidingIndicator";
 import { PickerRow } from "@/components/PickerRow";
 import { toast } from "sonner";
+import { SaveStatusPill } from "@/components/SaveStatus";
+import { settingsSaveStatus } from "@/lib/save-status";
+import {
+  CATCH_ANIMATION_EVENT,
+  DEFAULT_CATCH_ANIMATION,
+  readCatchAnimation,
+  writeCatchAnimation,
+  type CatchAnimationChoice,
+} from "@/lib/catch-animation-pref";
 import { useTheme } from "@/components/theme-provider";
 import { useReadingPref, setReadingPref, readingChoices } from "@/lib/phonetic";
 import { targetProfile } from "@/lib/target-profile";
@@ -676,6 +685,7 @@ export function SettingsPage() {
 
   async function handleSave() {
     setSaving(true);
+    settingsSaveStatus.saving();
     lastSavedEdit.current = userEdit.current;
     try {
       /**
@@ -751,14 +761,19 @@ export function SettingsPage() {
        * という、**いちばん追いにくい形**で壊れる。名指しで出す。
        */
       const skipped = (res as { skipped?: string[] } | undefined)?.skipped ?? [];
-      // **保存できた時は黙る**（変えるたびに自動で保存するので、毎回「保存
-      // しました」と出すと、それ自体が騒がしい）。落とした項目だけは名指しで言う。
+      // **保存できた時は小さく言う**（ARCHITECTURE「Preferences」の saved state）。
+      // トーストは毎回だと騒がしいので、上に浮かぶ小さな札（`SaveStatusPill`）が
+      // 2秒だけ「保存しました」と出す。落とした項目はトーストで名指しで言う。
       if (skipped.length > 0) {
+        settingsSaveStatus.settled();
         toast.warning(t("settings.savedPartly", { fields: skipped.join(", ") }), {
           duration: 8000,
         });
+      } else {
+        settingsSaveStatus.saved();
       }
     } catch (e) {
+      settingsSaveStatus.failed();
       toast.error(readable(e, t("settings.saveFailed")));
     } finally {
       setSaving(false);
@@ -797,6 +812,8 @@ export function SettingsPage() {
       {/* 束どうしは行どうし(12px)より**はっきり**離す。16px では 1.33 倍しか
           差が無く、4つの設定がひと続きの壁に見えていた(近いものほど近く)。 */}
       <div className="settings-page space-y-7 pb-24">
+        {/* 「保存しました」の札。高さ 0 なので並びは動かない。 */}
+        <SaveStatusPill />
         {/* 保存ボタンは置かない — 変えたらすぐ保存する（上の `edit` の注）。 */}
         {/* **プロフィールが一番上**（オーナー指示 2026-09-22）。
             撮影の束をここに置いていたので、名前と顔写真が2枚目に落ちていた。
@@ -905,6 +922,7 @@ export function SettingsPage() {
               onChange={(v) => {
                 setPhotoPrefState(v);
                 setPhotoPref(v);
+                settingsSaveStatus.saved();
               }}
               options={photoPrefOptions}
             />
@@ -939,6 +957,7 @@ export function SettingsPage() {
               onChange={(v) => {
                 setSelfieMode(v);
                 setSelfieCaptureEnabled(v);
+                settingsSaveStatus.saved();
               }}
             />
           </div>
@@ -959,7 +978,10 @@ export function SettingsPage() {
               cols={3}
               label={t("settings.theme")}
               value={theme}
-              onChange={setTheme}
+              onChange={(v) => {
+                setTheme(v);
+                settingsSaveStatus.saved();
+              }}
               options={[
                 { value: "light", label: t("settings.light") },
                 { value: "dark", label: t("settings.dark") },
@@ -967,6 +989,7 @@ export function SettingsPage() {
               ]}
             />
             <MotionToggleRow />
+            <CatchAnimationRow />
             <InstallAppCard />
             {/* ホームの壁紙。**選ぶ所はここだけ**（ホームの上の丸はやめた —
                 オーナー指示 2026-09-23）。押せば、その場で端末に残る。 */}
@@ -1411,8 +1434,59 @@ export function MotionToggleRow() {
     <ToggleRow
       label={t("settings.motion")}
       value={mode === "full"}
-      onChange={(on) => setChoice(on ? "full" : "reduce")}
+      onChange={(on) => {
+        setChoice(on ? "full" : "reduce");
+        settingsSaveStatus.saved();
+      }}
     />
+  );
+}
+
+/**
+ * **キャッチの演出**: しっかり・短く・オフ（`lib/catch-animation-pref.ts`。ROADMAP Phase 4）。
+ * 上の「アニメーション」（画面全体の動き）とは別の選択。端末ごとの設定（`localStorage`）。
+ * どれを選んでも語は読む — 下の一言でそれを言う。
+ */
+export function CatchAnimationRow({ initial }: { initial?: CatchAnimationChoice } = {}) {
+  const t = useT();
+  const [choice, setChoiceState] = useState<CatchAnimationChoice>(
+    initial ?? DEFAULT_CATCH_ANIMATION,
+  );
+  // localStorage はサーバに無い。読み出しはマウント後に。
+  useEffect(() => {
+    if (initial) return;
+    const read = () => setChoiceState(readCatchAnimation());
+    read();
+    window.addEventListener(CATCH_ANIMATION_EVENT, read);
+    return () => window.removeEventListener(CATCH_ANIMATION_EVENT, read);
+  }, [initial]);
+  return (
+    <div>
+      <ChoiceRow
+        cols={3}
+        label={t("settings.catchAnimation")}
+        value={choice}
+        onChange={(v) => {
+          setChoiceState(v);
+          writeCatchAnimation(v);
+          settingsSaveStatus.saved();
+        }}
+        options={[
+          { value: "full", label: t("settings.catchAnimationFull") },
+          { value: "short", label: t("settings.catchAnimationShort") },
+          { value: "off", label: t("settings.catchAnimationOff") },
+        ]}
+      />
+      <p className="mt-1.5 text-caption leading-snug text-muted-foreground">
+        {t(
+          choice === "full"
+            ? "settings.catchAnimationFullDesc"
+            : choice === "short"
+              ? "settings.catchAnimationShortDesc"
+              : "settings.catchAnimationOffDesc",
+        )}
+      </p>
+    </div>
   );
 }
 
@@ -1628,6 +1702,7 @@ export function SoundAndHapticsPanel() {
   function pickLevel(v: SoundLevel) {
     setLevel(v);
     setLevelState(v);
+    settingsSaveStatus.saved();
     // 選んだ音量で実際に鳴らす。「控えめ」がどのくらい控えめかは、
     // 言葉で説明するより一度鳴らしたほうが早い。
     if (v !== "off") {
@@ -1639,6 +1714,7 @@ export function SoundAndHapticsPanel() {
   function toggleHaptics(v: boolean) {
     setHapticsEnabled(v);
     setHaptics(v);
+    settingsSaveStatus.saved();
     if (v) haptic("medium"); // 入れた瞬間に手ざわりを返す
   }
 

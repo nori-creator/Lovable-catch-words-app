@@ -30,6 +30,25 @@ Status: Web MVP v3
 Create one authoritative preferences abstraction.
 UI changes should autosave and expose lightweight saved/error state. Avoid parallel unsynchronized server/local/React-state sources.
 
+Saved/error state (2026-10-03): Settings shows a small inline "保存しました / Saved / 已儲存" pill for 2 s after a successful autosave (`src/lib/save-status.ts` + `src/components/SaveStatus.tsx`; height-0 sticky, no layout shift, `role="status"`). Server saves report saving → saved; a partial save (server dropped columns) stays silent and names the fields in a warning toast; a failure keeps the error toast. Device-local rows (theme, motion, catch animation, photo preference, selfie step, sound, haptics) report saved immediately.
+
+### Device-local preferences that affect learning (not synced across devices)
+
+These live only in `localStorage`, so a learner who switches phone/browser silently gets defaults. Not migrated yet (task 2026-10-03 only lists them); move to `profiles` when the single preferences abstraction lands.
+
+| Key | Module | Learning effect |
+|---|---|---|
+| `reading-pref-v1` (legacy `phonetic-pref-v1`) | `phonetic.tsx` | Zhuyin vs pinyin (or kana/romaji) shown everywhere — changes what the learner reads. |
+| `level-pref-v1` | `level-pref.ts` | Local copy of current/goal level; the screen trusts it over the server when the column is missing. Mirrored to `profiles`, but the device copy wins on read. |
+| `target-lang-v1`, `ui-lang-v1`, `lang-prefs-owner-v1` | `target-lang-pref.ts`, `i18n.tsx`, `use-language-prefs.ts` | Mirrored to `profiles` (reconciled on profile load); listed because the capture path reads the device copy before the profile arrives. |
+| `wordcard-prefs-v6` | `card-prefs.ts` | Which word-detail sections are shown/hidden and their order (what the learner studies on each card). |
+| `review-reminder-prefs-v1` | `review-reminder.ts` | Review reminder time/on-off (local notifications are per device by nature). |
+| `place-reminder-enabled` | `place-reminder.ts` | Place-based review prompts. |
+| `catch-animation-v1` | `catch-animation-pref.ts` | Full / short / off Catch celebration (pronunciation always plays). |
+| `photo-pref-v1`, `cw-selfie-capture` | `photo-pref.ts`, `product-features.ts` | Which photo is the memory cue; whether the selfie step follows a Catch. |
+| `home-resurface-v1` | `resurface.ts` | Which past word was resurfaced today / dismissed (another device may show a different one the same day). |
+| `motion`, `cw-sound-level`, `cw-haptics` | `motion-pref.ts`, `sound-engine.ts`, `haptics.ts` | Presentation only, but they decide whether celebration audio and pronunciation-adjacent cues are heard. |
+
 ## AI pipeline
 
 Use task-oriented interfaces rather than model names throughout UI/business logic.
