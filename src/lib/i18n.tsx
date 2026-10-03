@@ -480,6 +480,11 @@ export const DICT: Record<string, Record<UiLang, string>> = {
     en: "The trial is busy right now. Your photo is kept; please try again in a little while.",
     "zh-TW": "目前體驗人數較多。照片仍保留著，請稍後再試一次。",
   },
+  "first.trialFull": {
+    ja: "今日の体験の受け付けはいっぱいになりました。写真は残っています。明日もう一度試すか、アカウントを作ってアプリから使ってください。",
+    en: "Today's trial slots are full. Your photo is kept. Please try again tomorrow, or create an account to use the app.",
+    "zh-TW": "今天的體驗名額已滿。照片仍保留著。請明天再試一次，或註冊帳號後從 App 使用。",
+  },
   "first.storage": {
     ja: "この端末に保存できませんでした。空き容量やブラウザの保存設定を確認してください。",
     en: "Could not save on this device. Check free space and browser storage settings.",

@@ -5,8 +5,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
  * AI はすべて偽物（鍵が無い環境でも動く）。
  */
 const generateText = vi.fn();
+const reserveAiCallFor = vi.fn();
 vi.mock("ai", () => ({ generateText: (...args: unknown[]) => generateText(...args) }));
 vi.mock("./ai-provider.server", () => ({
+  reserveAiCallFor: (...args: unknown[]) => reserveAiCallFor(...args),
   getAiAttemptChain: vi.fn(async () => [
     { label: "lovable:google/gemini-3-flash-preview", model: { id: "primary" } },
     { label: "google:gemini-2.5-flash", model: { id: "backup" } },
@@ -73,6 +75,8 @@ function memberDb() {
 
 beforeEach(() => {
   generateText.mockReset();
+  reserveAiCallFor.mockReset();
+  reserveAiCallFor.mockResolvedValue({ usageId: 77 });
   adminDelete.mockReset();
   vi.spyOn(console, "warn").mockImplementation(() => {});
   vi.spyOn(console, "info").mockImplementation(() => {});
@@ -121,8 +125,10 @@ describe("first-catch AI attempts", () => {
     await vi.advanceTimersByTimeAsync(40_000);
     const error = await pending;
     expect(error.message).toBe("FIRST_CATCH_ANALYSIS_TIMEOUT");
-    // 予約は1回だけ（2番手の AI は同じ予約で動く）。
-    expect(inserted.filter((r) => r.table === "usage_events")).toHaveLength(1);
+    // 予約は1回だけ（2番手の AI は同じ予約で動く）。他の AI と同じ蓋（全体の枠を含む）で取る。
+    expect(reserveAiCallFor).toHaveBeenCalledTimes(1);
+    expect(reserveAiCallFor).toHaveBeenCalledWith("u1", "first_catch_ai");
+    expect(inserted.filter((r) => r.table === "usage_events")).toHaveLength(0);
     expect(adminDelete).toHaveBeenCalledWith("id", 77, "kind", "first_catch_ai");
     const log = inserted.find((r) => r.table === "ai_runs")?.row;
     expect(log).toMatchObject({ loop: "first_catch_ai", accepted: 0, iterations: 2 });
@@ -159,5 +165,21 @@ describe("first-catch AI attempts", () => {
       tokens_out: 6,
       meta: { ok: true, attempts: [{ outcome: "ok" }] },
     });
+  });
+
+  it.each([
+    ["AI_DAILY_CAP 1日の利用上限(24回)に達しました。", "FIRST_CATCH_LIMIT"],
+    ["AI_GLOBAL_CAP 本日のAIの利用が上限に達しました。", "FIRST_CATCH_TRIAL_FULL"],
+    ["AI_USAGE_CHECK_FAILED 利用回数を確認できませんでした。", "FIRST_CATCH_AI_UNAVAILABLE"],
+  ])("member: 枠で断られたら AI を呼ばず、画面のコードで返す（%s）", async (message, code) => {
+    reserveAiCallFor.mockRejectedValueOnce(new Error(message));
+    const { db, inserted } = memberDb();
+    const error = await executeFirstCatchAI(request, { userId: "u1", supabase: db }).then(
+      () => new Error("expected failure"),
+      (e: unknown) => e as Error,
+    );
+    expect(error.message).toBe(code);
+    expect(generateText).not.toHaveBeenCalled();
+    expect(inserted).toEqual([]);
   });
 });

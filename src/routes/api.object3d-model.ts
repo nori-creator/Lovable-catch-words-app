@@ -16,11 +16,16 @@ import {
  *   飛ばすと、`isAllowedModelUrl` を通らない場所を取りに行ってしまう。
  * - **大きさに上限**（`MAX_MODEL_BYTES`）。`content-length` で先に断り、流れてくる
  *   量も数えて超えたら止める。
+ * - **開発者だけ**（監査 2026-10-03）。`Authorization: Bearer` のトークンを確かめ、管理者で
+ *   なければ断る（`object3d-auth.server.ts`）。
  */
 export const Route = createFileRoute("/api/object3d-model")({
   server: {
     handlers: {
       GET: async ({ request }) => {
+        const { authorizeModelRequest } = await import("@/lib/object3d-auth.server");
+        const refused = await authorizeModelRequest(request);
+        if (refused) return refused;
         const url = new URL(request.url).searchParams.get("url") ?? "";
         if (!isAllowedModelUrl(url)) return new Response("not allowed", { status: 400 });
         try {

@@ -10,6 +10,8 @@ import {
   readImageConfig,
   resolveImageConfig,
 } from "./image-provider";
+import { MAX_PROXY_IMAGE_BYTES, readCappedBytes } from "./byte-cap";
+import { isAiCapError } from "./ai-cap";
 
 export type ImageCandidate = {
   url: string;
@@ -25,103 +27,155 @@ const SearchInput = z.object({
 });
 
 /**
+ * 絵を1枚作る前に、その人の枠を確保する（`image_gen`。`ai-cap.ts`）。
+ *
+ * **監査 2026-10-03 H3**: 前は絵の生成（1枚ごとに料金がかかる）に上限が無く、
+ * `purpose: "text-catch"` を送れば（iOS の `/api/native-fn` からも）何枚でも作らせられた。
+ * 今はその人の 24 時間の上限（登録した人 20 枚・匿名の人 2 枚）と、全体の 1 日の枠に数える。
+ */
+function imageGenReserver(userId: string): () => Promise<void> {
+  return async () => {
+    const { assertWithinDailyCap } = await import("./ai-provider.server");
+    await assertWithinDailyCap(userId, "image_gen");
+  };
+}
+
+/**
+ * 写真の候補に添える1枚（おまけ）。枠に届いた・数えられない時は**作らずに**写真の候補
+ * だけで続ける（画面の節は止めない）。
+ */
+async function optionalAiImage(
+  query: string,
+  reserve: () => Promise<void>,
+): Promise<ImageCandidate | null> {
+  try {
+    return await generateOneAiImage(query, reserve);
+  } catch (e) {
+    if (isAiCapError(e)) {
+      console.warn(
+        "image generation skipped (cap)",
+        e instanceof Error ? e.message.slice(0, 40) : "",
+      );
+      return null;
+    }
+    throw e;
+  }
+}
+
+/**
  * Search Unsplash for image candidates representing the given word.
  * Falls back to AI generation when Unsplash is unavailable or yields no result.
  */
 export const searchImageCandidates = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) => SearchInput.parse(input))
-  .handler(async ({ data }): Promise<{ candidates: ImageCandidate[] }> => {
-    // Typed catches use an original generated illustration, never stock photos.
-    if (data.purpose === "text-catch") {
-      const ai = await generateOneAiImage(data.query);
-      return { candidates: ai ? [ai] : [] };
-    }
-    const key = process.env.UNSPLASH_ACCESS_KEY;
-    const candidates: ImageCandidate[] = [];
-    const imageConfig = readImageConfig(process.env);
+  .handler(async ({ data, context }) => searchImagesWith(data, imageGenReserver(context.userId)));
 
-    // **AI を先に**（`IMAGE_SEARCH_MODE=ai-first`）。1枚作って先頭に置き、
-    // 後ろに写真の候補も並べる（AI が失敗しても写真で選べる）。
-    if (imageConfig.mode === "ai-first") {
-      const ai = await generateOneAiImage(data.query);
-      if (ai) candidates.push(ai);
-    }
+/**
+ * 候補を集める本体（試験から `reserve` を差し替えて呼べるように分けてある）。
+ * `reserve` は絵を作る直前に呼ぶ枠の確保（`imageGenReserver`）。
+ */
+export async function searchImagesWith(
+  data: z.infer<typeof SearchInput>,
+  reserve: () => Promise<void>,
+): Promise<{ candidates: ImageCandidate[] }> {
+  // Typed catches use an original generated illustration, never stock photos.
+  // 枠に届いた時は理由（上限の印）をそのまま返す（iOS は 429 になる）。
+  if (data.purpose === "text-catch") {
+    const ai = await generateOneAiImage(data.query, reserve);
+    return { candidates: ai ? [ai] : [] };
+  }
+  const key = process.env.UNSPLASH_ACCESS_KEY;
+  const candidates: ImageCandidate[] = [];
+  const imageConfig = readImageConfig(process.env);
 
-    if (key) {
-      try {
-        const url = new URL("https://api.unsplash.com/search/photos");
-        url.searchParams.set("query", data.query);
-        url.searchParams.set("per_page", "6");
-        url.searchParams.set("content_filter", "high");
-        url.searchParams.set("orientation", "squarish");
-        const res = await fetch(url.toString(), {
-          headers: { Authorization: `Client-ID ${key}`, "Accept-Version": "v1" },
-        });
-        if (res.ok) {
-          const json = (await res.json()) as {
-            results?: Array<{
-              urls: { regular: string; small: string };
-              user: { name: string; links: { html: string } };
-            }>;
-          };
-          for (const r of json.results ?? []) {
-            candidates.push({
-              url: r.urls.regular,
-              thumb: r.urls.small,
-              source: "unsplash",
-              credit: { name: r.user.name, link: r.user.links.html },
-            });
-          }
+  // **AI を先に**（`IMAGE_SEARCH_MODE=ai-first`）。1枚作って先頭に置き、
+  // 後ろに写真の候補も並べる（AI が失敗しても写真で選べる）。
+  if (imageConfig.mode === "ai-first") {
+    const ai = await optionalAiImage(data.query, reserve);
+    if (ai) candidates.push(ai);
+  }
+
+  if (key) {
+    try {
+      const url = new URL("https://api.unsplash.com/search/photos");
+      url.searchParams.set("query", data.query);
+      url.searchParams.set("per_page", "6");
+      url.searchParams.set("content_filter", "high");
+      url.searchParams.set("orientation", "squarish");
+      const res = await fetch(url.toString(), {
+        headers: { Authorization: `Client-ID ${key}`, "Accept-Version": "v1" },
+      });
+      if (res.ok) {
+        const json = (await res.json()) as {
+          results?: Array<{
+            urls: { regular: string; small: string };
+            user: { name: string; links: { html: string } };
+          }>;
+        };
+        for (const r of json.results ?? []) {
+          candidates.push({
+            url: r.urls.regular,
+            thumb: r.urls.small,
+            source: "unsplash",
+            credit: { name: r.user.name, link: r.user.links.html },
+          });
         }
-      } catch (e) {
-        console.warn("unsplash search failed", e);
       }
+    } catch (e) {
+      console.warn("unsplash search failed", e);
     }
+  }
 
-    /**
-     * **鍵の要らない出所を1つ持つ**(オーナー報告 2026-08-27 ④
-     * 「単語の詳細のネットの画像がよく表示されない」)。
-     *
-     * ここまでの出所は Unsplash（鍵が要る）だけで、控えは AI の生成
-     * （鍵と残高が要る）だけだった。どちらかが切れると候補は 0 件になり、
-     * 画面には「画像がありません」しか残らない。**切れ方が見えない**ので、
-     * 使う人には「よく出ない機能」としか映らない。
-     *
-     * コモンズは鍵が要らず、素性のはっきりした自由利用の画像がある。
-     * 街で見かける具体的な物には特に強い。読み替えは `commons-images.ts`。
-     */
-    if (candidates.every((c) => c.source === "ai")) {
-      try {
-        const res = await fetch(commonsSearchUrl(data.query), {
-          // コモンズは名乗らない相手を弾くことがある。
-          headers: { "User-Agent": "CatchWords/1.0 (language learning app)" },
-        });
-        if (res.ok) {
-          for (const c of commonsCandidates((await res.json()) as CommonsResponse)) {
-            candidates.push({ ...c, source: "commons" });
-          }
+  /**
+   * **鍵の要らない出所を1つ持つ**(オーナー報告 2026-08-27 ④
+   * 「単語の詳細のネットの画像がよく表示されない」)。
+   *
+   * ここまでの出所は Unsplash（鍵が要る）だけで、控えは AI の生成
+   * （鍵と残高が要る）だけだった。どちらかが切れると候補は 0 件になり、
+   * 画面には「画像がありません」しか残らない。**切れ方が見えない**ので、
+   * 使う人には「よく出ない機能」としか映らない。
+   *
+   * コモンズは鍵が要らず、素性のはっきりした自由利用の画像がある。
+   * 街で見かける具体的な物には特に強い。読み替えは `commons-images.ts`。
+   */
+  if (candidates.every((c) => c.source === "ai")) {
+    try {
+      const res = await fetch(commonsSearchUrl(data.query), {
+        // コモンズは名乗らない相手を弾くことがある。
+        headers: { "User-Agent": "CatchWords/1.0 (language learning app)" },
+      });
+      if (res.ok) {
+        for (const c of commonsCandidates((await res.json()) as CommonsResponse)) {
+          candidates.push({ ...c, source: "commons" });
         }
-      } catch (e) {
-        console.warn("commons search failed", e);
       }
+    } catch (e) {
+      console.warn("commons search failed", e);
     }
+  }
 
-    // Always offer at least one AI fallback option so user has a choice when
-    // photo search returns nothing or is unconfigured.
-    if (candidates.length === 0) {
-      const ai = await generateOneAiImage(data.query);
-      if (ai) candidates.push(ai);
-    }
+  // Always offer at least one AI fallback option so user has a choice when
+  // photo search returns nothing or is unconfigured.
+  if (candidates.length === 0) {
+    const ai = await optionalAiImage(data.query, reserve);
+    if (ai) candidates.push(ai);
+  }
 
-    return { candidates: candidates.slice(0, 6) };
-  });
+  return { candidates: candidates.slice(0, 6) };
+}
 
 /**
  * AI で1枚作る。**どこで作るかは設定で切り替える**（`image-provider.ts`）。
  * どこで失敗しても `null` — 画面は写真の候補だけで続ける。
+ *
+ * `reserve` は**料金のかかる窓口を呼ぶ直前に**1回だけ呼ぶ（枠の確保）。投げたら作らない
+ * （その失敗はそのまま投げる）。生成を切ってある（`off`）時は確保しない。
  */
-async function generateOneAiImage(query: string): Promise<ImageCandidate | null> {
+async function generateOneAiImage(
+  query: string,
+  reserve: () => Promise<void>,
+): Promise<ImageCandidate | null> {
   let override: { provider?: string; model?: string } | null = null;
   try {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -136,6 +190,7 @@ async function generateOneAiImage(query: string): Promise<ImageCandidate | null>
   }
   const config = resolveImageConfig(process.env, override);
   if (config.provider === "off") return null;
+  await reserve();
   if (config.provider === "openrouter") return generateWithOpenRouter(query, config.model);
   if (config.provider === "higgsfield") {
     const r = await generateWithHiggsfield(query, config.model);
@@ -236,7 +291,7 @@ async function generateWithHiggsfield(
     const ct = (img.headers.get("content-type") ?? "image/png").split(";")[0].trim();
     if (!img.ok || !ALLOWED_IMAGE_MIME.test(ct))
       return { ok: false, reason: "絵を受け取れませんでした", ms: r.ms };
-    const b64 = Buffer.from(new Uint8Array(await img.arrayBuffer())).toString("base64");
+    const b64 = Buffer.from(await readCappedBytes(img, MAX_PROXY_IMAGE_BYTES)).toString("base64");
     const url = `data:${ct};base64,${b64}`;
     return { ok: true, candidate: { url, thumb: url, source: "ai" }, ms: r.ms };
   } catch {
@@ -278,7 +333,8 @@ export const testImageGeneration = createServerFn({ method: "POST" })
         ms: Date.now() - started,
       };
     }
-    const one = await generateOneAiImage(data.query);
+    // 開発者の確かめ（管理者だけ）は利用者の枠に数えない。
+    const one = await generateOneAiImage(data.query, async () => {});
     return {
       provider: config.provider,
       model: config.model,
@@ -417,7 +473,9 @@ export const fetchImageAsDataUrl = createServerFn({ method: "POST" })
     if (!ALLOWED_IMAGE_MIME.test(ct)) {
       throw new Error("Response is not a permitted image type");
     }
-    const buf = new Uint8Array(await res.arrayBuffer());
+    // **大きさに上限**（監査 2026-10-03 L6）。許した置き場でも、とても大きい物を全部
+    // 読むとサーバの記憶を食い潰す（`byte-cap.ts`）。
+    const buf = await readCappedBytes(res, MAX_PROXY_IMAGE_BYTES);
     // base64 encode (Buffer is available in workers via nodejs_compat)
     const b64 = Buffer.from(buf).toString("base64");
     return { dataUrl: `data:${ct};base64,${b64}` };

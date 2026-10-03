@@ -2,6 +2,13 @@
  * 公開の口（`/api/native-ai`・`/api/object3d-model`）を、そのまま呼んで確かめる（監査 2026-10-03）。
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+// 3D の中継の本人確認（開発者だけ）は `ai-caps-audit.test.ts` で確かめる。ここでは通す/断るを差し替える。
+const authorize = vi.hoisted(() => ({ refuse: null as Response | null }));
+vi.mock("@/lib/object3d-auth.server", () => ({
+  authorizeModelRequest: async () => authorize.refuse,
+}));
+
 import { Route as NativeAi } from "@/routes/api.native-ai";
 import { Route as Object3dModel } from "@/routes/api.object3d-model";
 
@@ -14,6 +21,7 @@ const handler = (route: unknown, method: "GET" | "POST") =>
 const fetchMock = vi.fn();
 beforeEach(() => vi.stubGlobal("fetch", fetchMock));
 afterEach(() => {
+  authorize.refuse = null;
   vi.unstubAllGlobals();
   fetchMock.mockReset();
   delete process.env.NATIVE_AI_ENABLED;
@@ -40,6 +48,13 @@ describe("/api/object3d-model", () => {
   const url = (target: string) =>
     new Request(`https://app.example/api/object3d-model?url=${encodeURIComponent(target)}`);
   const allowed = "https://tripo-data.rg1.data.tripo3d.com/model/abc.glb";
+
+  it("開発者でなければ取りに行かない（監査 2026-10-03）", async () => {
+    authorize.refuse = new Response("unauthorized", { status: 401 });
+    const res = await handler(Object3dModel, "GET")({ request: url(allowed) });
+    expect(res.status).toBe(401);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
 
   it("転送を追わない設定で取りに行く", async () => {
     fetchMock.mockResolvedValue(new Response(new Uint8Array(10)));

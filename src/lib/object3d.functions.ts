@@ -170,13 +170,24 @@ export const startObject3d = createServerFn({ method: "POST" })
 /** Tripo の「クレジットが足りない」の番号（返事の `code`）。 */
 const TRIPO_NO_CREDIT = 2010;
 
-/** 頼んだ仕事の進み具合（数秒ごとに呼ぶ）。出来たら GLB を画面へ中継する場所を返す。 */
+/**
+ * 頼んだ仕事の進み具合（数秒ごとに呼ぶ）。出来たら GLB を画面へ中継する場所を返す。
+ *
+ * **開発者だけ**（監査 2026-10-03 L6）。始める・作るの2つと同じく確かめる。前はログイン
+ * した人なら誰でも、こちらの Tripo の鍵で好きな仕事の番号を問い合わせられた。
+ */
 export const checkObject3d = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) =>
     z.object({ taskId: z.string().regex(/^[A-Za-z0-9_-]{6,80}$/) }).parse(d),
   )
-  .handler(async ({ data }) => {
+  .handler(async ({ data, context }) => {
+    const { data: isAdmin } = await context.supabase.rpc("has_role", {
+      _user_id: context.userId,
+      _role: "admin",
+    });
+    if (!object3dAllowed({ isAdmin: Boolean(isAdmin) }))
+      return { status: "failed" as const, progress: 0 };
     const key = readTripoKey(process.env)?.key;
     if (!key) return { status: "failed" as const, progress: 0 };
     try {

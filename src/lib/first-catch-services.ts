@@ -24,6 +24,7 @@ export function ensureFirstCatchSession(): Promise<void> {
 /** 未登録用の窓口が「入口で」断ったときのコード(AIの中身の失敗はここに含めない)。 */
 const GUEST_REFUSALS = new Set([
   "FIRST_CATCH_LIMIT",
+  "FIRST_CATCH_TRIAL_FULL",
   "FIRST_CATCH_ORIGIN",
   "FIRST_CATCH_AI_UNAVAILABLE",
 ]);

@@ -533,7 +533,7 @@ export const markScanTap = createServerFn({ method: "POST" })
   .inputValidator((input: unknown) =>
     z
       .object({
-        headword: z.string().min(1),
+        headword: z.string().min(1).max(100),
         tap_to_audio_ms: z.number().int().nonnegative().optional(),
       })
       .parse(input),
@@ -561,7 +561,9 @@ export const markScanTap = createServerFn({ method: "POST" })
 
 export const markScanCaught = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => z.object({ headword: z.string().min(1) }).parse(input))
+  .inputValidator((input: unknown) =>
+    z.object({ headword: z.string().min(1).max(100) }).parse(input),
+  )
   .handler(async ({ data, context }) => {
     const { data: rows } = await context.supabase
       .from("scan_events")

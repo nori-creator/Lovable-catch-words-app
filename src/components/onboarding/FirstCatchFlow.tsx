@@ -452,6 +452,7 @@ function FirstCatchFlowInner({
       FIRST_CATCH_ANALYSIS_TIMEOUT: "first.analysisTimeout",
       FIRST_CATCH_GUEST_UNAVAILABLE: "first.guestUnavailable",
       FIRST_CATCH_LIMIT: "first.busy",
+      FIRST_CATCH_TRIAL_FULL: "first.trialFull",
       FIRST_CATCH_NO_WORDS: "first.noWords",
       FIRST_CATCH_AI_FORMAT: "first.aiFormat",
       FIRST_CATCH_STORAGE: "first.storage",
