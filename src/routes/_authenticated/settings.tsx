@@ -1813,7 +1813,7 @@ function ProPlanCard() {
 /**
  * **広告のオン・オフと出し方（開発者だけ）**（オーナー指示 2026-09-27「広告は開発者の
  * 私はオンオフできるようにして」）。決まりそのものは `lib/ad-policy.ts`。
- * オンにしても、AdMob（広告の部品）を入れるまで実際の広告は出ない（`docs/monetization.md`）。
+ * Web 版は AdSense の番号を入れるとオンの間だけ出る（`components/WebAdSlot.tsx`）。アプリ版は AdMob を入れるまで出ない（`docs/monetization.md`）。
  */
 function AdsPanel() {
   const t = useT();

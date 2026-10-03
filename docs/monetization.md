@@ -125,6 +125,14 @@ Pro を買う理由（続けたい気持ち）も育たない。お金がかか�
 **場所は後から変えられる:** 設定 → 開発者の欄「広告（開発者だけ）」→「広告を出す場所」で、
 場所ごとにオン・オフ、間隔の数を変えられる（保存先 `app_config.monetization`、1分以内に全員に効く）。
 
+**Web 版（2026-10-03 追加）:** 無料の Web 版には **Google AdSense** で同じ場所に広告を出す
+（§5-2）。違いは2つだけ:
+- 復習の束の区切りは、全画面ではなく**終わりの画面の下の枠**（AdSense には、アプリが好きな時に
+  出せる全画面が無い）。何束ごと・間隔・1日の上限は全画面と同じ数え方。
+- **ごほうび広告と「捕まえた後」の全画面は Web では出さない**（AdSense のごほうび広告は
+  「Offerwall」= ページを読むために見る形だけで、「見たら切り抜きが1枚増える」のようにアプリが
+  報酬を渡す使い方ができない）。
+
 **先に言っておくこと（部品の都合）:** アプリに入れる予定の広告の部品（`@capacitor-community/admob`）は、
 全画面・ごほうび・帯（バナー）は出せるが、**一覧に溶け込むネイティブ広告は出せない**。
 図鑑と日記の枠は、別の部品を足すか、帯の広告で代える必要がある（`src/lib/admob.ts` の注）。
@@ -153,8 +161,104 @@ Pro を買う理由（続けたい気持ち）も育たない。お金がかか�
      つながらない）。入れた後、実機で必ず確かめる。
 4. **App Store / Google Play の課金の商品**（月・年の Pro）を作る。課金の仕組みは RevenueCat
    などの仲介サービスを使うと、iPhone と Android をまとめて扱える（使うかは相談）。
-5. プライバシーポリシーと利用規約に「広告の配信（広告 ID の利用）」「課金・解約」の記載を足す。
+5. プライバシーポリシーと利用規約に「広告の配信（広告 ID の利用）」「課金・解約」の記載を足す
+   （Web 版の AdSense と Cookie の記載は 2026-10-03 に足した。§5-2）。
    iPhone は広告の追跡に本人の許可（ATT）が要る。
+
+## 5-2. Web 版に広告を出す（Google AdSense。2026-10-03 実装）
+
+**用語:**
+| 言葉 | 意味 |
+|---|---|
+| AdSense（アドセンス） | Google の、Web サイト向けの広告の仕組み（スマホアプリ向けは AdMob）。 |
+| サイト運営者 ID（`ca-pub-…`） | あなたの AdSense アカウントの番号。ページの中に必ず書かれる**公開の値**（秘密ではない）。 |
+| 広告ユニット（枠の番号） | 「この場所の広告」の番号（数字10桁ほど）。場所ごとに1つ作る。 |
+| ads.txt | 「このサイトの広告を売ってよいのはこの番号の人だけ」という表。サイトの一番上（`/ads.txt`）に置く。 |
+| 同意の画面（CMP） | 欧州（EEA）・英国・スイスの人に「広告に情報を使ってよいか」を聞く画面。Google の物を使う。 |
+
+### できていること（コード）
+
+- 枠の部品 `src/components/WebAdSlot.tsx`、出してよいかの決まり `src/lib/web-ads.ts`（試験 `web-ads.test.ts`）。
+- 出す場所: **図鑑の一覧**（アルバム・縦の一覧。`nativeEvery` 枚ごと）、**ホームの日記の間**
+  （`diaryEvery` 日ごと）、**復習の束の終わりの画面の下**（`batchesPerInterstitial` 束ごと・
+  `minGapMin` 分空ける・1日 `maxPerDay` 回まで）。数は今までの開発者の欄でそのまま変えられる。
+- **出さない:** スイッチがオフ／その場所がオフ／Pro の人／プランが読めない時／使い始めて
+  `graceDays` 日の間／iPhone・Android のアプリの中／撮る・スキャン・捕まえた直後の着地・
+  チュートリアル・初回の質問・ログイン・規約・プライバシー・設定の画面／番号が未設定の時。
+- 枠には「広告」（英語 Advertisements・繁體中文 廣告）と書く。ボタンから離して置き、高さを先に
+  取っておく（広告が来ても下がずれない）。AdSense の部品は**枠が画面に近づいた時に初めて読む**
+  （最初の表示は遅くならない）。読めない・広告が無い時は黙って枠ごと消える。
+- `/ads.txt` は番号から自動で作る（番号が無い間は 404）。偽の番号はリポジトリに置かない。
+- `robots.txt` で AdSense の読み取り役（`Mediapartners-Google`）だけは全部読めるようにした
+  （検索エンジン向けの Disallow はそのまま）。
+- プライバシーポリシー（日本語・英語。繁體中文の画面は英語版）に AdSense と Cookie の記載を足した。
+- 見た目の確認: 確認用ページの `?scene=web-ads`（終わりの画面の下）・`?scene=web-ads&variant=feed`（一覧の途中）。
+
+### あなたがやること（順番どおりに）
+
+1. **AdSense のアカウントを作る**: https://adsense.google.com/ を開き、Google アカウントで
+   申し込む。サイトの住所には公開しているアプリの住所（例 `https://catchwords.lovable.app`。
+   自分のドメインに移したならそちら）を入れる。支払い先・住所・税の情報も入れる。
+2. **サイト運営者 ID を控える**: AdSense →「アカウント」→「アカウント情報」の
+   「サイト運営者 ID」（`pub-` で始まる16桁）。コードで使うのは頭に `ca-` を付けた
+   `ca-pub-…`。
+3. **番号をアプリに入れる（1回目）**: Lovable のチャットにこう頼む（番号は自分の物に置き換え）:
+   > `.env` に `VITE_ADSENSE_CLIENT="ca-pub-1234567890123456"` を1行足して公開して
+   公開すると、`https://<アプリの住所>/ads.txt` に1行出るようになる（開いて確かめる）。
+   ※ Lovable の Cloud → Secrets ではなく `.env` に書く（ブラウザに配る値なので、組み立ての時に要る）。
+   秘密の値ではないので `.env` に入れてよい（`env-public.test.ts` で許可済み）。
+4. **サイトの審査に出す**: AdSense →「サイト」→ 自分のサイト →「審査をリクエスト」。
+   確認の方法は **ads.txt** を選べば手順3で済んでいる（「AdSense コード スニペット」を求められたら、
+   こちらに言えばページの頭に入れる）。審査は数日〜数週間。
+   **注意:** 審査は「ログインしなくても読める中身」を見る。トップページ（`/`）に、アプリの説明
+   など読める中身が十分にあるか確かめる（中身が薄いと「有用性の低いコンテンツ」で落ちることがある）。
+5. **自動広告はオフのまま**: AdSense →「広告」→ サイトの「自動広告」は**オンにしない**
+   （オンにすると、Google が撮影の画面などにも勝手に広告や全画面（Vignette）を出す。
+   このアプリは決めた3か所にだけ手で置く）。
+6. **広告ユニットを3つ作る**: AdSense →「広告」→「広告ユニットごと」→「ディスプレイ広告」を
+   3回。名前は「図鑑」「日記」「復習の終わり」、形は「スクエア」、サイズは「レスポンシブ」。
+   作ると出るコードの中の `data-ad-slot="…"` の数字が枠の番号。
+7. **枠の番号を入れる（2回目）**: Lovable のチャットに:
+   > `.env` に次の3行を足して公開して
+   > `VITE_ADSENSE_SLOT_DEX="（図鑑の番号）"`
+   > `VITE_ADSENSE_SLOT_DIARY="（日記の番号）"`
+   > `VITE_ADSENSE_SLOT_REVIEW="（復習の終わりの番号）"`
+8. **欧州・英国・スイスの同意の画面を作る**（2024年から必須。無いとその地域では制限された
+   広告しか出ない）: AdSense →「プライバシーとメッセージ」→「欧州の規制」→ メッセージを作って
+   公開する。Google の認定の同意の画面なので、コードの変更は要らない（広告の部品が自動で出す）。
+9. **スイッチを入れる**: アプリの設定 → 開発者の欄 →「広告（開発者だけ）」→「広告を出す」をオン。
+   1分以内に、無料で使い始めて3日を過ぎた人に出始める。自分（開発者・Pro なら出ない）で
+   確かめるなら、無料のテスト用アカウントで、作ってから `graceDays` 日（0 にすればすぐ）を過ぎた状態で見る。
+   **自分で広告を押さない**（自分のクリックは不正として口座を止められる原因になる）。
+
+### 守ること（AdSense の決まり）
+
+- 広告を押すように頼まない・広告を中身やボタンと見分けにくくしない・ボタンのすぐ横に置かない。
+- 印は「広告」「Advertisements」「Sponsored Links」だけ（「おすすめ」などと書かない）。
+- 中身の無い画面（ログイン・エラー・「ありがとう」だけの画面など）には出さない。
+- ページを勝手に読み直して広告を入れ替えない（このアプリは枠ごとに1回だけ頼む）。
+
+### 出典（公式。2026-10-03 に確認）
+
+- [Ad placement policies - Google AdSense Help](https://support.google.com/adsense/answer/1346295?hl=en)
+- [AdSense Program policies - Google AdSense Help](https://support.google.com/adsense/answer/48182?hl=en)
+- [Google-served ads on screens without publisher-content - Publisher Policies Help](https://support.google.com/publisherpolicies/answer/11112688?hl=en)
+- [Where to place AdSense code in your HTML - Google AdSense Help](https://support.google.com/adsense/answer/7477845?hl=en)
+- [About the responsive behavior of display ad units - Google AdSense Help](https://support.google.com/adsense/answer/9183362?hl=en)
+- [How to use responsive ad tag parameters - Google AdSense Help](https://support.google.com/adsense/answer/9183460?hl=en)
+- [Ad tag parameters - AdSense for Platforms（Google for Developers）](https://developers.google.com/adsense/platforms/direct/ad-tags)
+- [In-feed ads - Google AdSense Help](https://support.google.com/adsense/answer/9189557?hl=en)（一覧に溶け込む形。今回は扱いやすいディスプレイ広告にした）
+- [Ads.txt guide - Google AdSense Help](https://support.google.com/adsense/answer/12171612?hl=en)
+- [Give access to the AdSense crawler in your robots.txt file - Google AdSense Help](https://support.google.com/adsense/answer/10532?hl=en)
+- [Display ads on login-protected pages - Google AdSense Help](https://support.google.com/adsense/answer/161351)（ログインの奥の画面の中身を広告に合わせたい時の「クローラのログイン」。任意）
+- [About vignette ads - Google AdSense Help](https://support.google.com/adsense/answer/16531962?hl=en) / [Auto ads settings](https://support.google.com/adsense/answer/9305577?hl=en)（全画面は自動広告の中にしか無い → 使わない）
+- [Set up a "Rewarded ad" user choice（Offerwall）- Google AdSense Help](https://support.google.com/adsense/answer/12726063?hl=en)（Web のごほうび広告はこの形だけ → 使わない）
+- [Google consent management requirements for serving ads in the EEA, the UK, and Switzerland - Google AdSense Help](https://support.google.com/adsense/answer/13554116?hl=en)（EEA・英国 2024-01-16、スイス 2024-07-31 から認定 CMP が必須）
+- [New Consent Management Platform requirements for serving ads in the EEA and UK - Google blog](https://blog.google/products/adsense/new-consent-management-platform-requirements-for-serving-ads-in-the-eea-and-uk/)
+
+**この作業環境では Google のヘルプのページを直接開けなかった**（通信の制限）。上の中身は
+Google の検索結果に出た公式ページの要約で確かめた。手順の画面の名前は変わることがあるので、
+違っていたら AdSense の画面の表示に従う。
 
 ## 5-1. Stripe でサブスクを始める（2026-09-28 実装。いまは Web 版だけ）
 

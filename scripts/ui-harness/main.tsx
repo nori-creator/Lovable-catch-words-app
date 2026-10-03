@@ -60,6 +60,7 @@ import { ScanPickDesignsScene } from "./scenes/scan-pick-designs";
 import { NotifyBarDesignsScene } from "./scenes/notify-bar-designs";
 import { AdminUsersScene } from "./scenes/admin-users";
 import { MonetizationDesignsScene } from "./scenes/monetization-designs";
+import { WebAdsScene } from "./scenes/web-ads";
 import { FxLabScene } from "./scenes/fx-lab";
 import { WordDetailDesignsScene } from "./scenes/word-detail-designs";
 import { WordDetailRefineScene } from "./scenes/word-detail-refine";
@@ -185,6 +186,7 @@ const SCENES: Record<string, ((p: { q: URLSearchParams }) => ReactNode) | undefi
   "notify-bar-designs": NotifyBarDesignsScene,
   "admin-users": AdminUsersScene,
   "monetization-designs": MonetizationDesignsScene,
+  "web-ads": WebAdsScene,
   "fx-lab": FxLabScene,
   "word-detail-designs": WordDetailDesignsScene,
   "word-detail-refine": WordDetailRefineScene,

@@ -18,6 +18,11 @@ const ALLOWED = new Set([
   "VITE_SUPABASE_URL",
   "VITE_LOVABLE_CONNECTOR_GOOGLE_MAPS_BROWSER_KEY",
   "VITE_LOVABLE_CONNECTOR_GOOGLE_MAPS_TRACKING_ID",
+  // Google AdSense の番号（ページの中に必ず書かれる公開の値。`docs/monetization.md` §5-2）。
+  "VITE_ADSENSE_CLIENT",
+  "VITE_ADSENSE_SLOT_DEX",
+  "VITE_ADSENSE_SLOT_DIARY",
+  "VITE_ADSENSE_SLOT_REVIEW",
 ]);
 
 function readEnv(path: string): Array<[string, string]> {

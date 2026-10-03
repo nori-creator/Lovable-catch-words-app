@@ -83,7 +83,24 @@ function PrivacyJa() {
           <li>Google Maps(地図表示・位置情報の逆ジオコーディング)</li>
           <li>Google Gemini(AI生成・Lovable AI Gateway経由)</li>
           <li>Stripe(有料プランの決済)</li>
-          <li>Google AdMob(広告を表示する場合の広告配信)</li>
+          <li>Google AdMob(アプリで広告を表示する場合の広告配信)</li>
+          <li>
+            Google AdSense(Web 版で広告を表示する場合の広告配信。無料プランのみ。Google
+            などの第三者配信事業者が Cookie
+            を使い、このサイトや他のサイトへの過去のアクセスに基づいて広告を配信します。詳しくは
+            <a
+              href="https://policies.google.com/technologies/partner-sites"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              Google のパートナーのサイトでの情報の使い方
+            </a>
+            。パーソナライズ広告は
+            <a href="https://adssettings.google.com" target="_blank" rel="noopener noreferrer">
+              広告設定
+            </a>
+            で無効にできます)
+          </li>
         </ul>
 
         <h2>5. 位置情報の取り扱い</h2>
@@ -98,6 +115,11 @@ function PrivacyJa() {
 
         <h2>7. Cookie等</h2>
         <p>セッション維持・ログイン状態の保持のためにブラウザのローカルストレージを利用します。</p>
+        <p>
+          Web 版で広告を表示する場合、Google AdSense が広告の配信・効果の測定のために Cookie
+          等を利用します(上記「4. 外部サービス」)。欧州経済領域・英国・スイスの方には、Google
+          の同意の画面で選んでいただきます。
+        </p>
 
         <h2>8. お問い合わせ</h2>
         <p>本ポリシーに関するご質問は、アプリ内サポートよりご連絡ください。</p>
@@ -167,7 +189,24 @@ function PrivacyEn() {
           <li>Google Maps (map display and reverse geocoding of locations)</li>
           <li>Google Gemini (AI generation, via the Lovable AI Gateway)</li>
           <li>Stripe (payments for paid plans)</li>
-          <li>Google AdMob (ad delivery, if ads are shown)</li>
+          <li>Google AdMob (ad delivery in the apps, if ads are shown)</li>
+          <li>
+            Google AdSense (ad delivery on the web version, free plan only, if ads are shown).
+            Third-party vendors, including Google, use cookies to serve ads based on your prior
+            visits to this website or other websites. See{" "}
+            <a
+              href="https://policies.google.com/technologies/partner-sites"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              how Google uses information from sites
+            </a>
+            . You can opt out of personalised advertising in{" "}
+            <a href="https://adssettings.google.com" target="_blank" rel="noopener noreferrer">
+              Ads Settings
+            </a>
+            .
+          </li>
         </ul>
 
         <h2>5. How location is handled</h2>
@@ -185,6 +224,11 @@ function PrivacyEn() {
 
         <h2>7. Cookies and local storage</h2>
         <p>We use your browser's local storage to keep your session and signed-in state.</p>
+        <p>
+          When ads are shown on the web version, Google AdSense uses cookies and similar
+          technologies to serve and measure ads (see “4. External services”). Visitors in the EEA,
+          the UK and Switzerland are asked for their choice through Google's consent message.
+        </p>
 
         <h2>8. Contact</h2>
         <p>For questions about this policy, please contact us through in-app support.</p>

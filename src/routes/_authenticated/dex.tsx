@@ -12,6 +12,7 @@ import type { MemoryBadgeInfo } from "@/lib/memory-badge";
 import { PronounceButton } from "@/components/PronounceButton";
 import { CachedImg } from "@/lib/image-cache";
 import {
+  Fragment,
   useCallback,
   useMemo,
   useState,
@@ -56,6 +57,9 @@ import { FilterMenu } from "@/components/FilterMenu";
 import { DexDayMap } from "@/components/DexDayMap";
 import { DexCoverFlow } from "@/components/DexCoverFlow";
 import { DexShelf } from "@/components/DexShelf";
+import { useWebAdSlot, WebAdUnit } from "@/components/WebAdSlot";
+import { nativeSlots } from "@/lib/ad-policy";
+import { splitForAds } from "@/lib/web-ads";
 import { CategorySheet } from "@/components/CategorySheet";
 import { toast } from "sonner";
 import { DexCategoryDrag } from "@/components/DexCategoryDrag";
@@ -295,6 +299,16 @@ function DexPage() {
     () => filterDexStickers(captured, filter, search, t, shelves),
     [captured, search, filter, t, shelves],
   );
+  /**
+   * **Web 版の広告の枠**（2026-10-03）。札 `nativeEvery` 枚ごとに1枠（`ad-policy.ts`）。
+   * 捕まえた直後の着地の演出（`justCaught`）の間は出さない（保存の最中・いちばん嬉しい所）。
+   */
+  const webAd = useWebAdSlot("dex");
+  const adCfg = webAd?.cfg;
+  const adSlots = useMemo(
+    () => (adCfg && !justCaught ? nativeSlots(filtered.length, adCfg, false) : []),
+    [adCfg, justCaught, filtered.length],
+  );
 
   return (
     // **全画面**（オーナー指示 2026-09-23「図鑑の全ての種類は下のバーを含む全画面で
@@ -324,6 +338,12 @@ function DexPage() {
         activeCategory={activeCategory}
         justCaught={justCaught}
         shelves={shelves}
+        adSlots={adSlots}
+        renderAd={
+          webAd
+            ? (n) => <WebAdUnit key={`ad-${n}`} client={webAd.client} slot={webAd.slot} />
+            : undefined
+        }
         onManageCategories={() => {
           setEditCatKey(null);
           setManageCats(true);
@@ -453,6 +473,8 @@ export function DexSurface({
   onManageCategories,
   onMoveToCategory,
   onEditCategory,
+  adSlots,
+  renderAd,
 }: {
   captured: StickerWithWord[];
   filtered: StickerWithWord[];
@@ -483,6 +505,12 @@ export function DexSurface({
   activeCategory?: string | null;
   justCaught?: string;
   shelves?: React.ComponentProps<typeof DexShelf>["userShelves"];
+  /**
+   * 一覧（アルバム・縦の一覧）で広告の枠を置く位置（全体の何番目の札の後か。`ad-policy.ts` の
+   * `nativeSlots`）。本物の図鑑（`DexPage`）だけが渡す — チュートリアルには出さない。
+   */
+  adSlots?: readonly number[];
+  renderAd?: (slot: number) => React.ReactNode;
 }) {
   const t = useT();
   const userCatKeys = useMemo(() => new Set(shelves.map((c) => c.key)), [shelves]);
@@ -496,6 +524,16 @@ export function DexSurface({
     }
     return Array.from(map.entries()).sort((a, b) => b[1].length - a[1].length);
   }, [filtered, userCatKeys]);
+  /** カテゴリーごとの札を、広告の枠の位置で切った塊（枠が無ければ1つ）。 */
+  const chunked = useMemo(() => {
+    const slots = new Set(renderAd ? (adSlots ?? []) : []);
+    let start = 0;
+    return groups.map(([key, items]) => {
+      const chunks = splitForAds(items, start, slots);
+      start += items.length;
+      return [key, items, chunks] as const;
+    });
+  }, [groups, adSlots, renderAd]);
   return (
     <div data-tour="dex">
       <style>{`
@@ -648,7 +686,7 @@ export function DexSurface({
           onMove={(id, key) => onMoveToCategory?.(id, key)}
           onEditCategory={onEditCategory}
         >
-          {groups.map(([key, items]) => (
+          {chunked.map(([key, items, chunks]) => (
             <section key={key} className="dex-cat mb-6" data-dex-cat={key}>
               <div className="mb-2 flex items-baseline justify-between">
                 <h3
@@ -662,18 +700,23 @@ export function DexSurface({
                 <span className="text-footnote text-muted-foreground">{items.length}</span>
               </div>
 
-              {view === "gallery" ? (
-                // 試作品(Capture&Converse)のアルバム: 写真がタイルいっぱいに
-                // 表示される3列グリッド+下端のグラデーションに単語名。
-                <DexAlbumGrid
-                  items={items}
-                  memory={memory}
-                  justCaught={justCaught}
-                  onOpen={setOpenId}
-                />
-              ) : (
-                <DexList items={items} onOpen={setOpenId} />
-              )}
+              {chunks.map((c, ci) => (
+                <Fragment key={ci}>
+                  {view === "gallery" ? (
+                    // 試作品(Capture&Converse)のアルバム: 写真がタイルいっぱいに
+                    // 表示される3列グリッド+下端のグラデーションに単語名。
+                    <DexAlbumGrid
+                      items={c.items}
+                      memory={memory}
+                      justCaught={justCaught}
+                      onOpen={setOpenId}
+                    />
+                  ) : (
+                    <DexList items={c.items} onOpen={setOpenId} />
+                  )}
+                  {c.ad !== null && renderAd?.(c.ad)}
+                </Fragment>
+              ))}
             </section>
           ))}
         </DexCategoryDrag>

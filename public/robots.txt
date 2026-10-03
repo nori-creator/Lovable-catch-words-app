@@ -15,4 +15,8 @@ Disallow: /post/
 Disallow: /u/
 Disallow: /reset-password
 
+# Google AdSense の読み取り役（広告の中身を合わせるため）。上の Disallow は検索エンジン向け。
+User-agent: Mediapartners-Google
+Allow: /
+
 Sitemap: https://catchwords.lovable.app/sitemap.xml
