@@ -2,6 +2,7 @@ import { peelGeometry } from "@/lib/peel-geometry";
 import { useEffect, useId, useRef, useState, type PointerEvent } from "react";
 import { usePrefersReducedMotion } from "@/hooks/use-reduced-motion";
 import { haptic } from "@/lib/haptics";
+import { preloadConfetti3d } from "@/components/three/load-confetti";
 import "./peel-sticker.css";
 
 type Props = {
@@ -61,6 +62,8 @@ export function PeelSticker({
     };
   }, [artwork]);
   useEffect(() => () => cancelAnimationFrame(frame.current), []);
+  // はがした直後のキャッチの演出（3D の紙吹雪）を、札が出ている間に読んでおく。
+  useEffect(() => (ready && !reduced ? preloadConfetti3d() : undefined), [ready, reduced]);
   // The parent re-enables the surface after a failed save. Allow retry.
   useEffect(() => {
     if (!disabled && committed) {
