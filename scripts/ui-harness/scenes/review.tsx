@@ -256,9 +256,14 @@ export function ReviewChoiceScene({ q }: { q: URLSearchParams }) {
       }
     : CARD;
   const card: DueReviewCard = withPhoto ? { ...base, object_url: PHOTO } : base;
+  /**
+   * その人向けの解説。**`mixed` でない既定の札も本番と同じ決め方を通す**（2026-10-03 全画面の
+   * 点検: 既定の札は日本語の意味のまま英語・繁體中文で描かれ、本番には出ない日本語が写っていた）。
+   * 共有の意味が読む人の言語でない時だけ、その人向けの解説を渡す（`useReviewReaderExplanations`）。
+   */
   const reader =
-    mixed && q.get("pending") !== "1" && !readerMeaning(base.meaning_ja, lang)
-      ? READER_VIEWS[lang]
+    q.get("pending") !== "1" && !readerMeaning(base.meaning_ja, lang)
+      ? (mixed ? READER_VIEWS : PLAIN_READER_VIEWS)[lang]
       : undefined;
   const answer = q.get("answer");
   useEffect(() => {
@@ -390,6 +395,56 @@ const READER_VIEWS: Partial<Record<UiLang, ReaderReviewView>> = {
   "zh-TW": {
     meaning: "記事用的本子",
     explain: explainOf(READER_EXTRAS["zh-TW"], "筆記本", DEFAULT_TARGET_LANGUAGE, "zh-TW"),
+  },
+};
+
+/** 既定の札（珍珠奶茶）の、その人向けの解説（英語・繁體中文で読む人）。 */
+const PLAIN_READER_VIEWS: Partial<Record<UiLang, ReaderReviewView>> = {
+  en: {
+    meaning: "bubble tea",
+    explain: explainOf(
+      {
+        explain_lang: "en",
+        usage_chunks: [
+          {
+            parts: [
+              { text: "喝", pos: "V" },
+              { text: "一杯", pos: "M" },
+              { text: "珍珠奶茶", pos: "N" },
+            ],
+            ja: "drink a cup of bubble tea",
+          },
+        ],
+        related_words: [{ word: "奶茶", kind: "rel", note: "milk tea" }],
+        measure_words: [{ word: "杯", note: "for cups of drinks" }],
+      },
+      "珍珠奶茶",
+      DEFAULT_TARGET_LANGUAGE,
+      "en",
+    ),
+  },
+  "zh-TW": {
+    meaning: "加了粉圓的奶茶",
+    explain: explainOf(
+      {
+        explain_lang: "zh-TW",
+        usage_chunks: [
+          {
+            parts: [
+              { text: "喝", pos: "V" },
+              { text: "一杯", pos: "M" },
+              { text: "珍珠奶茶", pos: "N" },
+            ],
+            ja: "點一杯來喝",
+          },
+        ],
+        related_words: [{ word: "奶茶", kind: "rel", note: "沒有粉圓的奶茶" }],
+        measure_words: [{ word: "杯", note: "用杯子裝的飲料" }],
+      },
+      "珍珠奶茶",
+      DEFAULT_TARGET_LANGUAGE,
+      "zh-TW",
+    ),
   },
 };
 

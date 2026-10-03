@@ -34,7 +34,8 @@ export function DataSourcesList() {
             >
               <span className="font-medium text-foreground">{s.name}</span>
               <span>
-                {s.author} · {s.license}
+                {s.authorKey ? t(s.authorKey) : s.author} ·{" "}
+                {s.licenseKey ? t(s.licenseKey) : s.license}
                 {s.attributionRequired ? ` · ${t("sources.required")}` : ""}
               </span>
             </a>

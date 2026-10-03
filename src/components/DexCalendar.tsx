@@ -252,7 +252,7 @@ export function DexCalendar({
               <div
                 key={key}
                 className="dex-cal__cell dex-cal__cell--empty grid place-items-center rounded-2xl"
-                aria-label={`${day}${t("dex.dayUnit")}`}
+                aria-label={t("dex.dayLabel", { n: day })}
                 data-wd={i % 7 === 0 ? "sun" : i % 7 === 6 ? "sat" : undefined}
               >
                 <span
@@ -270,7 +270,7 @@ export function DexCalendar({
             <button
               key={key}
               onClick={() => (onPickDay ? onPickDay(key) : setOpenDay(key))}
-              aria-label={`${day}${t("dex.dayUnit")} — ${t("dex.calPhotos", { n: items.length })}`}
+              aria-label={`${t("dex.dayLabel", { n: day })} — ${t("dex.calPhotos", { n: items.length })}`}
               className={`dex-cal__cell dex-cal__cell--photo press-in relative overflow-hidden rounded-[10px] bg-secondary ${
                 isToday ? "is-today" : ""
               }`}

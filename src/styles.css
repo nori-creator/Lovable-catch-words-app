@@ -6053,10 +6053,12 @@ html[data-motion="reduce"] .camera-shutter {
 }
 
 /** うまくいかなかったときの一行。操作の真上に出す。 */
+/* 映像の**上端**に出す（2026-10-03 全画面の点検: 下に置くと倍率の粒 1×/2×/3× を覆い、
+   失敗した後に倍率を変えられなかった）。上端は映像の縁の案内しか無い。 */
 .capture-error {
   position: absolute;
   inset-inline: 20px;
-  bottom: calc(14rem + env(safe-area-inset-bottom, 0px));
+  top: calc(env(safe-area-inset-top, 0px) + 2.75rem + 12px);
   z-index: 11;
   border-radius: 0.75rem;
   padding: 8px 12px;
@@ -7387,16 +7389,36 @@ html[data-motion="reduce"] .scan-dot[data-active] .scan-dot__core {
 .dex-cal__cell--empty {
   background: color-mix(in oklab, var(--month-hue) 6%, transparent);
 }
+/* 日付の数字は小さい字の下限 4.5:1 を割らない（2026-10-03 全画面の点検: 4.35:1）。
+   月の色と灰色を混ぜた上に、地の反対の色（前景）を少しだけ足す。 */
 .dex-cal__num {
-  color: color-mix(in oklab, var(--month-hue) 45%, var(--muted-foreground));
+  color: color-mix(
+    in oklab,
+    color-mix(in oklab, var(--month-hue) 45%, var(--muted-foreground)) 85%,
+    var(--foreground)
+  );
 }
 .dex-cal [data-wd="sun"],
 .dex-cal [data-wd="sun"] .dex-cal__num {
-  color: #e5484d;
+  color: #c9303a;
 }
 .dex-cal [data-wd="sat"],
 .dex-cal [data-wd="sat"] .dex-cal__num {
-  color: #2f7ff5;
+  color: #1a62d6;
+}
+/* 暗いテーマ: 枚数の札は月の色を**白へ**寄せる（黒へ寄せていたので暗い地に暗い字、2.38:1）。
+   日曜・土曜も暗い地で読める明るさに（日曜の赤が沈んでいた）。 */
+.dark .dex-cal__summary {
+  color: color-mix(in oklab, var(--month-hue) 45%, #fff);
+  background: color-mix(in oklab, var(--month-hue) 22%, transparent);
+}
+.dark .dex-cal [data-wd="sun"],
+.dark .dex-cal [data-wd="sun"] .dex-cal__num {
+  color: #ff8085;
+}
+.dark .dex-cal [data-wd="sat"],
+.dark .dex-cal [data-wd="sat"] .dex-cal__num {
+  color: #74a8ff;
 }
 /* 今日: アプリの青（虹色は意味を持たないのでやめた。R11「色の哲学に沿って」）。 */
 .dex-cal__today {
@@ -8258,8 +8280,10 @@ html[data-motion="reduce"]
   font-weight: 400;
   letter-spacing: 0;
   line-height: 1.02;
-  /* 漢字より薄く（オーナー指示「注音は漢字より薄い色に」）。 */
-  color: color-mix(in oklab, currentColor 52%, transparent);
+  /* 漢字より薄く（オーナー指示「注音は漢字より薄い色に」）。ただし**小さい字の下限
+     4.5:1 は割らない**（2026-10-03 全画面の点検: 52% では白地で 3.8:1、単語の詳細の青い
+     札の上で 2.8:1 だった）。78% で白地 7:1 超・青い札の上 5:1、漢字よりは薄いまま。 */
+  color: color-mix(in oklab, currentColor 78%, transparent);
 }
 .zy-sym {
   display: block;
@@ -8918,7 +8942,8 @@ html[data-dex-dragging] {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-height: 2.6rem;
+  /* 指の下限 44px（2026-10-03 全画面の点検: 2.6rem = 41.6px で 2px 足りなかった）。 */
+  min-height: 2.75rem;
   padding: 0.3rem 0.65rem;
   border-radius: 0.65rem;
   border: 1.5px solid color-mix(in oklab, var(--pos, var(--foreground)) 38%, transparent);

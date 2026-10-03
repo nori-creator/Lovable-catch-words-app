@@ -1549,18 +1549,24 @@ function Body({
   // 訳は表示言語で読む物だけ出す（2026-09-29「例文の訳に中文が混ざってる」）。
   const uiLang = useUiLang();
   switch (id) {
-    case "meaning":
+    case "meaning": {
       // **この画面を開く理由がこの一行。** これまで注釈と同じ 15px で置いて
       // いたので、2800px スクロールするカードの中で「答え」と「脚注」が
       // 寸法上まったく同じだった(独立監査が実測で指摘)。
       // 6段の階調の title(22px)に上げて、二番目の着地点を作る。
       // **太字にしない**(オーナー指摘 2026-08-21「日本語の意味の文字が
       // 太すぎる」)。大きさで着地点は作れているので、太さは足さない。
-      return (
-        <p className="text-title leading-snug text-foreground">
-          {shortMeaning(readerMeaning(word.meaning_ja, uiLang))}
-        </p>
-      );
+      const meaning = shortMeaning(readerMeaning(word.meaning_ja, uiLang));
+      // 読む人の言語の意味がまだ無い時は、**空の箱にしない**（2026-10-03 全画面の点検:
+      // 英語の画面で「Meaning」の見出しだけの箱が出ていた）。用意している途中だと言う。
+      if (!meaning)
+        return (
+          <p className="text-body text-muted-foreground motion-safe:animate-pulse" role="status">
+            {t("card.meaningPending")}
+          </p>
+        );
+      return <p className="text-title leading-snug text-foreground">{meaning}</p>;
+    }
 
     case "example":
       // 品詞ごとの色分けは外してある(色分けは「使い方チャンク」だけ)。
@@ -2300,7 +2306,8 @@ function WebImagesBody({
  */
 function RealUsageBody({ headword, language }: { headword: string; language?: string | null }) {
   const t = useT();
-  const links = realUsageLinks(headword, language);
+  const uiLang = useUiLang();
+  const links = realUsageLinks(headword, language, uiLang);
   return (
     <ul className="grid grid-cols-1 gap-1.5">
       {links.map((l) => (
@@ -2309,7 +2316,7 @@ function RealUsageBody({ headword, language }: { headword: string; language?: st
             href={l.href}
             target="_blank"
             rel="noreferrer"
-            className="flex items-center gap-2.5 rounded-xl bg-secondary px-3 py-2 text-body shadow-sm ring-1 ring-border transition-colors active:bg-secondary"
+            className="flex min-h-11 items-center gap-2.5 rounded-xl bg-secondary px-3 py-2 text-body shadow-sm ring-1 ring-border transition-colors active:bg-secondary"
           >
             <span className="text-body">{l.emoji}</span>
             {/* **行き先の名前だけ**（オーナー指示 2026-09-27「実際の使われ方の

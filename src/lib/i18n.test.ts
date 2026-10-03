@@ -2,7 +2,16 @@ import { describe, it, expect } from "vitest";
 import fs from "node:fs";
 import path from "node:path";
 import * as OpenCC from "opencc-js";
-import { DICT, UI_LANGS, UI_LANG_LABEL_KEYS, htmlLangOf, localeOf, normalizeUiLang } from "./i18n";
+import {
+  DICT,
+  UI_LANGS,
+  UI_LANG_LABEL_KEYS,
+  browserUiLang,
+  fill,
+  htmlLangOf,
+  localeOf,
+  normalizeUiLang,
+} from "./i18n";
 
 /**
  * 表示言語の門。
@@ -105,16 +114,16 @@ describe("辞書が3言語ぶんそろっている", () => {
   const keys = Object.keys(DICT);
 
   it("表示文言の登録数を把握する", () => {
-    expect(keys.length).toBe(1212);
+    expect(keys.length).toBe(1215);
   });
 
   /**
-   * **わざと空にしてある所。**
-   * `dex.dayUnit` はカレンダーの読み上げに付ける単位で、日本語と中文は
-   * 「25日」、英語は「25」と数字だけで言う。名指しで許す — 許す物を
-   * 数えておかないと、うっかり空にした項目まで通ってしまう。
+   * **わざと空にしてある所。** 名指しで許す — 許す物を数えておかないと、
+   * うっかり空にした項目まで通ってしまう。
+   * （前は `dex.dayUnit.en` を空にしていたが、英語の読み上げが数字だけになるので
+   * 2026-10-03 に `dex.dayLabel`「Day {n}」へ置き換えた。今は1つも無い。）
    */
-  const DELIBERATELY_EMPTY = new Set(["dex.dayUnit.en"]);
+  const DELIBERATELY_EMPTY = new Set<string>([]);
 
   it("**どの項目も3言語が埋まっている**(欠けると黙って日本語が出る)", () => {
     const missing: string[] = [];
@@ -216,6 +225,56 @@ describe("言語が混ざらない（オーナー指示 2026-09-23 の3回目「
         const v = (e as Record<string, string>)[l];
         if (v && kana.test(v)) bad.push(`${k}.${l}: ${v.slice(0, 40)}`);
       }
+    }
+    expect(bad).toEqual([]);
+  });
+});
+
+describe("選ぶ前の表示言語はブラウザの言語（2026-10-03 ウェルカム画面がいつも日本語）", () => {
+  it("繁體中文の端末", () => {
+    for (const l of ["zh-TW", "zh-Hant", "zh-Hant-TW", "zh-HK", "zh-MO", "zh-hant-hk"]) {
+      expect([l, browserUiLang([l])]).toEqual([l, "zh-TW"]);
+    }
+  });
+  it("日本語・英語の端末", () => {
+    expect(browserUiLang(["ja"])).toBe("ja");
+    expect(browserUiLang(["ja-JP", "en-US"])).toBe("ja");
+    expect(browserUiLang(["en-GB"])).toBe("en");
+  });
+  it("知らない言語・簡体字の中文は飛ばして次を見る。何も無ければ英語", () => {
+    expect(browserUiLang(["ko-KR", "ja-JP"])).toBe("ja");
+    expect(browserUiLang(["zh-CN", "zh-TW"])).toBe("zh-TW");
+    expect(browserUiLang(["zh-CN"])).toBe("en");
+    expect(browserUiLang(["fr-FR"])).toBe("en");
+    expect(browserUiLang([])).toBe("en");
+    expect(browserUiLang(undefined)).toBe("en");
+  });
+});
+
+describe("英語の単数・複数（2026-10-03「1 photos」「met 1 times」「Caught 1 words today」）", () => {
+  it("`{n|one|other}` は n が 1 のときだけ左", () => {
+    expect(fill(DICT["photos.count"].en, { n: 1 })).toBe("1 photo");
+    expect(fill(DICT["photos.count"].en, { n: 2 })).toBe("2 photos");
+    expect(fill(DICT["photos.count"].en, { n: 0 })).toBe("0 photos");
+    expect(fill(DICT["home.tagline"].en, { n: 1 })).toBe("Caught 1 word today.");
+    expect(fill(DICT["dex.metCountAria"].en, { word: "tea", n: 1 })).toBe("tea — met 1 time");
+    expect(fill(DICT["dex.calMonthSummary"].en, { n: 1, d: 3 })).toBe("1 photo · 3 days");
+  });
+
+  it("日本語・繁體中文には書かない（数の形が無い）", () => {
+    const bad: string[] = [];
+    for (const [k, e] of Object.entries(DICT)) {
+      for (const l of ["ja", "zh-TW"] as const) if (/\{\w+\|/.test(e[l])) bad.push(`${k}.${l}`);
+    }
+    expect(bad).toEqual([]);
+  });
+
+  it("英語で「1 + 複数形」になる文が残っていない（数の後の名詞は形を選ぶ）", () => {
+    const bad: string[] = [];
+    for (const [k, e] of Object.entries(DICT)) {
+      const out = fill(e.en, { n: 1, count: 1, total: 1, d: 1, photos: 1 });
+      if (/\b1 (photos|words|times|days|names|scans|changes|moments|branches)\b/.test(out))
+        bad.push(`${k}: ${out}`);
     }
     expect(bad).toEqual([]);
   });

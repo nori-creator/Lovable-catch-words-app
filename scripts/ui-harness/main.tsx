@@ -531,6 +531,24 @@ document.documentElement.style.setProperty(
  * `useUiLang` は localStorage を読むので、**React が起動する前に**書く。
  * あとから書くと初回の描画が日本語のままになり、撮った絵が実物と違う。
  */
+/**
+ * **ブラウザの言語を差し替えて、選ぶ前の表示言語を見る**（`?browser=en-US` /
+ * `?browser=zh-TW` / `?browser=ja-JP`。2026-10-03 ウェルカム画面の言語）。
+ * 選んだことの無い端末を再現するため、覚えている表示言語も消す。
+ */
+{
+  const browser = q.get("browser");
+  if (browser) {
+    const langs = browser.split(",");
+    try {
+      localStorage.removeItem("ui-lang-v1");
+      Object.defineProperty(navigator, "languages", { get: () => langs, configurable: true });
+      Object.defineProperty(navigator, "language", { get: () => langs[0], configurable: true });
+    } catch {
+      /* 差し替えられないブラウザでは、端末そのままの言語になる。 */
+    }
+  }
+}
 {
   const lang = q.get("lang");
   if (lang) {

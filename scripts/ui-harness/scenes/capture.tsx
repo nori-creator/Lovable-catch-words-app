@@ -282,6 +282,7 @@ function useFakeCamera() {
 }
 
 export function CaptureObjectScene({ q }: { q: URLSearchParams }) {
+  const t = useT();
   const v = q.get("variant");
   const [typedWord, setTypedWord] = useState(v === "typed" ? "腳踏車" : "");
   useFakeCamera();
@@ -334,7 +335,8 @@ export function CaptureObjectScene({ q }: { q: URLSearchParams }) {
       setTypedWord={setTypedWord}
       onSearch={() => {}}
       onOpenScan={() => setScan(true)}
-      error={v === "error" ? "写真を読み込めませんでした" : null}
+      // 本番と同じ文（表示言語で）。直書きの日本語だと英語・中文の見本が嘘になる。
+      error={v === "error" ? t("cap.photoReadFailed") : null}
     />
   );
 }

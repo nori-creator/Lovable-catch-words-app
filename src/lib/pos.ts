@@ -11,21 +11,21 @@ import { DICT, type UiLang } from "./i18n";
 
 export const POS_TABLE: Record<string, string> = {
   N: "名詞",
-  V: "動詞(及物)",
-  Vi: "動詞(不及物)",
+  V: "動詞（及物）",
+  Vi: "動詞（不及物）",
   "V-sep": "離合詞",
-  Vs: "状態動詞(形容詞)",
-  Vst: "状態動詞(及物)",
-  "Vs-attr": "状態動詞(限定用法のみ)",
-  "Vs-pred": "状態動詞(述語用法のみ)",
+  Vs: "状態動詞（形容詞）",
+  Vst: "状態動詞（及物）",
+  "Vs-attr": "状態動詞（限定用法のみ）",
+  "Vs-pred": "状態動詞（述語用法のみ）",
   "Vs-sep": "状態離合詞",
   Vaux: "助動詞",
   Vp: "変化動詞",
-  Vpt: "変化動詞(及物)",
+  Vpt: "変化動詞（及物）",
   "Vp-sep": "変化離合詞",
   Adv: "副詞",
   Conj: "接続詞",
-  Prep: "介詞(前置詞)",
+  Prep: "介詞（前置詞）",
   M: "量詞",
   Ptc: "助詞",
   Det: "限定詞",
@@ -49,11 +49,13 @@ function dictLabel(key: string, lang: UiLang | null | undefined, fallback: strin
  * 表の日本語と**ぴったり同じ**ときだけ訳す（分からない綴りは書き換えない）。
  */
 function translateJapanesePos(raw: string, lang: UiLang): string {
-  for (const [code, ja] of Object.entries(POS_TABLE)) {
-    if (ja === raw) return dictLabel(`pos.c.${code}`, lang, raw);
+  // 古いデータは半角の括弧（「状態動詞(形容詞)」）で書かれている。表は全角なので揃えて比べる。
+  const ja = raw.replace(/\(/g, "（").replace(/\)/g, "）");
+  for (const [code, label] of Object.entries(POS_TABLE)) {
+    if (label === ja) return dictLabel(`pos.c.${code}`, lang, raw);
   }
-  for (const [g, ja] of Object.entries(GROUP_LABEL)) {
-    if (ja === raw) return dictLabel(`pos.g.${g}`, lang, raw);
+  for (const [g, label] of Object.entries(GROUP_LABEL)) {
+    if (label === ja) return dictLabel(`pos.g.${g}`, lang, raw);
   }
   return raw;
 }
@@ -103,7 +105,7 @@ export type ChunkStyle = {
 export const GROUP_LABEL: Record<PosGroup, string> = {
   n: "名詞",
   v: "動詞",
-  vs: "状態動詞(形容詞)",
+  vs: "状態動詞（形容詞）",
   vaux: "助動詞",
   adv: "副詞",
   m: "量詞",

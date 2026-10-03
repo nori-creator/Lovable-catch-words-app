@@ -866,9 +866,10 @@ export function MemoryOverviewPanel({
                  */
                 className="flex min-h-11 w-full items-center gap-2 rounded-lg px-1.5 py-1 text-left hover:bg-secondary/60"
               >
+                {/* 4字の語（珍珠奶茶）まで切らずに入る幅（2026-10-03 全画面の点検で「珍珠…」）。 */}
                 <Term
                   lang={targetLanguage}
-                  className="w-14 shrink-0 truncate text-body font-medium"
+                  className="w-[4.25rem] shrink-0 truncate text-body font-medium"
                 >
                   {w.headword}
                 </Term>
@@ -881,8 +882,9 @@ export function MemoryOverviewPanel({
                 <span className={`w-9 shrink-0 text-right text-caption font-semibold ${lv.text}`}>
                   {percent}%
                 </span>
+                {/* 段の名前は1行（「覚えている」「Remembered」が2行に折れていた）。 */}
                 <span
-                  className={`w-[3.8rem] shrink-0 rounded-full px-1.5 py-0.5 text-center text-caption font-medium ${lv.chip}`}
+                  className={`w-[4.5rem] shrink-0 whitespace-nowrap rounded-full px-1 py-0.5 text-center text-caption font-medium ${lv.chip}`}
                 >
                   {t(lv.labelKey)}
                 </span>
@@ -976,7 +978,8 @@ export function ForgettingCurveModal({
           <button
             onClick={onClose}
             aria-label={t("common.close")}
-            className="rounded-full p-1 text-muted-foreground"
+            // 指の下限 44px（2026-10-03 全画面の点検: 28×28 だった）。外側へ広げて位置は同じ。
+            className="-my-2 -mr-2.5 grid h-11 w-11 place-items-center rounded-full text-muted-foreground"
           >
             <X className="h-5 w-5" />
           </button>
@@ -1486,8 +1489,10 @@ export function LightModeCard({
                       <ZhuyinWord
                         units={units}
                         lang={card.language}
+                        // 4字の語から 26px（2026-10-03 全画面の点検: 375px の画面で
+                        // 「珍珠奶 / 茶」と2行に折れていた）。3字までは今まで通り 32px。
                         className={`zy-word--balanced block font-semibold ${
-                          units.length > 4 ? "text-[26px]" : "text-hero"
+                          units.length >= 4 ? "text-[26px]" : "text-hero"
                         }`}
                       />
                     ) : (

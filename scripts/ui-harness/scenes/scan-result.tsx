@@ -18,6 +18,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { BookOpen, Camera, Home, Settings, Sparkles } from "lucide-react";
 import { TabBar } from "@/components/TabBar";
+import { getUiLang, tStatic } from "@/lib/i18n";
 import {
   ScanAgainButton,
   ScanCandidateStrip,
@@ -26,12 +27,13 @@ import {
 } from "@/routes/_authenticated/scan";
 import { containPoint } from "@/lib/scan-layout";
 
+// 本番の下のタブと同じ名前（表示言語で）。日本語を直書きすると英語・中文の見本が嘘になる。
 const ITEMS = [
-  { label: "ホーム", icon: Home },
-  { label: "図鑑", icon: BookOpen },
-  { label: "カメラ", icon: Camera, lens: true },
-  { label: "復習", icon: Sparkles },
-  { label: "設定", icon: Settings },
+  { key: "nav.home", icon: Home },
+  { key: "nav.dex", icon: BookOpen },
+  { key: "nav.camera", icon: Camera, lens: true },
+  { key: "nav.review", icon: Sparkles },
+  { key: "nav.settings", icon: Settings },
 ];
 
 /** 撮った写真の代わり。実物と同じ縦長（720×1280）の絵。 */
@@ -72,18 +74,32 @@ const mk = (
   alternatives: [] as string[],
 });
 
-const FOUND = [
-  mk("d1", "珍珠奶茶", "ㄓㄣ ㄓㄨ ㄋㄞˇ ㄔㄚˊ", "タピオカミルクティー", [305, 350]),
-  mk("d2", "吸管", "ㄒㄧ ㄍㄨㄢˇ", "ストロー", [295, 140]),
-  mk("d3", "杯子", "ㄅㄟ ㄗ˙", "コップ", [720, 505]),
-  mk("d4", "半糖", "ㄅㄢˋ ㄊㄤˊ", "甘さ半分", [380, 770], "text"),
-  mk("d5", "少冰", "ㄕㄠˇ ㄅㄧㄥ", "氷少なめ", [620, 770], "text"),
-  mk("d6", "珍珠", "ㄓㄣ ㄓㄨ", "タピオカ", [270, 450]),
-] as never[];
+/** 意味は**読む人の言語で**（本番のスキャンは表示言語で意味を返す）。 */
+const MEANINGS: Record<string, [string, string, string]> = {
+  珍珠奶茶: ["タピオカミルクティー", "bubble tea", "加了粉圓的奶茶"],
+  吸管: ["ストロー", "straw", "喝飲料用的管子"],
+  杯子: ["コップ", "cup", "裝飲料的容器"],
+  半糖: ["甘さ半分", "half sugar", "甜度減半"],
+  少冰: ["氷少なめ", "less ice", "冰塊少一點"],
+  珍珠: ["タピオカ", "tapioca pearls", "粉圓"],
+};
+const meaningOf = (w: string) =>
+  MEANINGS[w][getUiLang() === "en" ? 1 : getUiLang() === "zh-TW" ? 2 : 0];
+// 関数にする: 場面の束は `main.tsx` が表示言語を書く前に読まれるので、読み込んだ時に
+// 作ると前の言語のまま固まる。
+const found = () =>
+  [
+    mk("d1", "珍珠奶茶", "ㄓㄣ ㄓㄨ ㄋㄞˇ ㄔㄚˊ", meaningOf("珍珠奶茶"), [305, 350]),
+    mk("d2", "吸管", "ㄒㄧ ㄍㄨㄢˇ", meaningOf("吸管"), [295, 140]),
+    mk("d3", "杯子", "ㄅㄟ ㄗ˙", meaningOf("杯子"), [720, 505]),
+    mk("d4", "半糖", "ㄅㄢˋ ㄊㄤˊ", meaningOf("半糖"), [380, 770], "text"),
+    mk("d5", "少冰", "ㄕㄠˇ ㄅㄧㄥ", meaningOf("少冰"), [620, 770], "text"),
+    mk("d6", "珍珠", "ㄓㄣ ㄓㄨ", meaningOf("珍珠"), [270, 450]),
+  ] as never[];
 
 export function ScanResultScene({ q }: { q: URLSearchParams }) {
   const nothing = q.get("variant") === "nothing";
-  const items = nothing ? [] : FOUND;
+  const [items] = useState(() => (nothing ? [] : found()));
   const [activeId, setActiveId] = useState<string | null>(null);
   /**
    * **本番と同じ置き方**（2026-09-28）: 写真の箱は上から**操作シートの上まで**。
@@ -156,14 +172,14 @@ export function ScanResultScene({ q }: { q: URLSearchParams }) {
         />
       </div>
       <TabBar cursor={2} indicatorOpacity={0} onCamera>
-        {ITEMS.map(({ label, icon: Icon, lens }, i) => (
-          <li key={label} className="flex-1">
+        {ITEMS.map(({ key, icon: Icon, lens }, i) => (
+          <li key={key} className="flex-1">
             <button
               className="tabbar__cell group w-full rounded-full text-caption text-muted-foreground"
               data-tab={i}
             >
               <Icon className={`h-5 w-5 ${lens ? "text-primary" : ""}`} />
-              <span>{label}</span>
+              <span>{tStatic(key)}</span>
             </button>
           </li>
         ))}

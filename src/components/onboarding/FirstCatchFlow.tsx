@@ -11,7 +11,7 @@ import { Term } from "@/components/Term";
 import { useServerFn } from "@tanstack/react-start";
 import { useNavigate } from "@tanstack/react-router";
 import { supabase } from "@/integrations/supabase/client";
-import { getUiLang, useT } from "@/lib/i18n";
+import { initialUiLang, useT } from "@/lib/i18n";
 import { FirstCatchQuestions } from "./FirstCatchQuestions";
 import { FirstCatchIntro, FirstCatchNotifications, FirstCatchReady } from "./FirstCatchPages";
 import { getTargetLang } from "@/lib/target-lang-pref";
@@ -101,7 +101,9 @@ function freshFirstCatch(): FirstCatch {
   return {
     version: 1,
     id: crypto.randomUUID(),
-    uiLanguage: getUiLang(),
+    // 表示言語を選ぶ前（ウェルカム）はブラウザの言語に合わせる。選んだことがあればそれ
+    // （`initialUiLang`）。`applyFirstCatchLanguage` が書くので、次の質問でも選ばれた状態になる。
+    uiLanguage: initialUiLang(),
     targetLanguage: getTargetLang(),
     dailyMinutes: 10,
     stage: "intro",
@@ -771,7 +773,8 @@ export function FirstCatchFlow({
           }
           title={t(homeGuide === "album" ? "first.homeTitle" : "first.shootTitle")}
           text={t(homeGuide === "album" ? "first.home" : "first.tapCamera")}
-          step={homeGuide === "album" ? "1 / 5" : "2 / 5"}
+          // ホーム → カメラのタブまでが第1章（`docs/first-catch-onboarding.md` の章立て）。
+          step="1 / 5"
           nextLabel={t("first.next")}
           onNext={homeGuide === "album" ? () => setHomeGuide("camera") : undefined}
           interactive={homeGuide === "camera"}
@@ -798,6 +801,10 @@ export function FirstCatchFlow({
           title={t("first.pickTitle")}
           text={t("first.pick")}
           step="2 / 5"
+          // 背の低い画面（375×667 など）では札を下端の1段にする（2026-10-03 全画面の点検:
+          // 札が撮った写真を覆い、「違う単語を入力」が下のタブの下に隠れていた）。
+          // 下のタブはこの段では押せないので、その上に札を重ねても失う物が無い。
+          compact={typeof window !== "undefined" && window.innerHeight <= SHORT_VIEWPORT}
           interactive
           gesture="tap"
         />
@@ -827,6 +834,9 @@ export function FirstCatchFlow({
     </div>,
   );
 }
+
+/** これ以下の高さ（px）を「背の低い画面」とする（iPhone SE / 8 の 667）。 */
+const SHORT_VIEWPORT = 700;
 
 /** 終わりの画面に降る紙吹雪: 横の位置(%)・遅れ(ms)・横の流れ(px)・回転(度)。決め打ちで毎回同じ絵。 */
 const CONFETTI_RAIN: ReadonlyArray<readonly [number, number, number, number]> = [

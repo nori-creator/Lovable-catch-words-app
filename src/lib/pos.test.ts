@@ -125,8 +125,8 @@ describe("品詞の名前は表示言語で", () => {
     for (const [code, ja] of Object.entries(POS_TABLE)) {
       expect(DICT[`pos.c.${code}`]?.ja, code).toBe(ja);
     }
-    expect(posDisplay("Vs")).toBe("Vs · 状態動詞(形容詞)");
-    expect(posDisplay("Vs", "ja")).toBe("Vs · 状態動詞(形容詞)");
+    expect(posDisplay("Vs")).toBe("Vs · 状態動詞（形容詞）");
+    expect(posDisplay("Vs", "ja")).toBe("Vs · 状態動詞（形容詞）");
     expect(chunkLegendFor(["N", "V"], "ja").map((i) => i.style.label)).toEqual(["名詞", "動詞"]);
   });
 
@@ -141,7 +141,7 @@ describe("品詞の名前は表示言語で", () => {
 
   it("繁體中文（日本の字形・かなを出さない）", () => {
     const zh = chunkLegendFor(["N", "V", "Vs", "Conj"], "zh-TW").map((i) => i.style.label);
-    expect(zh).toEqual(["名詞", "動詞", "狀態動詞(形容詞)", "連接詞"]);
+    expect(zh).toEqual(["名詞", "動詞", "狀態動詞（形容詞）", "連接詞"]);
     expect(posDisplay("Vp", "zh-TW")).toBe("Vp · 變化動詞");
     for (const l of zh) expect(l).not.toMatch(/[ぁ-ゟァ-ヺ]/);
   });

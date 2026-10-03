@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 import { useState } from "react";
 import { FirstCatchFlow } from "@/components/onboarding/FirstCatchFlow";
 import { AuthView } from "@/routes/auth";
-import { getUiLang } from "@/lib/i18n";
+import { initialUiLang } from "@/lib/i18n";
 import { getTargetLang } from "@/lib/target-lang-pref";
 import { CardSchema } from "@/lib/card-schema";
 import { createFirstCatchServices } from "@/lib/first-catch-ai-client";
@@ -191,7 +191,8 @@ export function FirstCatchScene({ q }: { q: URLSearchParams }) {
     const stage = step.success ? step.data : "intro";
     const targetLanguage =
       q.get("target") === "en" ? "en" : q.get("target") === "zh-TW" ? "zh-TW" : getTargetLang();
-    const uiLanguage = getUiLang();
+    // 本番のウェルカムと同じ決め方（選んでいなければブラウザの言語。`?browser=en-US`）。
+    const uiLanguage = initialUiLang();
     const sample =
       pickStep ||
       ["card", "added", "dex", "explore", "review", "complete", "account"].includes(stage);
