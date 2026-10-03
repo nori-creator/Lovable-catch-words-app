@@ -127,6 +127,59 @@ const AttachInput = z.object({
 });
 
 /**
+ * 再会のキャッチで札に書く中身（2026-10-03 監査）。
+ *
+ * 前は、送られなかった・自分の物でない写真の置き場を**黙って null にして書いていた**ので、
+ * 自撮りを付けなかった再会や、置き場を偽った送信で、札の今ある写真が消えていた。
+ * - 送られた置き場だけを書く（null・未指定の欄は今のまま）。
+ * - 自分の置き場（`<userId>/…`）でない物が1つでもあれば、何も書かずに断る。
+ * - 写真（元の写真か切り抜き）が1枚も無ければ断る（写真の無い「写真の札」を作らない）。
+ * - 新しい元の写真だけが来た時は、前の写真から作った切り抜きを外す（古い切り抜きが
+ *   新しい写真の上に出ないように）。
+ */
+export function attachPhotoPatch(
+  data: {
+    object_path?: string | null;
+    cutout_path?: string | null;
+    selfie_path?: string | null;
+    caption?: string | null;
+    location_name?: string | null;
+    lat?: number | null;
+    lng?: number | null;
+  },
+  userId: string,
+  now: Date = new Date(),
+): {
+  object_image_url?: string;
+  cutout_image_url?: string | null;
+  selfie_image_url?: string;
+  caption?: string;
+  location_name?: string;
+  lat?: number;
+  lng?: number;
+  taken_at: string;
+} {
+  const own = (p: string) => p.startsWith(`${userId}/`) && !p.includes("..");
+  for (const p of [data.object_path, data.cutout_path, data.selfie_path])
+    if (p && !own(p)) throw new Error("写真の置き場所が正しくありません");
+  if (!data.object_path && !data.cutout_path) throw new Error("写真がありません");
+  return {
+    ...(data.object_path ? { object_image_url: data.object_path } : {}),
+    ...(data.cutout_path
+      ? { cutout_image_url: data.cutout_path }
+      : data.object_path
+        ? { cutout_image_url: null }
+        : {}),
+    ...(data.selfie_path ? { selfie_image_url: data.selfie_path } : {}),
+    ...(data.caption != null ? { caption: data.caption } : {}),
+    ...(data.location_name != null ? { location_name: data.location_name } : {}),
+    ...(data.lat != null ? { lat: data.lat } : {}),
+    ...(data.lng != null ? { lng: data.lng } : {}),
+    taken_at: now.toISOString(),
+  };
+}
+
+/**
  * Reunion catch (§5.3): the golden-dot moment. Swap the ghost's placeholder
  * for the real photo. The caller then records the SRS reward via
  * recordEncounter({ recalled: true }) — reunion = best possible recall.
@@ -146,22 +199,7 @@ export const attachPhotoToSticker = createServerFn({ method: "POST" })
     if (ownErr) throw internalFailure("ghost", ownErr, "保存できませんでした");
     if (!owned) throw new Error("このカードは編集できません");
 
-    // Same storage path-spoofing guard as saveSticker.
-    const ownPath = (p: string | null | undefined): string | null => {
-      if (!p) return null;
-      return p.startsWith(`${userId}/`) ? p : null;
-    };
-
-    const basePatch = {
-      object_image_url: ownPath(data.object_path),
-      cutout_image_url: ownPath(data.cutout_path),
-      selfie_image_url: ownPath(data.selfie_path),
-      ...(data.caption != null ? { caption: data.caption } : {}),
-      ...(data.location_name != null ? { location_name: data.location_name } : {}),
-      ...(data.lat != null ? { lat: data.lat } : {}),
-      ...(data.lng != null ? { lng: data.lng } : {}),
-      taken_at: new Date().toISOString(),
-    };
+    const basePatch = attachPhotoPatch(data, userId);
     let res = await supabase
       .from("stickers")
       .update({

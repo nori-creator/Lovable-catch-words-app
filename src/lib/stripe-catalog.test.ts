@@ -177,8 +177,20 @@ describe("findStripeCustomerId — 新しい列を足さずに顧客を探す", 
       "/v1/subscriptions/search": {
         body: {
           data: [
-            { id: "sub_old", customer: "cus_old", status: "canceled", created: 200 },
-            { id: "sub_live", customer: "cus_live", status: "active", created: 100 },
+            {
+              id: "sub_old",
+              customer: "cus_old",
+              status: "canceled",
+              created: 200,
+              metadata: { user_id: "u-1" },
+            },
+            {
+              id: "sub_live",
+              customer: "cus_live",
+              status: "active",
+              created: 100,
+              metadata: { user_id: "u-1" },
+            },
           ],
         },
       },
@@ -189,14 +201,15 @@ describe("findStripeCustomerId — 新しい列を足さずに顧客を探す", 
     expect(decodeURIComponent(s.calls[0].url)).toContain("metadata['user_id']:'u-1'");
     expect(s.calls).toHaveLength(1);
   });
-  it("定期購入が無ければメールで探す（新しい順）", async () => {
+  it("定期購入が無ければメールで探す — 本人の metadata.user_id の顧客だけ（新しい順）", async () => {
     const s = fakeStripe({
       "/v1/subscriptions/search": { body: { data: [] } },
       "/v1/customers/search": {
         body: {
           data: [
-            { id: "cus_a", created: 1 },
-            { id: "cus_b", created: 5 },
+            { id: "cus_a", created: 1, metadata: { user_id: "u-1" } },
+            { id: "cus_b", created: 5, metadata: { user_id: "u-1" } },
+            { id: "cus_other", created: 9, metadata: { user_id: "u-2" } },
           ],
         },
       },
@@ -205,6 +218,44 @@ describe("findStripeCustomerId — 新しい列を足さずに顧客を探す", 
       await findStripeCustomerId({ userId: "u-1", email: "a@b.co" }, "sk_test_k", s.impl),
     ).toBe("cus_b");
     expect(decodeURIComponent(s.calls[1].url)).toContain("email:'a@b.co'");
+  });
+  it("メールが同じでも、本人の印が無い・違う顧客は選ばない（ほかの人の管理画面を開かない）", async () => {
+    const s = fakeStripe({
+      "/v1/subscriptions/search": { body: { data: [] } },
+      "/v1/customers/search": {
+        body: {
+          data: [
+            { id: "cus_nometa", created: 5 },
+            { id: "cus_empty", created: 6, metadata: {} },
+            { id: "cus_other", created: 9, metadata: { user_id: "u-2" } },
+          ],
+        },
+      },
+    });
+    expect(
+      await findStripeCustomerId({ userId: "u-1", email: "a@b.co" }, "sk_test_k", s.impl),
+    ).toBeNull();
+  });
+  it("定期購入の検索の結果も、本人の印の物だけ使う", async () => {
+    const s = fakeStripe({
+      "/v1/subscriptions/search": {
+        body: {
+          data: [
+            {
+              id: "sub_x",
+              customer: "cus_other",
+              status: "active",
+              created: 1,
+              metadata: { user_id: "u-2" },
+            },
+          ],
+        },
+      },
+      "/v1/customers/search": { body: { data: [] } },
+    });
+    expect(
+      await findStripeCustomerId({ userId: "u-1", email: "a@b.co" }, "sk_test_k", s.impl),
+    ).toBeNull();
   });
   it("引用符を逃がす（検索の文を壊さない）", async () => {
     const s = fakeStripe({ "/v1/subscriptions/search": { body: { data: [] } } });

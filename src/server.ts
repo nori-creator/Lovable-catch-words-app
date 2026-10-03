@@ -51,6 +51,16 @@ async function normalizeCatastrophicSsrResponse(
 
 export default {
   async fetch(request: Request, env: unknown, ctx: unknown) {
+    // 返事の後の裏の仕事（`lib/background-task.ts`）が `waitUntil` を見つけられるよう、
+    // 要求に付いていなければ Workers の ctx から付ける（nitro/srvx が付けていれば触らない）。
+    const wu = (ctx as { waitUntil?: unknown } | null)?.waitUntil;
+    if (typeof wu === "function" && !("waitUntil" in request)) {
+      try {
+        Object.defineProperty(request, "waitUntil", { value: wu.bind(ctx) });
+      } catch {
+        // 付けられない要求は、そのまま（裏の仕事は上限つきで待つ側に落ちる）。
+      }
+    }
     try {
       const handler = await getServerEntry();
       const response = await handler.fetch(request, env, ctx);

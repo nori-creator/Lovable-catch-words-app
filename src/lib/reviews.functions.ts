@@ -1,5 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { startOfAppDay } from "./taipei-day";
+import { readAllPages } from "./pagination";
+import { runAfterResponse } from "./background-task";
 import {
   matchesTargetLanguage,
   wordBelongsToTarget,
@@ -1029,36 +1031,44 @@ export const gradeReview = createServerFn({ method: "POST" })
      *    このアプリの式の見込み・実際の正誤（較正を見るため）
      * 鍵が無ければ何もしない。
      */
+    // **返事の後も記録を落とさない**（2026-10-03 監査）。Workers は返事の後の `void …` を
+    // 待たずに止めてよいので、影の記録が黙って消えていた。`runAfterResponse` が
+    // `waitUntil` に預ける（採点の返事は待たせない。見つからない Workers では最大2秒待つ）。
+    const baseline = retentionNow(row.interval_days, row.ease, lastMs, now) / 100;
+    const shadowTasks: Array<() => Promise<unknown>> = [];
     if (jev) {
-      void logScheduleDecision(supabase as never, {
-        userId,
-        stickerId: row.sticker_id,
-        model: jev.model,
-        confidence: jev.confidence,
-        jevDays: jev.days,
-        srsDays: srs.interval_days,
-        usedDays: next.interval_days,
-        mode,
-      });
-    } else if (mode === "shadow" && score >= LAPSE_SCORE) {
-      // 影の実行: 採点の後で Jev に聞き、答えを記録するだけ（予定は FSRS のまま）。
-      void jevScheduleDays(supabase as never, scheduleArgs).then((shadow) => {
-        if (!shadow) return;
-        return logScheduleDecision(supabase as never, {
+      shadowTasks.push(() =>
+        logScheduleDecision(supabase as never, {
           userId,
           stickerId: row.sticker_id,
-          model: shadow.model,
-          confidence: shadow.confidence,
-          jevDays: shadow.days,
+          model: jev.model,
+          confidence: jev.confidence,
+          jevDays: jev.days,
           srsDays: srs.interval_days,
           usedDays: next.interval_days,
           mode,
-        });
-      });
+        }),
+      );
+    } else if (mode === "shadow" && score >= LAPSE_SCORE) {
+      // 影の実行: 採点の後で Jev に聞き、答えを記録するだけ（予定は FSRS のまま）。
+      shadowTasks.push(() =>
+        jevScheduleDays(supabase as never, scheduleArgs).then((shadow) => {
+          if (!shadow) return;
+          return logScheduleDecision(supabase as never, {
+            userId,
+            stickerId: row.sticker_id,
+            model: shadow.model,
+            confidence: shadow.confidence,
+            jevDays: shadow.days,
+            srsDays: srs.interval_days,
+            usedDays: next.interval_days,
+            mode,
+          });
+        }),
+      );
     }
-    {
-      const baseline = retentionNow(row.interval_days, row.ease, lastMs, now) / 100;
-      void recordRecallShadow(supabase as never, {
+    shadowTasks.push(() =>
+      recordRecallShadow(supabase as never, {
         userId,
         stickerId: row.sticker_id,
         outcome: recalled,
@@ -1070,8 +1080,9 @@ export const gradeReview = createServerFn({ method: "POST" })
           repetitions: row.repetitions,
           baselineRecall: Math.max(0, Math.min(1, baseline)),
         },
-      });
-    }
+      }),
+    );
+    await runAfterResponse("review shadow log", () => Promise.all(shadowTasks.map((t) => t())));
 
     return {
       score,
@@ -1166,20 +1177,36 @@ export const getOverallMemoryStats = createServerFn({ method: "GET" })
     // 過去側は**記録**から作る。ここを現在の状態から作っていたせいで、
     // 復習した瞬間に過去14日が全部 100% に塗り替わっていた
     // (`src/lib/retention-series.ts` の冒頭に経緯)。
-    const [{ data: rows }, { data: hist }] = await Promise.all([
-      supabase
-        .from("reviews")
-        .select(
-          "sticker_id, ease, interval_days, last_reviewed_at, due_at, stickers(taken_at, words(language))",
-        )
-        .eq("user_id", userId),
-      supabase
-        .from("review_history")
-        .select("sticker_id, reviewed_at, interval_days_after, ease_after")
-        .eq("user_id", userId)
-        .order("reviewed_at", { ascending: true })
-        .limit(5000),
+    //
+    // **PostgREST は1回に1000行で切る**（2026-10-03 監査）。札は上限なしで読んでいたので
+    // 1000 枚で黙って止まり、記録は古い順に `.limit(5000)` だったので 1000 回答えた後は
+    // **いちばん古い 1000 件**だけで線を引いていた（最近の復習が全部抜ける）。両方とも
+    // `readAllPages` で全部読む。記録は新しい順に読んでから古い順に戻す — 安全の上限で
+    // 止まっても抜けるのは古い側だけになる。
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const db = supabase as any;
+    const [{ rows }, { rows: histNewestFirst }] = await Promise.all([
+      readAllPages<unknown>((a, b) =>
+        db
+          .from("reviews")
+          .select(
+            "sticker_id, ease, interval_days, last_reviewed_at, due_at, stickers(taken_at, words(language))",
+          )
+          .eq("user_id", userId)
+          .order("id")
+          .range(a, b),
+      ),
+      readAllPages<unknown>((a, b) =>
+        db
+          .from("review_history")
+          .select("sticker_id, reviewed_at, interval_days_after, ease_after")
+          .eq("user_id", userId)
+          .order("reviewed_at", { ascending: false })
+          .order("id")
+          .range(a, b),
+      ),
     ]);
+    const hist = [...histNewestFirst].reverse();
     type StatRow = {
       sticker_id: string;
       ease: number;
@@ -1257,12 +1284,19 @@ export const getMemoryOverview = createServerFn({ method: "GET" })
      * 今日の列(`getDueReviews`)だけ直しても、この画面は混ざったまま。
      */
     const targetLanguage = await getUserTargetLanguage(userId);
-    const { data: rows } = await supabase
-      .from("reviews")
-      .select(
-        "sticker_id, ease, interval_days, repetitions, last_reviewed_at, due_at, stickers(taken_at, words(headword, language))",
-      )
-      .eq("user_id", userId);
+    // 札は 1000 枚を超えうる。PostgREST の既定の上限で黙って切られないよう、
+    // `readAllPages` で全部読む（2026-10-03 監査）。
+    const { rows } = await readAllPages<unknown>((a, b) =>
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (supabase as any)
+        .from("reviews")
+        .select(
+          "sticker_id, ease, interval_days, repetitions, last_reviewed_at, due_at, stickers(taken_at, words(headword, language))",
+        )
+        .eq("user_id", userId)
+        .order("id")
+        .range(a, b),
+    );
     const now = Date.now();
     type Row = {
       sticker_id: string;
