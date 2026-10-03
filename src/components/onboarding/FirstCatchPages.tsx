@@ -129,8 +129,10 @@ export function FirstCatchIntro({
 }) {
   const t = useT();
   const en = draft.targetLanguage === "en";
-  // 学ぶ言語の字で、細いペンで書いたように（台湾華語は Zen Kurenaido、英語は Caveat）。
+  // 学ぶ言語の字で、細いペンで書いたように。台湾華語は台湾の標準の字形の芫荽、英語は Caveat。
   const hand = en ? "handwritten" : "first-welcome-pen";
+  // 台湾の字形で組む（字体が無い時に端末が選ぶ字体も、台湾の字形のものになる）。
+  const wordLang = en ? "en" : "zh-Hant-TW";
   return (
     <div className="first-run first-welcome">
       <div className="first-sky" aria-hidden="true">
@@ -158,7 +160,7 @@ export function FirstCatchIntro({
             >
               <span className="first-welcome-paper">
                 <img src={photo} alt="" className="first-welcome-photo" decoding="async" />
-                <span className="first-welcome-caption" lang={draft.targetLanguage}>
+                <span className="first-welcome-caption" lang={wordLang}>
                   <span className={hand}>{welcomeWord(key, en)}</span>
                 </span>
               </span>
@@ -176,7 +178,7 @@ export function FirstCatchIntro({
                   />
                   <span className="first-welcome-shine" />
                 </span>
-                <span className="first-welcome-caption" lang={draft.targetLanguage}>
+                <span className="first-welcome-caption" lang={wordLang}>
                   <span className={hand}>{welcomeWord("seaside", en)}</span>
                 </span>
               </span>
