@@ -101,6 +101,7 @@ const SCENARIOS = [
 
 const BROWSERS = (process.env.BROWSERS || "chromium").split(",").map((s) => s.trim());
 let failed = 0;
+let ran = 0;
 for (const name of BROWSERS) {
   let browser;
   try {
@@ -118,6 +119,7 @@ for (const name of BROWSERS) {
     console.log(`${name}: 起動できない（${String(e).split("\n")[0]}）— 飛ばす`);
     continue;
   }
+  ran++;
   for (const scenario of SCENARIOS) {
     const context = await browser.newContext({
       ...devices["iPhone 14"],
@@ -169,6 +171,10 @@ for (const name of BROWSERS) {
   await browser.close();
 }
 server.close();
+if (!ran) {
+  console.error("どのブラウザも起動できず、何も試していない（成功扱いにしない）。");
+  process.exit(1);
+}
 if (failed) {
   console.error(`${failed} 件、指ではがして図鑑に入れなかった。`);
   process.exit(1);

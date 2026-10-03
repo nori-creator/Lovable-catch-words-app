@@ -443,6 +443,15 @@ function FirstCatchFlowInner({
       setLanding(true);
       // Persist first. The existing reward waits at its gate and lands in the real Dex cell.
       const gate = persist(next);
+      // The save deadline counts from when the save starts, not from when the landing ends.
+      const savedOrTimeout = withDeadline(
+        gate.then(
+          () => "saved" as const,
+          () => "failed" as const,
+        ),
+        SAVE_DEADLINE_MS,
+        "timeout" as const,
+      );
       /**
        * **図鑑へ入るのは保存の成否だけで決める。音・振動・動きは待ちの理由にしない**
        * （iPhone の Safari で「図鑑に追加できない」報告 2026-10-03）。発音が鳴らない・
@@ -475,14 +484,7 @@ function FirstCatchFlowInner({
           undefined,
         );
         // Animation helpers may absorb failure; never treat that as a saved Catch.
-        const saved = await withDeadline(
-          gate.then(
-            () => "saved" as const,
-            () => "failed" as const,
-          ),
-          SAVE_DEADLINE_MS,
-          "timeout" as const,
-        );
+        const saved = await savedOrTimeout;
         if (saved === "timeout") throw new Error("FIRST_CATCH_STORAGE_TIMEOUT");
         if (saved === "failed") throw new Error("FIRST_CATCH_STORAGE");
         openDex();
