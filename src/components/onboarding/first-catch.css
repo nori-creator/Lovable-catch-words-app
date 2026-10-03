@@ -1939,6 +1939,33 @@ html[data-motion="reduce"] .tour-coach {
   .first-standalone {
     padding-block: 18px;
   }
+  /* 終わりの画面（2026-10-03 全画面の点検: 375×667 で「Create an account to continue」が
+     2行に折れ、下が画面の外で切れていた）。見出し・写真の余白を詰め、釦は1行に収める。 */
+  .first-complete .first-ready-heading {
+    padding-top: 20px;
+  }
+  .first-complete .first-ready-heading h1 {
+    margin: 6px 0 8px;
+    font-size: 26px;
+    line-height: 1.3;
+  }
+  .first-complete .first-ready-heading p {
+    font-size: 14px;
+    line-height: 1.6;
+  }
+  .first-complete-print {
+    margin: 22px auto 38px;
+  }
+  .first-complete .first-standalone-footer {
+    padding-top: 12px;
+  }
+}
+/* 登録の釦は**1行**（折れると高さが倍になり、小さい画面では下が切れる）。
+   長い訳（英語）は字を少しだけ詰める。 */
+.first-complete .first-standalone-footer .first-primary {
+  white-space: nowrap;
+  font-size: clamp(15px, 4.3vw, 17px);
+  padding-inline: 16px;
 }
 /* Motion tells the learner which option was accepted without slowing the next action. */
 .first-question-heading h1 {

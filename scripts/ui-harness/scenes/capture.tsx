@@ -17,7 +17,7 @@ readySpeech(["衛生紙", "面紙", "濕紙巾", "捲筒紙", "珍珠奶茶"]);
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Toaster } from "@/components/ui/sonner";
-import { useT } from "@/lib/i18n";
+import { getUiLang, localeOf, useT } from "@/lib/i18n";
 import {
   CaptureCardPanel,
   CaptureObjectPanel,
@@ -177,7 +177,7 @@ export function CaptureReunionScene({ q }: { q: URLSearchParams }) {
       onPeel={() => {}}
       failed={q.get("variant") === "error"}
       onRetry={() => {}}
-      dateLocale="ja-JP"
+      dateLocale={localeOf(getUiLang())}
       reenc={
         {
           sticker_id: "s1",
@@ -282,6 +282,7 @@ function useFakeCamera() {
 }
 
 export function CaptureObjectScene({ q }: { q: URLSearchParams }) {
+  const t = useT();
   const v = q.get("variant");
   const [typedWord, setTypedWord] = useState(v === "typed" ? "腳踏車" : "");
   useFakeCamera();
@@ -334,7 +335,8 @@ export function CaptureObjectScene({ q }: { q: URLSearchParams }) {
       setTypedWord={setTypedWord}
       onSearch={() => {}}
       onOpenScan={() => setScan(true)}
-      error={v === "error" ? "写真を読み込めませんでした" : null}
+      // 本番と同じ文（表示言語で）。直書きの日本語だと英語・中文の見本が嘘になる。
+      error={v === "error" ? t("cap.photoReadFailed") : null}
     />
   );
 }

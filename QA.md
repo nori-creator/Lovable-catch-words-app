@@ -130,7 +130,9 @@ The minimum review experience should be intentionally small.
 With words collected in Japanese, switch the display language to English and then 繁體中文 (learning Taiwanese Mandarin):
 
 - Review quiz: the prompt never shows a Japanese meaning ("Which one means “notebook”?" / 「記事用的本子」是哪一個？); while no reader-language meaning exists yet it asks "Which one is this?" with the photo.
-- Answer sheet: pattern, related-word and measure-word glosses appear in the display language once the reader explanation exists (generated in the background for the current and next card); the POS legend reads Noun / Verb / … (名詞 / 動詞 / 狀態動詞(形容詞) in 繁體中文).
+- Answer sheet: pattern, related-word and measure-word glosses appear in the display language once the reader explanation exists (generated in the background for the current and next card); the POS legend reads Noun / Verb / … (名詞 / 動詞 / 狀態動詞（形容詞） in 繁體中文).
 - Dex cover-flow, grid, list, calendar and map day cards show a meaning under the headword in the display language; dex search also matches that meaning.
 - Word card: the 品詞 chip reads "N · Noun" / "N · 名詞" in the display language.
 - Japanese UI with Japanese words looks exactly as before (harness `review-choice&lang=ja&mixed=1&photo=1&answer=right`).
+- First run (2026-10-03): before the display language is chosen, `/welcome` and the first question follow the browser language (zh-TW / zh-Hant / zh-HK → 繁體中文, ja → 日本語, otherwise English) and preselect it; a stored choice is never overwritten (harness `first-catch&browser=en-US`).
+- English counts use the singular for 1 (`{n|photo|photos}` in `i18n.tsx`): "1 photo", "met 1 time", "Caught 1 word today".

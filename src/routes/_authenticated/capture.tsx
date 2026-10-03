@@ -1765,10 +1765,12 @@ export function PickWordPanel({
     // **横には動かさない**（オーナー指示 2026-09-27「撮影後の単語候補画面を
     // 横スライドできないよう固定」）。はみ出す物があっても横に送れないよう、
     // この面は縦だけに動く。
-    <div className="space-y-4 overflow-x-hidden overscroll-x-none [touch-action:pan-y]">
+    // 背の低い画面（高さ 700px 以下 = iPhone SE / 8）では写真と間を詰め、下の「違う単語を
+    // 入力」まで1画面に収める（2026-10-03 全画面の点検: 375×667 で下のタブの下に隠れていた）。
+    <div className="space-y-4 overflow-x-hidden overscroll-x-none [touch-action:pan-y] [@media(max-height:700px)]:space-y-2">
       {/* 撮った写真が上に小さく残る — どれを撮ったかを見ながら語を選べる */}
       {objectImg && (
-        <div className="mx-auto grid aspect-square w-40 max-w-full place-items-center overflow-hidden rounded-3xl bg-secondary shadow-lg">
+        <div className="mx-auto grid aspect-square w-40 max-w-full place-items-center overflow-hidden rounded-3xl bg-secondary shadow-lg [@media(max-height:700px)]:w-20 [@media(max-height:700px)]:rounded-2xl">
           <img
             src={objectImg}
             alt={t("cap.photoTaken")}
@@ -1795,7 +1797,7 @@ export function PickWordPanel({
         置いたほうが見つかる。釦は撮る画面の検索と同じ虫眼鏡にして、
         「ここに打って調べる」が一目で分かる形に揃えた。
       */}
-      <div className="rounded-2xl border border-dashed border-border bg-card p-3">
+      <div className="rounded-2xl border border-dashed border-border bg-card p-3 [@media(max-height:700px)]:p-2">
         <Label htmlFor="manual" className="block text-end text-footnote text-muted-foreground">
           {t("capture.otherWord")}
         </Label>
@@ -1974,7 +1976,9 @@ export function CaptureCardPanel({
       </div>
       <button
         type="button"
-        className="block mx-auto text-caption text-muted-foreground"
+        // 押せる高さは 44px（2026-10-03 全画面の点検: 字の高さ 17px しかなかった）。
+        // 上下の余白は外側へ逃がし、並びの間隔は前と同じに見せる。
+        className="-mt-3 mb-1 mx-auto flex min-h-11 items-center px-3 text-caption text-muted-foreground"
         disabled={saving || landing}
         onClick={() => setFlipped((f) => !f)}
       >

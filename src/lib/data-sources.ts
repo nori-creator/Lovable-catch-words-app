@@ -35,10 +35,17 @@ export type DataSource = {
   id: string;
   /** 出す名前。**原典の表記のまま**（訳さない）。 */
   name: string;
-  /** 誰が作ったか。CEFR-J はここの明記が条件。 */
+  /** 誰が作ったか。CEFR-J はここの明記が条件。**原典の表記**（日本語の画面はこれを出す）。 */
   author: string;
+  /**
+   * 作り手の名前を表示言語で（翻訳キー）。原典が日本語のものだけ持つ — 英語・繁體中文の
+   * 画面に日本語のまま出ていた（2026-10-03 全画面の点検）。無ければ `author` をそのまま出す。
+   */
+  authorKey?: string;
   /** ライセンスの名前。 */
   license: string;
+  /** ライセンスの名前を表示言語で（翻訳キー）。`authorKey` と同じ理由。 */
+  licenseKey?: string;
   /** **表示が義務かどうか。** true のものは頁から外せない。 */
   attributionRequired: boolean;
   href: string;
@@ -79,7 +86,9 @@ export const DATA_SOURCES: readonly DataSource[] = [
     name: "CEFR-J Wordlist Version 1.6",
     // **ここを削らない。** 明記が利用の条件。
     author: "投野由紀夫研究室（東京外国語大学）",
+    authorKey: "sources.cefrjAuthor",
     license: "CEFR-J（商用可）",
+    licenseKey: "sources.cefrjLicense",
     attributionRequired: true,
     href: "https://www.cefr-j.org/download.html",
     uses: ["vocab_level"],
@@ -89,7 +98,9 @@ export const DATA_SOURCES: readonly DataSource[] = [
     id: "cefrj-grammar",
     name: "CEFR-J Grammar Profile",
     author: "投野由紀夫研究室（東京外国語大学）",
+    authorKey: "sources.cefrjAuthor",
     license: "CEFR-J（商用可）",
+    licenseKey: "sources.cefrjLicense",
     attributionRequired: true,
     href: "https://www.cefr-j.org/download.html",
     uses: ["grammar_level"],

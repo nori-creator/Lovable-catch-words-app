@@ -42,6 +42,38 @@ export function storedUiLang(): string | null {
   }
 }
 
+/**
+ * **ブラウザの言語から、最初の表示言語を決める**（2026-10-03 実物確認「英語・中文の
+ * ブラウザでもウェルカム画面が日本語」— 6回中4回）。表示言語を選ぶのはウェルカムの
+ * 次の画面なので、それまでは端末の言語に合わせる。
+ *
+ * 先頭から順に見て、知っている言語に最初に当たった物を使う:
+ * zh-TW / zh-Hant / zh-HK / zh-MO → 繁體中文、ja → 日本語、en → 英語。
+ * 簡体字の中文（zh-CN など）は繁體中文にしない（字が違う）。何にも当たらなければ英語。
+ */
+export function browserUiLang(languages: readonly string[] | null | undefined): UiLang {
+  for (const raw of languages ?? []) {
+    const l = (raw ?? "").trim().toLowerCase();
+    if (!l) continue;
+    if (/^zh-(tw|hk|mo)\b/.test(l) || l.startsWith("zh-hant")) return "zh-TW";
+    if (l === "ja" || l.startsWith("ja-")) return "ja";
+    if (l === "en" || l.startsWith("en-")) return "en";
+  }
+  return "en";
+}
+
+/**
+ * **最初の画面（ウェルカム）で使う表示言語。** 選んだことがあればそれ、無ければ
+ * ブラウザの言語（`browserUiLang`）。選んだ値は**決して上書きしない**。
+ */
+export function initialUiLang(): UiLang {
+  const stored = storedUiLang();
+  if (stored && (UI_LANGS as readonly string[]).includes(stored)) return stored as UiLang;
+  if (typeof navigator === "undefined") return "ja";
+  const langs = navigator.languages?.length ? navigator.languages : [navigator.language];
+  return browserUiLang(langs);
+}
+
 export function getUiLang(): UiLang {
   if (typeof window === "undefined") return "ja";
   try {
@@ -148,7 +180,7 @@ export const DICT: Record<string, Record<UiLang, string>> = {
   "first.introTagline": {
     ja: "日常のすべてが学びになる",
     en: "Every moment becomes a lesson",
-    "zh-TW": "日常的一切，都能成為學習",
+    "zh-TW": "生活中處處都是學習",
   },
   "first.notificationsTitle": {
     ja: "学習の通知を\n設定しますか？",
@@ -211,7 +243,7 @@ export const DICT: Record<string, Record<UiLang, string>> = {
   },
   "first.timeNote": {
     ja: "短い時間でも大丈夫。あなたのペースで続けましょう。",
-    en: "A few minutes is a great start. Make it your own pace.",
+    en: "A few minutes is a great start. Go at your own pace.",
     "zh-TW": "幾分鐘也很好，照著自己的步調來。",
   },
   "first.goal.conversation": { ja: "日常会話", en: "Everyday conversation", "zh-TW": "日常會話" },
@@ -237,7 +269,7 @@ export const DICT: Record<string, Record<UiLang, string>> = {
   "first.exploreHint": {
     ja: "意味・発音・例文・チャンクを、この1枚に。",
     en: "Meaning, sound, examples and chunks on one card.",
-    "zh-TW": "意思、發音、例句、用法組塊，都在這一張。",
+    "zh-TW": "意思、發音、例句、語塊，都在這一張。",
   },
   "first.sampleCoffee": { ja: "コーヒー", en: "coffee", "zh-TW": "咖啡" },
   "first.sampleAlbum": {
@@ -251,7 +283,7 @@ export const DICT: Record<string, Record<UiLang, string>> = {
     "zh-TW": "這個畫面預覽無法使用 AI 分析。照片仍保留在裝置上。",
   },
   "first.photoUnsupported": {
-    ja: "この写真を読み込めませんでした。iPhoneのカメラで撮り直すか、JPEGの写真を選んでください。",
+    ja: "この写真を読み込めませんでした。カメラで撮り直すか、JPEGの写真を選んでください。",
     en: "We couldn't read this photo. Retake it with the camera or select a JPEG image.",
     "zh-TW": "無法讀取這張照片。請用相機重拍，或選擇 JPEG 照片。",
   },
@@ -294,7 +326,7 @@ export const DICT: Record<string, Record<UiLang, string>> = {
   "first.displayHint": {
     ja: "メニューや説明に使う言語です。",
     en: "The language for menus and explanations.",
-    "zh-TW": "選擇選單與說明使用的語言。",
+    "zh-TW": "選單與說明會使用這個語言。",
   },
   "first.target": {
     ja: "学びたい言語は？",
@@ -415,7 +447,7 @@ export const DICT: Record<string, Record<UiLang, string>> = {
   },
   "first.added": {
     ja: "図鑑に入りました",
-    en: "Added to your collection",
+    en: "Added to your Dex",
     "zh-TW": "已加入圖鑑",
   },
   "first.local": {
@@ -527,7 +559,7 @@ export const DICT: Record<string, Record<UiLang, string>> = {
   "first.dexTitle": {
     ja: "写真でめくる",
     en: "Flip through your photos",
-    "zh-TW": "用照片翻看",
+    "zh-TW": "翻閱你的照片",
   },
   "first.reviewPick": {
     ja: "問題に合うことばを選んでください。間違えても大丈夫です。",
@@ -561,7 +593,7 @@ export const DICT: Record<string, Record<UiLang, string>> = {
   },
   "first.peelTitle": {
     ja: "はがして図鑑へ",
-    en: "Peel it into your collection",
+    en: "Peel it into your Dex",
     "zh-TW": "掀起來，放進圖鑑",
   },
   "first.shutterTitle": {
@@ -774,21 +806,21 @@ export const DICT: Record<string, Record<UiLang, string>> = {
   "rv.tapForCurve": {
     ja: "タップで単語ごとの忘却曲線と「いつ忘れるか」の予測が見られます",
     en: "Tap to see each word's forgetting curve and when you're predicted to forget it",
-    "zh-TW": "點一下可以看每個字的遺忘曲線，以及「什麼時候會忘記」的預測",
+    "zh-TW": "點一下可以看每個單字的遺忘曲線，以及「什麼時候會忘記」的預測",
   },
   "rv.today": { ja: "今日", en: "Today", "zh-TW": "今天" },
-  "rv.targetAlt": { ja: "復習対象", en: "The word being reviewed", "zh-TW": "正在複習的字" },
+  "rv.targetAlt": { ja: "復習対象", en: "The word being reviewed", "zh-TW": "正在複習的單字" },
   "rv.topChunk": { ja: "よく使う形", en: "Most-used pattern", "zh-TW": "最常用的形式" },
   // 解説がまだ生成されていない語でも、答え合わせを空にしないための見出し
   // （オーナー報告 2026-09-15「復習の時に解説がない」）。
   "rv.meaning": { ja: "意味", en: "Meaning", "zh-TW": "意思" },
   "rv.example": { ja: "例文", en: "Example", "zh-TW": "例句" },
-  "rv.relatedWords": { ja: "一緒に覚える語", en: "Words to learn with it", "zh-TW": "一起記的字" },
+  "rv.relatedWords": { ja: "一緒に覚える語", en: "Words to learn with it", "zh-TW": "一起記的詞" },
   "rv.measureWords": { ja: "量詞", en: "Measure words", "zh-TW": "量詞" },
-  "rv.goodToKnow": { ja: "知っておくと得", en: "Good to know", "zh-TW": "知道了會加分" },
-  "rv.kindSyn": { ja: "似", en: "syn", "zh-TW": "近" },
-  "rv.kindAnt": { ja: "反", en: "ant", "zh-TW": "反" },
-  "rv.kindRel": { ja: "関", en: "rel", "zh-TW": "關" },
+  "rv.goodToKnow": { ja: "知っておくと得", en: "Good to know", "zh-TW": "小知識" },
+  "rv.kindSyn": { ja: "似", en: "Similar", "zh-TW": "近" },
+  "rv.kindAnt": { ja: "反", en: "Opposite", "zh-TW": "反" },
+  "rv.kindRel": { ja: "関", en: "Related", "zh-TW": "關" },
   "dex.truncated": {
     ja: "全{total}件のうち、新しい{n}件を表示しています。これより古いものはまだ出せていません。",
     en: "Showing the newest {n} of {total}. Older ones aren't loaded yet.",
@@ -802,7 +834,7 @@ export const DICT: Record<string, Record<UiLang, string>> = {
   },
   "dex.metCountAria": {
     ja: "{word} — {n}回出会った",
-    en: "{word} — met {n} times",
+    en: "{word} — met {n} {n|time|times}",
     "zh-TW": "{word} — 遇到 {n} 次",
   },
   "dex.allCategories": { ja: "すべて", en: "All", "zh-TW": "全部" },
@@ -854,7 +886,7 @@ export const DICT: Record<string, Record<UiLang, string>> = {
   // **英語だけ空なのはわざと。** カレンダーの読み上げに付ける単位で、
   // 日本語と中文は「25日」、英語は「25」と数字だけで言う。
   // 空でないことを見る門（`i18n.test.ts`）に、ここだけ名指しで許してある。
-  "dex.dayUnit": { ja: "日", en: "", "zh-TW": "日" },
+  "dex.dayLabel": { ja: "{n}日", en: "Day {n}", "zh-TW": "{n}日" },
   "dex.allDays": { ja: "すべての日", en: "All days", "zh-TW": "所有日期" },
   "rv.whichIsBefore": { ja: "「", en: "Which one means “", "zh-TW": "「" },
   "rv.whichIsAfter": { ja: "」はどれ？", en: "”?", "zh-TW": "」是哪一個？" },
@@ -1156,12 +1188,12 @@ export const DICT: Record<string, Record<UiLang, string>> = {
   "scan.whichOne": { ja: "どちらですか？", en: "Which one?", "zh-TW": "是哪一個呢？" },
   "scan.foundDaysAgoBefore": {
     ja: "✨ {n}日前に調べた「",
-    en: "✨ You looked this up {n} day(s) ago: ",
+    en: "✨ You looked this up {n} {n|day|days} ago: ",
     "zh-TW": "✨ 這是 {n} 天前查過的「",
   },
   "scan.foundDaysAgoAfter": {
     ja: "」だ！撮って図鑑を完成させよう",
-    en: " — shoot it to complete your dex",
+    en: " — shoot it to complete your Dex",
     "zh-TW": "」！拍下來把圖鑑補齊吧",
   },
   "scan.ownedTag": { ja: "取得済み", en: "Collected", "zh-TW": "已收集" },
@@ -1173,7 +1205,7 @@ export const DICT: Record<string, Record<UiLang, string>> = {
   },
   "scan.playPron": { ja: "発音を再生", en: "Play pronunciation", "zh-TW": "播放發音" },
   "card.title": { ja: "カード", en: "Card", "zh-TW": "字卡" },
-  "card.backToDex": { ja: "図鑑へ戻る", en: "Back to dex", "zh-TW": "回到圖鑑" },
+  "card.backToDex": { ja: "図鑑へ戻る", en: "Back to Dex", "zh-TW": "回到圖鑑" },
   "card.notFound": {
     ja: "カードが見つかりませんでした。",
     en: "Card not found.",
@@ -1281,7 +1313,7 @@ export const DICT: Record<string, Record<UiLang, string>> = {
   // 「何を」読み込めなかったかの名前。画面ごとに1つ。
   "err.whatWordCard": { ja: "この単語のカード", en: "this word's card", "zh-TW": "這個單字的字卡" },
   "err.whatHome": { ja: "今日のページ", en: "today's page", "zh-TW": "今天的頁面" },
-  "err.whatDex": { ja: "図鑑", en: "your dex", "zh-TW": "圖鑑" },
+  "err.whatDex": { ja: "図鑑", en: "your Dex", "zh-TW": "圖鑑" },
   "err.whatSettings": { ja: "設定", en: "your settings", "zh-TW": "設定" },
   "err.whatReview": { ja: "今日の復習", en: "today's review", "zh-TW": "今天的複習" },
   "err.retrying": { ja: "再試行中…", en: "Retrying…", "zh-TW": "重試中…" },
@@ -1340,7 +1372,7 @@ export const DICT: Record<string, Record<UiLang, string>> = {
   },
   "cap.savedButLandingFailed": {
     ja: "図鑑には追加できました（演出の途中で問題が起きました）。",
-    en: "It's in your dex — something went wrong during the animation.",
+    en: "It's in your Dex — something went wrong during the animation.",
     "zh-TW": "已經加進圖鑑了（動畫途中出了點狀況）。",
   },
   "cap.saveFailed": { ja: "保存に失敗しました", en: "Couldn't save", "zh-TW": "儲存失敗" },
@@ -1359,7 +1391,11 @@ export const DICT: Record<string, Record<UiLang, string>> = {
   "cap.otherObjects": { ja: "ほかに写っている物", en: "Also in the photo", "zh-TW": "照片裡還有" },
   "cap.pickThis": { ja: "この語で図鑑に入れる", en: "Add this word", "zh-TW": "用這個詞加入圖鑑" },
   "cap.otherNames": { ja: "ほかの言い方", en: "Other ways to say it", "zh-TW": "其他說法" },
-  "cap.otherNamesN": { ja: "ほかの言い方 {n}", en: "{n} other names", "zh-TW": "其他說法 {n}" },
+  "cap.otherNamesN": {
+    ja: "ほかの言い方 {n}",
+    en: "{n} other {n|name|names}",
+    "zh-TW": "其他說法 {n}",
+  },
   "cap.regSpecific": { ja: "くわしい名前", en: "Specific name", "zh-TW": "具體名稱" },
   "cap.regProper": { ja: "固有名詞", en: "Proper noun", "zh-TW": "專有名詞" },
   "cap.regCasual": { ja: "砕けた言い方", en: "Casual", "zh-TW": "口語說法" },
@@ -1383,7 +1419,7 @@ export const DICT: Record<string, Record<UiLang, string>> = {
     en: "Times you met this word",
     "zh-TW": "遇到這個字的紀錄",
   },
-  "photos.count": { ja: "{n}枚", en: "{n} photos", "zh-TW": "{n} 張" },
+  "photos.count": { ja: "{n}枚", en: "{n} {n|photo|photos}", "zh-TW": "{n} 張" },
   "photos.first": { ja: "はじめて", en: "First", "zh-TW": "第一次" },
   "photos.alt": {
     ja: "{n}回目に撮った写真",
@@ -1392,7 +1428,7 @@ export const DICT: Record<string, Record<UiLang, string>> = {
   },
   "cap.reunionSaving": {
     ja: "この1枚を図鑑に足しています…",
-    en: "Adding this photo to your dex…",
+    en: "Adding this photo to your Dex…",
     "zh-TW": "正在把這張加進圖鑑…",
   },
   "cap.photoAdded": {
@@ -1406,8 +1442,8 @@ export const DICT: Record<string, Record<UiLang, string>> = {
     "zh-TW": " · 下次複習：{date}",
   },
   "sheet.catch": { ja: "キャッチ", en: "Catch", "zh-TW": "捕捉" },
-  "sheet.file": { ja: "図鑑へ収める", en: "Add to dex", "zh-TW": "收進圖鑑" },
-  "sheet.landed": { ja: "図鑑に着地！", en: "Landed in your dex!", "zh-TW": "降落在圖鑑了！" },
+  "sheet.file": { ja: "図鑑へ収める", en: "Add to Dex", "zh-TW": "收進圖鑑" },
+  "sheet.landed": { ja: "図鑑に着地！", en: "Landed in your Dex!", "zh-TW": "降落在圖鑑了！" },
   "sheet.noWordInfo": {
     ja: "単語情報を取得できませんでした",
     en: "Couldn't get the word details",
@@ -1425,17 +1461,17 @@ export const DICT: Record<string, Record<UiLang, string>> = {
   },
   "sheet.addedOne": {
     ja: "図鑑に1体増えました！",
-    en: "One more in your dex!",
+    en: "One more in your Dex!",
     "zh-TW": "圖鑑多了一隻！",
   },
   "sheet.cardAdded": {
     ja: "図鑑にカードが入りました！",
-    en: "Card added to your dex!",
+    en: "Card added to your Dex!",
     "zh-TW": "字卡進到圖鑑了！",
   },
   "sheet.addedGhostFree": {
     ja: "図鑑に入りました。実物に出会ったら金色に光ります！",
-    en: "Added to your dex. It turns gold when you meet the real thing!",
+    en: "Added to your Dex. It turns gold when you meet the real thing!",
     "zh-TW": "已經收進圖鑑。遇到實物時就會發出金色的光！",
   },
   "sheet.loading": { ja: "読み込み中…", en: "Loading…", "zh-TW": "載入中…" },
@@ -1478,7 +1514,7 @@ export const DICT: Record<string, Record<UiLang, string>> = {
   "set.deleteWord": { ja: "削除", en: "DELETE", "zh-TW": "刪除" },
   "set.qualitySamples": {
     ja: "直近{n}回のスキャンから算出（仕様§9の合格ライン）",
-    en: "Computed from your last {n} scans (spec §9 pass line)",
+    en: "Computed from your last {n} {n|scan|scans} (spec §9 pass line)",
     "zh-TW": "由最近 {n} 次掃描計算（規格 §9 的合格標準）",
   },
   "set.placeLabel": { ja: "場所でリマインド", en: "Location reminders", "zh-TW": "地點提醒" },
@@ -1823,7 +1859,7 @@ export const DICT: Record<string, Record<UiLang, string>> = {
   },
   "memorial.sub": {
     ja: "{n}日間で{count}語。思い出の{photos}枚をまとめました",
-    en: "{count} words in {n} days. {photos} moments in one page",
+    en: "{count} {count|word|words} in {n} {n|day|days}. {photos} {photos|moment|moments} in one page",
     "zh-TW": "{n} 天收集了 {count} 個單字，精選 {photos} 張回憶",
   },
   // 記念アルバムを開く瞬間の演出（`MemorialReveal`、2026-09-28）。
@@ -1831,7 +1867,7 @@ export const DICT: Record<string, Record<UiLang, string>> = {
   "memorial.daysUnit": { ja: "日", en: "days", "zh-TW": "天" },
   "memorial.wordsCaught": {
     ja: "{count}語を集めました",
-    en: "{count} words caught",
+    en: "{count} {count|word|words} caught",
     "zh-TW": "收集了 {count} 個單字",
   },
   "memorial.openAlbum": { ja: "アルバムを開く", en: "Open the album", "zh-TW": "打開相簿" },
@@ -1843,7 +1879,7 @@ export const DICT: Record<string, Record<UiLang, string>> = {
   },
   "memorial.notifyBody": {
     ja: "使い始めて{n}日。これまでの思い出を1冊にまとめました",
-    en: "{n} days in. Your favourite moments, in one album",
+    en: "{n} {n|day|days} in. Your favourite moments, in one album",
     "zh-TW": "使用第 {n} 天，把回憶整理成一本相簿",
   },
   // 復習の通知の時刻（オーナー指示 2026-09-27）。`review-reminder.ts`。
@@ -1883,12 +1919,12 @@ export const DICT: Record<string, Record<UiLang, string>> = {
   },
   "remind.body": {
     ja: "復習する単語が{n}語あります",
-    en: "You have {n} words to review",
+    en: "You have {n} {n|word|words} to review",
     "zh-TW": "有 {n} 個單字要複習",
   },
   "remind.bodySrs": {
     ja: "忘れかけの単語が{n}語。いまがいちばん覚え直しやすい時です",
-    en: "{n} words are fading. Now is the best time to refresh them",
+    en: "{n} {n|word is|words are} fading. Now is the best time to {n|refresh it|refresh them}",
     "zh-TW": "有 {n} 個單字快忘了，現在複習最有效",
   },
   "remind.bodyEmpty": {
@@ -1971,7 +2007,7 @@ export const DICT: Record<string, Record<UiLang, string>> = {
   // --- ワードツリー・画像選択 ---
   "tree.branches": {
     ja: "枝 {done}/{total} 本 · 復習ごとに1本育つ",
-    en: "{done} of {total} branches · one grows per review",
+    en: "{done} of {total} {total|branch|branches} · one grows per review",
     "zh-TW": "樹枝 {done}/{total} 根 · 每複習一次長一根",
   },
   // --- 忘却曲線 ---
@@ -2004,7 +2040,7 @@ export const DICT: Record<string, Record<UiLang, string>> = {
   },
   "curve.aria": {
     ja: "記憶の曲線。今日の記憶率 {pct}%、復習 {n} 回",
-    en: "Memory curve. Today {pct}%, reviewed {n} times",
+    en: "Memory curve. Today {pct}%, reviewed {n} {n|time|times}",
     "zh-TW": "記憶曲線。今天的記憶率 {pct}%，複習 {n} 次",
   },
   "curve.reviewNow": {
@@ -2042,7 +2078,7 @@ export const DICT: Record<string, Record<UiLang, string>> = {
   // --- review ---
   "review.today": { ja: "きょうの復習", en: "Today's review", "zh-TW": "今天的複習" },
   // --- dex ---
-  "dex.yours": { ja: "あなたの図鑑", en: "Your dex", "zh-TW": "你的圖鑑" },
+  "dex.yours": { ja: "あなたの図鑑", en: "Your Dex", "zh-TW": "你的圖鑑" },
   "dex.search": {
     ja: "単語・読み・意味で検索",
     en: "Search word / reading / meaning",
@@ -2303,7 +2339,7 @@ export const DICT: Record<string, Record<UiLang, string>> = {
   "scan.new": { ja: "新しい", en: "New", "zh-TW": "新的" },
   "scan.reunion": { ja: "未撮影", en: "No photo yet", "zh-TW": "還沒拍過" },
   "scan.catch": { ja: "キャッチ", en: "Catch", "zh-TW": "捕捉" },
-  "scan.addToDex": { ja: "図鑑に追加", en: "Add to collection", "zh-TW": "加入圖鑑" },
+  "scan.addToDex": { ja: "図鑑に追加", en: "Add to Dex", "zh-TW": "加入圖鑑" },
   "scan.addShort": { ja: "追加", en: "Add", "zh-TW": "加入" },
   "scan.nextCandidate": { ja: "次の候補", en: "Next candidate", "zh-TW": "下一個候選" },
   "scan.analyzing": { ja: "AIが分析中…", en: "AI is analyzing…", "zh-TW": "AI 分析中…" },
@@ -2355,9 +2391,13 @@ export const DICT: Record<string, Record<UiLang, string>> = {
   "review.cappedTitle": {
     ja: "今日の分は終わりです",
     en: "That's today's batch",
-    "zh-TW": "今天的份結束了",
+    "zh-TW": "今天的進度完成了",
   },
-  "review.cappedCta": { ja: "設定で枚数を変える", en: "Change the limit", "zh-TW": "到設定改張數" },
+  "review.cappedCta": {
+    ja: "設定で枚数を変える",
+    en: "Change the limit",
+    "zh-TW": "到設定調整題數",
+  },
   // 10枚の束を出し切っただけのとき。**「今日は終わり」と言ってはいけない** —
   // 上限を無制限にした人にも10枚ごとに出て、設定が効いていないように見えていた。
   "review.moreTitle": {
@@ -2383,7 +2423,7 @@ export const DICT: Record<string, Record<UiLang, string>> = {
     en: "Catch a new word and its first review appears 10 minutes later.",
     "zh-TW": "捕捉到新單字後，10 分鐘後會出現第一次複習。",
   },
-  "review.goCatch": { ja: "撮りに行く", en: "Go catch one", "zh-TW": "去拍" },
+  "review.goCatch": { ja: "撮りに行く", en: "Go catch one", "zh-TW": "去拍照收集" },
   // 「ノルマ」は課された量という含意が強く、達成を祝う語ではない(独立監査)。
   "review.doneTitle": {
     ja: "今日の復習、終わりました",
@@ -2401,7 +2441,7 @@ export const DICT: Record<string, Record<UiLang, string>> = {
     "zh-TW": "明天複習時再見。",
   },
   "review.again": { ja: "もう少し続ける", en: "Keep going", "zh-TW": "再多做一點" },
-  "review.toDex": { ja: "図鑑を見る", en: "Open the shelf", "zh-TW": "看圖鑑" },
+  "review.toDex": { ja: "図鑑を見る", en: "Open Dex", "zh-TW": "看圖鑑" },
   "review.quizTag": { ja: "4択クイズ", en: "Multiple choice", "zh-TW": "四選一測驗" },
   "review.correct": { ja: "正解！", en: "Correct!", "zh-TW": "答對了！" },
   "review.tryAgain": { ja: "もう一度覚えよう", en: "Let's learn it again", "zh-TW": "再記一次吧" },
@@ -2414,9 +2454,9 @@ export const DICT: Record<string, Record<UiLang, string>> = {
     "zh-TW": "記憶狀態：{label}（{n}%）",
   },
   "memory.level0": { ja: "忘れかけ", en: "Fading", "zh-TW": "快忘了" },
-  "memory.level1": { ja: "あやうい", en: "Shaky", "zh-TW": "有點危險" },
+  "memory.level1": { ja: "あやうい", en: "Weak", "zh-TW": "有點不穩" },
   "memory.level2": { ja: "うろ覚え", en: "Fuzzy", "zh-TW": "記得模糊" },
-  "memory.level3": { ja: "薄れぎみ", en: "Slipping", "zh-TW": "開始變淡" },
+  "memory.level3": { ja: "だいたい", en: "Fair", "zh-TW": "大致記得" },
   "memory.level4": { ja: "覚えている", en: "Remembered", "zh-TW": "記得" },
   "memory.level5": { ja: "はっきり", en: "Clear", "zh-TW": "很清楚" },
   "memory.reviews": { ja: "復習", en: "Reviews", "zh-TW": "複習" },
@@ -2431,7 +2471,7 @@ export const DICT: Record<string, Record<UiLang, string>> = {
   },
   "card.example": { ja: "例文", en: "Example", "zh-TW": "例句" },
   "card.examples_extra": { ja: "追加の例文", en: "More examples", "zh-TW": "更多例句" },
-  "card.usage_chunks": { ja: "使い方チャンク", en: "Usage chunks", "zh-TW": "用法組塊" },
+  "card.usage_chunks": { ja: "使い方チャンク", en: "Usage chunks", "zh-TW": "語塊" },
   "card.measure_words": { ja: "量詞", en: "Measure words", "zh-TW": "量詞" },
   // オーナー指示 2026-08-27 ⑧「項目のタイトルを類義語・反義語・関連語に変更する」。
   // 中の札(類義語/反義語/関連語)と同じ言い方に揃える — 見出しだけ
@@ -2442,6 +2482,12 @@ export const DICT: Record<string, Record<UiLang, string>> = {
     "zh-TW": "近義詞、反義詞、相關詞",
   },
   "card.fillCta": { ja: "カードを仕上げる", en: "Finish this card", "zh-TW": "把字卡補完" },
+  // 単語の詳細の「意味」に、読む人の言語の意味がまだ無い時（空の箱にしない）。
+  "card.meaningPending": {
+    ja: "あなたの言語の意味を用意しています…",
+    en: "Getting the meaning in your language…",
+    "zh-TW": "正在準備你的語言的意思…",
+  },
   "card.filling": { ja: "作っています…", en: "Writing it…", "zh-TW": "製作中…" },
   "card.fillFailed": {
     ja: "うまく作れませんでした。通信を確かめて、もう一度お試しください。",
@@ -2660,7 +2706,7 @@ export const DICT: Record<string, Record<UiLang, string>> = {
   },
   "home.blankStreak": {
     ja: "{n}日連続で新しい単語に出会っています！",
-    en: "You've met new words {n} days in a row!",
+    en: "You've met new words {n} {n|day|days} in a row!",
     "zh-TW": "已經連續 {n} 天遇見新單字了！",
   },
   "home.blankNth": {
@@ -2680,12 +2726,12 @@ export const DICT: Record<string, Record<UiLang, string>> = {
   // 出てくる場所の名前と、語の数。場所が1つも無い日は場所を言わない。
   "home.tagline": {
     ja: "今日は{n}つの言葉に出会った。",
-    en: "Caught {n} words today.",
+    en: "Caught {n} {n|word|words} today.",
     "zh-TW": "今天遇到了 {n} 個字。",
   },
   "home.taglineAt": {
     ja: "{place}で、{n}つの言葉に出会った。",
-    en: "{n} words, around {place}.",
+    en: "{n} {n|word|words}, around {place}.",
     "zh-TW": "在{place}，遇到了 {n} 個字。",
   },
   "home.background": { ja: "ホームの壁紙", en: "Home wallpaper", "zh-TW": "首頁桌布" },
@@ -2706,7 +2752,7 @@ export const DICT: Record<string, Record<UiLang, string>> = {
     en: "Review streak",
     "zh-TW": "連續複習的天數",
   },
-  "me.days": { ja: "{n}日", en: "{n} days", "zh-TW": "{n} 天" },
+  "me.days": { ja: "{n}日", en: "{n} {n|day|days}", "zh-TW": "{n} 天" },
   "me.captured": { ja: "集めた言葉", en: "Words caught", "zh-TW": "收集到的字" },
   "me.level": { ja: "レベル", en: "Level", "zh-TW": "等級" },
   // **やった数と待っている数を混ぜない。** 「今日の復習」で待っている数を
@@ -2971,7 +3017,7 @@ export const DICT: Record<string, Record<UiLang, string>> = {
   },
   "shelf.home.titlePage": {
     ja: "{n}日ぶんの見開き",
-    en: "{n} days of spreads",
+    en: "{n} {n|day|days} of spreads",
     "zh-TW": "{n}天的跨頁",
   },
   "dex.moveFailed": {
@@ -2983,7 +3029,7 @@ export const DICT: Record<string, Record<UiLang, string>> = {
   "dex.gallery": { ja: "ギャラリー表示", en: "Gallery view", "zh-TW": "圖片檢視" },
   "dex.list": { ja: "リスト表示", en: "List view", "zh-TW": "清單檢視" },
   "dex.map": { ja: "地図表示", en: "Map view", "zh-TW": "地圖檢視" },
-  "dex.searchAria": { ja: "図鑑を検索", en: "Search the dex", "zh-TW": "搜尋圖鑑" },
+  "dex.searchAria": { ja: "図鑑を検索", en: "Search Dex", "zh-TW": "搜尋圖鑑" },
   // 図鑑の絞り込み(オーナー指摘 2026-08-21「ボタンを押したら選択肢が
   // 出てきて選べるように」)。ボタンの名前は**選んでいないときに出る名前**。
   // 本棚(オーナー指摘 2026-08-21「リアルな本の本棚を作って、背表紙の
@@ -3013,8 +3059,8 @@ export const DICT: Record<string, Record<UiLang, string>> = {
   },
   "dex.emptyHint": {
     ja: "街で見かけた言葉にカメラをかざすと、ここに図鑑が育ちます。",
-    en: "Point the camera at words around you and your dex starts growing.",
-    "zh-TW": "把相機對準在街上看到的字，圖鑑就會在這裡長大。",
+    en: "Point the camera at words around you and your Dex starts growing.",
+    "zh-TW": "把相機對準在街上看到的東西，圖鑑就會慢慢豐富起來。",
   },
   "dex.emptyCta": { ja: "最初の一枚を撮る", en: "Take your first photo", "zh-TW": "拍下第一張" },
   // 学習言語を変えて図鑑が空になったとき。**「まだ何もキャッチして
@@ -3022,7 +3068,7 @@ export const DICT: Record<string, Record<UiLang, string>> = {
   // 集めた物が消えたように見える画面はこのアプリで一番やってはいけない。
   "dex.emptyOtherLangTitle": {
     ja: "{lang}の図鑑はまだ空です。",
-    en: "Your {lang} dex is still empty.",
+    en: "Your {lang} Dex is still empty.",
     "zh-TW": "{lang}的圖鑑還是空的。",
   },
   "dex.emptyOtherLangHint": {
@@ -3576,15 +3622,15 @@ export const DICT: Record<string, Record<UiLang, string>> = {
   },
   "cap.photoLibrarySaveFailed": {
     ja: "図鑑には追加しましたが、スマホへの写真保存ができませんでした。端末の許可を確認してください。",
-    en: "Added to your collection, but the photo could not be saved to this phone. Check device permissions.",
+    en: "Added to your Dex, but the photo could not be saved to this phone. Check device permissions.",
     "zh-TW": "已加入圖鑑，但無法將照片儲存到手機。請檢查裝置權限。",
   },
   "dex.calMonthSummary": {
     ja: "{n}枚・{d}日",
-    en: "{n} photos · {d} days",
+    en: "{n} {n|photo|photos} · {d} {d|day|days}",
     "zh-TW": "{n} 張、{d} 天",
   },
-  "dex.calPhotos": { ja: "{n}枚", en: "{n} photos", "zh-TW": "{n} 張" },
+  "dex.calPhotos": { ja: "{n}枚", en: "{n} {n|photo|photos}", "zh-TW": "{n} 張" },
   "dex.timelineBack": { ja: "カレンダーに戻る", en: "Back to calendar", "zh-TW": "返回行事曆" },
   "dex.timelineTitle": { ja: "この日の記録", en: "This day's captures", "zh-TW": "這一天的紀錄" },
   "settings.photoObject": { ja: "元の写真", en: "Photo", "zh-TW": "原本的照片" },
@@ -3618,6 +3664,17 @@ export const DICT: Record<string, Record<UiLang, string>> = {
     ja: "英文法の CEFR レベル",
     en: "CEFR levels for English grammar",
     "zh-TW": "英文文法的 CEFR 等級",
+  },
+  // CEFR-J の作り手（明記が利用の条件）。日本語は原典の表記と1字も変えない（`data-sources.ts`）。
+  "sources.cefrjAuthor": {
+    ja: "投野由紀夫研究室（東京外国語大学）",
+    en: "Yukio Tono Laboratory, Tokyo University of Foreign Studies",
+    "zh-TW": "投野由紀夫研究室（東京外國語大學）",
+  },
+  "sources.cefrjLicense": {
+    ja: "CEFR-J（商用可）",
+    en: "CEFR-J (commercial use permitted)",
+    "zh-TW": "CEFR-J（可商業使用）",
   },
   "sources.opencc": {
     ja: "簡体字から台湾正体字への変換",
@@ -3795,14 +3852,14 @@ export const DICT: Record<string, Record<UiLang, string>> = {
   "catEdit.membersShort": { ja: "単語を選ぶ", en: "Choose words", "zh-TW": "選擇單字" },
   "catEdit.membersCount": {
     ja: "{n}語が入っています",
-    en: "{n} words in this category",
+    en: "{n} {n|word|words} in this category",
     "zh-TW": "目前有 {n} 個單字",
   },
   "catEdit.membersSearch": { ja: "単語をさがす", en: "Find a word", "zh-TW": "搜尋單字" },
   "catEdit.membersFrom": { ja: "いま: {name}", en: "Now: {name}", "zh-TW": "目前：{name}" },
   "catEdit.membersApply": {
     ja: "{n}件を変更",
-    en: "Apply {n} changes",
+    en: "Apply {n} {n|change|changes}",
     "zh-TW": "變更 {n} 項",
   },
   "catEdit.membersNoRemove": {
@@ -3866,7 +3923,7 @@ export const DICT: Record<string, Record<UiLang, string>> = {
     en: "Where did you run into it?",
     "zh-TW": "在什麼場合遇到的？",
   },
-  "capture.addToDex": { ja: "図鑑に追加", en: "Add to the dex", "zh-TW": "加進圖鑑" },
+  "capture.addToDex": { ja: "図鑑に追加", en: "Add to Dex", "zh-TW": "加進圖鑑" },
   "capture.offlineTitle": {
     ja: "解析できなかったので写真を預かりました",
     en: "Couldn't analyze it — we kept your photo",
@@ -3913,7 +3970,7 @@ export const DICT: Record<string, Record<UiLang, string>> = {
     en: "Shoot something else",
     "zh-TW": "拍別的東西",
   },
-  "capture.seeInDex": { ja: "図鑑で見る", en: "See it in the dex", "zh-TW": "在圖鑑裡看" },
+  "capture.seeInDex": { ja: "図鑑で見る", en: "See it in Dex", "zh-TW": "在圖鑑裡看" },
   "home.pendingDiscard": { ja: "捨てる", en: "Discard", "zh-TW": "丟掉" },
   // **結果を言う。** 「本当に捨てる?」では何が消えるか分からない。
   // この帯は複数枚を数えているが、捨てるのは上に写っている1枚だけ。
@@ -3930,7 +3987,7 @@ export const DICT: Record<string, Record<UiLang, string>> = {
   },
   "home.pendingCount": {
     ja: "解析待ちの写真 {n}枚",
-    en: "{n} photos waiting for analysis",
+    en: "{n} {n|photo|photos} waiting for analysis",
     "zh-TW": "等待分析的照片 {n} 張",
   },
   "card.openMapsLabel": {
@@ -3972,10 +4029,21 @@ export function useUiLang(): UiLang {
   return lang;
 }
 
-/** 文中の `{name}` を値に差し替える。 */
-function fill(tpl: string, vars?: Vars): string {
+/**
+ * 文中の `{name}` を値に差し替える。
+ *
+ * **英語の単数・複数**（2026-10-03 全画面の点検「1 photos」「met 1 times」「Caught 1 words
+ * today」）: `{n|photo|photos}` と書くと、`n` が 1 のとき左、それ以外は右になる。
+ * 日本語・繁體中文には数の形が無いので使わない（英語の文だけに書く）。数そのものは
+ * 今まで通り `{n}` で入れる — `"{n} {n|photo|photos}"`。
+ */
+export function fill(tpl: string, vars?: Vars): string {
   if (!vars) return tpl;
-  return tpl.replace(/\{(\w+)\}/g, (m, k) => (k in vars ? String(vars[k]) : m));
+  return tpl
+    .replace(/\{(\w+)\|([^{}|]*)\|([^{}|]*)\}/g, (m, k, one, other) =>
+      k in vars ? (Number(vars[k]) === 1 ? one : other) : m,
+    )
+    .replace(/\{(\w+)\}/g, (m, k) => (k in vars ? String(vars[k]) : m));
 }
 
 export type Vars = Record<string, string | number>;

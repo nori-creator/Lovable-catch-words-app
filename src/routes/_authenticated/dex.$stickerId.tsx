@@ -34,6 +34,7 @@ import { ArrowLeft, MapPin, Brain, ChevronDown, Clock } from "lucide-react";
 import { useAutoHero } from "@/hooks/use-auto-hero";
 import { localeOf, useT } from "@/lib/i18n";
 import { useUiLang } from "@/lib/i18n";
+import { posDisplay } from "@/lib/pos";
 import { tStatic } from "@/lib/i18n";
 
 export const Route = createFileRoute("/_authenticated/dex/$stickerId")({
@@ -271,6 +272,7 @@ export function StickerDetailHero({
   dateLocale: string;
 }) {
   const t = useT();
+  const uiLang = useUiLang();
   const readable = useReadableError();
   const [flipped, setFlipped] = useState(false);
   /**
@@ -506,7 +508,7 @@ export function StickerDetailHero({
         </div>
         {s.word.part_of_speech && (
           <span className="mt-1 inline-block rounded-full bg-violet-100 px-2 py-0.5 text-caption font-medium text-violet-900 ring-1 ring-violet-200 dark:bg-violet-500/20 dark:text-violet-200 dark:ring-violet-400/30">
-            {s.word.part_of_speech}
+            {posDisplay(s.word.part_of_speech, uiLang)}
           </span>
         )}
       </section>

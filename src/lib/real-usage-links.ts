@@ -47,7 +47,24 @@ export type RealUsageLink = {
 export function realUsageLinks(
   headword: string,
   targetLanguage: string | null | undefined = DEFAULT_TARGET_LANGUAGE,
+  readerLanguage?: string | null,
 ): RealUsageLink[] {
+  const links = linksFor(headword, targetLanguage);
+  /**
+   * **読む人の言語でしか読めない場所は、その人にだけ出す**（2026-10-03 全画面の点検:
+   * 繁體中文の表示で「Yahoo!知恵袋」が出ていた）。知恵袋は日本語話者同士の質問と答えで、
+   * 同じ役をする場所が台湾・英語圏に無い。表示言語が日本語の人にだけ残す
+   * （表示言語を渡さない呼び出しは今まで通り全部）。
+   */
+  if (readerLanguage && readerLanguage !== "ja")
+    return links.filter((l) => !JA_READER_ONLY.has(l.id));
+  return links;
+}
+
+/** 表示言語が日本語の人にだけ出す行き先。 */
+const JA_READER_ONLY = new Set(["chiebukuro"]);
+
+function linksFor(headword: string, targetLanguage: string | null | undefined): RealUsageLink[] {
   const q = encodeURIComponent(headword);
   const lang = normalizeTargetLanguage(targetLanguage);
 

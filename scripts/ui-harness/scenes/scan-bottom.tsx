@@ -15,6 +15,7 @@
 import { useState } from "react";
 import { BookOpen, Camera, Home, Settings, Sparkles } from "lucide-react";
 import { TabBar } from "@/components/TabBar";
+import { tStatic } from "@/lib/i18n";
 import {
   CameraFlipButton,
   CameraLibraryButton,
@@ -32,12 +33,13 @@ const photo34 =
     `<svg xmlns="http://www.w3.org/2000/svg" width="600" height="800"><svg viewBox="0 0 320 320" width="600" height="800" preserveAspectRatio="xMidYMid slice"><image href="${photo}" width="320" height="320"/></svg></svg>`,
   );
 
+// 本番の下のタブと同じ名前（表示言語で）。日本語を直書きすると英語・中文の見本が嘘になる。
 const ITEMS = [
-  { label: "ホーム", icon: Home },
-  { label: "図鑑", icon: BookOpen },
-  { label: "カメラ", icon: Camera, lens: true },
-  { label: "復習", icon: Sparkles },
-  { label: "設定", icon: Settings },
+  { key: "nav.home", icon: Home },
+  { key: "nav.dex", icon: BookOpen },
+  { key: "nav.camera", icon: Camera, lens: true },
+  { key: "nav.review", icon: Sparkles },
+  { key: "nav.settings", icon: Settings },
 ];
 
 export function ScanBottomScene() {
@@ -75,20 +77,20 @@ export function ScanBottomScene() {
         <CameraModeStrip mode={mode} onChange={setMode} />
         <div className="capture-actions">
           <CameraLibraryButton onOpen={() => {}} />
-          <CameraShutter mode={mode} label="スキャン" onPress={() => {}} />
+          <CameraShutter mode={mode} label={tStatic("scan.button")} onPress={() => {}} />
           <CameraFlipButton facing="environment" withLabel onFlip={() => {}} />
         </div>
       </div>
       {/* 帯は実物と同じ物。**カメラの中では暗いガラスになる。** */}
       <TabBar cursor={2} indicatorOpacity={0} onCamera>
-        {ITEMS.map(({ label, icon: Icon, lens }, i) => (
-          <li key={label} className="flex-1">
+        {ITEMS.map(({ key, icon: Icon, lens }, i) => (
+          <li key={key} className="flex-1">
             <button
               className="tabbar__cell group w-full rounded-full text-caption text-muted-foreground"
               data-tab={i}
             >
               <Icon className={`h-5 w-5 ${lens ? "text-primary" : ""}`} />
-              <span>{label}</span>
+              <span>{tStatic(key)}</span>
             </button>
           </li>
         ))}

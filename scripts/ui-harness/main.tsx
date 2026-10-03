@@ -355,49 +355,37 @@ const q = new URLSearchParams(location.search);
  * 「これを見てください」と差し出すことになる。
  */
 const REVIEW_SCENES: Array<{ scene: string; label: string }> = [
-  // 2026-10-03「ウェルカム画面はAのデザインを再現して。キャッチフレーズは日常のすべてが学びになる。
-  // 海の写真の下には海邊」「海邊はふさわしい字体に」「背景の空とか海のライティングも再現して」
-  // 「最初のウェルカム画面…はアニメーションを入れて」。
-  { scene: "first-catch", label: "ウェルカム画面（A 案）" },
-  { scene: "first-catch&theme=dark", label: "ウェルカム画面（暗いテーマ）" },
-  { scene: "first-catch&lang=en&target=en", label: "ウェルカム画面（英語）" },
-  { scene: "first-catch&lang=zh-TW", label: "ウェルカム画面（繁體中文）" },
-  { scene: "first-catch&fail=start", label: "ウェルカム: 保存できない時の一言（はじめるを押す）" },
-  // 2026-10-03「カメラ前はBにして、画像が真っ直ぐ…注意書きは消す。スマホのカメラで撮る機能は消して」。
-  { scene: "first-catch&step=camera&cam=prompt", label: "カメラの許可の前の一枚" },
-  { scene: "first-catch&step=camera&cam=denied", label: "カメラを断った時（iPhone）" },
-  { scene: "first-catch&step=camera&cam=android", label: "カメラを断った時（Android）" },
-  { scene: "first-catch&step=camera&cam=line", label: "LINE の中で開いた時" },
-  // 2026-10-03 チュートリアル:「中文は必ずピンイン（復習の選択肢も）」「はじめに本棚が映るのが変」
-  // 「ギャラリー表示がデモのバーに隠れる」「単語の詳細は例文とチャンクを」「答え合わせは解説全体を
-  // 青い枠で」「チュートリアルのはじめと終わりにアニメーション」。
-  { scene: "first-catch&step=ready&target=zh-TW", label: "チュートリアルのはじめ（お祝いの動き）" },
+  // 2026-10-03「海邊の字体が台湾華語の正式な文字ではないから修整して」— 台湾の教育部標準字形の
+  // 手書き体（芫荽）に。小さい4枚の札も同じ。
+  { scene: "first-catch", label: "ウェルカム: 海邊を台湾の標準字形に" },
+  { scene: "first-catch&theme=dark", label: "ウェルカム（暗いテーマ）" },
+  // 2026-10-03 品質検査: ウェルカムはブラウザの言語で出す（選ぶ前）。
+  { scene: "first-catch&browser=en-US", label: "ウェルカム: 英語のブラウザ" },
+  { scene: "first-catch&browser=zh-TW", label: "ウェルカム: 繁體中文のブラウザ" },
   {
-    scene: "first-catch&step=home&tour=1",
-    label: "チュートリアル: ホームはアルバムだけ（章を選べる）",
+    scene: "first-catch&step=questions&question=0&browser=zh-TW",
+    label: "最初の質問: ブラウザの言語が選ばれている",
+  },
+  // 品質検査: 切れ・はみ出し・日本語の漏れ・押す所の大きさ・注音の見やすさ・英語の複数形。
+  {
+    scene: "first-catch&step=home&settings=1&lang=en&target=zh-TW",
+    label: "チュートリアルの設定: 1日の時間が切れない",
   },
   {
-    scene: "first-catch&step=pick&lang=zh-TW&target=zh-TW",
-    label: "チュートリアル: 候補にピンイン",
+    scene: "first-catch&step=complete&lang=en&target=zh-TW",
+    label: "チュートリアルの終わり（英語）",
   },
-  {
-    scene: "first-catch&step=card&lang=ja&target=zh-TW",
-    label: "チュートリアル: カードにピンイン",
-  },
-  {
-    scene: "first-catch&step=dex&tour=1",
-    label: "チュートリアル: 図鑑（1回めくるとギャラリー表示）",
-  },
-  { scene: "first-catch&step=explore", label: "チュートリアル: 単語の詳細（例文とチャンク）" },
-  { scene: "first-catch&step=review", label: "チュートリアル: 復習（答えると解説全体に枠）" },
-  {
-    scene: "first-catch&step=review&lang=zh-TW&target=zh-TW",
-    label: "チュートリアル: 復習の選択肢にピンイン",
-  },
-  {
-    scene: "first-catch&step=complete&target=zh-TW",
-    label: "チュートリアルの終わり（お祝いの動き）",
-  },
+  { scene: "first-catch&step=pick&lang=ja&target=zh-TW", label: "候補: 検索欄が隠れない" },
+  { scene: "sticker-detail&lang=en", label: "単語の詳細（英語）: 品詞が英語" },
+  { scene: "place-memory&nophoto=1&lang=en", label: "場所の思い出（英語）: 日本語が出ない" },
+  { scene: "review-choice&lang=en", label: "復習の4択（英語）" },
+  { scene: "review-memory-list&lang=en", label: "記憶の一覧: 4文字の語が切れない" },
+  { scene: "capture-object&variant=error&lang=en", label: "撮影のエラー: 倍率の札と重ならない" },
+  { scene: "capture-card&lang=en&target=en", label: "撮った後のカード: 意味の準備中" },
+  { scene: "dex-calendar&lang=ja&theme=dark", label: "図鑑のカレンダー（暗い）: 見やすさ" },
+  { scene: "word-card&lang=zh-TW", label: "単語カード（繁體中文）: 語塊・注音の見やすさ" },
+  { scene: "settings-sources&lang=en", label: "設定: データの出典（英語）" },
+  { scene: "review-end&variant=capped&lang=zh-TW", label: "復習の終わり（繁體中文）" },
 ];
 
 /**
@@ -531,6 +519,24 @@ document.documentElement.style.setProperty(
  * `useUiLang` は localStorage を読むので、**React が起動する前に**書く。
  * あとから書くと初回の描画が日本語のままになり、撮った絵が実物と違う。
  */
+/**
+ * **ブラウザの言語を差し替えて、選ぶ前の表示言語を見る**（`?browser=en-US` /
+ * `?browser=zh-TW` / `?browser=ja-JP`。2026-10-03 ウェルカム画面の言語）。
+ * 選んだことの無い端末を再現するため、覚えている表示言語も消す。
+ */
+{
+  const browser = q.get("browser");
+  if (browser) {
+    const langs = browser.split(",");
+    try {
+      localStorage.removeItem("ui-lang-v1");
+      Object.defineProperty(navigator, "languages", { get: () => langs, configurable: true });
+      Object.defineProperty(navigator, "language", { get: () => langs[0], configurable: true });
+    } catch {
+      /* 差し替えられないブラウザでは、端末そのままの言語になる。 */
+    }
+  }
+}
 {
   const lang = q.get("lang");
   if (lang) {
