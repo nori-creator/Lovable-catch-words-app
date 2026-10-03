@@ -2,6 +2,7 @@ import { CHINESE_EXPLANATION_LANGUAGE } from "@/lib/target-lang";
 import { siteUrlFor } from "@/lib/site-url";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { tStatic, useUiLang, useT } from "@/lib/i18n";
+import { LegalLinks } from "@/components/LegalLinks";
 
 /**
  * プライバシーポリシー。
@@ -41,7 +42,7 @@ function PrivacyJa() {
   return (
     <>
       <h1 className="mt-4 text-hero font-bold tracking-tight">プライバシーポリシー</h1>
-      <p className="mt-1 text-footnote text-muted-foreground">最終更新: 2026年9月28日</p>
+      <p className="mt-1 text-footnote text-muted-foreground">最終更新: 2026年10月3日</p>
       <section className="prose prose-sm mt-6 max-w-none dark:prose-invert">
         <h2>1. 取得する情報</h2>
         <ul>
@@ -77,13 +78,38 @@ function PrivacyJa() {
         <h2>3. 第三者提供</h2>
         <p>法令に基づく場合を除き、ユーザーの同意なく第三者に個人情報を提供しません。</p>
 
-        <h2>4. 外部サービス</h2>
+        <h2>4. 外部サービス(取り扱いの委託)</h2>
+        <p>
+          本サービスは、次の外部サービスに、それぞれの目的に必要な情報だけを送って処理を任せています。AI
+          や音声のサービスは、品質や費用に応じて運営者が切り替えることがあり、そのとき使っているものにだけ送ります。
+        </p>
         <ul>
-          <li>Supabase(データベース・認証)</li>
-          <li>Google Maps(地図表示・位置情報の逆ジオコーディング)</li>
-          <li>Google Gemini(AI生成・Lovable AI Gateway経由)</li>
-          <li>Stripe(有料プランの決済)</li>
-          <li>Google AdMob(アプリで広告を表示する場合の広告配信)</li>
+          <li>Supabase / Lovable Cloud(データベース・認証・写真の保存、サービスの配信)</li>
+          <li>Lovable(エラーの記録、AI 呼び出しの中継 AI Gateway、地図の中継)</li>
+          <li>
+            写真と文章の AI 解析・解説の作成: Google Gemini、OpenAI、Anthropic、DeepSeek、Moonshot
+            AI、OpenRouter のいずれか(撮った写真、単語、例文、日記の文、学習の目安となる設定)
+          </li>
+          <li>
+            Jev / Typesafe AI(候補の並べ替えや報告の確認など。文字だけを送り、写真は送りません)
+          </li>
+          <li>
+            発音の音声の作成: Google Cloud Text-to-Speech、Google Gemini、Microsoft Azure AI
+            Speech、ElevenLabs、MiniMax のいずれか(読み上げる単語・例文の文字だけ)
+          </li>
+          <li>
+            単語の画像の検索・作成: Unsplash、Wikimedia Commons、画像を作る AI(Google、OpenAI、
+            OpenRouter、Higgsfield)(単語の文字だけ)
+          </li>
+          <li>Google Maps(地図の表示、撮影した場所の緯度経度から地名を調べる逆ジオコーディング)</li>
+          <li>
+            Stripe(有料プランの決済。メールアドレスと、お支払いをアカウントと結びつけるための利用者の番号)
+          </li>
+          <li>Tripo(写真を 3D にする機能。開発中で、いまは開発者だけが使います)</li>
+          <li>
+            Google
+            AdMob(アプリで広告を表示する場合の広告配信。いまはアプリでは広告を表示していません)
+          </li>
           <li>
             Google AdSense(Web 版で広告を表示する場合の広告配信。無料プランのみ。Google
             などの第三者配信事業者が Cookie
@@ -122,7 +148,9 @@ function PrivacyJa() {
         </p>
 
         <h2>8. お問い合わせ</h2>
-        <p>本ポリシーに関するご質問は、アプリ内サポートよりご連絡ください。</p>
+        <p>
+          本ポリシーに関するご質問は、「特定商取引法に基づく表記」に記載の連絡先までご連絡ください。
+        </p>
 
         <h2>9. 本ポリシーの変更</h2>
         <p>
@@ -137,7 +165,7 @@ function PrivacyEn() {
   return (
     <>
       <h1 className="mt-4 text-hero font-bold tracking-tight">Privacy Policy</h1>
-      <p className="mt-1 text-footnote text-muted-foreground">Last updated: 28 September 2026</p>
+      <p className="mt-1 text-footnote text-muted-foreground">Last updated: 3 October 2026</p>
       <section className="prose prose-sm mt-6 max-w-none dark:prose-invert">
         <h2>1. Information we collect</h2>
         <ul>
@@ -183,13 +211,47 @@ function PrivacyEn() {
           where required by law.
         </p>
 
-        <h2>4. External services</h2>
+        <h2>4. External services (processors)</h2>
+        <p>
+          The Service sends each of the following external services only the information needed for
+          its purpose. The operator may switch AI and speech providers for quality or cost; data is
+          sent only to the provider in use at the time.
+        </p>
         <ul>
-          <li>Supabase (database and authentication)</li>
-          <li>Google Maps (map display and reverse geocoding of locations)</li>
-          <li>Google Gemini (AI generation, via the Lovable AI Gateway)</li>
-          <li>Stripe (payments for paid plans)</li>
-          <li>Google AdMob (ad delivery in the apps, if ads are shown)</li>
+          <li>Supabase / Lovable Cloud (database, authentication, photo storage, hosting)</li>
+          <li>Lovable (error reports, the Lovable AI Gateway relay for AI calls, map relay)</li>
+          <li>
+            AI analysis of photos and text and writing explanations: one of Google Gemini, OpenAI,
+            Anthropic, DeepSeek, Moonshot AI or OpenRouter (your photos, words, example sentences,
+            journal text and level settings)
+          </li>
+          <li>
+            Jev / Typesafe AI (ranking candidates, checking reports and similar; text only, never
+            photos)
+          </li>
+          <li>
+            Pronunciation audio: one of Google Cloud Text-to-Speech, Google Gemini, Microsoft Azure
+            AI Speech, ElevenLabs or MiniMax (only the text of the word or sentence read aloud)
+          </li>
+          <li>
+            Finding or creating word images: Unsplash, Wikimedia Commons and image-generation AI
+            (Google, OpenAI, OpenRouter, Higgsfield) (only the text of the word)
+          </li>
+          <li>
+            Google Maps (map display, and reverse geocoding of the coordinates where a photo was
+            taken)
+          </li>
+          <li>
+            Stripe (payments for paid plans: your email address and a user ID that links the payment
+            to your account)
+          </li>
+          <li>
+            Tripo (turning photos into 3D; still in development and used only by the developer)
+          </li>
+          <li>
+            Google AdMob (ad delivery in the apps, if ads are shown; no ads are shown in the apps at
+            present)
+          </li>
           <li>
             Google AdSense (ad delivery on the web version, free plan only, if ads are shown).
             Third-party vendors, including Google, use cookies to serve ads based on your prior
@@ -231,12 +293,124 @@ function PrivacyEn() {
         </p>
 
         <h2>8. Contact</h2>
-        <p>For questions about this policy, please contact us through in-app support.</p>
+        <p>
+          For questions about this policy, please use the contact details in the commerce
+          disclosure.
+        </p>
 
         <h2>9. Changes to this policy</h2>
         <p>
           We will announce changes to this policy in the app. For significant changes that add new
           purposes of use, we will ask for your consent again before you continue using the service.
+        </p>
+      </section>
+    </>
+  );
+}
+
+/**
+ * 繁體中文版（2026-10-03 追加）。日本語版を正本とし、上に注記を出す（`legal.jaPrevails`）。
+ * 条を直すときは3つの言語を必ず一緒に直す。
+ */
+function PrivacyZhTw() {
+  return (
+    <>
+      <h1 className="mt-4 text-hero font-bold tracking-tight">隱私權政策</h1>
+      <p className="mt-1 text-footnote text-muted-foreground">最後更新：2026 年 10 月 3 日</p>
+      <section className="prose prose-sm mt-6 max-w-none dark:prose-invert">
+        <h2>1. 我們取得的資訊</h2>
+        <ul>
+          <li>帳號資訊（電子郵件地址、顯示名稱、頭像圖片）</li>
+          <li>使用者拍攝的照片與自拍</li>
+          <li>位置資訊（僅在拍攝時、且使用者允許的情況下）</li>
+          <li>學習紀錄、複習分數、連續紀錄等使用統計</li>
+          <li>App 的使用狀況（開啟的時間、使用的畫面、拍攝・掃描・複習的次數與所花時間）</li>
+          <li>付費方案的付款相關資訊（付款由 Stripe 處理，我們不會取得你的信用卡號碼）</li>
+          <li>若顯示廣告，投放廣告所需的裝置資訊（廣告 ID 等）</li>
+        </ul>
+
+        <h2>2. 使用目的</h2>
+        <ul>
+          <li>提供與營運本服務</li>
+          <li>以 AI 自動產生單字卡與測驗</li>
+          <li>提供地圖、圖鑑等功能</li>
+          <li>防止不當使用</li>
+          <li>
+            營運者為了改善服務、調查問題、防止不當使用，查看與分析每位使用者的使用數據（拍攝與複習的次數、使用的日子、各畫面的使用等）。此時不包含電子郵件地址、精確位置（經緯度）、照片，以及日記與短評的內文
+          </li>
+          <li>
+            製作所有使用者的整體統計（使用者人數、持續使用的比例等），以無法識別個人的形式處理
+          </li>
+          <li>提供付費方案並管理付款</li>
+        </ul>
+
+        <h2>3. 提供給第三方</h2>
+        <p>除法令規定的情形外，未經使用者同意，我們不會將個人資料提供給第三方。</p>
+
+        <h2>4. 外部服務（委託處理）</h2>
+        <p>
+          本服務只會將各項目的所需的資訊傳送給下列外部服務處理。AI
+          與語音服務可能因品質或費用由營運者切換，資料只會傳送給當時使用中的服務。
+        </p>
+        <ul>
+          <li>Supabase / Lovable Cloud（資料庫、驗證、照片儲存、服務的託管）</li>
+          <li>Lovable（錯誤紀錄、AI 呼叫的中繼 AI Gateway、地圖的中繼）</li>
+          <li>
+            照片與文字的 AI 分析、產生解說：Google Gemini、OpenAI、Anthropic、DeepSeek、Moonshot
+            AI、OpenRouter 其中之一（拍攝的照片、單字、例句、日記內文、程度設定）
+          </li>
+          <li>Jev / Typesafe AI（候選排序、確認回報等；只傳送文字，不傳送照片）</li>
+          <li>
+            產生發音語音：Google Cloud Text-to-Speech、Google Gemini、Microsoft Azure AI
+            Speech、ElevenLabs、MiniMax 其中之一（只傳送要朗讀的單字或例句文字）
+          </li>
+          <li>
+            搜尋或產生單字圖片：Unsplash、Wikimedia Commons、圖片生成 AI（Google、OpenAI、
+            OpenRouter、Higgsfield）（只傳送單字文字）
+          </li>
+          <li>Google Maps（顯示地圖，以及由拍攝地點的經緯度查詢地名的反向地理編碼）</li>
+          <li>Stripe（付費方案的付款；電子郵件地址，以及將付款與帳號連結的使用者編號）</li>
+          <li>Tripo（將照片轉為 3D 的功能；開發中，目前只有開發者使用）</li>
+          <li>Google AdMob（App 內顯示廣告時的廣告投放；目前 App 內未顯示廣告）</li>
+          <li>
+            Google AdSense（網頁版顯示廣告時的廣告投放，僅限免費方案。包含 Google
+            在內的第三方廠商會使用 Cookie，依據您過去造訪本網站或其他網站的紀錄投放廣告。詳見
+            <a
+              href="https://policies.google.com/technologies/partner-sites"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              Google 如何使用合作夥伴網站的資訊
+            </a>
+            。您可以在
+            <a href="https://adssettings.google.com" target="_blank" rel="noopener noreferrer">
+              廣告設定
+            </a>
+            中停用個人化廣告）
+          </li>
+        </ul>
+
+        <h2>5. 位置資訊的處理</h2>
+        <p>
+          位置資訊僅用於記錄拍攝地點，只有在公開貼文時才會顯示給其他使用者。是否提供位置資訊，使用者可隨時自行允許或拒絕。
+        </p>
+
+        <h2>6. 刪除資料</h2>
+        <p>
+          可隨時從設定畫面的「刪除帳號」立即刪除帳號與相關資料（單字卡、照片、學習紀錄、日記等）。刪除後無法復原。系統備份中留存的副本也會在
+          30 天內完全刪除。
+        </p>
+
+        <h2>7. Cookie 等</h2>
+        <p>為了維持工作階段與登入狀態，我們會使用瀏覽器的本機儲存空間。</p>
+
+        <h2>8. 聯絡方式</h2>
+        <p>關於本政策的問題，請透過「特定商業交易法標示」所載的聯絡方式與我們聯繫。</p>
+
+        <h2>9. 本政策的變更</h2>
+        <p>
+          變更本政策時，會在 App
+          內通知。新增使用目的等重要變更，會在變更後你繼續使用本服務前，再次取得你的同意。
         </p>
       </section>
     </>
@@ -254,16 +428,18 @@ function PrivacyPage() {
       >
         ← {t("common.back")}
       </Link>
-      {lang === CHINESE_EXPLANATION_LANGUAGE && (
-        <p className="mt-4 rounded-xl bg-secondary p-3 text-footnote">{t("legal.onlyJaEn")}</p>
+      {lang !== "ja" && (
+        <p className="mt-4 rounded-xl bg-secondary p-3 text-footnote">{t("legal.jaPrevails")}</p>
       )}
-      {/* 繁體中文の正式な訳はまだ無い（法的な文なので機械訳しない）。
-          日本語より読める人が多い英語版を出す（オーナー指示 2026-09-27「言語を混ぜない」）。 */}
-      {lang === "ja" ? <PrivacyJa /> : <PrivacyEn />}
-      <p className="mt-8 text-footnote text-muted-foreground">
-        <Link to="/terms" className="inline-block py-3 -my-3 underline">
-          {t("auth.terms")}
-        </Link>
+      {lang === "ja" ? (
+        <PrivacyJa />
+      ) : lang === CHINESE_EXPLANATION_LANGUAGE ? (
+        <PrivacyZhTw />
+      ) : (
+        <PrivacyEn />
+      )}
+      <p className="mt-8 flex flex-wrap gap-x-4 gap-y-1 text-footnote text-muted-foreground">
+        <LegalLinks />
       </p>
     </article>
   );

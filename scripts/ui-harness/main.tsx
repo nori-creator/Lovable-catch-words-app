@@ -61,6 +61,7 @@ import { NotifyBarDesignsScene } from "./scenes/notify-bar-designs";
 import { AdminUsersScene } from "./scenes/admin-users";
 import { MonetizationDesignsScene } from "./scenes/monetization-designs";
 import { WebAdsScene } from "./scenes/web-ads";
+import { CommerceScene, PricingScene } from "./scenes/pricing";
 import { FxLabScene } from "./scenes/fx-lab";
 import { WordDetailDesignsScene } from "./scenes/word-detail-designs";
 import { WordDetailRefineScene } from "./scenes/word-detail-refine";
@@ -187,6 +188,8 @@ const SCENES: Record<string, ((p: { q: URLSearchParams }) => ReactNode) | undefi
   "admin-users": AdminUsersScene,
   "monetization-designs": MonetizationDesignsScene,
   "web-ads": WebAdsScene,
+  pricing: PricingScene,
+  commerce: CommerceScene,
   "fx-lab": FxLabScene,
   "word-detail-designs": WordDetailDesignsScene,
   "word-detail-refine": WordDetailRefineScene,
@@ -357,39 +360,16 @@ const q = new URLSearchParams(location.search);
  * 「これを見てください」と差し出すことになる。
  */
 const REVIEW_SCENES: Array<{ scene: string; label: string }> = [
-  // 2026-10-03「海邊の字体が台湾華語の正式な文字ではないから修整して」— 台湾の教育部標準字形の
-  // 手書き体（芫荽）に。小さい4枚の札も同じ。
-  { scene: "first-catch", label: "ウェルカム: 海邊を台湾の標準字形に" },
-  { scene: "first-catch&theme=dark", label: "ウェルカム（暗いテーマ）" },
-  // 品質検査: はがした後の約4秒の固まりを直した（3D 紙吹雪の作り方を変えたので見た目を確かめる）。
-  { scene: "reward-catch", label: "はがした後のお祝い（固まらない・紙吹雪）" },
-  // 2026-10-03 品質検査: ウェルカムはブラウザの言語で出す（選ぶ前）。
-  { scene: "first-catch&browser=en-US", label: "ウェルカム: 英語のブラウザ" },
-  { scene: "first-catch&browser=zh-TW", label: "ウェルカム: 繁體中文のブラウザ" },
-  {
-    scene: "first-catch&step=questions&question=0&browser=zh-TW",
-    label: "最初の質問: ブラウザの言語が選ばれている",
-  },
-  // 品質検査: 切れ・はみ出し・日本語の漏れ・押す所の大きさ・注音の見やすさ・英語の複数形。
-  {
-    scene: "first-catch&step=home&settings=1&lang=en&target=zh-TW",
-    label: "チュートリアルの設定: 1日の時間が切れない",
-  },
-  {
-    scene: "first-catch&step=complete&lang=en&target=zh-TW",
-    label: "チュートリアルの終わり（英語）",
-  },
-  { scene: "first-catch&step=pick&lang=ja&target=zh-TW", label: "候補: 検索欄が隠れない" },
-  { scene: "sticker-detail&lang=en", label: "単語の詳細（英語）: 品詞が英語" },
-  { scene: "place-memory&nophoto=1&lang=en", label: "場所の思い出（英語）: 日本語が出ない" },
-  { scene: "review-choice&lang=en", label: "復習の4択（英語）" },
-  { scene: "review-memory-list&lang=en", label: "記憶の一覧: 4文字の語が切れない" },
-  { scene: "capture-object&variant=error&lang=en", label: "撮影のエラー: 倍率の札と重ならない" },
-  { scene: "capture-card&lang=en&target=en", label: "撮った後のカード: 意味の準備中" },
-  { scene: "dex-calendar&lang=ja&theme=dark", label: "図鑑のカレンダー（暗い）: 見やすさ" },
-  { scene: "word-card&lang=zh-TW", label: "単語カード（繁體中文）: 語塊・注音の見やすさ" },
-  { scene: "settings-sources&lang=en", label: "設定: データの出典（英語）" },
-  { scene: "review-end&variant=capped&lang=zh-TW", label: "復習の終わり（繁體中文）" },
+  // 2026-10-03「Web 版でお金を受け取れるように」— 料金の画面・特定商取引法の表記。
+  { scene: "pricing&state=signup", label: "料金: ログイン前（アカウントを作って始める）" },
+  { scene: "pricing&state=checkout&lang=en", label: "料金: ログイン後（英語）" },
+  { scene: "pricing&state=checkout&lang=zh-TW", label: "料金: ログイン後（繁體中文）" },
+  { scene: "pricing&state=manage", label: "料金: Pro の人（お支払いの管理・解約）" },
+  { scene: "pricing&state=hidden", label: "料金: 購入口がまだオフ" },
+  { scene: "pricing&state=checkout&theme=dark", label: "料金（暗いテーマ）" },
+  { scene: "commerce", label: "特定商取引法の表記（未設定の欄は請求で開示）" },
+  { scene: "commerce&seller=1&lang=en", label: "特定商取引法の表記（英語・入れた形）" },
+  { scene: "commerce&lang=zh-TW", label: "特定商取引法の表記（繁體中文）" },
 ];
 
 /**

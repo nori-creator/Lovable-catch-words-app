@@ -151,6 +151,14 @@ User-facing "today" counts use Taiwan time (`Asia/Taipei`; `startOfAppDay` in `t
 - `/api/native-ai` is off unless `NATIVE_AI_ENABLED=1` (no shipped client; iOS design is `/api/v1/*`).
 - Stripe webhook re-reads the subscription from Stripe instead of trusting event order.
 
+## Billing on the web (2026-10-03)
+
+- Prices are never hard-coded: `/pro` and `/legal/commerce` read `GET /v1/prices/{id}` server-side (`getPublicPricing`, 10-minute in-memory cache, price ids not returned to the browser). Pure logic lives in `pricing.ts` (tested).
+- The Free/Pro table on `/pro` lists only what the code actually gates (section regeneration, report → immediate AI fix, premium model). Add a row only when a gate exists server-side.
+- Cancellation/payment management uses the Stripe Billing Portal (`createPortalSession`). The Stripe customer id is **not stored**; it is found by searching subscriptions by `metadata.user_id` (set at checkout), so there is no DB migration. Paid users (`profiles.plan = 'pro'`) always see "manage / cancel", even while the purchase switch is off.
+- Seller details for the commerce disclosure come only from `VITE_SELLER_*` env vars (`seller-info.ts`); empty name/address/phone render the "disclosed without delay upon request" wording. Never write the owner's personal details into code or docs.
+- Legal pages (`/terms`, `/privacy`, `/legal/commerce`) exist in ja / en / zh-TW as whole documents; Japanese prevails. Change all three together. The privacy policy's external-service list must match the hosts the server code calls.
+
 ## AI-assisted fixes
 
 AI may diagnose and prepare fixes automatically.
