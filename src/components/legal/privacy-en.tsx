@@ -75,8 +75,9 @@ export function PrivacyEn({ info }: { info: LegalPublicInfo }) {
           <li>
             To prevent abuse, investigate bugs and improve the Service. The operator views and
             analyses per-user usage figures (such as the number of captures and reviews, active days
-            and screen usage). Your email address, exact location (coordinates), photos and diary
-            text are not included
+            and screen usage). To investigate bugs and answer your enquiries, the operator may also
+            view the photos you capture and the place names where they were taken. Your email
+            address, exact location (coordinates) and diary text are not included
           </li>
           <li>
             To produce overall statistics (such as the number of users and how many keep using the
