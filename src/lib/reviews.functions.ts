@@ -1,4 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
+import { startOfAppDay } from "./taipei-day";
 import {
   matchesTargetLanguage,
   wordBelongsToTarget,
@@ -135,13 +136,6 @@ function topChunkOf(
   return null;
 }
 
-/** ローカル日付の 0:00 を ISO で返す(「今日の復習枚数」の起点)。 */
-function startOfLocalDayIso(): string {
-  const d = new Date();
-  d.setHours(0, 0, 0, 0);
-  return d.toISOString();
-}
-
 export type ReviewStageFocus = "all" | "weak" | "new";
 
 /**
@@ -260,7 +254,10 @@ export const getDueReviews = createServerFn({ method: "GET" })
     const { limit: dailyLimit, focus: stageFocus } = await getReviewPrefs(supabase, userId);
     let remaining = Number.POSITIVE_INFINITY;
     if (dailyLimit > 0) {
-      const since = startOfLocalDayIso();
+      // 「今日」は台湾の日付で数える（ARCHITECTURE「Day boundaries」）。前はサーバの
+      // 時計の 0:00（= UTC の 0:00 = 台湾の朝8時）で区切っていたので、台湾の朝に
+      // 「今日の分」が始まり直していた。
+      const since = startOfAppDay();
       const { count } = await supabase
         .from("review_history")
         .select("id", { count: "exact", head: true })
@@ -858,7 +855,7 @@ export const getReviewCapState = createServerFn({ method: "GET" })
         .from("review_history")
         .select("id", { count: "exact", head: true })
         .eq("user_id", userId)
-        .gte("reviewed_at", startOfLocalDayIso()),
+        .gte("reviewed_at", startOfAppDay()),
       // 採点した札は `due_at` が先へ動くので、ここには残らない。
       // **絞りは `getDueReviews` と同じにする。** ここだけ絞らないと
       // 「あと190枚あります」と言ったのに「続ける」で1枚も出てこない。

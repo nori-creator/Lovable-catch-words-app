@@ -94,6 +94,42 @@ export function pickGlbUrl(json: unknown): string | null {
   return null;
 }
 
+/**
+ * 中継する 3D の形（GLB）の大きさの上限（監査 2026-10-03）。Tripo の形は数 MB〜30 MB
+ * 程度。上限が無いと、許した配信先から巨大な物が返ったときにこのサーバが流し続ける。
+ */
+export const MAX_MODEL_BYTES = 64 * 1024 * 1024;
+
+/** `content-length` が上限を超えると分かっているか（無い・読めないときは false）。 */
+export function declaredTooLarge(contentLength: string | null, max = MAX_MODEL_BYTES): boolean {
+  if (!contentLength) return false;
+  const n = Number(contentLength);
+  return Number.isFinite(n) && n > max;
+}
+
+/**
+ * 流れてくる中身を数え、`max` を超えたらそこで止める（`content-length` を偽る・付けない
+ * 配信先でも、上限より多くは流さない）。
+ */
+export function capByteStream(
+  body: ReadableStream<Uint8Array>,
+  max = MAX_MODEL_BYTES,
+): ReadableStream<Uint8Array> {
+  let seen = 0;
+  return body.pipeThrough(
+    new TransformStream<Uint8Array, Uint8Array>({
+      transform(chunk, controller) {
+        seen += chunk.byteLength;
+        if (seen > max) {
+          controller.error(new Error("model too large"));
+          return;
+        }
+        controller.enqueue(chunk);
+      },
+    }),
+  );
+}
+
 /** 表示用の名前（開発者の画面・案内で使う）。 */
 export const OBJECT3D_PROVIDER_LABEL: Record<Object3dProvider, string> = {
   tripo: "Tripo3D",

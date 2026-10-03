@@ -3,6 +3,7 @@ import { Sound } from "@/lib/sound-engine";
 import { Score, SCORE } from "@/lib/celebration-score";
 import { haptic } from "@/lib/haptics";
 import type { LandingRunner } from "./types";
+import { loadConfetti3d } from "@/components/three/load-confetti";
 
 const wait = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 
@@ -105,7 +106,11 @@ export const v5reward: LandingRunner = async ({
   // 着地の音（録った「シュッ→ドン」）を先に読み解いておく。着地まで2秒以上ある。
   // 弾ける瞬間の 3D の紙吹雪も、ここで読み始める（three.js は重いので、この演出の
   // 時にだけ読む）。0.6 秒後の「弾ける」には間に合う。
-  const confetti = import("@/components/three/confetti3d").catch(() => null);
+  // 2026-10-03: 読むだけでなく**ここで用意まで済ませる**（canvas・WebGL・材質の組み立て）。
+  // 弾ける瞬間に組み立てていた時は、ここで主の処理が数秒固まっていた（UI 監査）。
+  const confetti = loadConfetti3d()
+    .then((m) => m.prepareConfetti3d({ from: { x: 0.5, y: 0.38 }, count: 120 }, 83, root))
+    .catch(() => null);
   Sound.rewardGrip();
   haptic("selection");
   await fly.animate(
@@ -135,9 +140,7 @@ export const v5reward: LandingRunner = async ({
   // 札の後ろから、光を受けて明滅する本物の紙と金の箔が弾ける（`confetti3d.ts`）。
   // 演出の層の中で、札（z 84）の後ろ・光の粒（z 83）の手前に置く。WebGL が無ければ
   // 何も出さない（今まで通り）。
-  void confetti.then((m) =>
-    m?.burstConfetti3d({ from: { x: 0.5, y: 0.38 }, count: 120 }, 83, root),
-  );
+  void confetti.then((ready) => ready?.fire());
   // **語は打撃の響きが引いてから読む**。読む間は BGM を 20dB 下げる
   // （発音を聞き取れることが、このアプリでいちばん大事）。
   const spoken = wait(SCORE.speechDelayMs)

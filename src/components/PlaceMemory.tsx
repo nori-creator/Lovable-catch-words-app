@@ -37,7 +37,9 @@ import {
   takenDateLabel,
   learningLanguageName,
 } from "@/lib/place-reminder";
-import { useT } from "@/lib/i18n";
+import { useT, useUiLang } from "@/lib/i18n";
+import { readerMeaning } from "@/lib/note-language";
+import { shortMeaning } from "@/lib/meaning-rule";
 
 export function PlaceMemoryWatcher() {
   const fetchNearby = useServerFn(getNearbyMemories);
@@ -134,6 +136,7 @@ export function PlaceMemoryCard({
   onDismiss: () => void;
 }) {
   const t = useT();
+  const uiLang = useUiLang();
   const date = takenDateLabel(memory.taken_at);
   const lang = learningLanguageName(memory.headword);
   const line = date
@@ -188,11 +191,17 @@ export function PlaceMemoryCard({
             <MapPin className="h-5 w-5" />
           </span>
           <button onClick={onStart} className="min-w-0 flex-1 py-1 text-left">
-            <span className="block truncate text-body font-semibold">
+            {/* 1行で切ると、英語では肝心の「in Mandarin?」が「…」で消えた（2026-10-03
+                全画面の点検）。2行まで折り返す。 */}
+            <span className="line-clamp-2 break-words text-body font-semibold">
               {/* 単語の前後で文が分かれる。日本語は「〇〇」は台湾華語で？、英語は
                   Remember "〇〇" in Mandarin? と語順が違うので前後を別キーにしている。 */}
               {t("place.rememberBefore")}
-              <span>{memory.meaning_ja?.trim() || t("place.thisWord")}</span>
+              {/* 意味は**読む人の言語で書かれている時だけ**（共有の意味は最初に作った人の
+                  言語で入っている。英語の画面に日本語の意味が出ていた）。 */}
+              <span>
+                {shortMeaning(readerMeaning(memory.meaning_ja, uiLang)) || t("place.thisWord")}
+              </span>
               {t("place.rememberAfter", { lang })}
             </span>
             <span className="block truncate text-caption text-muted-foreground">{line}</span>

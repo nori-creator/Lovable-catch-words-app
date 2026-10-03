@@ -51,6 +51,7 @@ import {
   type ExplanationRow,
 } from "@/lib/word-explanation";
 import { readerL1 } from "@/lib/reader-language";
+import { reportBackgroundFailure } from "@/lib/background-failure";
 import { downscaleDataUrl } from "@/lib/image-resize";
 import { toImageDataUrl } from "@/lib/sticker-upload";
 import { listStickerPhotos, type StickerPhoto } from "@/lib/encounters.functions";
@@ -479,7 +480,15 @@ export function StickerSheet({ stickerId, onClose, openPhotoPicker, from, local 
     setDeleteArmed(false);
     setBusy("delete");
     try {
-      await deleteFn({ data: { sticker_id: stickerId } });
+      const res = await deleteFn({ data: { sticker_id: stickerId } });
+      // 札は消えた。写真の掃除だけ失敗したら、黙らず開発者の記録に残す（監査 2026-10-03）。
+      if (res && res.storage_cleaned === false) {
+        reportBackgroundFailure(
+          "sticker_storage",
+          new Error(res.storage_error ?? "storage cleanup failed"),
+          { sticker_id: stickerId },
+        );
+      }
       await qc.invalidateQueries({ queryKey: ["stickers"] });
       onClose();
     } catch (e) {
@@ -548,7 +557,19 @@ export function StickerSheet({ stickerId, onClose, openPhotoPicker, from, local 
   // the first time a word without extras is opened.
   useEffect(() => {
     if (!s || local) return;
-    const ex = s.word.extras;
+    /**
+     * 完成判定は、**その人向けの解説の行**（言語も母語も合う行）が在ればそちらで行う
+     * （2026-10-03）。共有の `words.extras` はサーバが「空の項目だけ・同じ言語だけ」
+     * 埋める（`fillEmptySharedExtras`）ので、別の言語で作られた共有の解説を見て
+     * 「欠けている」と数えると、開くたびに作り直しに行ってしまう。
+     */
+    const exactRow =
+      explanation?.picked &&
+      explanation.picked.explain_lang === wantKey.explainLang &&
+      explanation.picked.l1 === wantKey.l1
+        ? explanation.picked
+        : null;
+    const ex = exactRow ? exactRow.extras : s.word.extras;
     // 完成判定は**いま生成している項目**で行う。
     // 以前はここが旧スキーマ(collocations / synonyms / trivia / register_note /
     // synonym_diff / word_order / study_tips など)だけを見ていた。今の

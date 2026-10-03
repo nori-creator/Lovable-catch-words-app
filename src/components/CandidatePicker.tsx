@@ -117,7 +117,11 @@ export function CandidatePicker<T extends PickCandidate>({
       {/* 全部同じ大きさ（1つ目だけを大きくしない）。 */}
       <ul className="divide-y divide-border overflow-hidden rounded-2xl border border-border bg-card">
         {groups.map((r, k) => (
-          <li key={r.main.headword} className="flex min-w-0 items-center gap-2 px-3 py-2.5">
+          <li
+            key={r.main.headword}
+            // 背の低い画面では行の上下を詰める（下の入力欄まで1画面に。`PickWordPanel` の注）。
+            className="flex min-w-0 items-center gap-2 px-3 py-2.5 [@media(max-height:700px)]:py-1"
+          >
             <button
               type="button"
               onClick={() => choose(k)}

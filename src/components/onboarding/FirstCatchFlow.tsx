@@ -11,13 +11,14 @@ import { Term } from "@/components/Term";
 import { useServerFn } from "@tanstack/react-start";
 import { useNavigate } from "@tanstack/react-router";
 import { supabase } from "@/integrations/supabase/client";
-import { getUiLang, useT } from "@/lib/i18n";
+import { initialUiLang, useT } from "@/lib/i18n";
 import { FirstCatchQuestions } from "./FirstCatchQuestions";
 import { FirstCatchIntro, FirstCatchNotifications, FirstCatchReady } from "./FirstCatchPages";
 import { getTargetLang } from "@/lib/target-lang-pref";
 import type { suggestWords } from "@/lib/ai.functions";
 import { firstCatchAI, firstCatchMemberAI } from "@/lib/first-catch-ai.functions";
 import { createFirstCatchServices } from "@/lib/first-catch-ai-client";
+import { reportBackgroundFailure } from "@/lib/background-failure";
 import { LearningPreferencesSchema } from "@/lib/learning-preferences";
 import type { FirstCatchAIRequest } from "@/lib/first-catch-ai-schema";
 import {
@@ -67,19 +68,29 @@ export function FirstCatchEntry() {
     <FirstCatchFlow
       services={createFirstCatchServices(
         async (data) => {
-          const { data: auth } = await supabase.auth.getUser();
-          // 登録済みの人も、すでに匿名アカウントを持つ端末も、本人の枠で動かす。
-          if (auth.user) return memberAI({ data });
+          const started = Date.now();
           try {
-            return await guestAI({ data });
-          } catch (refused) {
-            // 未登録用の窓口が断った(上限・環境・一時的な不具合)。以前の経路 —
-            // この端末だけの匿名アカウントで、本人の枠(24回/日)を使う — に切り替える。
-            // 匿名ログインが使えない環境では FIRST_CATCH_GUEST_UNAVAILABLE になり、
-            // 写真は残ったまま画面に理由が出る。
-            if (!isGuestRefusal(refused)) throw refused;
-            await ensureFirstCatchSession();
-            return memberAI({ data });
+            const { data: auth } = await supabase.auth.getUser();
+            // 登録済みの人も、すでに匿名アカウントを持つ端末も、本人の枠で動かす。
+            if (auth.user) return await memberAI({ data });
+            try {
+              return await guestAI({ data });
+            } catch (refused) {
+              // 未登録用の窓口が断った(上限・環境・一時的な不具合)。以前の経路 —
+              // この端末だけの匿名アカウントで、本人の枠(24回/日)を使う — に切り替える。
+              // 匿名ログインが使えない環境では FIRST_CATCH_GUEST_UNAVAILABLE になり、
+              // 写真は残ったまま画面に理由が出る。
+              if (!isGuestRefusal(refused)) throw refused;
+              await ensureFirstCatchSession();
+              return await memberAI({ data });
+            }
+          } catch (failed) {
+            // 画面は「もう一度試す」を出す。失敗と待った時間は開発者の記録にも残す。
+            reportBackgroundFailure("first_catch_ai", failed, {
+              action: data.action,
+              ms: Date.now() - started,
+            });
+            throw failed;
           }
         },
         async () => {},
@@ -101,7 +112,9 @@ function freshFirstCatch(): FirstCatch {
   return {
     version: 1,
     id: crypto.randomUUID(),
-    uiLanguage: getUiLang(),
+    // 表示言語を選ぶ前（ウェルカム）はブラウザの言語に合わせる。選んだことがあればそれ
+    // （`initialUiLang`）。`applyFirstCatchLanguage` が書くので、次の質問でも選ばれた状態になる。
+    uiLanguage: initialUiLang(),
     targetLanguage: getTargetLang(),
     dailyMinutes: 10,
     stage: "intro",
@@ -771,7 +784,8 @@ export function FirstCatchFlow({
           }
           title={t(homeGuide === "album" ? "first.homeTitle" : "first.shootTitle")}
           text={t(homeGuide === "album" ? "first.home" : "first.tapCamera")}
-          step={homeGuide === "album" ? "1 / 5" : "2 / 5"}
+          // ホーム → カメラのタブまでが第1章（`docs/first-catch-onboarding.md` の章立て）。
+          step="1 / 5"
           nextLabel={t("first.next")}
           onNext={homeGuide === "album" ? () => setHomeGuide("camera") : undefined}
           interactive={homeGuide === "camera"}
@@ -798,6 +812,10 @@ export function FirstCatchFlow({
           title={t("first.pickTitle")}
           text={t("first.pick")}
           step="2 / 5"
+          // 札は下端の1段（2026-10-03 全画面の点検: 枠の下に置くと「違う単語を入力」を、
+          // 上に置くと撮った写真を覆っていた）。下のタブはこの段では押せないので、その上に
+          // 札を重ねても失う物が無い。背の低い画面は候補の面も詰める（`PickWordPanel`）。
+          compact
           interactive
           gesture="tap"
         />

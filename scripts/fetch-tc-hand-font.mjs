@@ -57,3 +57,22 @@ fs.writeFileSync(
 );
 fs.writeFileSync(path.join(OUT, "iansui.css"), css, "utf8");
 console.log(`Iansui: ${faces.length}枚 ${(bytes / 1e6).toFixed(1)}MB`);
+
+/**
+ * **最初の画面の写真の下に手で書く語だけ**の切り出し（2026-10-03 オーナー報告「海邊の字体が
+ * 台湾華語の正式な文字ではないから修整して」）。上の切り分けでは「海邊」の2字が
+ * 140KB の2枚に分かれるので、最初の画面に出る字だけを1枚（約4KB）にして先読みする。
+ * 字を足したら `WELCOME_TEXT` も足す（`FirstCatchPages.tsx` の `welcomeWord`）。
+ */
+export const WELCOME_TEXT = "海邊花貓咖啡湖";
+const welcomeCss = await (
+  await get(
+    `https://fonts.googleapis.com/css2?family=Iansui&text=${encodeURIComponent(WELCOME_TEXT)}`,
+    { "User-Agent": UA },
+  )
+).text();
+const welcomeUrl = /url\((https:\/\/[^)]+)\)/.exec(welcomeCss)[1];
+fs.writeFileSync(
+  path.join(OUT, "iansui-welcome.woff2"),
+  Buffer.from(await (await get(welcomeUrl)).arrayBuffer()),
+);

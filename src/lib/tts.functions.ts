@@ -4,6 +4,7 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { z } from "zod";
 import { assertWithinDailyCap, getTts, logUsage } from "./ai-provider.server";
 import { ttsObjectPath, TTS_VOICE_DEFAULT } from "./tts-cache";
+import { isShareableTtsText, type TtsShareDb } from "./tts-share";
 import { ttsVoiceFor, withVoiceOverride } from "./tts-voice";
 import {
   cleanTtsConfig,
@@ -122,6 +123,16 @@ export const synthesizeSpeech = createServerFn({ method: "POST" })
 
     // Cache hits above are free and unlimited — the cap only meters real synthesis.
     await assertWithinDailyCap(userId, "tts");
+    /**
+     * **全員の置き場に貯めてよい文か**を、合成と並べて調べる（監査 2026-10-03、
+     * `tts-share.ts`）。見出し語と辞書の例文だけ貯める。日記の一文などは貯めない。
+     */
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const shareable = isShareableTtsText(
+      supabaseAdmin as unknown as TtsShareDb,
+      data.language,
+      data.text,
+    ).catch(() => false);
     let buf: Uint8Array;
     let mime = "audio/mpeg";
     // **台湾の声が決まっている間は、別の声へ切り替えない**（オーナー指示 2026-09-29
@@ -155,7 +166,6 @@ export const synthesizeSpeech = createServerFn({ method: "POST" })
       console.error("[tts] synthesis unavailable:", (e as Error).message);
       return { audio_url: null as string | null, locked: false };
     }
-    await logUsage(supabase, userId, "tts");
 
     // Cache writes go through the service role: the shared tts cache must not
     // be client-writable (audio poisoning would corrupt pronunciations for
@@ -166,11 +176,14 @@ export const synthesizeSpeech = createServerFn({ method: "POST" })
     // の3往復を待ってから鳴っていた。音は手元にあるので、保存が済んだら
     // そのまま渡す（署名とダウンロードの2往復が消える）。次からは保存した
     // 物が上の「貯めてある」道で返る。
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    await supabaseAdmin.storage.from("tts").upload(path, buf, {
-      contentType: mime,
-      upsert: true,
-    });
+    //
+    // **辞書の文だけ貯める**（上の `shareable`）。それ以外はその場で返すだけ。
+    if (await shareable) {
+      await supabaseAdmin.storage.from("tts").upload(path, buf, {
+        contentType: mime,
+        upsert: true,
+      });
+    }
 
     let binary = "";
     for (let i = 0; i < buf.length; i++) binary += String.fromCharCode(buf[i]);
@@ -307,17 +320,16 @@ export const pregenerateDictionaryTts = createServerFn({ method: "POST" })
  * 声を変えたら端末の古い音も使われなくなる。誰でも読める（値は札だけ）。
  */
 // ログイン前の画面（チュートリアル等）でも呼ばれるので認証は要らない。返すのは札だけ。
-export const getTtsVoiceTags = createServerFn({ method: "GET" })
-  .handler(async () => {
-    const { currentVoiceTag, isLockedFor } = await import("./tts-provider.server");
-    const tags: Record<string, string> = {};
-    const locked: Record<string, boolean> = {};
-    for (const lang of TTS_LANGUAGES) {
-      tags[lang] = await currentVoiceTag(lang);
-      locked[lang] = await isLockedFor(lang);
-    }
-    return { tags, locked };
-  });
+export const getTtsVoiceTags = createServerFn({ method: "GET" }).handler(async () => {
+  const { currentVoiceTag, isLockedFor } = await import("./tts-provider.server");
+  const tags: Record<string, string> = {};
+  const locked: Record<string, boolean> = {};
+  for (const lang of TTS_LANGUAGES) {
+    tags[lang] = await currentVoiceTag(lang);
+    locked[lang] = await isLockedFor(lang);
+  }
+  return { tags, locked };
+});
 
 async function assertAdmin(context: { supabase: unknown; userId: string }) {
   const sb = context.supabase as {

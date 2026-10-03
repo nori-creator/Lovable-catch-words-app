@@ -53,6 +53,7 @@ import { haptic } from "@/lib/haptics";
 import { useLockPageZoom } from "@/hooks/use-lock-page-zoom";
 import { useReadableError } from "@/lib/errors";
 import { useT, useUiLang } from "@/lib/i18n";
+import { posDisplay } from "@/lib/pos";
 import { Zh } from "@/components/Zh";
 import { clampToVisible, containPoint, SCAN_FRAME_Y, zoomCrop } from "@/lib/scan-layout";
 import { rankScanCandidates } from "@/lib/jev.functions";
@@ -1238,6 +1239,7 @@ export function ScanChip({
   onClose: () => void;
 }) {
   const t = useT();
+  const uiLang = useUiLang();
   if (candidates.length > 0) {
     return (
       <div className="rounded-2xl border border-border bg-card p-4 shadow-md">
@@ -1311,7 +1313,7 @@ export function ScanChip({
           <p className="mt-2 text-body font-medium">{meaning}</p>
           {pos && (
             <span className="mt-1 inline-block rounded-full bg-violet-100 px-2 py-0.5 text-caption font-medium text-violet-900 ring-1 ring-violet-200 dark:bg-violet-500/20 dark:text-violet-200 dark:ring-violet-400/30">
-              {pos}
+              {posDisplay(pos, uiLang)}
             </span>
           )}
         </div>

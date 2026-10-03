@@ -48,6 +48,19 @@ describe("表示が義務のもの", () => {
       expect(s.author).toContain("東京外国語大学");
     }
   });
+
+  it("**どの表示言語でも作った人の名前が出る**（英語・繁體中文に日本語のまま出さない）", () => {
+    for (const s of requiredSources()) {
+      expect(s.authorKey, s.id).toBeTruthy();
+      const row = DICT[s.authorKey!];
+      expect(row.ja).toBe(s.author);
+      expect(row.en).toMatch(/Tono/);
+      expect(row.en).toMatch(/Tokyo University of Foreign Studies/);
+      expect(row["zh-TW"]).toContain("投野");
+      expect(row["zh-TW"]).not.toMatch(/[ぁ-ゟァ-ヺ]/);
+      expect(DICT[s.licenseKey!].ja).toBe(s.license);
+    }
+  });
 });
 
 describe("使っているデータに出典が付いている", () => {
@@ -63,6 +76,10 @@ describe("使っているデータに出典が付いている", () => {
 
   it("文法の級 — CEFR-J Grammar Profile", () => {
     expect(sourcesFor("grammar_level").map((s) => s.id)).toContain("cefrj-grammar");
+  });
+
+  it("読みの確認 — pinyin-pro（`tw-reading.server.ts`）", () => {
+    expect(sourcesFor("lexicon").map((s) => s.id)).toContain("pinyin-pro");
   });
 
   it("字の変換 — OpenCC", () => {

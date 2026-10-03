@@ -83,6 +83,12 @@ import {
   type AiConfig,
 } from "./ai-provider.server";
 
+/**
+ * 台湾華語の読みの検査（`tw-reading.server.ts`）。辞書（pinyin-pro）が大きいので
+ * **使うときに読む** — 静的に読むと、サーバー関数の中身ごと束ねる UI ハーネスに入る。
+ */
+const loadReadingCheck = () => import("./tw-reading.server").then((m) => m.correctTaiwanReading);
+
 const SuggestInput = z.object({
   // Cap ~8MB base64 (~6MB raw) to prevent cost/memory abuse via AI vision calls.
   imageBase64: z.string().min(100).max(8_000_000),
@@ -236,8 +242,7 @@ ${distinctionRule(profile.promptName, profile.capture.distinctionExamples)}
     }
     if (!content) throw new Error("AIから候補が返りませんでした。もう一度お試しください。");
 
-    await logUsage(context.supabase, context.userId, "suggest");
-
+    const correctTaiwanReading = await loadReadingCheck();
     try {
       const parsed = SuggestionSchema.parse(parseJsonFromAiText(content));
       /**
@@ -258,7 +263,8 @@ ${distinctionRule(profile.promptName, profile.capture.distinctionExamples)}
       }
       return {
         suggestions: orderByRegister(usable).map((s) => ({
-          ...s,
+          // 候補の読みも検める（`tw-reading.server.ts`）。
+          ...correctTaiwanReading(data.targetLanguage, s.headword, s),
           // 候補の意味も語の長さに（R17「湯咖哩の英語の単語の候補…が長すぎる」）。
           meaning_ja: shortMeaning(s.meaning_ja),
           category_key: normalizeCategory(s.headword, s.category_key),
@@ -393,6 +399,7 @@ ${langRule}
     // ここを通すと、母語がそのまま見出しになる元の不具合に戻る。
     // ただし**捨てる前に一度だけ直す**（`coerceTargetHeadword`）: 頼んで
     // いない注釈（「烤肉 (BBQ)」）が付いただけで、中身は正しいことがある。
+    const correctTaiwanReading = await loadReadingCheck();
     const seen = new Set<string>();
     const candidates = raw.candidates
       .map((c) => ({
@@ -406,7 +413,9 @@ ${langRule}
         seen.add(c.headword);
         return true;
       })
-      .slice(0, 5);
+      .slice(0, 5)
+      // 候補の読みも検める（`tw-reading.server.ts`）。
+      .map((c) => correctTaiwanReading(data.targetLanguage, c.headword, c));
     return { candidates };
   });
 
@@ -733,8 +742,11 @@ ${data.hintCategory ? `カテゴリのヒント: ${data.hintCategory}` : ""}`;
         /* keep the first result */
       }
     }
-    await logUsage(context.supabase, context.userId, "card");
     const resolvedHead = card.headword_zh?.trim() || data.headword;
+    // **読みは AI のまま通さない**（2026-10-03「拿鐵」が nálǎtiě と出た件）。
+    // 字の数と音節の数・字ごとの読み・台湾の読みを検め、外れていれば辞書の読みに直す。
+    // 共有辞書（下の learnLexiconEntries）にも直した読みが入る。
+    card = (await loadReadingCheck())(cardLanguage, resolvedHead, card);
 
     /**
      * **級は辞書が正**（オーナー指摘 2026-08-27 ⑭）。
@@ -916,7 +928,6 @@ export const generatePhraseCard = createServerFn({ method: "POST" })
         throw new Error("AI did not return a structured phrase card");
       }
     })();
-    await logUsage(context.supabase, context.userId, "phrase_card");
     return card;
   });
 
@@ -1503,7 +1514,6 @@ async function runSectionRegen(
     (word.extras ?? null) as Parameters<typeof mergeExtras>[0],
     extrasPatch as Parameters<typeof mergeExtras>[1],
   );
-  await logUsage(context.supabase, userId, "card");
   if (mode === "propose") {
     return {
       ok: true,

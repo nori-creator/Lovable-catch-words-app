@@ -529,7 +529,6 @@ export const fillReaderMeanings = createServerFn({ method: "POST" })
               abortSignal: AbortSignal.timeout(20_000),
             }),
           );
-          await ai.logUsage(context.supabase, userId, "reader_meaning");
           const parsed = z
             .object({
               meanings: z.array(z.object({ i: z.number().int(), meaning: z.string().catch("") })),

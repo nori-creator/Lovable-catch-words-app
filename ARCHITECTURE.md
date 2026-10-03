@@ -43,6 +43,8 @@ Suggested stages:
 - review evaluation.
   Provider/model choice may change without rewriting product flows.
 
+First-catch (tutorial) AI calls (2026-10-03 audit: 20–50 s, repeated 45–50 s failures): the photo is sent at 1024 px / JPEG 0.7 (`firstCatchPhoto`). Each attempt has its own deadline (candidates 20 s; card/lesson 30 s) with `maxRetries: 0` (the SDK's silent retries used to eat the whole 45 s), then **one** fallback to a different already-configured provider/model (`getAiAttemptChain`: app_config runtime → env → a keyed provider's fast vision model `gemini-2.5-flash`), run by `runAiAttempts` (`ai-attempts.ts`). One request = one quota reservation; if no attempt returned a reply (timeouts / transport errors) the reservation is released (member `usage_events` row deleted with the service key; guest budget keys deleted). Every request is logged: members in `ai_runs` (`loop="first_catch_ai"`, meta = attempts, latency, outcome), guests in `app_config` keys `first-catch-run:<day>:ok|fail:<uuid>` (no photo/word/IP), and client failures via `reportBackgroundFailure("first_catch_ai")`.
+
 ## TTS
 
 Speech service interface should support provider routing and fallback.
@@ -109,6 +111,8 @@ Fonts: display text keeps `font-display: block`; the diary input field uses gene
 
 Do not load an entire growing personal collection when a screen only needs a subset.
 Use date-scoped home queries, pagination/infinite scrolling, thumbnails, map clustering and indexes as appropriate.
+
+Initial JS (2026-10-03 audit): `routeTree.gen.ts` imports every route file statically, and TanStack's code splitting only moves a route's `component`; **anything else a route file exports stays in the client entry together with its imports**. The admin users screen exported its views (for the harness), which pulled `AdminCharts` → recharts into the entry (entry 269 → 168 KB gzip, root preloads 523 → 422 KB after moving them to `components/AdminUsersViews.tsx`). Route files should export only `Route`; shared views live in `src/components`. Charts stay behind `lazy()` / the split route component. The 3D confetti's three.js chunk is only loaded on demand (`load-confetti.ts`).
 Track AI/TTS cost per operation and aggregate per active user without exposing unnecessary personal content.
 
 ## Review grading safety (2026-10-01)
@@ -137,7 +141,15 @@ A background failure that the UI deliberately survives (TTS falling back to the 
 
 ## Day boundaries
 
-User-facing "today" counts use Taiwan time (`Asia/Taipei`; `startOfAppDay` for plan limits). AI abuse caps (`assertWithinDailyCap`) are a rolling 24 hours on purpose, and their message says so.
+User-facing "today" counts use Taiwan time (`Asia/Taipei`; `startOfAppDay` in `taipei-day.ts`, used for plan limits and the review daily limit). AI abuse caps (`assertWithinDailyCap`) are a rolling 24 hours on purpose, and their message says so.
+
+## Security audit fixes (2026-10-03)
+
+- Shared `words` rows: client-sent canonical columns and `extras` only **fill empty fields** (`shared-word-guard.ts`; same-language extras only; `verified` words untouched). The caller's full explanation goes to the reader-language `word_explanations` row, size-capped. Server-verified writes (`reportAndFixSection`, `regenerateCardSection`) are separate paths.
+- AI caps (`ai-cap.ts`): fail closed when usage can't be counted; one usage row is reserved **before** the provider call (callers no longer `logUsage` the same kind afterwards); a global per-Taipei-day ceiling across all users (`AI_GLOBAL_DAILY_CAP`, default 5,000, TTS excluded) is counted in server-only `app_config` slots (`budget-slots.ts`), old slots pruned. Errors carry codes (`AI_DAILY_CAP`, `AI_GLOBAL_CAP`, `AI_USAGE_CHECK_FAILED`) localised via `errors.ts`.
+- Shared TTS cache: only headwords and dictionary example sentences are stored (`tts-share.ts`); other text is synthesized and returned uncached.
+- `/api/native-ai` is off unless `NATIVE_AI_ENABLED=1` (no shipped client; iOS design is `/api/v1/*`).
+- Stripe webhook re-reads the subscription from Stripe instead of trusting event order.
 
 ## AI-assisted fixes
 
