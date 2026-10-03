@@ -5601,8 +5601,10 @@ describe("Jev の使い方の約束（予定は Jev が決める: オーナー�
     expect(srs).toBeGreaterThan(0);
     expect(ask).toBeGreaterThan(srs);
     expect(pick).toBeGreaterThan(ask);
-    // 保存する予定は柵を通した値。
-    expect(body).toMatch(/const next = \{ \.\.\.srs, interval_days: picked\.days \};/);
+    // 保存する予定は柵を通した値（さらに上限 180 日。srs.ts の 2026-10-03）。
+    expect(body).toMatch(
+      /const next = \{ \.\.\.srs, interval_days: Math\.min\(picked\.days, MAX_INTERVAL_DAYS\) \};/,
+    );
     expect(body).toMatch(/interval_days: next\.interval_days,/);
     // 思い出せなかった語には聞かない（明日のまま）。
     expect(body).toMatch(/score >= LAPSE_SCORE\s*\?\s*await jevScheduleDays\(/);
