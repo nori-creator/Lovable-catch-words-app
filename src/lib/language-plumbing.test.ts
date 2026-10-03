@@ -4848,30 +4848,22 @@ describe("ホームは今日の誌面", () => {
     );
     // 2026-09-24「過去のものが多すぎで画面で確認できないから、過去のものは全て
     // 削除して」: 帯には**今回の依頼の面だけ**。
-    // 2026-10-03「ウェルカム画面はAのデザインを再現して」「カメラ前はBにして」「チュートリアルの
-    // ピンイン・本棚・ギャラリー・例文とチャンク・答え合わせの枠・はじめと終わりの動き」の回。
-    // 先頭はウェルカム画面（A 案）。
+    // 2026-10-03「海邊の字体が台湾華語の正式な文字ではない」と品質検査の修正の回。
+    // 先頭はウェルカム画面（海邊を台湾の標準字形に）。
     expect(list.slice(0, list.indexOf("},"))).toMatch(/scene: "first-catch"/);
-    // 前の回の並べ方の見比べ（C〜F）とカメラの前の一枚の案（A〜C）は外した。
     expect(list).not.toMatch(/layout=/);
     expect(list).not.toMatch(/primer=/);
-    expect(list).toContain('scene: "first-catch&theme=dark"');
-    expect(list).toContain('scene: "first-catch&lang=en&target=en"');
-    expect(list).toContain('scene: "first-catch&lang=zh-TW"');
-    // カメラの許可の前の一枚と、断った時・LINE の中の時。
-    expect(list).toContain('scene: "first-catch&step=camera&cam=prompt"');
-    for (const cam of ["denied", "android", "line"]) {
-      expect(list).toContain(`scene: "first-catch&step=camera&cam=${cam}"`);
-    }
-    // チュートリアル: はじめと終わりの動き、ピンイン、図鑑、単語の詳細、答え合わせ。
-    expect(list).toContain('scene: "first-catch&step=ready&target=zh-TW"');
-    expect(list).toContain('scene: "first-catch&step=complete&target=zh-TW"');
-    expect(list).toContain('scene: "first-catch&step=review&lang=zh-TW&target=zh-TW"');
-    expect(list).toContain('scene: "first-catch&step=home&tour=1"');
-    expect(list).toContain('scene: "first-catch&step=dex&tour=1"');
-    expect(list).toContain('scene: "first-catch&step=explore"');
+    // ブラウザの言語でウェルカムを出す。
+    expect(list).toContain('scene: "first-catch&browser=en-US"');
+    expect(list).toContain('scene: "first-catch&browser=zh-TW"');
+    // 品質検査で直した所。
+    expect(list).toContain('scene: "sticker-detail&lang=en"');
+    expect(list).toContain('scene: "place-memory&nophoto=1&lang=en"');
+    expect(list).toContain('scene: "review-memory-list&lang=en"');
+    expect(list).toContain('scene: "capture-object&variant=error&lang=en"');
+    expect(list).toContain('scene: "first-catch&step=pick&lang=ja&target=zh-TW"');
     // 前の回（表示言語の復習・図鑑、単語の詳細の見出し、学習言語でない見出し）の面は残さない。
-    expect(list).not.toMatch(/scene: "review-choice&lang=/);
+    // （`review-choice&lang=en` は品質検査の回でまた並べる。）
     expect(list).not.toMatch(/scene: "dex-cards&lang=/);
     expect(list).not.toMatch(/scene: "sticker-sheet/);
     expect(list).not.toMatch(/scene: "capture-card&variant=not-target/);
