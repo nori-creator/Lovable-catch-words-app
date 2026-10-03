@@ -12,6 +12,7 @@ import { personalizationRule } from "./learning-preferences";
 import { targetProfile } from "./target-profile";
 import { coerceTargetHeadword, isTargetHeadword } from "./target-language";
 import { CATEGORY_KEYS } from "./category";
+import { correctTaiwanReading } from "./tw-reading.server";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, Json } from "@/integrations/supabase/types";
 
@@ -250,7 +251,9 @@ function readFirstCatchReply(data: FirstCatchAIRequest, text: string) {
             ...c,
             headword: coerceTargetHeadword(c.headword, data.targetLanguage) ?? "",
           }))
-          .filter((c) => c.headword && isTargetHeadword(c.headword, data.targetLanguage)),
+          .filter((c) => c.headword && isTargetHeadword(c.headword, data.targetLanguage))
+          // 読みは AI のまま通さない（`tw-reading.server.ts`）。
+          .map((c) => correctTaiwanReading(data.targetLanguage, c.headword, c)),
       };
     }
     if (data.action === "lesson") return PersonalLessonSchema.parse(parsed);
@@ -270,5 +273,6 @@ function readFirstCatchReply(data: FirstCatchAIRequest, text: string) {
     coerceTargetHeadword(data.headword, data.targetLanguage);
   if (!head) throw new Error("FIRST_CATCH_AI_FORMAT");
   card.headword_zh = head;
+  card = correctTaiwanReading(data.targetLanguage, head, card);
   return { ...card, level: "", extras: { ...card.extras, explain_lang: data.uiLanguage } };
 }

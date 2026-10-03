@@ -41,6 +41,7 @@ const APP_EVENTS = [
   "bg_failed_reader_meaning",
   "bg_failed_reader_explain",
   "bg_failed_first_catch_ai",
+  "bg_failed_sticker_storage",
 ] as const;
 export type AppEventKind = (typeof APP_EVENTS)[number];
 

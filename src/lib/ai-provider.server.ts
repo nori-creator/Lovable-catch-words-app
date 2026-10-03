@@ -3,6 +3,8 @@ import { targetProfile } from "@/lib/target-profile";
 import { generateText, Output } from "ai";
 import type { z } from "zod";
 import { UI_LANG_PROMPT_NAMES } from "./i18n";
+import { DAILY_CAPS, USAGE_CHECK_FAILED_MESSAGE, globalAiDailyCap, reserveAiCall } from "./ai-cap";
+import type { BudgetDb } from "./budget-slots";
 
 /**
  * Single switch point for every AI call in the app.
@@ -910,51 +912,48 @@ export async function logUsage(supabase: unknown, userId: string, kind: string):
 }
 
 /**
- * Phase B-2 abuse guard: rolling-24h soft cap per user per AI kind.
- * This is NOT a paywall (constitution: スキャンに課金壁を置かない) — the limits
- * are far above any human usage and only stop runaway loops / scripted abuse
- * from burning the AI budget. Counted via the service role because the
- * authenticated role has no SELECT grant on usage_events.
+ * **AI を呼ぶ前の上限の確かめと、1回ぶんの確保**（中身と理由は `ai-cap.ts`）。
+ *
+ * - その人の 24 時間の上限（種類ごと）
+ * - 全員を合わせた 1 日の上限（`AI_GLOBAL_DAILY_CAP`、既定 5,000）
+ * - 数えられないときは断る（2026-10-03 から。前は通していた）
+ *
+ * **呼ぶ前に1回ぶんを `usage_events` に記録する**ので、呼ぶ側は成功の後に同じ種類を
+ * `logUsage` しない（二重に数えない）。Counted via the service role because the
+ * authenticated role has no SELECT grant on other users' usage_events.
  */
-const DAILY_CAPS: Record<string, number> = {
-  scan_detect: 300,
-  scan_parts: 300,
-  tts: 500,
-  correction: 100,
-  journal_prompt: 60,
-  card: 200,
-  wordbook: 60, // 1枚の写真で最大60語。取り込みは1日に何度もやる物ではない
-  phrase_card: 100,
-  suggest: 300,
-  removebg: 100, // paid per image — tighter than the free-tier guards
-  native_text: 200, // iOS 版の添削・例文など（/api/native-ai の text）
-  // 読む人の言語の意味だけを埋める（`fillReaderMeanings`。1回で最大24語、辞書に無い語だけ）。
-  reader_meaning: 100,
-};
-
 export async function assertWithinDailyCap(userId: string, kind: string): Promise<void> {
-  const limit = DAILY_CAPS[kind];
-  if (!limit) return;
-  let count: number | null = null;
+  if (!DAILY_CAPS[kind]) return;
+  let supabaseAdmin: (typeof import("@/integrations/supabase/client.server"))["supabaseAdmin"];
   try {
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-    const res = await supabaseAdmin
-      .from("usage_events")
-      .select("id", { count: "exact", head: true })
-      .eq("user_id", userId)
-      .eq("kind", kind)
-      .gte("created_at", since);
-    if (!res.error) count = res.count;
-    else console.warn("[usage] cap check failed", { kind, message: res.error.message });
+    ({ supabaseAdmin } = await import("@/integrations/supabase/client.server"));
   } catch (e) {
-    // Fail open: a broken meter must never block scanning (§2 保存の摩擦を増やさない).
-    // ただし数えられなかったことはサーバの記録に残す（上限が効いていない間を見つけるため）。
+    // 数える道具が無い = 数えられない。**閉じる側に倒す。**
     console.warn("[usage] cap check failed", { kind, message: (e as Error)?.message ?? e });
+    throw new Error(USAGE_CHECK_FAILED_MESSAGE);
   }
-  if (count != null && count >= limit) {
-    throw new Error(
-      `1日の利用上限(${limit}回)に達しました。24時間以内に自動で回復します。通常の学習でここに届くことはないため、心当たりがない場合はお問い合わせください。`,
-    );
-  }
+  await reserveAiCall(
+    {
+      countUserKindSince: async (uid, k, since) => {
+        const res = await supabaseAdmin
+          .from("usage_events")
+          .select("id", { count: "exact", head: true })
+          .eq("user_id", uid)
+          .eq("kind", k)
+          .gte("created_at", since);
+        if (res.error || res.count == null) {
+          throw new Error(res.error?.message ?? "no count");
+        }
+        return res.count;
+      },
+      insertUsage: async (uid, k) => {
+        const res = await supabaseAdmin.from("usage_events").insert({ user_id: uid, kind: k });
+        if (res.error) throw new Error(res.error.message);
+      },
+      budgetDb: supabaseAdmin as unknown as BudgetDb,
+      globalLimit: globalAiDailyCap(process.env.AI_GLOBAL_DAILY_CAP),
+    },
+    userId,
+    kind,
+  );
 }

@@ -6499,11 +6499,26 @@ describe("R25（2026-09-30: ベータテストの指摘・最初の画面の4枚
       "welcome-blur-lake",
     ])
       expect(images).toMatch(new RegExp(`"/first-catch-${photo}\\.webp"`));
-    // 「海邊」は見本の細いペン字に近い Zen Kurenaido（端末内に配る字体）で書き、その2字を先読みする。
-    expect(css).toMatch(/\.first-welcome-pen \{[^}]*font-family: "Zen Kurenaido"/);
+    // 「海邊」は**台湾の教育部標準字體**の手書き（芫荽）で書く（2026-10-03「海邊の字体が台湾
+    // 華語の正式な文字ではないから修整して」）。日本の字体（Zen Kurenaido）では「海」「邊」が
+    // 日本の字形になる。語には台湾の `lang` を付け、端末が選ぶ代わりの字体も台湾の字形にする。
+    const pen = css.slice(css.indexOf(".first-welcome-pen {"));
+    expect(pen.slice(0, pen.indexOf("}"))).toMatch(/font-family: "Iansui Welcome", "Iansui"/);
+    expect(pen.slice(0, pen.indexOf("}"))).not.toMatch(/Zen Kurenaido/);
+    expect(css).toMatch(/src: url\(\/fonts\/iansui\/iansui-welcome\.woff2\)/);
     expect(body).toMatch(/en \? "handwritten" : "first-welcome-pen"/);
-    expect(images).toMatch(/"\/fonts\/zen-kurenaido\/zk-114\.woff2"/);
+    expect(body).toMatch(/const wordLang = en \? "en" : "zh-Hant-TW";/);
+    expect(body.match(/className="first-welcome-caption" lang=\{wordLang\}/g)?.length).toBe(2);
+    expect(images).toMatch(/WELCOME_FONTS = \["\/fonts\/iansui\/iansui-welcome\.woff2"\]/);
     expect(welcome).toMatch(/WELCOME_FONTS\.map/);
+    expect(fs.existsSync(path.join(root, "../public/fonts/iansui/iansui-welcome.woff2"))).toBe(
+      true,
+    );
+    // 切り出しに、画面に書く台湾華語の字が全部入っている（足りない字だけ別の字体に落ちない）。
+    const fetcher = fs.readFileSync(path.join(root, "../scripts/fetch-tc-hand-font.mjs"), "utf8");
+    const subset = /WELCOME_TEXT = "([^"]+)"/.exec(fetcher)?.[1] ?? "";
+    for (const [, zh] of pages.matchAll(/\["[a-z]+", "([^"]+)"\]/g))
+      for (const ch of zh) expect(subset).toContain(ch);
     // 空の光: 日の光と霞・ぼかした海・きらめき・雲の上の面と影。ぼかしに filter を使わない。
     expect(css).toMatch(/url\(\/first-catch-welcome-sea\.webp\)/);
     expect(css).toContain("@keyframes first-glint");

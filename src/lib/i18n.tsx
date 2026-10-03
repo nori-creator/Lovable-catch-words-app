@@ -1677,6 +1677,16 @@ export const DICT: Record<string, Record<UiLang, string>> = {
     en: "You've reached today's limit. It resets automatically within 24 hours.",
     "zh-TW": "已達今日使用上限，24 小時內會自動恢復。",
   },
+  "err.aiBusy": {
+    ja: "本日のAIの利用が上限に達しました。時間をおいてもう一度お試しください。",
+    en: "AI features have reached today's limit. Please try again later.",
+    "zh-TW": "今天的 AI 使用量已達上限，請稍後再試。",
+  },
+  "err.usageCheck": {
+    ja: "利用回数を確認できませんでした。少し待ってからもう一度お試しください。",
+    en: "We couldn't check your usage just now. Please try again in a moment.",
+    "zh-TW": "目前無法確認使用次數，請稍候再試一次。",
+  },
   "err.proOnly": {
     ja: "Pro 限定の機能です",
     en: "This is a Pro feature",
@@ -3613,6 +3623,11 @@ export const DICT: Record<string, Record<UiLang, string>> = {
     ja: "簡体字から台湾正体字への変換",
     en: "Simplified to Taiwanese traditional Chinese",
     "zh-TW": "簡體字轉台灣正體字",
+  },
+  "sources.pinyinPro": {
+    ja: "台湾華語の読み（拼音・注音）の確認",
+    en: "Checking Taiwan Mandarin readings (pinyin and zhuyin)",
+    "zh-TW": "核對華語讀音（拼音、注音）",
   },
   // 日本語の読み(2026-10-01)。学ぶ人は英語か繁體中文で読むので、その2つが本番の文言。
   "settings.kana": { ja: "ふりがな", en: "Kana (furigana)", "zh-TW": "假名（振假名）" },

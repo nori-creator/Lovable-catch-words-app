@@ -37,7 +37,17 @@ const KNOWN: Array<[RegExp, string]> = [
  * 印は英字なので、下の「人に向けた文か」の見分けに掛けると汎用の
  * 「保存に失敗しました」に潰れる — **なぜ入らないのかが分からない**。
  */
-const KNOWN_CODES: Array<[string, string]> = [["NOT_TARGET_LANGUAGE", "err.notTargetLanguage"]];
+/*
+ * `AI_DAILY_CAP` / `AI_GLOBAL_CAP` / `AI_USAGE_CHECK_FAILED` は AI の上限（`ai-cap.ts`）。
+ * 文の頭に印を付けて投げるので、日本語の人にも辞書の文で出す（2026-10-03。前は日本語の
+ * 文がそのまま出て、英語・繁體中文の人には文の当て推量に頼っていた）。
+ */
+const KNOWN_CODES: Array<[string, string]> = [
+  ["NOT_TARGET_LANGUAGE", "err.notTargetLanguage"],
+  ["AI_DAILY_CAP", "err.dailyCap"],
+  ["AI_GLOBAL_CAP", "err.aiBusy"],
+  ["AI_USAGE_CHECK_FAILED", "err.usageCheck"],
+];
 
 export function readableError(
   e: unknown,

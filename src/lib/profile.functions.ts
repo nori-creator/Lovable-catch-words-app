@@ -1,5 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { internalFailure } from "./safe-error";
+import { removeAllUnder, type StorageBucket } from "./storage-cleanup";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { z } from "zod";
 import { L1_ORDER } from "@/lib/l1";
@@ -290,18 +291,21 @@ export const deleteMyAccount = createServerFn({ method: "POST" })
     const { userId } = context;
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
-    // 1) Uploaded photos (stickers bucket, everything under `${userId}/`).
+    // 1) Uploaded photos (stickers bucket, everything under `${userId}/`, **every
+    //    level** — first-catch transfers live in sub-folders) and the profile
+    //    photo (public avatars bucket, `${userId}/avatar-*`). 監査 2026-10-03:
+    //    前は stickers の一番上の階層だけで、avatars は残っていた。
     //    The tts bucket is a shared pronunciation cache — never touched.
-    for (;;) {
-      const { data: files, error } = await supabaseAdmin.storage
-        .from("stickers")
-        .list(userId, { limit: 1000 });
-      if (error) break; // bucket missing in a fresh env — nothing to clean
-      if (!files || files.length === 0) break;
-      const paths = files.map((f) => `${userId}/${f.name}`);
-      const { error: rmErr } = await supabaseAdmin.storage.from("stickers").remove(paths);
-      if (rmErr) throw internalFailure("account-delete", rmErr, "写真の削除に失敗しました");
-      if (files.length < 1000) break;
+    for (const bucket of ["stickers", "avatars"] as const) {
+      try {
+        await removeAllUnder(
+          supabaseAdmin.storage.from(bucket) as unknown as StorageBucket,
+          userId,
+          { missingOk: true }, // bucket missing in a fresh env — nothing to clean
+        );
+      } catch (e) {
+        throw internalFailure("account-delete", e, "写真の削除に失敗しました");
+      }
     }
 
     // 2) Detach shared words the user contributed (kept for other learners).

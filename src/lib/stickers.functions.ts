@@ -15,13 +15,19 @@ import { normalizeCategory } from "./category";
 import { isTruncated } from "./pagination";
 import { isBuiltinRoom, normalizeShelfProposal, type RawShelfProposal } from "./shelf-proposal";
 import type { UserShelf } from "./shelf-plan";
+import { normalizeExtras, hasExtrasContent, type WordExtrasDTO } from "./extras";
 import {
-  ExtrasSchema,
-  normalizeExtras,
-  hasExtrasContent,
-  mergeExtras,
-  type WordExtrasDTO,
-} from "./extras";
+  BoundedExtrasSchema,
+  LanguageCodeSchema,
+  LOCATION_NAME_MAX,
+  STORAGE_PATH_MAX,
+  SharedColumnsPatchSchema,
+  WordInputSchema,
+  fillEmptySharedColumns,
+  fillEmptySharedExtras,
+  isExplanationLangCode,
+  type SharedWordColumn,
+} from "./shared-word-guard";
 
 import type { AlbumEncounter } from "./album-encounters";
 
@@ -565,38 +571,13 @@ export const getSticker = createServerFn({ method: "GET" })
     }
     if (error) throw new Error(error.message);
 
-    // If not the owner, fall back to admin read ONLY when the sticker is
-    // attached to a post the viewer may see (public / friends-mutual / own).
-    // Without this check any authenticated user with a sticker UUID could
-    // read private lat/lng/caption for un-posted stickers.
-    const isOwner = !!row;
-    if (!row) {
-      const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-      // Find any post referencing this sticker that the viewer can see.
-      const { data: postRow, error: postErr } = await supabaseAdmin
-        .from("posts")
-        .select("id, user_id, visibility")
-        .eq("sticker_id", data.id)
-        .maybeSingle();
-      if (postErr) throw new Error(postErr.message);
-      if (!postRow) return null;
-      let canSee = postRow.user_id === userId || postRow.visibility === "public";
-      if (!canSee && postRow.visibility === "friends") {
-        const { data: mutual } = await supabaseAdmin.rpc("are_mutual_followers", {
-          _a: userId,
-          _b: postRow.user_id,
-        });
-        canSee = !!mutual;
-      }
-      if (!canSee) return null;
-      const res = await supabaseAdmin
-        .from("stickers")
-        .select(cols(ghostCols, heroCols))
-        .eq("id", data.id)
-        .maybeSingle();
-      if (res.error) throw new Error(res.error.message);
-      row = res.data as typeof row;
-    }
+    /**
+     * **自分の札だけ**（監査 2026-10-03）。前は自分の札でなければ、その札を載せた投稿
+     * （`posts.sticker_id`）を探して管理者の鍵で読んでいた。投稿の持ち主と札の持ち主を
+     * 突き合わせていなかったので、他人の札の番号を自分の投稿に書けば、その札の写真まで
+     * 読めた。投稿（ソーシャル）は 2026-10-01 の整理で画面ごと消えていて、この道を
+     * 使う画面はもう無い — 道ごと消した。
+     */
     if (!row) return null;
     type StickerRow = {
       id: string;
@@ -624,27 +605,17 @@ export const getSticker = createServerFn({ method: "GET" })
     const r = row as unknown as StickerRow;
 
     // §6 word tree: unlock count = completed reviews (monotonic).
-    let reviewCount = 0;
-    if (isOwner) {
-      const { count } = await supabase
-        .from("review_history")
-        .select("id", { count: "exact", head: true })
-        .eq("user_id", userId)
-        .eq("sticker_id", r.id);
-      reviewCount = count ?? 0;
-    }
-    // Non-owners sign URLs via the admin client (their RLS can't see the
-    // owner's storage objects); the selfie stays private to the owner.
-    let signer: SignedUrlsClient = supabase;
-    if (!isOwner) {
-      const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-      signer = supabaseAdmin as unknown as SignedUrlsClient;
-    }
+    const { count: reviewCountRaw } = await supabase
+      .from("review_history")
+      .select("id", { count: "exact", head: true })
+      .eq("user_id", userId)
+      .eq("sticker_id", r.id);
+    const reviewCount = reviewCountRaw ?? 0;
     const [urlMap, counts] = await Promise.all([
-      signUrlMap(signer, [
+      signUrlMap(supabase, [
         r.object_image_url,
         r.cutout_image_url,
-        isOwner ? r.selfie_image_url : null,
+        r.selfie_image_url,
         r.placeholder_image_url ?? null,
       ]),
       encounterCounts(supabase, [r.id]),
@@ -655,19 +626,16 @@ export const getSticker = createServerFn({ method: "GET" })
     const res: StickerWithWord = {
       id: r.id,
       word_id: r.word_id,
-      // Non-owners see the sticker via a post — the post carries its own
-      // caption. Private sticker-level fields (caption, precise coordinates,
-      // location name, selfie) stay owner-only.
-      caption: isOwner ? r.caption : null,
-      location_name: isOwner ? r.location_name : null,
-      lat: isOwner ? r.lat : null,
-      lng: isOwner ? r.lng : null,
+      caption: r.caption,
+      location_name: r.location_name,
+      lat: r.lat,
+      lng: r.lng,
       taken_at: r.taken_at,
       created_at: r.created_at,
       encounter_count: counts.get(r.id) ?? 0,
       object_url: r.object_image_url ? (urlMap.get(r.object_image_url) ?? null) : null,
       cutout_url: r.cutout_image_url ? (urlMap.get(r.cutout_image_url) ?? null) : null,
-      selfie_url: isOwner && r.selfie_image_url ? (urlMap.get(r.selfie_image_url) ?? null) : null,
+      selfie_url: r.selfie_image_url ? (urlMap.get(r.selfie_image_url) ?? null) : null,
 
       // Detail view always shows the full-resolution image.
       object_thumb_url: null,
@@ -676,9 +644,9 @@ export const getSticker = createServerFn({ method: "GET" })
       /** null なら設定に従う。**知らない値も素通しでよい** —
           `pickStickerPhoto` の `prefer` が既定の順に落としてくれる。 */
       hero_role: r.hero_role ?? null,
-      shelf_key: isOwner ? (r.shelf_key ?? null) : null,
+      shelf_key: r.shelf_key ?? null,
       /** 自分の札か（カテゴリーを変える道は持ち主にだけ出す）。 */
-      is_owner: isOwner,
+      is_owner: true,
       placeholder_url: r.placeholder_image_url
         ? (urlMap.get(r.placeholder_image_url) ?? null)
         : null,
@@ -690,40 +658,36 @@ export const getSticker = createServerFn({ method: "GET" })
     return res;
   });
 
+/**
+ * ひと言の長さの上限（撮影画面の欄・アルバムの表示と同じ数を共有する）。
+ * 保存の入力（`SaveStickerInput`）でも使うので、それより上に置く。
+ */
+export const CAPTION_MAX = 500;
+
 const SaveStickerInput = z.object({
   client_catch_id: z.string().uuid().optional(),
-  word: z.object({
-    headword: z.string().min(1),
-    reading_zhuyin: z.string().optional().default(""),
-    pinyin: z.string().optional().default(""),
-    meaning_ja: z.string().min(1),
-    part_of_speech: z.string().optional().default("名詞"),
-    level: z.string().optional().default("TOCFL-2"),
-    category_key: z.string().min(1),
-    example_sentence: z.string().optional().default(""),
-    example_translation: z.string().optional().default(""),
-    extras: ExtrasSchema.optional(),
-  }),
+  // 語の形と上限は `shared-word-guard.ts`（文字・声のキャッチと同じ物）。
+  word: WordInputSchema,
   /**
    * AI が「どの棚にも当てはまらない」と判断したときの新しい棚。
-   * 形は信用しない — `normalizeShelfProposal` で直すか諦める。
+   * 形は信用しない — `normalizeShelfProposal` で直すか諦める（長すぎる値も諦める）。
    */
   new_shelf: z
     .object({
-      key: z.string().optional().catch(undefined),
-      label: z.string().optional().catch(undefined),
-      emoji: z.string().optional().catch(undefined),
-      room_key: z.string().optional().catch(undefined),
-      room_label: z.string().optional().catch(undefined),
+      key: z.string().max(64).optional().catch(undefined),
+      label: z.string().max(64).optional().catch(undefined),
+      emoji: z.string().max(32).optional().catch(undefined),
+      room_key: z.string().max(64).optional().catch(undefined),
+      room_label: z.string().max(64).optional().catch(undefined),
     })
     .nullish()
     .catch(null),
-  language: z.string().default(DEFAULT_TARGET_LANGUAGE),
-  object_path: z.string().nullable().optional(),
-  cutout_path: z.string().nullable().optional(),
-  selfie_path: z.string().nullable().optional(),
-  caption: z.string().nullable().optional(),
-  location_name: z.string().nullable().optional(),
+  language: LanguageCodeSchema,
+  object_path: z.string().max(STORAGE_PATH_MAX).nullable().optional(),
+  cutout_path: z.string().max(STORAGE_PATH_MAX).nullable().optional(),
+  selfie_path: z.string().max(STORAGE_PATH_MAX).nullable().optional(),
+  caption: z.string().max(CAPTION_MAX).nullable().optional(),
+  location_name: z.string().max(LOCATION_NAME_MAX).nullable().optional(),
   lat: z.number().nullable().optional(),
   lng: z.number().nullable().optional(),
 });
@@ -835,7 +799,7 @@ export async function upsertWord(
       language,
     ).catch(() => {});
   } else if (word.extras && hasExtrasContent(word.extras)) {
-    // Update extras for an existing word when the AI generated rich ones.
+    // Fill extras for an existing word when the AI generated rich ones.
     //
     // The words UPDATE RLS policy only covers source='ai', so writing through
     // the user client silently updated 0 rows for verified dictionary words —
@@ -844,19 +808,25 @@ export async function upsertWord(
     // persisted. Write via the service role instead, and — like reportWordIssue,
     // keeping constitution §2-1 intact — only ever touch the `extras` supplement
     // (the UI already labels it AI-generated), never verified base fields.
-    // Merge over any existing extras so a sparser later catch can't wipe a
-    // richer earlier one.
+    //
+    // **空の項目だけ埋める**（監査 2026-10-03）。中身は画面が送ってきた物なので、
+    // 既に在る共有の解説を上書きさせない（`fillEmptySharedExtras`）。
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data: cur } = await supabaseAdmin
       .from("words")
       .select("extras")
       .eq("id", wordId)
       .maybeSingle();
-    const merged = mergeExtras(cur?.extras as WordExtrasDTO | null, word.extras);
-    await supabaseAdmin
-      .from("words")
-      .update({ extras: merged as never })
-      .eq("id", wordId);
+    const filled = fillEmptySharedExtras(
+      cur?.extras,
+      word.extras as unknown as Record<string, unknown>,
+    );
+    if (filled) {
+      await supabaseAdmin
+        .from("words")
+        .update({ extras: filled as never })
+        .eq("id", wordId);
+    }
   }
   return wordId;
 }
@@ -1053,20 +1023,13 @@ export const saveSticker = createServerFn({ method: "POST" })
 
 const UpdateExtrasInput = z.object({
   word_id: z.string().uuid(),
-  extras: ExtrasSchema,
-  patch: z
-    .object({
-      reading_zhuyin: z.string().optional(),
-      pinyin: z.string().optional(),
-      part_of_speech: z.string().optional(),
-      level: z.string().optional(),
-      example_sentence: z.string().optional(),
-      example_translation: z.string().optional(),
-      // 表示言語を切り替えたとき、意味と例文訳もその言語に入れ替える。
-      // (verified 語は下の source チェックで従来どおり保護される)
-      meaning_ja: z.string().optional(),
-    })
-    .optional(),
+  // 大きさの上限つき（`shared-word-guard.ts`）。読む人の解説の行に入る。
+  extras: BoundedExtrasSchema,
+  /**
+   * 共有の列。**いま空の列を埋めるときだけ使う**（サーバが `fillEmptySharedColumns` で
+   * 決める。埋まっている列・人が確かめた語は何を送っても変わらない）。
+   */
+  patch: SharedColumnsPatchSchema.optional(),
   /**
    * **その人の言語で作った意味**（`generateCard` の `meaning_ja` は表示言語で書かれる）。
    * 共有の列（`patch`）は欠けているときしか送らないので、ここが無いとその人向けの解説の
@@ -1076,103 +1039,165 @@ const UpdateExtrasInput = z.object({
   reader_meaning: z.string().max(200).optional(),
 });
 
+export type UpdateWordExtrasData = z.infer<typeof UpdateExtrasInput>;
+
+/** `applyWordExtrasUpdate` が外の世界に触る所（試験で偽物を渡す）。 */
+export type WordExtrasDeps = {
+  /** 呼んだ人の権限の client（札の持ち主の確かめ）。 */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  supabase: any;
+  /** サーバの鍵の client（共有の語を書く）。 */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  admin: any;
+  /** 読む人の言語の解説の行を置く（`saveWordExplanation`）。 */
+  saveExplanation: (input: {
+    word_id: string;
+    explain_lang: string;
+    l1: string;
+    meaning: string;
+    example_translation?: string | null;
+    extras: Record<string, unknown>;
+  }) => Promise<unknown>;
+};
+
 export const updateWordExtras = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) => UpdateExtrasInput.parse(input))
   .handler(async ({ context, data }) => {
-    const { supabase, userId } = context;
-    // Ownership check (docs/design/03 §1): words is a shared table — only a
-    // user who owns a sticker referencing this word may edit it.
-    const { data: owned } = await supabase
-      .from("stickers")
-      .select("id")
-      .eq("user_id", userId)
-      .eq("word_id", data.word_id)
-      .limit(1)
-      .maybeSingle();
-    if (!owned) throw new Error("この単語を編集する権限がありません");
-
-    // The words UPDATE policy only covers source='ai', so writing through the
-    // user client silently updates 0 rows for dictionary (verified) words —
-    // their extras never persisted and the enrichment AI call was re-paid on
-    // every open. Write via the service role instead, with a hard rule that
-    // keeps constitution §2-1 intact: verified base fields (reading, meaning,
-    // examples…) are never touched — verified words only ever gain `extras`,
-    // which the UI already labels as AI-generated supplements.
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const { data: word, error: readErr } = await supabaseAdmin
-      .from("words")
-      // 意味と例文訳も読む。下で共有キャッシュに置くとき、`patch` が
-      // 意味を運んでこない回(項目だけ作り直したとき)の落とし所になる。
-      // ここを空のまま置くと「意味が空 = 未完成」と数えられて、次に開いた
-      // ときにまた作りに行く — 止めたかった作り直しがそのまま復活する。
-      .select("id, source, extras, meaning_ja, example_translation")
-      .eq("id", data.word_id)
-      .maybeSingle();
-    if (readErr) throw new Error(readErr.message);
-    if (!word) throw new Error("単語が見つかりません");
+    const { saveWordExplanation } = await import("./word-explanation.functions");
+    return applyWordExtrasUpdate(
+      {
+        supabase: context.supabase,
+        admin: supabaseAdmin,
+        saveExplanation: (input) => saveWordExplanation(supabaseAdmin as never, input),
+      },
+      context.userId,
+      data,
+    );
+  });
 
-    // ExtrasSchema に無いキー(復習の足場キャッシュ speaking_scaffold_* など)は
-    // parse で落ちてしまう。既存の生 extras に重ねて書き、作り直しのたびに
-    // AI呼び出しを再課金しないようにする。
-    const prevRaw = (word as { extras?: unknown }).extras;
-    const merged =
-      prevRaw && typeof prevRaw === "object" && !Array.isArray(prevRaw)
-        ? { ...(prevRaw as Record<string, unknown>), ...data.extras }
-        : data.extras;
-    const update: Record<string, unknown> = { extras: merged as never };
-    if (data.patch && word.source !== "verified") {
-      for (const [k, v] of Object.entries(data.patch)) {
-        if (v !== undefined && v !== "") update[k] = v;
-      }
-    }
+/**
+ * `updateWordExtras` の中身（試験から呼べるように切り出した）。
+ *
+ * 1. その語の札を持っている人だけ
+ * 2. 共有の語（`words`）は**空の列・空の項目を埋めるだけ**（`shared-word-guard.ts`）
+ * 3. 送られた解説の全体は、読む人の言語の行（`word_explanations`）に置く
+ */
+export async function applyWordExtrasUpdate(
+  deps: WordExtrasDeps,
+  userId: string,
+  data: UpdateWordExtrasData,
+): Promise<{ ok: true }> {
+  const { supabase, admin: supabaseAdmin } = deps;
+  // Ownership check (docs/design/03 §1): words is a shared table — only a
+  // user who owns a sticker referencing this word may edit it.
+  const { data: owned } = await supabase
+    .from("stickers")
+    .select("id")
+    .eq("user_id", userId)
+    .eq("word_id", data.word_id)
+    .limit(1)
+    .maybeSingle();
+  if (!owned) throw new Error("この単語を編集する権限がありません");
+
+  const ex = (data.extras ?? {}) as Record<string, unknown>;
+  // 解説の行の鍵は言語の符号だけ。それ以外の値で共有の行を作らせない（書く前に断る）。
+  if (
+    !isExplanationLangCode(ex.explain_lang ?? "") ||
+    !isExplanationLangCode(ex.explain_l1 ?? "")
+  ) {
+    throw new Error("解説の言語の形が違います");
+  }
+
+  // The words UPDATE policy only covers source='ai', so writing through the
+  // user client silently updates 0 rows for dictionary (verified) words —
+  // their extras never persisted and the enrichment AI call was re-paid on
+  // every open. Write via the service role instead, with a hard rule that
+  // keeps constitution §2-1 intact: verified base fields (reading, meaning,
+  // examples…) are never touched — verified words only ever gain `extras`,
+  // which the UI already labels as AI-generated supplements.
+  const { data: word, error: readErr } = await supabaseAdmin
+    .from("words")
+    // 意味と例文訳も読む。下で共有キャッシュに置くとき、`patch` が
+    // 意味を運んでこない回(項目だけ作り直したとき)の落とし所になる。
+    // ここを空のまま置くと「意味が空 = 未完成」と数えられて、次に開いた
+    // ときにまた作りに行く — 止めたかった作り直しがそのまま復活する。
+    // 共有の列はすべて読む — 空の列だけを埋めるため（`fillEmptySharedColumns`）。
+    .select(
+      "id, source, extras, meaning_ja, reading_zhuyin, pinyin, part_of_speech, level, example_sentence, example_translation",
+    )
+    .eq("id", data.word_id)
+    .maybeSingle();
+  if (readErr) throw new Error(readErr.message);
+  if (!word) throw new Error("単語が見つかりません");
+  const shared = word as unknown as Record<SharedWordColumn, string | null> & {
+    source: string | null;
+    extras?: unknown;
+  };
+
+  /**
+   * **共有の行は、空の所を埋めるだけ**（監査 2026-10-03「札を1枚持てば他人のカードの
+   * 意味を書き換えられる」）。
+   *
+   * - 共有の列: いま空の列だけ（人が確かめた語は触らない）
+   * - 共有の extras: 空の項目だけ・同じ言語のときだけ。ExtrasSchema に無いキー
+   *   （復習の足場キャッシュ speaking_scaffold_* など）は残す
+   *
+   * 送られた解説の全体は、下の**読む人の言語の行**（`word_explanations`）に入る。
+   * 画面が出すのはそちらなので、作り直した本人の見え方は変わらない。
+   */
+  const prevRaw = shared.extras;
+  const merged: Record<string, unknown> =
+    prevRaw && typeof prevRaw === "object" && !Array.isArray(prevRaw)
+      ? { ...(prevRaw as Record<string, unknown>), ...ex }
+      : ex;
+  const update: Record<string, unknown> = fillEmptySharedColumns(shared, data.patch, {
+    verified: shared.source === "verified",
+  });
+  const filledExtras = fillEmptySharedExtras(prevRaw, ex);
+  if (filledExtras) update.extras = filledExtras;
+  if (Object.keys(update).length > 0) {
     const { error } = await supabaseAdmin
       .from("words")
       .update(update as never)
       .eq("id", data.word_id);
     if (error) throw new Error(error.message);
+  }
 
-    /**
-     * **解説を共有キャッシュにも置く**(2026-08-24)。
-     *
-     * `words` は `(language, headword)` で全ユーザー共有の1行。ところが解説は
-     * 読む人の言語と母語で中身が変わるので、そこに置くと**開くたびに作り直して
-     * 上書きし合う**(遅い・高い・解説が揺れる)。置き場所を
-     * `word_explanations (word_id, explain_lang, l1)` に分けた。
-     *
-     * ここに足したのは、**書く所が既に1つに集まっていたから**。生成の経路が
-     * 増えても、保存は必ずここを通る。2箇所に分けると片方だけ書き忘れて
-     * 「作ったのに次に開くとまた作る」になる(この app が何度も踏んだ形)。
-     *
-     * 置けなくても**カードの保存は成功として返す** — 共有キャッシュは
-     * 速さのための付け足しで、無くても動く(移行待ちの環境がまさにそれ)。
-     */
-    const ex = (data.extras ?? {}) as Record<string, unknown>;
-    // **待ってから返す**（βテスト 2026-09-30「単語の項目を表示するのが遅い」）。
-    // 待たずに返すと、画面が解説を読み直した時点でまだ書けておらず、
-    // 次に開くまで（最大30分の読み置き）古い解説が出続けていた。
-    // 失敗しても投げない関数なので、カードの保存は巻き込まない。
-    await import("./word-explanation.functions").then(({ saveWordExplanation }) =>
-      saveWordExplanation(supabaseAdmin as never, {
-        word_id: data.word_id,
-        explain_lang: String(ex.explain_lang ?? ""),
-        l1: String(ex.explain_l1 ?? ""),
-        // 意味は共有の列にも在るが、**読む人の言語の物**なのでこちらが正。
-        meaning: String(
-          data.reader_meaning?.trim() ||
-            data.patch?.meaning_ja ||
-            (word as { meaning_ja?: string | null }).meaning_ja ||
-            "",
-        ),
-        example_translation:
-          data.patch?.example_translation ??
-          (word as { example_translation?: string | null }).example_translation ??
-          null,
-        extras: merged as Record<string, unknown>,
-      }),
-    );
-    return { ok: true };
+  /**
+   * **解説を共有キャッシュにも置く**(2026-08-24)。
+   *
+   * `words` は `(language, headword)` で全ユーザー共有の1行。ところが解説は
+   * 読む人の言語と母語で中身が変わるので、そこに置くと**開くたびに作り直して
+   * 上書きし合う**(遅い・高い・解説が揺れる)。置き場所を
+   * `word_explanations (word_id, explain_lang, l1)` に分けた。
+   *
+   * ここに足したのは、**書く所が既に1つに集まっていたから**。生成の経路が
+   * 増えても、保存は必ずここを通る。2箇所に分けると片方だけ書き忘れて
+   * 「作ったのに次に開くとまた作る」になる(この app が何度も踏んだ形)。
+   *
+   * 置けなくても**カードの保存は成功として返す** — 共有キャッシュは
+   * 速さのための付け足しで、無くても動く(移行待ちの環境がまさにそれ)。
+   *
+   * **待ってから返す**（βテスト 2026-09-30「単語の項目を表示するのが遅い」）。
+   * 待たずに返すと、画面が解説を読み直した時点でまだ書けておらず、
+   * 次に開くまで（最大30分の読み置き）古い解説が出続けていた。
+   * 失敗しても投げない関数なので、カードの保存は巻き込まない。
+   */
+  await deps.saveExplanation({
+    word_id: data.word_id,
+    explain_lang: String(ex.explain_lang ?? ""),
+    l1: String(ex.explain_l1 ?? ""),
+    // 意味は共有の列にも在るが、**読む人の言語の物**なのでこちらが正。
+    meaning: String(
+      data.reader_meaning?.trim() || data.patch?.meaning_ja || shared.meaning_ja || "",
+    ),
+    example_translation: data.patch?.example_translation ?? shared.example_translation ?? null,
+    extras: merged,
   });
+  return { ok: true };
+}
 
 // --- User feedback: report a wrong word (§ self-improvement) -----------------
 //
@@ -1230,33 +1255,67 @@ export const deleteSticker = createServerFn({ method: "POST" })
     if (readErr) throw new Error(readErr.message);
     if (!st) throw new Error("このカードは削除できません");
 
-    // Storage cleanup: only paths under the caller's own folder.
-    const row = st as {
-      object_image_url: string | null;
-      cutout_image_url: string | null;
-      selfie_image_url: string | null;
-    };
-    const paths = [row.object_image_url, row.cutout_image_url, row.selfie_image_url].filter(
-      (p): p is string => !!p && p.startsWith(`${userId}/`),
-    );
-    // thumbnails share the origin path with a suffix (cutout.ts:thumbPath).
-    const withThumbs = paths.flatMap((p) => [p, `${p}.thumb.webp`]);
-    if (withThumbs.length > 0) {
-      const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-      await supabaseAdmin.storage
-        .from("stickers")
-        .remove(withThumbs)
-        .catch(() => {});
-    }
-
+    /**
+     * **先に行を消し、それから写真を消す**（監査 2026-10-03）。前は写真を先に消して
+     * いたので、行の削除が失敗すると「写真の無い札」が残った。逆なら、写真の掃除が
+     * 失敗しても残るのは誰からも指されない写真だけで、札はきちんと消えている。
+     */
     const { error } = await supabase
       .from("stickers")
       .delete()
       .eq("id", data.sticker_id)
       .eq("user_id", userId);
     if (error) throw new Error(error.message);
-    return { ok: true };
+
+    // Storage cleanup: only paths under the caller's own folder.
+    const paths = stickerStoragePaths(
+      st as {
+        object_image_url: string | null;
+        cutout_image_url: string | null;
+        selfie_image_url: string | null;
+      },
+      userId,
+    );
+    if (paths.length === 0) return { ok: true, storage_cleaned: true };
+    /**
+     * 写真が消せなくても札の削除は成功として返す（札はもう無い）。ただし**黙って捨てない** —
+     * 画面が `reportBackgroundFailure("sticker_storage")` で開発者の記録に残す。
+     */
+    let storageError: string | null = null;
+    try {
+      const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+      const { error: rmErr } = await supabaseAdmin.storage.from("stickers").remove(paths);
+      if (rmErr) storageError = rmErr.message;
+    } catch (e) {
+      storageError = e instanceof Error ? e.message : String(e);
+    }
+    if (storageError) {
+      console.error("[deleteSticker] storage cleanup failed", {
+        sticker_id: data.sticker_id,
+        message: storageError,
+      });
+      return { ok: true, storage_cleaned: false, storage_error: storageError.slice(0, 200) };
+    }
+    return { ok: true, storage_cleaned: true };
   });
+
+/**
+ * 札を消すときに一緒に消す写真の置き場所。**自分のフォルダの物だけ**、縮小版
+ * （`<path>.thumb.webp`、`image-resize.ts`）も含める。
+ */
+export function stickerStoragePaths(
+  row: {
+    object_image_url: string | null;
+    cutout_image_url: string | null;
+    selfie_image_url: string | null;
+  },
+  userId: string,
+): string[] {
+  const paths = [row.object_image_url, row.cutout_image_url, row.selfie_image_url].filter(
+    (p): p is string => !!p && p.startsWith(`${userId}/`),
+  );
+  return paths.flatMap((p) => [p, `${p}.thumb.webp`]);
+}
 
 // --- B3 写真の差し替え -------------------------------------------------------
 const ReplacePhotoInput = z.object({
@@ -1381,9 +1440,6 @@ export const setStickerHeroRole = createServerFn({ method: "POST" })
     }
     throw new Error(error.message);
   });
-
-/** ひと言の長さの上限（撮影画面の欄・アルバムの表示と同じ数を共有する）。 */
-export const CAPTION_MAX = 500;
 
 /**
  * **その札の「ひと言」を直す**（オーナー指示 2026-09-30「ひと言は単語の詳細や

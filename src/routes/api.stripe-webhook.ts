@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import type {} from "@tanstack/react-start";
-import { planChangeFromEvent, verifyStripeSignature } from "@/lib/stripe-billing";
+import { resolvePlanChange, stripeGetWith, verifyStripeSignature } from "@/lib/stripe-billing";
 
 /**
  * **Stripe からの知らせの受け口**（`/api/stripe-webhook`）。
@@ -12,6 +12,11 @@ import { planChangeFromEvent, verifyStripeSignature } from "@/lib/stripe-billing
  *
  * 署名が合わない知らせは 400 で断る（誰でもこの住所に「Pro にして」と送れてしまうため）。
  * `profiles.plan` を書けるのはサーバの管理者の鍵だけ（利用者の画面からは書けない）。
+ *
+ * **知らせの順番を信じない**（監査 2026-10-03）。Stripe は順番どおりに届けないので、
+ * 状態は知らせの中身ではなく、その場で Stripe から読み直した定期購入から決める
+ * （`resolvePlanChange`。秘密鍵 `STRIPE_SECRET_KEY` は購入口と同じ物）。
+ * 読み直せないときは 500 を返す — Stripe が時間を置いて送り直す。
  */
 export const Route = createFileRoute("/api/stripe-webhook")({
   server: {
@@ -31,7 +36,20 @@ export const Route = createFileRoute("/api/stripe-webhook")({
         } catch {
           return new Response("bad json", { status: 400 });
         }
-        const change = planChangeFromEvent(event);
+        const key = process.env.STRIPE_SECRET_KEY ?? "";
+        if (!key) {
+          console.error("[stripe-webhook] STRIPE_SECRET_KEY is not set");
+          return new Response("billing not configured", { status: 500 });
+        }
+        let change: Awaited<ReturnType<typeof resolvePlanChange>>;
+        try {
+          change = await resolvePlanChange(event, stripeGetWith(key));
+        } catch (e) {
+          console.error("[stripe-webhook] could not re-read the subscription", {
+            message: (e as Error)?.message,
+          });
+          return new Response("stripe read failed", { status: 500 });
+        }
         if (change) {
           const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
           const { error } = await supabaseAdmin

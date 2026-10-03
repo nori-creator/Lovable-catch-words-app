@@ -105,6 +105,18 @@ export const DATA_SOURCES: readonly DataSource[] = [
     uses: ["script"],
     noteKey: "sources.opencc",
   },
+  {
+    // 台湾華語の読みの検査（`tw-reading.server.ts`、2026-10-03）。AI の拼音が字と
+    // 合わないとき、この辞書の読みに差し替える。
+    id: "pinyin-pro",
+    name: "pinyin-pro",
+    author: "zh-lx",
+    license: "MIT",
+    attributionRequired: false,
+    href: "https://github.com/zh-lx/pinyin-pro",
+    uses: ["lexicon"],
+    noteKey: "sources.pinyinPro",
+  },
 ];
 
 /** 表示が義務のもの。**頁から外せない。** */
