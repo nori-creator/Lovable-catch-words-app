@@ -2518,6 +2518,15 @@
 .card-back {
   transform: rotateY(180deg);
 }
+/* **見えていない面は、触れる物から外す**（iPhone の Safari でシールがはがせなかった件
+   2026-10-03、`lib/peel-gesture.ts`）。`backface-visibility: hidden` は描かないだけで、
+   iOS が指の扱い（`touch-action`）を決める層の重なりには、180度回った裏面が表の上に
+   残る。裏返る動きの半分（90度を過ぎる 0.35 秒）で切り替える。 */
+.card-flip:not(.flipped) > .card-back,
+.card-flip.flipped > .card-face:not(.card-back) {
+  visibility: hidden;
+  transition: visibility 0s linear 0.35s;
+}
 
 /* Hero image expand: image grows from small to large with a soft bounce */
 @keyframes hero-pop {

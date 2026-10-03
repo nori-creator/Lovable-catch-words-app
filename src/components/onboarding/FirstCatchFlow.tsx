@@ -32,6 +32,7 @@ import {
 } from "@/lib/first-catch-services";
 import { offersSample, sampleFirstCatch } from "@/lib/first-catch-sample";
 import { downscaleDataUrl } from "@/lib/image-resize";
+import { withDeadline } from "@/lib/deadline";
 import {
   readFirstCatch,
   writeFirstCatch,
@@ -132,6 +133,15 @@ export function FirstCatchEntry() {
  * 写真を撮った・候補が並んだは段ではなく出来事なので、それぞれの所で数える。
  * 登録の画面（signup_view）と登録できた（signup_done）は `/auth` と取り込みの画面で数える。
  */
+/**
+ * はがした後の待ちの上限（ms、`catchWord`）。発音はこれ以上待たない（読み終わりの知らせが
+ * 来ない iPhone でも先へ）。着地の演出がこれを過ぎても終わらなければ、待たずに図鑑の段へ。
+ * 保存（端末の IndexedDB）がこれを過ぎても決まらなければ、理由と「もう一度」を出す。
+ */
+export const SPEAK_DEADLINE_MS = 3_000;
+export const LANDING_DEADLINE_MS = 12_000;
+export const SAVE_DEADLINE_MS = 20_000;
+
 const FUNNEL_STEP_OF_STAGE: Partial<Record<FirstCatch["stage"], TutorialStep>> = {
   intro: "welcome_view",
   notifications: "questions_done",
@@ -434,19 +444,49 @@ function FirstCatchFlowInner({
       setLanding(true);
       // Persist first. The existing reward waits at its gate and lands in the real Dex cell.
       const gate = persist(next);
+      /**
+       * **図鑑へ入るのは保存の成否だけで決める。音・振動・動きは待ちの理由にしない**
+       * （iPhone の Safari で「図鑑に追加できない」報告 2026-10-03）。発音が鳴らない・
+       * 終わりの知らせが来ない（`play()` が NotAllowedError・いつまでも決まらない）、
+       * 演出の途中で止まる・落ちる — どれでも、保存できていれば図鑑の段へ進む。
+       */
+      let opened = false;
+      const openDex = () => {
+        if (opened || !mounted.current) return;
+        opened = true;
+        setDraft(next);
+      };
       try {
-        await runCatchLanding({
-          startEl: hero.current,
-          fly,
-          gate,
-          // The shared runner adds the DOM prefix itself.
-          destinationId: next.id,
-          speakLine: () => pronounce(next.card!.headword_zh),
-          openDex: () => {
-            if (mounted.current) setDraft(next);
-          },
-        });
-        await gate; // Animation helpers may absorb failure; never treat that as a saved Catch.
+        await withDeadline(
+          runCatchLanding({
+            startEl: hero.current,
+            fly,
+            gate,
+            // The shared runner adds the DOM prefix itself.
+            destinationId: next.id,
+            speakLine: () =>
+              withDeadline(
+                Promise.resolve().then(() => pronounce(next.card!.headword_zh)),
+                SPEAK_DEADLINE_MS,
+                undefined,
+              ),
+            openDex,
+          }),
+          LANDING_DEADLINE_MS,
+          undefined,
+        );
+        // Animation helpers may absorb failure; never treat that as a saved Catch.
+        const saved = await withDeadline(
+          gate.then(
+            () => "saved" as const,
+            () => "failed" as const,
+          ),
+          SAVE_DEADLINE_MS,
+          "timeout" as const,
+        );
+        if (saved === "timeout") throw new Error("FIRST_CATCH_STORAGE_TIMEOUT");
+        if (saved === "failed") throw new Error("FIRST_CATCH_STORAGE");
+        openDex();
       } finally {
         if (mounted.current) setLanding(false);
       }
@@ -485,6 +525,7 @@ function FirstCatchFlowInner({
       FIRST_CATCH_NO_WORDS: "first.noWords",
       FIRST_CATCH_AI_FORMAT: "first.aiFormat",
       FIRST_CATCH_STORAGE: "first.storage",
+      FIRST_CATCH_STORAGE_TIMEOUT: "first.storage",
       FIRST_CATCH_NETWORK: "first.network",
     };
     const key = known[code];
