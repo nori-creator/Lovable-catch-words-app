@@ -175,6 +175,15 @@ User-facing "today" counts use Taiwan time (`Asia/Taipei`; `startOfAppDay` in `t
 - `/api/native-ai` is off unless `NATIVE_AI_ENABLED=1` (no shipped client; iOS design is `/api/v1/*`).
 - Stripe webhook re-reads the subscription from Stripe instead of trusting event order.
 
+## Shared word content: server-made only (audit 2026-10-03, second pass)
+
+- **No personal material in shared rows (H1).** `runSectionRegen` no longer reads the caller's caption, place, date or diary (`journal_entries.user_draft`); shared example prompts use `sharedExampleSourceRule` (world side only). `personalExampleRule` stays for a future per-sticker target (like `stickers.speaking_scaffold`). `word_explanations` is no longer readable by `anon` (`20261003130000`).
+- **Server receipts (H2 / M3).** Every server function that writes word content for the client — `generateCard` (full card, keyed by explanation language × L1, written **before** it returns), `suggestWords` / `suggestWordCandidates` / `detectScan` / `generatePhraseCard` (meaning + readings as `candidate`), the tutorial card — records it in the server-only `generated_cards` table (`generated-cards.ts`, 14-day TTL, `20261003130100`). `upsertWord` builds a **new** shared word from the receipt (full card first), else the dictionary, else headword only (filled later by `generateCard` → `fillSharedWordFromCard` and the detail auto-fill); `updateWordExtras` fills shared columns/extras and the reader row only from the receipt with the same key. Client-sent meaning/example/extras/level are ignored. If the table is missing (migration not applied) both fall back to the previous client-content fill-empty behaviour.
+- **Reader rows fill only.** `saveWordExplanation` inserts a missing row or fills empty fields (`fillReaderExplanation`); a meaning/translation not in the reader's language counts as empty, a wrong-language explanation is replaced; `verified` rows untouched. Only server regeneration (`mergeIntoReaderExplanation`) overwrites.
+- **Concurrent first catch (M4).** A unique violation on insert re-selects the winner's row.
+- **Album layout (M6).** `saveAlbumLayout` calls `save_album_layout(jsonb)` (`20261003130200`, SECURITY INVOKER, `user_id = auth.uid()`, one statement); per-row updates only when the function is missing.
+- **Background work (L5).** `runAfterResponse` (`after-response.ts`) hands work to the Workers `waitUntil` that nitro puts on the request, else awaits it for at most 3 s; failures are logged with a label. Used for distractor pre-generation and receipts that the response does not need.
+
 ## Beta analytics (2026-10-03, roadmap 9.4 / 11)
 
 What is measured, for the 2–4 week beta (dashboard: `/admin/beta`, admin only, server-checked `has_role`; link in Settings → developer and on `/admin/metrics`). No migration: existing tables only.

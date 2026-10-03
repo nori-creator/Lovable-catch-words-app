@@ -244,6 +244,32 @@ export async function runFirstCatchAI(raw: unknown) {
   console.info(
     `[first-catch] ${data.action} ok in ${outcome.ms}ms via ${outcome.attempts.at(-1)?.label} (attempts ${outcome.attempts.length})`,
   );
+  if (data.action === "card") {
+    /**
+     * 作ったカードを控える（監査 2026-10-03 M3、`generated-cards.ts`）。ゲストの最初の1枚は
+     * サインインの後に `saveSticker` で保存され、新しい共有の語の行はこの控えから中身を取る
+     * （端末に持っていたカードの文は使わない）。誰のカードかは残さない。返事は待たせない。
+     */
+    const value = outcome.value as { headword_zh?: string };
+    const { runAfterResponse } = await import("./after-response");
+    await runAfterResponse("first-catch: record card receipt", async () => {
+      const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+      const { recordGeneratedCards } = await import("./generated-cards");
+      await recordGeneratedCards(
+        supabaseAdmin,
+        [data.headword, value.headword_zh ?? ""].map((headword) => ({
+          language: data.targetLanguage,
+          headword,
+          explainLang: data.uiLanguage,
+          // 母語は聞いていない。空の鍵は「その人向けの解説」の控えとしては使われない
+          // （`updateWordExtras` は鍵の合う控えだけを使う）。
+          l1: "",
+          kind: "card" as const,
+          card: value,
+        })),
+      );
+    });
+  }
   return { value: outcome.value, run };
 }
 

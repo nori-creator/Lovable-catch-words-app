@@ -142,3 +142,10 @@ With words collected in Japanese, switch the display language to English and the
 - Catch animation (2026-10-03): Settings › Appearance › Catch animation is full / short / off (default short, device-local). Short catches skip music/confetti but still read the word and wait for it to finish; the 1st/10th/50th/100th… catch (or an explicit new-category flag) plays the full celebration; Off never animates but still pronounces. The global Animation switch (reduced motion) still wins (harness `catch-animation&plan=short|full|off`).
 - Settings autosave (2026-10-03): every successful change shows a small "保存しました / Saved / 已儲存" pill for ~2 s without moving the rows; failures keep the error toast; a partial save shows the warning toast instead of "Saved" (harness `settings-saved`).
 - Resurfacing (2026-10-03): with ≥30 words, Home may show "〇か月前のこの言葉、まだ言える？" for a photo ≥60 days old whose recall is ≥60% — at most one per day and not on consecutive days, never on the memorial-album day, gone for the day after ✕; tapping opens the word and plays it (harness `home-resurface`).
+
+## Shared word content checks (2026-10-03 audit, after applying `20261003130000`–`20261003130200`)
+
+- Catch a word nobody has caught before (photo → pick a candidate → save **immediately**, before the card finishes): the Dex shows its meaning and reading right away; after the card finishes, opening the word shows example, chunks and related words. Same for a typed catch, a scan catch and the guest first catch transferred after sign-in.
+- Open a word whose explanation already exists in your display language: nothing visibly changes after the background fill (shown items are never replaced).
+- Regenerate an example section (↻): the new example never quotes your note, place or diary.
+- Rearrange a home album day with many photos, and from the diary book: the order saves in one go; reload shows the same layout.

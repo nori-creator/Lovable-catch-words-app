@@ -120,7 +120,25 @@ export function personalExampleRule(m: PersonalMaterial, nl: string): string {
   ].join("");
 }
 
-/** 2系統をまとめた、例文の作り方の指示。 */
+/**
+ * **共有の行に書く例文**の作り方の指示（監査 2026-10-03 H1）。
+ *
+ * 世界の側だけ。その人の記録（一言・場所・日記）は**受け取る口が無い** — 共有の語や
+ * 読む人ごとの解説（`word_explanations`）は同じ語を持つ全員が見るので、そこに書く生成に
+ * 個人の材料を入れると、その人の日記や居場所が他人のカードに出る。
+ * 自分の側（`personalExampleRule`）は、書き先がその人だけの物になる道でだけ使う。
+ */
+export function sharedExampleSourceRule(
+  nl: string,
+  target: string = DEFAULT_TARGET_LANGUAGE,
+): string {
+  return worldExampleRule(nl, target);
+}
+
+/**
+ * 2系統をまとめた、例文の作り方の指示。
+ * **書き先がその人だけの物のときだけ**使う（共有の行には `sharedExampleSourceRule`）。
+ */
 export function exampleSourceRule(
   m: PersonalMaterial,
   nl: string,
