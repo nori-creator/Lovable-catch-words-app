@@ -3,6 +3,7 @@ import {
   AI_ATTEMPT_TIMEOUT,
   AiAttemptsFailed,
   attemptErrorCode,
+  hedgeAfterFromEnv,
   runAiAttempts,
 } from "./ai-attempts";
 
@@ -168,6 +169,173 @@ describe("runAiAttempts", () => {
     expect(error.chargeable).toBe(false);
     expect(error.message).toBe("fetch failed");
     expect(error.attempts[1].code).toBe("TypeError");
+  });
+});
+
+/** `ms` 後に `value` で答える AI（中断されたら止まる）。 */
+function answersAfter<T>(ms: number, value: T) {
+  const seen: AbortSignal[] = [];
+  const run = vi.fn(
+    (signal: AbortSignal) =>
+      new Promise<T>((resolve, reject) => {
+        seen.push(signal);
+        const t = setTimeout(() => resolve(value), ms);
+        signal.addEventListener("abort", () => {
+          clearTimeout(t);
+          reject(new Error("aborted by signal"));
+        });
+      }),
+  );
+  return { run, seen };
+}
+
+describe("runAiAttempts hedging (追いかけ)", () => {
+  it("does not start the fallback when the primary answers before the hedge delay", async () => {
+    vi.useFakeTimers();
+    const primary = answersAfter(3_000, "primary");
+    const backup = answersAfter(1_000, "backup");
+    const pending = runAiAttempts(
+      [
+        { label: "a", timeoutMs: 20_000, run: primary.run },
+        { label: "b", timeoutMs: 20_000, run: backup.run },
+      ],
+      { hedgeAfterMs: 6_000 },
+    );
+    await vi.advanceTimersByTimeAsync(3_000);
+    const result = await pending;
+    expect(result).toMatchObject({ value: "primary", via: "a", hedged: false, ms: 3_000 });
+    await vi.advanceTimersByTimeAsync(10_000);
+    expect(backup.run).not.toHaveBeenCalled();
+  });
+
+  it("starts the fallback in parallel after the delay, takes the first valid answer and aborts the loser", async () => {
+    vi.useFakeTimers();
+    const primary = hangs();
+    const backup = answersAfter(2_000, "backup");
+    const hedge = vi.fn();
+    const pending = runAiAttempts(
+      [
+        { label: "a", timeoutMs: 20_000, run: primary.run },
+        { label: "b", timeoutMs: 20_000, run: backup.run },
+      ],
+      { hedgeAfterMs: 6_000, onHedge: hedge },
+    );
+    await vi.advanceTimersByTimeAsync(5_999);
+    expect(backup.run).not.toHaveBeenCalled();
+    await vi.advanceTimersByTimeAsync(1);
+    expect(backup.run).toHaveBeenCalledTimes(1);
+    expect(hedge).toHaveBeenCalledWith("b", 6_000);
+    expect(primary.seen[0].aborted).toBe(false);
+    await vi.advanceTimersByTimeAsync(2_000);
+    const result = await pending;
+    expect(result).toMatchObject({ value: "backup", via: "b", hedged: true, ms: 8_000 });
+    expect(primary.seen[0].aborted).toBe(true);
+    expect(result.attempts).toEqual([
+      { label: "a", startMs: 0, ms: 8_000, outcome: "cancelled" },
+      { label: "b", startMs: 6_000, ms: 2_000, outcome: "ok", hedged: true },
+    ]);
+  });
+
+  it("keeps the primary's answer when it arrives first after the hedge started", async () => {
+    vi.useFakeTimers();
+    const primary = answersAfter(7_000, "primary");
+    const backup = answersAfter(5_000, "backup");
+    const pending = runAiAttempts(
+      [
+        { label: "a", timeoutMs: 20_000, run: primary.run },
+        { label: "b", timeoutMs: 20_000, run: backup.run },
+      ],
+      { hedgeAfterMs: 6_000 },
+    );
+    await vi.advanceTimersByTimeAsync(7_000);
+    const result = await pending;
+    expect(result).toMatchObject({ value: "primary", via: "a", hedged: true });
+    expect(backup.seen[0].aborted).toBe(true);
+    expect(result.attempts.map((a) => [a.label, a.outcome])).toEqual([
+      ["a", "ok"],
+      ["b", "cancelled"],
+    ]);
+  });
+
+  it("ignores an invalid early answer from one side and waits for the other", async () => {
+    vi.useFakeTimers();
+    const primary = answersAfter(9_000, "primary");
+    const pending = runAiAttempts(
+      [
+        { label: "a", timeoutMs: 20_000, run: primary.run },
+        {
+          label: "b",
+          timeoutMs: 20_000,
+          run: async () => {
+            throw new Error("FORMAT");
+          },
+        },
+      ],
+      { hedgeAfterMs: 6_000, isUnusableReply: (e) => (e as Error).message === "FORMAT" },
+    );
+    await vi.advanceTimersByTimeAsync(9_000);
+    const result = await pending;
+    expect(result.value).toBe("primary");
+    expect(result.attempts.map((a) => a.outcome)).toEqual(["ok", "unusable"]);
+  });
+
+  it("a fast primary failure still falls back at once (no waiting for the hedge delay)", async () => {
+    vi.useFakeTimers();
+    const backup = vi.fn(async () => "backup");
+    const pending = runAiAttempts(
+      [
+        {
+          label: "a",
+          timeoutMs: 20_000,
+          run: async () => {
+            throw Object.assign(new Error("Too Many Requests"), { statusCode: 429 });
+          },
+        },
+        { label: "b", timeoutMs: 20_000, run: backup },
+      ],
+      { hedgeAfterMs: 6_000 },
+    );
+    await vi.advanceTimersByTimeAsync(0);
+    const result = await pending;
+    expect(result).toMatchObject({ value: "backup", via: "b", hedged: false, ms: 0 });
+    expect(result.attempts[0]).toMatchObject({ outcome: "error", code: "http_429" });
+    await vi.advanceTimersByTimeAsync(10_000);
+    expect(backup).toHaveBeenCalledTimes(1);
+  });
+
+  it("never runs more than one extra call, and the overall wait is capped by the deadlines", async () => {
+    vi.useFakeTimers();
+    const a = hangs();
+    const b = hangs();
+    const c = hangs();
+    const pending = runAiAttempts(
+      [
+        { label: "a", timeoutMs: 20_000, run: a.run },
+        { label: "b", timeoutMs: 20_000, run: b.run },
+        { label: "c", timeoutMs: 20_000, run: c.run },
+      ],
+      { hedgeAfterMs: 6_000, timeoutMessage: "SLOW" },
+    );
+    const settled = pending.catch((e: unknown) => e as AiAttemptsFailed);
+    await vi.advanceTimersByTimeAsync(20_000);
+    // 1番手が締め切り切れでも、追いかけ（2番手）が走っている間は3番手を始めない。
+    expect(c.run).not.toHaveBeenCalled();
+    await vi.advanceTimersByTimeAsync(6_000);
+    // 2番手も切れたら3番手（同時に走るのは最大2つ）。
+    expect(c.run).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(20_000);
+    const error = (await settled) as AiAttemptsFailed;
+    expect(error.message).toBe("SLOW");
+    expect(error.ms).toBe(46_000);
+    expect(error.chargeable).toBe(false);
+  });
+
+  it("reads the delay from the environment (0 = off)", () => {
+    expect(hedgeAfterFromEnv(undefined, 6_000)).toBe(6_000);
+    expect(hedgeAfterFromEnv("", 6_000)).toBe(6_000);
+    expect(hedgeAfterFromEnv("4000", 6_000)).toBe(4_000);
+    expect(hedgeAfterFromEnv("nope", 6_000)).toBe(6_000);
+    expect(hedgeAfterFromEnv("0", 6_000)).toBeUndefined();
   });
 });
 

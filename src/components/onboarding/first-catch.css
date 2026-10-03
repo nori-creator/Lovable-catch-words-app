@@ -420,6 +420,16 @@
   color: var(--destructive);
   margin: 16px 0;
 }
+/* 見本で続けた時の注記（撮った写真の分析結果ではないと分かるように）。 */
+.first-sample-note {
+  max-width: 768px;
+  margin: 8px auto 0;
+  padding: 0 16px;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--muted-foreground);
+  text-align: center;
+}
 .first-error--inline {
   display: block;
   margin: 4px 0 0;

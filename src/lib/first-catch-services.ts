@@ -5,16 +5,45 @@ import type { FirstCatch } from "./first-catch";
 import { seedReadingPrefNow } from "./phonetic";
 import { ZH_TW_PROFILE } from "./target-profile";
 
+/** 通信が届かなかった失敗（画面は「通信を確かめて」と言う。登録前は使えない、とは言わない）。 */
+export const FIRST_CATCH_NETWORK = "FIRST_CATCH_NETWORK";
+
+/**
+ * **通信の失敗か**（監査 2026-10-03: 匿名ログインの失敗を全部「登録する前は使えません」に
+ * していた。電波の悪い所で開いた人にも、使えない機能のように見えていた）。
+ * - Supabase Auth の通信失敗（`AuthRetryableFetchError`、status 0 など）
+ * - ブラウザの fetch の失敗（`TypeError: Failed to fetch` / Safari の `Load failed` /
+ *   Firefox の `NetworkError …`）
+ * - オフライン
+ */
+export function isNetworkFailure(error: unknown): boolean {
+  if (typeof navigator !== "undefined" && navigator.onLine === false) return true;
+  if (!error || typeof error !== "object") return false;
+  const e = error as { name?: unknown; message?: unknown; status?: unknown };
+  const name = typeof e.name === "string" ? e.name : "";
+  const message = typeof e.message === "string" ? e.message : "";
+  if (name === "AuthRetryableFetchError") return true;
+  if (/Fetch/.test(name) && (e.status === 0 || e.status === undefined)) return true;
+  return /Failed to fetch|Load failed|NetworkError|Network request failed|fetch failed/i.test(
+    message,
+  );
+}
+
 let opening: Promise<void> | null = null;
 /** Anonymous auth keeps existing AI auth/cost controls intact. No public AI endpoint. */
 export function ensureFirstCatchSession(): Promise<void> {
   if (!opening)
     opening = (async () => {
       const { data, error } = await supabase.auth.getSession();
-      if (error) throw error;
+      if (error) throw isNetworkFailure(error) ? new Error(FIRST_CATCH_NETWORK) : error;
       if (!data.session) {
         const result = await supabase.auth.signInAnonymously();
-        if (result.error) throw new Error("FIRST_CATCH_GUEST_UNAVAILABLE");
+        if (result.error)
+          // 通信が届かなかっただけなら、そう言う（電波が戻れば「もう一度試す」で通る）。
+          // それ以外（匿名ログインが切られている・断られた）は、登録前は使えないと言う。
+          throw new Error(
+            isNetworkFailure(result.error) ? FIRST_CATCH_NETWORK : "FIRST_CATCH_GUEST_UNAVAILABLE",
+          );
       }
     })().finally(() => {
       opening = null;

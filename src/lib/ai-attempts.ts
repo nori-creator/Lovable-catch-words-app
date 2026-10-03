@@ -11,6 +11,13 @@
  * 1 回ごとに `timeoutMs` で打ち切り（`AbortSignal` も止める）、だめなら次の候補へ。
  * 全部だめなら `AiAttemptsFailed` を投げ、**何をどれだけ待って、どう落ちたか**を持たせる
  * （記録と、使った回数を数え直すかの判断に使う）。
+ *
+ * **追いかけ（hedging、2026-10-03 実物確認 run 37105477674）**: `hedgeAfterMs` を渡すと、
+ * 1番手が**その時間までに答えなければ**、1番手を待ったまま2番手を**並べて**始め、先に
+ * 使える返事をくれた方を取る（負けた方は中断する）。シャッターから候補までが 4.5〜42 秒と
+ * ばらついていたのは、1番手（無料枠の Gemini）が詰まった回に 20 秒の締め切りまで待ち、
+ * それから2番手を始めていたため。追いかけは**1回だけ**（同時に走るのは最大2つ）、使う枠の
+ * 予約は呼ぶ側の1回のまま。1番手がすぐ落ちた時は、今までどおりその場で2番手へ進む。
  */
 
 export type AiAttemptOutcome =
@@ -21,7 +28,9 @@ export type AiAttemptOutcome =
   /** 返事は来たが形が使えなかった（AI は働いたので、使った回数に数える）。 */
   | "unusable"
   /** 通信・認証・上限・モデル名の誤りなど、返事が来なかった失敗。 */
-  | "error";
+  | "error"
+  /** 追いかけで並べて走らせ、もう片方が先に答えたので中断した。 */
+  | "cancelled";
 
 export type AiAttemptRecord = {
   /** 記録用の名前（例 `lovable:google/gemini-3-flash-preview`）。鍵は含めない。 */
@@ -30,6 +39,10 @@ export type AiAttemptRecord = {
   outcome: AiAttemptOutcome;
   /** 失敗の短い印（長い英文や個人の情報は入れない）。 */
   code?: string;
+  /** 依頼の始まりから、この回を始めるまでの ms（追いかけの回は `hedgeAfterMs` 前後）。 */
+  startMs?: number;
+  /** 1番手を待ったまま並べて始めた回（追いかけ）。 */
+  hedged?: boolean;
 };
 
 export type AiAttempt<T> = {
@@ -45,6 +58,8 @@ export class AiAttemptsFailed extends Error {
     message: string,
     readonly attempts: AiAttemptRecord[],
     readonly lastError: unknown,
+    /** 依頼の始まりから失敗が決まるまでの ms（並べて走った回があるので、各回の和ではない）。 */
+    readonly ms: number = attempts.reduce((sum, a) => sum + a.ms, 0),
   ) {
     super(message);
     this.name = "AiAttemptsFailed";
@@ -73,6 +88,28 @@ export function attemptErrorCode(error: unknown): string {
   return error.name && error.name !== "Error" ? error.name.slice(0, 40) : "error";
 }
 
+/**
+ * 追いかけを始めるまでの ms を環境変数から読む（`AI_HEDGE_AFTER_MS`）。
+ * 未設定・読めない値は `fallback`。`0` 以下は「追いかけない」（前の順番どおりの動き）。
+ */
+export function hedgeAfterFromEnv(raw: string | undefined, fallback: number): number | undefined {
+  if (raw == null || raw.trim() === "") return fallback;
+  const n = Number(raw);
+  if (!Number.isFinite(n)) return fallback;
+  return n > 0 ? Math.round(n) : undefined;
+}
+
+export type AiAttemptsResult<T> = {
+  value: T;
+  attempts: AiAttemptRecord[];
+  /** 依頼の始まりから使える返事までの ms。 */
+  ms: number;
+  /** 答えた AI の名前（記録用）。 */
+  via: string;
+  /** 追いかけの回が走ったか（勝ち負けは問わない）。 */
+  hedged: boolean;
+};
+
 export async function runAiAttempts<T>(
   attempts: AiAttempt<T>[],
   options: {
@@ -80,61 +117,142 @@ export async function runAiAttempts<T>(
     isUnusableReply?: (error: unknown) => boolean;
     /** 全部が締め切り切れだったときに投げる印。 */
     timeoutMessage?: string;
+    /**
+     * 1番手がこの ms までに答えなければ、2番手を並べて始める（1回だけ）。
+     * 渡さなければ追いかけない（1番手が落ちてから2番手）。
+     */
+    hedgeAfterMs?: number;
     now?: () => number;
     onAttemptFailed?: (record: AiAttemptRecord, next: string | null) => void;
+    /** 追いかけを始めた時（記録用）。 */
+    onHedge?: (label: string, afterMs: number) => void;
   } = {},
-): Promise<{ value: T; attempts: AiAttemptRecord[]; ms: number }> {
+): Promise<AiAttemptsResult<T>> {
   const now = options.now ?? (() => Date.now());
   const started = now();
-  const records: AiAttemptRecord[] = [];
+  const records: Array<AiAttemptRecord | undefined> = [];
+  const controllers: Array<AbortController | undefined> = [];
+  const begins: number[] = [];
+  const hedgedFlags: boolean[] = [];
   let lastError: unknown = new Error("NO_AI_ATTEMPT");
   let lastReal: unknown = null;
-  for (let i = 0; i < attempts.length; i++) {
-    const attempt = attempts[i];
-    const controller = new AbortController();
-    const begin = now();
-    let timer: ReturnType<typeof setTimeout> | undefined;
-    let timedOut = false;
-    try {
-      const deadline = new Promise<never>((_, reject) => {
+  let next = 0;
+  let running = 0;
+  let settled = false;
+  let hedgedAny = false;
+  let hedgeTimer: ReturnType<typeof setTimeout> | undefined;
+
+  return new Promise<AiAttemptsResult<T>>((resolve, reject) => {
+    const compact = () => records.filter((r): r is AiAttemptRecord => !!r);
+    const fail = () => {
+      settled = true;
+      clearTimeout(hedgeTimer);
+      const list = compact();
+      const allTimedOut = list.length > 0 && list.every((r) => r.outcome === "timeout");
+      const message = allTimedOut
+        ? (options.timeoutMessage ?? AI_ATTEMPT_TIMEOUT)
+        : lastReal instanceof Error
+          ? lastReal.message
+          : "AI_UNAVAILABLE";
+      reject(new AiAttemptsFailed(message, list, lastReal ?? lastError, now() - started));
+    };
+    const launch = (hedged: boolean): boolean => {
+      if (settled || next >= attempts.length) return false;
+      const i = next++;
+      const attempt = attempts[i];
+      const controller = new AbortController();
+      controllers[i] = controller;
+      const begin = now();
+      begins[i] = begin;
+      hedgedFlags[i] = hedged;
+      if (hedged) hedgedAny = true;
+      running++;
+      let timedOut = false;
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      const deadline = new Promise<never>((_, rej) => {
         timer = setTimeout(() => {
           timedOut = true;
           const error = new Error(AI_ATTEMPT_TIMEOUT);
           controller.abort(error);
-          reject(error);
+          rej(error);
         }, attempt.timeoutMs);
       });
-      // 相手が中断に応じなくても、締め切りで必ず先へ進む。
-      const value = await Promise.race([attempt.run(controller.signal), deadline]);
-      records.push({ label: attempt.label, ms: now() - begin, outcome: "ok" });
-      return { value, attempts: records, ms: now() - started };
-    } catch (error) {
-      lastError = error;
-      const outcome: AiAttemptOutcome = timedOut
-        ? "timeout"
-        : options.isUnusableReply?.(error)
-          ? "unusable"
-          : "error";
-      if (outcome !== "timeout") lastReal = error;
-      const record: AiAttemptRecord = {
+      const base = {
         label: attempt.label,
-        ms: now() - begin,
-        outcome,
-        code: outcome === "timeout" ? "timeout" : attemptErrorCode(error),
+        startMs: begin - started,
+        ...(hedged ? { hedged } : {}),
       };
-      records.push(record);
-      options.onAttemptFailed?.(record, attempts[i + 1]?.label ?? null);
-    } finally {
-      clearTimeout(timer);
-      // 負けた側の呼び出しを止める（締め切り後に返事が来ても使わない）。
-      if (!controller.signal.aborted) controller.abort();
+      // 相手が中断に応じなくても、締め切りで必ず先へ進む。
+      Promise.race([Promise.resolve().then(() => attempt.run(controller.signal)), deadline])
+        .then(
+          (value) => {
+            running--;
+            if (settled) return;
+            settled = true;
+            clearTimeout(hedgeTimer);
+            records[i] = { ...base, ms: now() - begin, outcome: "ok" };
+            // 負けた側（まだ走っている回）を止める。返事が後から来ても使わない。
+            controllers.forEach((c, j) => {
+              if (j === i || !c || c.signal.aborted || records[j]) return;
+              records[j] = {
+                label: attempts[j].label,
+                startMs: begins[j] - started,
+                ...(hedgedFlags[j] ? { hedged: true } : {}),
+                ms: now() - begins[j],
+                outcome: "cancelled",
+              };
+              c.abort();
+            });
+            resolve({
+              value,
+              attempts: compact(),
+              ms: now() - started,
+              via: attempt.label,
+              hedged: hedgedAny,
+            });
+          },
+          (error: unknown) => {
+            running--;
+            if (settled) return;
+            lastError = error;
+            const outcome: AiAttemptOutcome = timedOut
+              ? "timeout"
+              : options.isUnusableReply?.(error)
+                ? "unusable"
+                : "error";
+            if (outcome !== "timeout") lastReal = error;
+            const record: AiAttemptRecord = {
+              ...base,
+              ms: now() - begin,
+              outcome,
+              code: outcome === "timeout" ? "timeout" : attemptErrorCode(error),
+            };
+            records[i] = record;
+            // もう片方がまだ走っているなら、それを待つ。何も走っていなければ次の回へ。
+            const willLaunch = running === 0 && next < attempts.length;
+            options.onAttemptFailed?.(record, willLaunch ? attempts[next].label : null);
+            if (running > 0) return;
+            if (!launch(false)) fail();
+          },
+        )
+        .finally(() => {
+          clearTimeout(timer);
+          if (!controller.signal.aborted) controller.abort();
+        });
+      return true;
+    };
+    if (!launch(false)) {
+      fail();
+      return;
     }
-  }
-  const allTimedOut = records.length > 0 && records.every((r) => r.outcome === "timeout");
-  const message = allTimedOut
-    ? (options.timeoutMessage ?? AI_ATTEMPT_TIMEOUT)
-    : lastReal instanceof Error
-      ? lastReal.message
-      : "AI_UNAVAILABLE";
-  throw new AiAttemptsFailed(message, records, lastReal ?? lastError);
+    const hedgeAt = options.hedgeAfterMs;
+    if (hedgeAt != null && hedgeAt > 0 && attempts.length > 1) {
+      hedgeTimer = setTimeout(() => {
+        // 1番手がまだ答えていない（そして2番手をまだ始めていない）時だけ、1回だけ並べる。
+        if (settled || running === 0 || next >= attempts.length) return;
+        options.onHedge?.(attempts[next].label, hedgeAt);
+        launch(true);
+      }, hedgeAt);
+    }
+  });
 }

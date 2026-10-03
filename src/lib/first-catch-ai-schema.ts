@@ -27,7 +27,11 @@ export const FirstCatchSuggestionsSchema = z.object({
     .array(
       z.object({
         headword: z.string().min(1).max(100),
-        meaning_ja: z.string().min(1).max(500),
+        /**
+         * 表示言語の意味。**空もある** — 表示言語で書かれた意味が無い時は、別の言語の意味を
+         * 出さずに空にする（`first-catch-meaning.ts`、実物確認 2026-10-03）。鍵の名前は昔のまま。
+         */
+        meaning_ja: z.string().max(500).default(""),
         reading_zhuyin: z.string().default(""),
         pinyin: z.string().default(""),
         category_key: z.enum(CATEGORY_KEYS).catch("other"),
