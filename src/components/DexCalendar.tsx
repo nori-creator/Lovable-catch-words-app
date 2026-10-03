@@ -285,12 +285,18 @@ export function DexCalendar({
                   className="absolute inset-0 h-full w-full object-cover"
                 />
               ) : (
-                <Zh className="absolute inset-0 grid place-items-center text-caption font-semibold">
+                <Zh className="absolute inset-x-0 top-0 bottom-5 grid place-items-center text-caption font-semibold">
                   {items[0].word.headword}
                 </Zh>
               )}
-              <span className="dex-cal__shade" aria-hidden />
-              <span className="absolute bottom-1 left-1.5 text-footnote font-bold tabular-nums text-white">
+              {/* 写真の上の白い日付には影を敷く。写真の無い札（語だけの札）は地が明るいので、
+                  影を敷かずに字を地の色の反対にする（影の上で黒い語が読めなくなるため）。 */}
+              {thumb && <span className="dex-cal__shade" aria-hidden />}
+              <span
+                className={`absolute bottom-1 left-1.5 text-footnote font-bold tabular-nums ${
+                  thumb ? "dex-cal__daynum text-white" : "text-foreground"
+                }`}
+              >
                 {day}
               </span>
               {items.length > 1 && (

@@ -7493,11 +7493,24 @@ html[data-motion="reduce"] .scan-dot[data-active] .scan-dot__core {
   background: var(--day-accent, rgb(0 0 0 / 0.55));
   box-shadow: 0 1px 3px rgb(0 0 0 / 0.3);
 }
+/* 日付の白い字の下の影。明るい写真（白い紙・空）の上でも字が 3:1 以上で読めるように、
+   字の高さの所まで十分に暗くする（2026-10-03 画面の監査: 白い札の上で 1.13:1 だった）。 */
 .dex-cal__shade {
   position: absolute;
-  inset: 45% 0 0 0;
-  background: linear-gradient(to top, rgb(0 0 0 / 0.55), transparent);
+  inset: 30% 0 0 0;
+  background: linear-gradient(
+    to top,
+    rgb(0 0 0 / 0.7),
+    rgb(0 0 0 / 0.62) 50%,
+    rgb(0 0 0 / 0.3) 80%,
+    transparent
+  );
   pointer-events: none;
+}
+.dex-cal__daynum {
+  text-shadow:
+    0 0 2px rgb(0 0 0 / 0.55),
+    0 1px 3px rgb(0 0 0 / 0.45);
 }
 
 /* その日のタイムライン。左に時刻、縦の線、線の上の点、右に**少し浮いた**札
