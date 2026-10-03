@@ -41,7 +41,7 @@ describe("H1: 共有の行に書く例文に、その人の記録を渡さない
   });
 
   it("移行: 解説の表を anon から読めなくする（ログインした人だけ）", () => {
-    const sql = read("supabase/migrations/20261003130000_word_explanations_no_anon_select.sql");
+    const sql = read("supabase/migrations/20261003130050_word_explanations_no_anon_select.sql");
     expect(sql).toMatch(/revoke select on public\.word_explanations from anon;/);
     expect(sql).toMatch(/drop policy if exists word_explanations_select_all/);
     expect(sql).toMatch(/for select\s+to authenticated/);
