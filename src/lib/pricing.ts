@@ -246,3 +246,30 @@ export function createTtlCache<V>(ttlMs: number, now: () => number = Date.now) {
     },
   };
 }
+
+/**
+ * **無料体験の日数**（オーナー決定 2026-10-03「7日間無料にする」「メールで知らせる」）。
+ *
+ * 既定は 7 日。`STRIPE_TRIAL_DAYS` を入れればその日数（`0` で体験なし）。読めない値は既定に戻す。
+ * 体験が終わる前の知らせは、Stripe の「無料トライアル終了前のリマインダーメール」で送る
+ * （Stripe の管理画面で設定する。手順は `docs/monetization.md` §5-2）。
+ */
+export const DEFAULT_TRIAL_DAYS = 7;
+export function trialDaysFromEnv(raw: string | undefined): number {
+  if (raw === undefined || raw.trim() === "") return DEFAULT_TRIAL_DAYS;
+  const n = Number(raw);
+  if (!Number.isFinite(n) || n < 0) return DEFAULT_TRIAL_DAYS;
+  return Math.min(Math.floor(n), 30);
+}
+
+/**
+ * **無料体験は1人1回だけ**。解約して買い直すたびに7日無料にならないよう、その人の定期購入が
+ * Stripe に1つでも在れば（解約済み・体験だけで終わった物も含む）体験を付けない。
+ * 本人の物（`metadata.user_id` が一致）だけを数える。
+ */
+export function hadSubscriptionBefore(subs: unknown, userId: string): boolean {
+  if (!Array.isArray(subs) || !userId) return false;
+  return (subs as SubLike[]).some(
+    (s) => s && typeof s === "object" && s.metadata?.user_id === userId,
+  );
+}

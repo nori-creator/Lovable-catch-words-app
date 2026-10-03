@@ -186,3 +186,27 @@ describe("値段の覚え書き", () => {
     expect(c.get("missing")).toBeUndefined();
   });
 });
+
+describe("無料体験（7日・1人1回）", () => {
+  it("未設定なら7日、0 で体験なし、変な値は7日、長すぎは30日まで", async () => {
+    const { trialDaysFromEnv } = await import("./pricing");
+    expect(trialDaysFromEnv(undefined)).toBe(7);
+    expect(trialDaysFromEnv("")).toBe(7);
+    expect(trialDaysFromEnv("0")).toBe(0);
+    expect(trialDaysFromEnv("14")).toBe(14);
+    expect(trialDaysFromEnv("abc")).toBe(7);
+    expect(trialDaysFromEnv("-3")).toBe(7);
+    expect(trialDaysFromEnv("90")).toBe(30);
+  });
+  it("本人の定期購入が1つでも在れば（解約済みも）体験を付けない。他人の物は数えない", async () => {
+    const { hadSubscriptionBefore } = await import("./pricing");
+    expect(hadSubscriptionBefore([], "u1")).toBe(false);
+    expect(hadSubscriptionBefore(null, "u1")).toBe(false);
+    expect(hadSubscriptionBefore([{ status: "canceled", metadata: { user_id: "u1" } }], "u1")).toBe(
+      true,
+    );
+    expect(hadSubscriptionBefore([{ status: "active", metadata: { user_id: "u2" } }], "u1")).toBe(
+      false,
+    );
+  });
+});

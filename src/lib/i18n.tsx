@@ -3508,9 +3508,9 @@ export const DICT: Record<string, Record<UiLang, string>> = {
     "zh-TW": "建立帳號後開始",
   },
   "pricing.trial": {
-    ja: "最初の {n} 日間は無料です。体験中に解約すれば料金はかかりません。",
-    en: "The first {n} {n|day is|days are} free. Cancel during the trial and you won't be charged.",
-    "zh-TW": "前 {n} 天免費。在試用期間取消就不會收費。",
+    ja: "初めての方は最初の {n} 日間無料です。終わる前にメールでお知らせし、体験中に解約すれば料金はかかりません。",
+    en: "New subscribers get the first {n} {n|day|days} free. We email you before it ends, and if you cancel during the trial you won't be charged.",
+    "zh-TW": "首次訂閱者前 {n} 天免費。試用結束前會以電子郵件通知，在試用期間取消就不會收費。",
   },
   "pricing.taxIncluded": {
     ja: "表示の金額がお支払いの総額です（税込）。",

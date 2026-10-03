@@ -5,9 +5,11 @@ import { siteUrlFor } from "@/lib/site-url";
 import { checkoutForm } from "@/lib/stripe-billing";
 import {
   createTtlCache,
+  hadSubscriptionBefore,
   parseStripePrice,
   pickPortalCustomer,
   portalForm,
+  trialDaysFromEnv,
   type PriceInfo,
   type PublicPrice,
 } from "@/lib/pricing";
@@ -103,7 +105,7 @@ export const getPublicPricing = createServerFn({ method: "GET" }).handler(async 
   const yearlyId = process.env.STRIPE_PRICE_YEARLY;
   const configured = Boolean(key && (monthlyId || yearlyId));
   const enabled = await subscriptionSwitch();
-  const trial = Number(process.env.STRIPE_TRIAL_DAYS ?? 0);
+  const trial = trialDaysFromEnv(process.env.STRIPE_TRIAL_DAYS);
   const [monthly, yearly] =
     key && configured
       ? await Promise.all([
@@ -116,7 +118,7 @@ export const getPublicPricing = createServerFn({ method: "GET" }).handler(async 
     configured,
     monthly: publicPrice(monthly),
     yearly: publicPrice(yearly),
-    trialDays: Number.isFinite(trial) && trial > 0 ? Math.floor(trial) : 0,
+    trialDays: trial,
   };
 });
 
@@ -177,14 +179,20 @@ export const createCheckoutSession = createServerFn({ method: "POST" })
     });
     if (!(await subscriptionSwitch()) && !isAdmin) throw new Error("BILLING_DISABLED");
     const { data: u } = await context.supabase.auth.getUser();
-    const trial = Number(process.env.STRIPE_TRIAL_DAYS ?? 0);
+    // 無料体験は1人1回だけ（前に定期購入が在れば付けない）。検索できない時は体験を付ける
+    // （Stripe の検索が止まった時に、初めての人から体験を取り上げない）。
+    let trial = trialDaysFromEnv(process.env.STRIPE_TRIAL_DAYS);
+    if (trial > 0) {
+      const subs = await searchUserSubscriptions(key, context.userId);
+      if (subs.ok && hadSubscriptionBefore(subs.data, context.userId)) trial = 0;
+    }
     const form = checkoutForm({
       priceId: price,
       userId: context.userId,
       email: u.user?.email ?? null,
       successUrl: siteUrlFor("/settings?pro=ok"),
       cancelUrl: siteUrlFor("/settings?pro=cancel"),
-      trialDays: Number.isFinite(trial) ? trial : 0,
+      trialDays: trial,
     });
     const res = await fetch("https://api.stripe.com/v1/checkout/sessions", {
       method: "POST",
@@ -224,18 +232,9 @@ export const createPortalSession = createServerFn({ method: "POST" })
     const key = process.env.STRIPE_SECRET_KEY;
     if (!key) throw new Error("BILLING_NOT_CONFIGURED");
     const auth = { Authorization: `Bearer ${key}` };
-    // 検索の式に入れる値。利用者の番号（UUID）に引用符は無いが、念のため落とす。
-    const q = encodeURIComponent(`metadata['user_id']:'${context.userId.replace(/'/g, "")}'`);
-    const found = await fetch(
-      `https://api.stripe.com/v1/subscriptions/search?query=${q}&limit=20`,
-      { headers: auth, signal: AbortSignal.timeout(8_000) },
-    );
-    const list = (await found.json().catch(() => null)) as { data?: unknown } | null;
-    if (!found.ok) {
-      console.error("[billing] could not search subscriptions", { status: found.status });
-      throw new Error(`STRIPE_PORTAL_FAILED ${found.status}`);
-    }
-    const customer = pickPortalCustomer(list?.data, context.userId);
+    const found = await searchUserSubscriptions(key, context.userId);
+    if (!found.ok) throw new Error(`STRIPE_PORTAL_FAILED ${found.status}`);
+    const customer = pickPortalCustomer(found.data, context.userId);
     if (!customer) throw new Error("NO_SUBSCRIPTION");
     const res = await fetch("https://api.stripe.com/v1/billing_portal/sessions", {
       method: "POST",
@@ -250,3 +249,30 @@ export const createPortalSession = createServerFn({ method: "POST" })
     }
     return { url: json.url };
   });
+
+/**
+ * その人の Stripe の定期購入を探す（Checkout が付けた `metadata.user_id` で検索）。
+ * 買った直後は検索に出るまで1分ほどかかることがある（Stripe の検索の仕様）。
+ */
+async function searchUserSubscriptions(
+  key: string,
+  userId: string,
+): Promise<{ ok: true; data: unknown } | { ok: false; status: number }> {
+  // 検索の式に入れる値。利用者の番号（UUID）に引用符は無いが、念のため落とす。
+  const q = encodeURIComponent(`metadata['user_id']:'${userId.replace(/'/g, "")}'`);
+  try {
+    const found = await fetch(
+      `https://api.stripe.com/v1/subscriptions/search?query=${q}&limit=20`,
+      { headers: { Authorization: `Bearer ${key}` }, signal: AbortSignal.timeout(8_000) },
+    );
+    const list = (await found.json().catch(() => null)) as { data?: unknown } | null;
+    if (!found.ok) {
+      console.error("[billing] could not search subscriptions", { status: found.status });
+      return { ok: false, status: found.status };
+    }
+    return { ok: true, data: list?.data };
+  } catch {
+    console.error("[billing] could not search subscriptions", { status: 0 });
+    return { ok: false, status: 0 };
+  }
+}
