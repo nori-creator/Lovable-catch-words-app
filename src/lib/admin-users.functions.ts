@@ -349,6 +349,7 @@ async function buildDetail(userId: string) {
         photoUpload: kinds.bg_failed_photo_upload ?? 0,
         thumbUpload: kinds.bg_failed_thumb_upload ?? 0,
         reviewGrade: kinds.bg_failed_review_grade ?? 0,
+        firstCatchAi: kinds.bg_failed_first_catch_ai ?? 0,
       },
     },
     ai: {

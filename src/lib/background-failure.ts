@@ -21,7 +21,9 @@ export type BackgroundFailureArea =
   | "review_grade"
   // 読む人の言語の意味・解説を裏で作る（2026-10-02。図鑑と復習。失敗しても意味が出ないだけ）。
   | "reader_meaning"
-  | "reader_explain";
+  | "reader_explain"
+  // チュートリアルの写真の分析・カード（2026-10-03。画面は「もう一度試す」を出す）。
+  | "first_catch_ai";
 
 const lastLogged = new Map<BackgroundFailureArea, number>();
 const THROTTLE_MS = 60_000;

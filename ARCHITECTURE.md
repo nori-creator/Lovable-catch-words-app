@@ -43,6 +43,8 @@ Suggested stages:
 - review evaluation.
   Provider/model choice may change without rewriting product flows.
 
+First-catch (tutorial) AI calls (2026-10-03 audit: 20–50 s, repeated 45–50 s failures): the photo is sent at 1024 px / JPEG 0.7 (`firstCatchPhoto`). Each attempt has its own deadline (candidates 20 s; card/lesson 30 s) with `maxRetries: 0` (the SDK's silent retries used to eat the whole 45 s), then **one** fallback to a different already-configured provider/model (`getAiAttemptChain`: app_config runtime → env → a keyed provider's fast vision model `gemini-2.5-flash`), run by `runAiAttempts` (`ai-attempts.ts`). One request = one quota reservation; if no attempt returned a reply (timeouts / transport errors) the reservation is released (member `usage_events` row deleted with the service key; guest budget keys deleted). Every request is logged: members in `ai_runs` (`loop="first_catch_ai"`, meta = attempts, latency, outcome), guests in `app_config` keys `first-catch-run:<day>:ok|fail:<uuid>` (no photo/word/IP), and client failures via `reportBackgroundFailure("first_catch_ai")`.
+
 ## TTS
 
 Speech service interface should support provider routing and fallback.

@@ -732,7 +732,7 @@ export function AdminUserDetailView({
         </p>
         <Sub>裏の処理の失敗</Sub>
         <p className="text-footnote tabular-nums">
-          {`発音 ${d.usage.backgroundFailures.tts}回、写真の上げ直し ${d.usage.backgroundFailures.photoUpload}回、縮小写真 ${d.usage.backgroundFailures.thumbUpload}回、復習の採点 ${d.usage.backgroundFailures.reviewGrade}回`}
+          {`発音 ${d.usage.backgroundFailures.tts}回、写真の上げ直し ${d.usage.backgroundFailures.photoUpload}回、縮小写真 ${d.usage.backgroundFailures.thumbUpload}回、復習の採点 ${d.usage.backgroundFailures.reviewGrade}回、最初の1枚の分析 ${d.usage.backgroundFailures.firstCatchAi}回`}
           <span className="text-caption text-muted-foreground">
             （記録は 2026-10-01 から・同じ種類は1分に1回まで数える）
           </span>
