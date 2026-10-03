@@ -2127,6 +2127,45 @@ export const DICT: Record<string, Record<UiLang, string>> = {
     "zh-TW": "無法儲存版面。請檢查連線後再試一次。",
   },
   "settings.motion": { ja: "アニメーション", en: "Animation", "zh-TW": "動畫" },
+  // キャッチの演出の大きさ（`lib/catch-animation-pref.ts`。ROADMAP Phase 4）。
+  "settings.catchAnimation": { ja: "キャッチの演出", en: "Catch animation", "zh-TW": "捕捉動畫" },
+  "settings.catchAnimationFull": { ja: "しっかり", en: "Full", "zh-TW": "完整" },
+  "settings.catchAnimationShort": { ja: "短く", en: "Short", "zh-TW": "簡短" },
+  "settings.catchAnimationOff": { ja: "オフ", en: "Off", "zh-TW": "關閉" },
+  "settings.catchAnimationFullDesc": {
+    ja: "毎回、音楽つきで大きく祝います。",
+    en: "Every catch gets the full celebration with music.",
+    "zh-TW": "每次都以音樂和完整動畫慶祝。",
+  },
+  "settings.catchAnimationShortDesc": {
+    ja: "ふだんは短く。1・10・50・100匹目などの節目は大きく祝います。",
+    en: "Short for everyday catches. Milestones like your 1st, 10th, 50th and 100th get the full celebration.",
+    "zh-TW": "平常簡短。第 1、10、50、100 個等重要時刻會盛大慶祝。",
+  },
+  "settings.catchAnimationOffDesc": {
+    ja: "動きは出さず、発音だけ聞かせます。",
+    en: "No animation — you'll still hear the pronunciation.",
+    "zh-TW": "不播放動畫，仍會播放發音。",
+  },
+  // 設定の自動保存の小さな札（`components/SaveStatus.tsx`）。
+  "settings.savedInline": { ja: "保存しました", en: "Saved", "zh-TW": "已儲存" },
+  // ホームの「〇か月前のこの言葉」（`components/ResurfaceCard.tsx`、`lib/resurface.ts`）。
+  "home.resurface.months": {
+    ja: "{n}か月前のこの言葉、まだ言える？",
+    en: "From {n} {n|month|months} ago — can you still say it?",
+    "zh-TW": "{n} 個月前的這個詞，還說得出來嗎？",
+  },
+  "home.resurface.years": {
+    ja: "{n}年前のこの言葉、まだ言える？",
+    en: "From {n} {n|year|years} ago — can you still say it?",
+    "zh-TW": "{n} 年前的這個詞，還說得出來嗎？",
+  },
+  "home.resurface.open": {
+    ja: "{word} を開く",
+    en: "Open {word}",
+    "zh-TW": "打開 {word}",
+  },
+  "home.resurface.close": { ja: "今日は閉じる", en: "Hide for today", "zh-TW": "今天先關閉" },
   // **なぜ消えているのかが分かる言葉にする。** 端末の設定で消えている人は、
   // 自分で入れた覚えが無いので「動きを減らす」とだけ書かれても辿り着けない。
   "settings.motion.osReduces": {

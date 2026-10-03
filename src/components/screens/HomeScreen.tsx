@@ -1,4 +1,6 @@
 import { MemorialReveal } from "@/components/MemorialReveal";
+import { ResurfaceCard } from "@/components/ResurfaceCard";
+import { useMemoryBadges } from "@/lib/use-memory-map";
 import { JIGGLE, jiggleStyle, LIFTED } from "@/lib/album-drag";
 import { CollageFasteners } from "@/components/AlbumPrint";
 import {
@@ -330,6 +332,22 @@ export function HomePage() {
   const today = new Date();
 
   /**
+   * **昔の1枚をときどき出す**（`lib/resurface.ts`）。記憶の数は図鑑・復習と同じ問い合わせ
+   * （`["memory-overview"]`）から。語が 30 未満の人には読まない（出す条件に届かない）。
+   */
+  const memoryBadges = useMemoryBadges((stickers?.items.length ?? 0) >= 30);
+  const recall = useMemo(() => {
+    const m = new Map<string, number>();
+    memoryBadges.forEach((b, id) => m.set(id, b.percent));
+    return m;
+  }, [memoryBadges]);
+  const memorialShown =
+    !!memorialToday &&
+    !memorialHidden &&
+    memorialPicks.length > 0 &&
+    !wasMemorialDismissed(memorialToday);
+
+  /**
    * アルバムに貼る物 = 札 ＋ **再会の写真**（オーナー指示 2026-09-23、
    * `lib/album-encounters.ts`）。再会の写真はその日の札の写しとして並ぶ。
    */
@@ -393,6 +411,17 @@ export function HomePage() {
         total={total}
       >
         <PendingCapturesBanner />
+        {/* 記念アルバムの日は、そちらだけ（昔を振り返る札を2枚並べない）。 */}
+        {!memorialShown && (
+          <ResurfaceCard
+            items={stickers?.items ?? []}
+            recall={recall}
+            onOpen={(id, from) => {
+              setOpenId(baseStickerId(id));
+              setOpenFrom(from ?? null);
+            }}
+          />
+        )}
         {memorialToday &&
           !memorialHidden &&
           memorialPicks.length > 0 &&

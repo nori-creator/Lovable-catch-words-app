@@ -6,6 +6,13 @@ import { haptic } from "@/lib/haptics";
 import { Term } from "@/components/Term";
 import { v5reward } from "@/components/effects/catch-landing/v5_reward";
 import { motionReducedNow } from "@/hooks/use-reduced-motion";
+import {
+  isCatchMilestone,
+  planCatchAnimation,
+  readCatchAnimation,
+  readCollection,
+  type CatchAnimationPlan,
+} from "@/lib/catch-animation-pref";
 
 /**
  * キャッチ→図鑑の着弾演出、まるごと一式。
@@ -38,12 +45,21 @@ export async function runCatchLanding(ctx: {
   openDex?: () => void | Promise<void>;
   /** 保存の通信。見せ場の1秒がこれを待つ。 */
   gate?: Promise<unknown>;
+  /**
+   * 節目か（`catch-animation-pref.ts`）。**分かる呼び手だけ渡す**（新しいカテゴリーが
+   * 増えた時など）。渡さなければ、一覧のキャッシュの数から決める。
+   */
+  milestone?: boolean;
+  /** 演出を名指しする（見本・試験用）。渡さなければ本人の設定と節目から決める。 */
+  plan?: CatchAnimationPlan;
 }): Promise<void> {
   // ここは保存の往復のあとなので、**厳密にはユーザー操作の中ではない**。
   // それでも毎回呼ぶ理由は、iOS がアプリを背面に回すたびに AudioContext を
   // suspended に落とすから — 解錠は一度きりの手続きではない。
   // (最初の1回の解錠は、設定の試聴やタップ音など操作の中で走る側に任せる。)
   unlockAudio();
+  const plan = ctx.plan ?? planCatchAnimation(readCatchAnimation(), landingMilestone(ctx));
+  if (plan === "off") return runQuietLanding(ctx);
   const reducedMotion = motionReducedNow();
   if (reducedMotion) {
     // 動きを減らしていても音は同じ山場を鳴らす（音は動きではない）。
@@ -81,7 +97,51 @@ export async function runCatchLanding(ctx: {
     getDestinationId: ctx.getDestinationId,
     openDex: ctx.openDex,
     gate: ctx.gate,
+    intensity: plan,
   });
+}
+
+/**
+ * 今回が節目か。呼び手が知っていればそれを使い、知らなければ一覧のキャッシュの
+ * 数から決める。**押した瞬間に読む**（保存の後だと、今回の札が数に入ってしまう）。
+ * 着地先が既に一覧に在るなら再会（数は増えない）。
+ */
+function landingMilestone(ctx: {
+  milestone?: boolean;
+  destinationId?: string;
+  getDestinationId?: () => string | undefined;
+}): boolean {
+  if (typeof ctx.milestone === "boolean") return ctx.milestone;
+  const collection = readCollection();
+  const known = ctx.getDestinationId?.() ?? ctx.destinationId;
+  return isCatchMilestone({
+    previousCount: collection?.count ?? null,
+    reencounter: Boolean(known && collection?.has(known)),
+  });
+}
+
+/**
+ * **演出を切った人の着地**（設定「キャッチの演出: オフ」）。
+ * 絵は飛ばさず BGM も鳴らさないが、**語は必ず読む**（発音は飾りではなく学び）。
+ * 図鑑へ移るのは保存を待ってから（動きを減らした時と同じ理由）。
+ */
+async function runQuietLanding(ctx: {
+  speakLine?: () => void | Promise<void>;
+  openDex?: () => void | Promise<void>;
+  gate?: Promise<unknown>;
+}): Promise<void> {
+  haptic("light");
+  void Promise.resolve()
+    .then(() => ctx.speakLine?.())
+    .catch(() => {});
+  if (ctx.gate) {
+    try {
+      await ctx.gate;
+    } catch {
+      return;
+    }
+  }
+  await ctx.openDex?.();
 }
 
 type OverlayProps = {

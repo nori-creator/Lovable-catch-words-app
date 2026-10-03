@@ -516,6 +516,7 @@ const BARE_SCENES = new Set([
   // 実物でも上のバーは映像の下に隠れる。
   "capture-object",
   "reward-catch",
+  "catch-animation",
   "home-tap",
   // 本の左ページを長押しして開く面は全画面。
   "book-album-edit",

@@ -25,6 +25,7 @@
 import { DataSourcesList } from "@/components/DataSourcesList";
 import { MotionProvider } from "@/components/motion-provider";
 import {
+  CatchAnimationRow,
   MotionToggleRow,
   ToggleRow,
   AvatarRow,
@@ -207,6 +208,8 @@ export function SettingsTogglesScene() {
         <MotionProvider>
           <MotionToggleRow />
         </MotionProvider>
+        {/* キャッチの演出（しっかり・短く・オフ）。本番では動きのスイッチのすぐ下。 */}
+        <CatchAnimationRow />
       </SettingsCard>
 
       <SoundAndHapticsPanel />
