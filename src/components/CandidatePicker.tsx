@@ -102,7 +102,13 @@ export function CandidatePicker<T extends PickCandidate>({
                 )}
                 <WordLine c={c} language={language} size="body" />
               </button>
-              <PronounceButton text={c.headword} language={language} tone="hero" size="sm" />
+              <PronounceButton
+                text={c.headword}
+                language={language}
+                tone="hero"
+                size="sm"
+                ident={{ pinyin: c.pinyin, zhuyin: c.reading_zhuyin }}
+              />
             </li>
           ))}
         </ul>
@@ -137,7 +143,13 @@ export function CandidatePicker<T extends PickCandidate>({
                 </span>
               )}
             </button>
-            <PronounceButton text={r.main.headword} language={language} tone="hero" size="sm" />
+            <PronounceButton
+              text={r.main.headword}
+              language={language}
+              tone="hero"
+              size="sm"
+              ident={{ pinyin: r.main.pinyin, zhuyin: r.main.reading_zhuyin }}
+            />
           </li>
         ))}
       </ul>
@@ -198,7 +210,12 @@ function HeroWord({
             </span>
           )}
         </button>
-        <PronounceButton text={c.headword} language={language} tone="hero" />
+        <PronounceButton
+          text={c.headword}
+          language={language}
+          tone="hero"
+          ident={{ pinyin: c.pinyin, zhuyin: c.reading_zhuyin }}
+        />
       </div>
       <button
         type="button"

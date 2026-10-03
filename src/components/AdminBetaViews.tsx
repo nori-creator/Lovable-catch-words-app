@@ -7,6 +7,8 @@
  * - 使っている人は週に何枚撮り、何問復習するか（使い方）
  * - 1 人あたり AI と音声にいくらかかるか（費用、推定）
  * - 最初のキャッチの解析はどのくらい成功し、どのくらい待たせるか（解析の確かさ）
+ * - 撮る道の4つの待ち時間（p50/p90/p99）と、写真の候補の Top-1 / Top-3（2026-10-03）
+ * - North-star「覚えている語 / 週」と 1 人あたりの AI 費用、記憶の見込みの較正（同日）
  *
  * 数はサーバ（`beta-metrics.functions.ts`）で作り、画面は描くだけ（`beta-metrics.ts`）。
  * 確認用ページの `admin-beta` の場面が、決まった見本の数で同じ部品を描く。
@@ -16,7 +18,18 @@ import { Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useState, type ReactNode } from "react";
-import { BarChart3, Coins, Filter, Gauge, Repeat, Sparkles } from "lucide-react";
+import {
+  BarChart3,
+  Brain,
+  Coins,
+  Filter,
+  Gauge,
+  Repeat,
+  Sparkles,
+  Star,
+  Target,
+  Timer,
+} from "lucide-react";
 import { getBetaMetrics, setBetaUnitCosts } from "@/lib/beta-metrics.functions";
 import {
   BETA_WINDOWS,
@@ -25,6 +38,8 @@ import {
   type BetaWindow,
   type RetentionCell,
 } from "@/lib/beta-metrics";
+import type { CalibrationReport } from "@/lib/calibration";
+import { LATENCY_EVENTS } from "@/lib/funnel-events";
 import { md } from "@/lib/admin-user-stats";
 import { useUiLang, type UiLang } from "@/lib/i18n";
 import { ColumnChart, Kpi, RangeTabs } from "@/components/AdminCharts";
@@ -39,6 +54,8 @@ const usd = (n: number | null | undefined, digits = 2) =>
   n == null ? "—" : `$${n < 0.01 && n > 0 ? n.toFixed(4) : n.toFixed(digits)}`;
 const sec = (ms: number | null | undefined) => (ms == null ? "—" : `${(ms / 1000).toFixed(1)}s`);
 const pctText = (p: number | null | undefined) => (p == null ? "—" : `${p}%`);
+const num = (n: number | null | undefined, digits = 3) => (n == null ? "—" : n.toFixed(digits));
+const ratio = (n: number | null | undefined) => (n == null ? "—" : `${Math.round(n * 100)}%`);
 
 function Section({
   icon,
@@ -136,7 +153,7 @@ export function BetaDashboardView({
   const L = lang ?? uiLang;
   const lb = betaLabels(L);
   const [w, setW] = useState<BetaWindow>(initialWindow);
-  const lat = data.candidateLatency[w];
+  const acc = data.candidateAccuracy[w];
   const rel = data.reliability.filter((r) => r.window === w);
   const sourceLabel = (s: string) =>
     s === "member" ? lb("member") : s === "guest" ? lb("guest") : lb("all");
@@ -208,10 +225,105 @@ export function BetaDashboardView({
             </tbody>
           </table>
         </div>
-        <div className="mt-3 grid grid-cols-3 gap-2">
-          <Kpi label={`${lb("candidateLatency")} p50`} value={sec(lat.p50)} sub={`n=${lat.n}`} />
-          <Kpi label="p90" value={sec(lat.p90)} />
-          <Kpi label={lb("events")} value={lat.n} />
+      </Section>
+
+      <Section
+        icon={<Timer className="h-4 w-4 text-primary" />}
+        title={lb("latency")}
+        note={lb("latencyNote")}
+      >
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[340px] text-left text-footnote" data-beta-latency="">
+            <thead className="text-muted-foreground">
+              <tr>
+                <th className={TH}>{lb("latencyStep")}</th>
+                <th className={`${TH} text-right`}>n</th>
+                <th className={`${TH} text-right`}>p50</th>
+                <th className={`${TH} text-right`}>p90</th>
+                <th className={`${TH} text-right`}>p99</th>
+              </tr>
+            </thead>
+            <tbody>
+              {LATENCY_EVENTS.map((ev) => {
+                const st = data.latency[ev][w];
+                return (
+                  <tr key={ev} className="border-t border-border/60">
+                    <td className="py-1.5 pr-2">{LATENCY_LABELS[ev][L]}</td>
+                    <td className={`${TD} text-right`}>{st.n}</td>
+                    <td className={`${TD} text-right font-semibold`}>{sec(st.p50)}</td>
+                    <td className={`${TD} text-right`}>{sec(st.p90)}</td>
+                    <td className={`${TD} text-right`}>{sec(st.p99)}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </Section>
+
+      <Section
+        icon={<Target className="h-4 w-4 text-primary" />}
+        title={lb("accuracy")}
+        note={lb("accuracyNote")}
+      >
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4" data-beta-accuracy="">
+          <Kpi label="Top-1" value={pctText(acc.top1Pct)} sub={`${acc.top1}/${acc.n}`} />
+          <Kpi label="Top-3" value={pctText(acc.top3Pct)} sub={`${acc.top3}/${acc.n}`} />
+          <Kpi
+            label={lb("nativeSearch")}
+            value={pctText(acc.nativeSearchPct)}
+            sub={`${acc.nativeSearch}/${acc.n}`}
+          />
+          <Kpi
+            label={lb("picks")}
+            value={acc.photoPicks}
+            sub={acc.medianCandidates == null ? undefined : `n̄=${acc.medianCandidates}`}
+          />
+        </div>
+      </Section>
+
+      <Section
+        icon={<Star className="h-4 w-4 text-primary" />}
+        title={lb("northStar")}
+        note={lb("northStarNote").replace("{target}", String(data.northStar.targetPct))}
+      >
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[420px] text-left text-footnote" data-beta-north-star="">
+            <thead className="text-muted-foreground">
+              <tr>
+                <th className={TH}>{lb("week")}</th>
+                <th className={TH}>{lb("activeUsers")}</th>
+                <th className={TH}>{lb("retainedWords")}</th>
+                <th className={TH}>{lb("retainedPerUser")}</th>
+                <th className={TH}>{lb("aiPerUserWeek")}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {data.northStar.weeks.map((r) => (
+                <tr key={r.from} className="border-t border-border/60">
+                  <td className={TD}>
+                    {md(r.from)}–{md(r.to)}
+                  </td>
+                  <td className={TD}>{r.activeUsers}</td>
+                  <td className={TD}>{r.retainedWords}</td>
+                  <td className={TD}>
+                    <b>{r.perActiveUser ?? "—"}</b>
+                    {r.medianPerActiveUser != null && (
+                      <span className="ml-1 text-caption text-muted-foreground">
+                        {lb("median")} {r.medianPerActiveUser}
+                      </span>
+                    )}
+                  </td>
+                  <td className={TD}>
+                    {usd(r.aiUsdPerActiveUser, 3)}
+                    <span className="ml-1 text-caption text-muted-foreground">
+                      ({usd(r.aiUsd)})
+                    </span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       </Section>
 
@@ -371,6 +483,23 @@ export function BetaDashboardView({
       </Section>
 
       <Section
+        icon={<Brain className="h-4 w-4 text-primary" />}
+        title={lb("calibration")}
+        note={lb("calibrationNote")}
+      >
+        {data.calibration.n === 0 ? (
+          <p className="text-footnote text-muted-foreground">{lb("noData")}</p>
+        ) : (
+          <CalibrationView
+            scheduler={data.calibration.scheduler}
+            jev={data.calibration.jev}
+            models={data.calibration.models}
+            lang={L}
+          />
+        )}
+      </Section>
+
+      <Section
         icon={<Gauge className="h-4 w-4 text-primary" />}
         title={lb("reliability")}
         note={lb("reliabilityNote")}
@@ -402,6 +531,112 @@ export function BetaDashboardView({
           </table>
         </div>
       </Section>
+    </div>
+  );
+}
+
+/** 撮る道の4つの待ち時間の名前（QA.md › Performance checks）。 */
+const LATENCY_LABELS: Record<(typeof LATENCY_EVENTS)[number], Record<UiLang, string>> = {
+  candidates_shown: {
+    ja: "撮影 → 候補が並ぶ",
+    en: "Capture → candidates shown",
+    "zh-TW": "拍照 → 顯示候選字",
+  },
+  meaning_shown: {
+    ja: "候補を選ぶ → 意味が出る",
+    en: "Selection → usable meaning",
+    "zh-TW": "選擇 → 顯示字義",
+  },
+  first_audio_played: {
+    ja: "発音を頼む → 最初の音",
+    en: "Request → first audio",
+    "zh-TW": "要求 → 第一個聲音",
+  },
+  catch_saved: {
+    ja: "図鑑に追加 → 保存完了",
+    en: "Catch → persisted",
+    "zh-TW": "加入圖鑑 → 儲存完成",
+  },
+};
+
+/** 復習の式と Jev の較正を並べる（数は `calibration.ts`）。 */
+function CalibrationView({
+  scheduler,
+  jev,
+  models,
+  lang,
+}: {
+  scheduler: CalibrationReport;
+  jev: CalibrationReport;
+  models: string[];
+  lang: UiLang;
+}) {
+  const lb = betaLabels(lang);
+  return (
+    <div className="space-y-3" data-beta-calibration="">
+      <div className="overflow-x-auto">
+        <table className="w-full min-w-[320px] text-left text-footnote">
+          <thead className="text-muted-foreground">
+            <tr>
+              <th className={TH} />
+              <th className={`${TH} text-right`}>n</th>
+              <th className={`${TH} text-right`}>Brier</th>
+              <th className={`${TH} text-right`}>Log loss</th>
+              <th className={`${TH} text-right`}>ECE</th>
+            </tr>
+          </thead>
+          <tbody>
+            {(
+              [
+                [lb("scheduler"), scheduler],
+                [lb("jev"), jev],
+              ] as const
+            ).map(([name, r]) => (
+              <tr key={name} className="border-t border-border/60">
+                <td className="py-1.5 pr-2">{name}</td>
+                <td className={`${TD} text-right`}>{r.n}</td>
+                <td className={`${TD} text-right font-semibold`}>{num(r.brier)}</td>
+                <td className={`${TD} text-right`}>{num(r.logLoss)}</td>
+                <td className={`${TD} text-right`}>{num(r.ece)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <p className="text-caption text-muted-foreground">
+        {lb("baseRate")}: {ratio(scheduler.baseRate)}
+        {models.length > 0 && ` · ${models.join(", ")}`}
+      </p>
+      <div className="overflow-x-auto">
+        <table className="w-full min-w-[320px] text-left text-footnote">
+          <thead className="text-muted-foreground">
+            <tr>
+              <th className={TH}>{lb("bin")}</th>
+              <th className={`${TH} text-right`}>{lb("scheduler")}</th>
+              <th className={`${TH} text-right`}>{lb("jev")}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {scheduler.bins.map((b, i) => {
+              const j = jev.bins[i];
+              const cell = (x: typeof b | undefined) =>
+                !x || x.n === 0 ? "—" : `${ratio(x.observed)} (n=${x.n})`;
+              return (
+                <tr key={b.lo} className="border-t border-border/60">
+                  <td className={TD}>
+                    {Math.round(b.lo * 100)}–{Math.round(b.hi * 100)}%
+                  </td>
+                  <td className={`${TD} text-right`}>{cell(b)}</td>
+                  <td className={`${TD} text-right`}>{cell(j)}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+      <p className="text-caption text-muted-foreground">
+        {lb("bin")} → {lb("observed")}
+      </p>
     </div>
   );
 }

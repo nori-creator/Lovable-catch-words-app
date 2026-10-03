@@ -1,11 +1,17 @@
 import { addDays, AI_UNIT_COST_USD } from "./admin-user-stats";
+import { shadowCalibration, type ShadowCalibration, type ShadowRow } from "./calibration";
 import {
+  isLatencyEvent,
+  LATENCY_EVENTS,
   MEMBER_FUNNEL_EVENTS,
   parseFunnelKey,
   TUTORIAL_STEPS,
+  type CandidatePickVia,
+  type LatencyEvent,
   type MemberFunnelEvent,
   type TutorialStep,
 } from "./funnel-events";
+import { retentionNow, TARGET_RETENTION } from "./srs";
 import { taipeiDay } from "./taipei-day";
 
 /**
@@ -106,8 +112,23 @@ export type BetaRawData = {
   reviews: Array<{ user_id: string; at: string }>;
   /** `app_config` の `funnel:` の鍵。 */
   funnelKeys: string[];
-  /** 候補が並ぶまでの待ち時間（登録した人、`ai_runs` の `funnel_latency`）。 */
-  latencies: Array<{ user_id: string; day: string; ms: number }>;
+  /**
+   * 待ち時間（登録した人、`ai_runs` の `funnel_latency`）。`event` は `LATENCY_EVENTS` の段
+   * （無ければ `candidates_shown` — 2026-10-03 より前の行は候補の待ち時間だけだった）。
+   */
+  latencies: Array<{ user_id: string; day: string; ms: number; event?: string }>;
+  /** 候補のどれを選んだか（`ai_runs` の `candidate_pick`）。 */
+  picks?: Array<{ user_id: string; day: string; via: CandidatePickVia; rank: number; n: number }>;
+  /**
+   * 語ごとの復習の状態の履歴（`review_history` の行と `reviews` のいまの行）。
+   * `at` = その復習の時刻（ISO）、`interval_days` = その後の間隔（= 安定度）。
+   * Personal Words Retained / Week を週の終わりの時点で数え直すのに使う。
+   */
+  reviewStates?: Array<{ user_id: string; sticker_id: string; at: string; interval_days: number }>;
+  /** `model_shadow_predictions` の行（較正）。 */
+  shadow?: ShadowRow[];
+  /** いまの時刻（ms）。無ければ今日の終わり。試験で固定する。 */
+  nowMs?: number;
   /** 最初のキャッチの AI の結果（会員 = `ai_runs`、未登録 = `first-catch-run:`）。 */
   runs: Array<{
     source: "member" | "guest";
@@ -133,7 +154,45 @@ export type BetaRawData = {
 
 export type WindowCount = Record<BetaWindow, number>;
 export type RetentionCell = { kept: number; eligible: number; pct: number | null };
-export type LatencyStat = { n: number; p50: number | null; p90: number | null };
+export type LatencyStat = {
+  n: number;
+  p50: number | null;
+  p90: number | null;
+  p99: number | null;
+};
+/** 候補の当たり方（写真の候補から選んだ回 + 母語で調べ直した回が分母）。 */
+export type CandidateAccuracy = {
+  /** 分母（写真の候補から選んだ + 母語で調べ直した）。 */
+  n: number;
+  /** 写真の候補から選んだ回。 */
+  photoPicks: number;
+  /** 写真の候補に無く、母語で調べ直した回（外れ）。 */
+  nativeSearch: number;
+  top1: number;
+  top3: number;
+  top1Pct: number | null;
+  top3Pct: number | null;
+  nativeSearchPct: number | null;
+  /** 並んだ候補の数の中央値。 */
+  medianCandidates: number | null;
+};
+/** North-star: Personal Words Retained / Week（PRODUCT.md › North-star outcome）。 */
+export type RetainedWeek = {
+  from: string;
+  to: string;
+  /** その週に使った人。 */
+  activeUsers: number;
+  /** 週の終わりに「いま思い出せる確率」が目標以上だった語の数（全員の合計）。 */
+  retainedWords: number;
+  /** 1人あたり（その週に使った人で割る）。 */
+  perActiveUser: number | null;
+  /** その週に使った人ごとの数の中央値（0 の人も入れる）。 */
+  medianPerActiveUser: number | null;
+  /** その週の AI・音声の推定費用（会員 + 登録前、米ドル）。 */
+  aiUsd: number;
+  /** その週に使った人1人あたりの AI 費用。 */
+  aiUsdPerActiveUser: number | null;
+};
 export type ReliabilityRow = {
   window: BetaWindow;
   source: "all" | "member" | "guest";
@@ -162,6 +221,11 @@ export type BetaMetrics = {
   signup: Array<{ stage: "signup" | "first_catch" | "first_review"; users: WindowCount }>;
   memberEvents: Array<{ kind: MemberFunnelEvent; users: WindowCount; events: WindowCount }>;
   candidateLatency: Record<BetaWindow, LatencyStat>;
+  /** QA.md › Performance checks の4つの待ち時間（p50/p90/p99）。 */
+  latency: Record<LatencyEvent, Record<BetaWindow, LatencyStat>>;
+  candidateAccuracy: Record<BetaWindow, CandidateAccuracy>;
+  northStar: { targetPct: number; weeks: RetainedWeek[] };
+  calibration: ShadowCalibration;
   retention: {
     cohorts: Array<{
       day: string;
@@ -253,7 +317,72 @@ export function memberEventFunnel(
 }
 
 export function latencyStat(values: number[]): LatencyStat {
-  return { n: values.length, p50: percentile(values, 50), p90: percentile(values, 90) };
+  return {
+    n: values.length,
+    p50: percentile(values, 50),
+    p90: percentile(values, 90),
+    p99: percentile(values, 99),
+  };
+}
+
+/** 段ごと・期間ごとの待ち時間。`event` の無い古い行は候補の待ち時間として数える。 */
+export function latencyByEvent(
+  latencies: BetaRawData["latencies"],
+  today: string,
+): Record<LatencyEvent, Record<BetaWindow, LatencyStat>> {
+  const eventOf = (l: BetaRawData["latencies"][number]): LatencyEvent | null =>
+    l.event === undefined ? "candidates_shown" : isLatencyEvent(l.event) ? l.event : null;
+  return Object.fromEntries(
+    LATENCY_EVENTS.map((ev) => [
+      ev,
+      Object.fromEntries(
+        BETA_WINDOWS.map((w) => [
+          w,
+          latencyStat(
+            latencies
+              .filter((l) => eventOf(l) === ev && inWindow(l.day, today, w))
+              .map((l) => l.ms),
+          ),
+        ]),
+      ),
+    ]),
+  ) as Record<LatencyEvent, Record<BetaWindow, LatencyStat>>;
+}
+
+/**
+ * **候補の当たり方**（ロードマップ Phase 3.2、QA.md › AI quality benchmark の実地の版）。
+ * 分母は「写真の候補から選んだ」+「候補に無く母語で調べ直した」。打っただけの語と
+ * スキャンからの候補は、写真の候補の AI を測らないので入れない。
+ */
+export function candidateAccuracy(
+  picks: NonNullable<BetaRawData["picks"]>,
+  today: string,
+): Record<BetaWindow, CandidateAccuracy> {
+  return Object.fromEntries(
+    BETA_WINDOWS.map((w) => {
+      const inW = picks.filter((p) => inWindow(p.day, today, w));
+      const photo = inW.filter((p) => p.via === "photo");
+      const native = inW.filter((p) => p.via === "native_search").length;
+      const n = photo.length + native;
+      const top1 = photo.filter((p) => p.rank === 1).length;
+      const top3 = photo.filter((p) => p.rank <= 3).length;
+      const acc: CandidateAccuracy = {
+        n,
+        photoPicks: photo.length,
+        nativeSearch: native,
+        top1,
+        top3,
+        top1Pct: pct(top1, n),
+        top3Pct: pct(top3, n),
+        nativeSearchPct: pct(native, n),
+        medianCandidates: percentile(
+          photo.map((p) => p.n),
+          50,
+        ),
+      };
+      return [w, acc];
+    }),
+  ) as Record<BetaWindow, CandidateAccuracy>;
 }
 
 /* ------------------------------------------------------------------------------------------
@@ -422,13 +551,16 @@ export function weeklyEngagement(
  * 4. AI・音声の費用（推定）
  * ------------------------------------------------------------------------------------------ */
 
-export function costEstimate(raw: BetaRawData, activeUsers30: number): BetaMetrics["cost"] {
-  const { today, unitCosts } = raw;
+type CostCall = { key: string; day: string; who: "member" | "guest" | "excluded" };
+
+/** 費用に数える呼び出しを1件ずつ並べる（誰の分か付き）。 */
+export function costCalls(raw: BetaRawData): CostCall[] {
+  const { unitCosts } = raw;
   const users = new Set(raw.users.map((u) => u.id));
   const anon = new Set(raw.anonIds);
   const group = (uid: string | undefined) =>
     uid && users.has(uid) ? "member" : uid && anon.has(uid) ? "guest" : "excluded";
-  const calls: Array<{ key: string; day: string; who: "member" | "guest" | "excluded" }> = [];
+  const calls: CostCall[] = [];
   for (const e of raw.usage)
     if (e.kind in unitCosts) calls.push({ key: e.kind, day: e.day, who: group(e.user_id) });
   for (const r of raw.aiRuns) {
@@ -438,6 +570,12 @@ export function costEstimate(raw: BetaRawData, activeUsers30: number): BetaMetri
   for (const r of raw.runs)
     if (r.source === "guest" && !r.refunded)
       calls.push({ key: "guest:first_catch_ai", day: r.day, who: "guest" });
+  return calls;
+}
+
+export function costEstimate(raw: BetaRawData, activeUsers30: number): BetaMetrics["cost"] {
+  const { today, unitCosts } = raw;
+  const calls = costCalls(raw);
   const in30 = calls.filter((c) => inWindow(c.day, today, 30));
   const sum = (list: typeof calls) =>
     +list.reduce((s, c) => s + (unitCosts[c.key] ?? 0), 0).toFixed(4);
@@ -523,6 +661,86 @@ export function analysisReliability(
 }
 
 /* ------------------------------------------------------------------------------------------
+ * 6. North-star: Personal Words Retained / Week（PRODUCT.md）
+ * ------------------------------------------------------------------------------------------ */
+
+/** 台湾の日付の終わり（ms）。 */
+export function endOfTaipeiDay(day: string): number {
+  return Date.parse(`${day}T23:59:59.999+08:00`);
+}
+
+/**
+ * その時刻に「いま思い出せる確率」が目標（`TARGET_RETENTION`、90%）以上の語を、人ごとに数える。
+ * 語ごとに、その時刻より前の最後の復習の状態（間隔 = 安定度）から `retentionNow` で出す
+ * （画面の % と同じ式）。撮っただけで復習していない語は 0% なので数に入らない。
+ */
+export function retainedWordsAt(
+  states: NonNullable<BetaRawData["reviewStates"]>,
+  atMs: number,
+  target: number = TARGET_RETENTION,
+): Map<string, number> {
+  const last = new Map<string, { user_id: string; t: number; interval: number }>();
+  for (const s of states) {
+    const t = Date.parse(s.at);
+    if (!Number.isFinite(t) || t > atMs) continue;
+    const key = `${s.user_id}:${s.sticker_id}`;
+    const prev = last.get(key);
+    if (!prev || t >= prev.t) last.set(key, { user_id: s.user_id, t, interval: s.interval_days });
+  }
+  const out = new Map<string, number>();
+  for (const v of last.values()) {
+    if (retentionNow(v.interval, 0, v.t, atMs) / 100 >= target)
+      out.set(v.user_id, (out.get(v.user_id) ?? 0) + 1);
+  }
+  return out;
+}
+
+export function retainedWeekly(
+  raw: BetaRawData,
+  active: Map<string, Set<string>>,
+  weeks: number = ENGAGEMENT_WEEKS,
+): BetaMetrics["northStar"] {
+  const { today } = raw;
+  const users = new Set(raw.users.map((u) => u.id));
+  const states = (raw.reviewStates ?? []).filter((s) => users.has(s.user_id));
+  const nowMs = raw.nowMs ?? endOfTaipeiDay(today);
+  const calls = costCalls(raw).filter((c) => c.who !== "excluded");
+  return {
+    targetPct: Math.round(TARGET_RETENTION * 100),
+    weeks: Array.from({ length: weeks }, (_, i) => {
+      const to = addDays(today, -7 * i);
+      const from = addDays(to, -6);
+      const inWeek = (d: string) => d >= from && d <= to;
+      const activeIds = [...users].filter((id) => {
+        const days = active.get(id);
+        return !!days && [...days].some(inWeek);
+      });
+      const retained = retainedWordsAt(states, Math.min(endOfTaipeiDay(to), nowMs));
+      const counts = activeIds.map((id) => retained.get(id) ?? 0);
+      let retainedWords = 0;
+      for (const n of retained.values()) retainedWords += n;
+      const aiUsd = +calls
+        .filter((c) => inWeek(c.day))
+        .reduce((s, c) => s + (raw.unitCosts[c.key] ?? 0), 0)
+        .toFixed(4);
+      return {
+        from,
+        to,
+        activeUsers: activeIds.length,
+        retainedWords,
+        perActiveUser: per(
+          counts.reduce((s, n) => s + n, 0),
+          activeIds.length,
+        ),
+        medianPerActiveUser: percentile(counts, 50),
+        aiUsd,
+        aiUsdPerActiveUser: activeIds.length ? +(aiUsd / activeIds.length).toFixed(4) : null,
+      };
+    }),
+  };
+}
+
+/* ------------------------------------------------------------------------------------------
  * まとめ
  * ------------------------------------------------------------------------------------------ */
 
@@ -549,12 +767,11 @@ export function computeBetaMetrics(raw: BetaRawData): BetaMetrics {
     tutorial: tutorialFunnel(raw.funnelKeys, today),
     signup: signupFunnel(raw.users, own(raw.catches), own(raw.reviews), today),
     memberEvents: memberEventFunnel(raw.usage, userIds, today),
-    candidateLatency: Object.fromEntries(
-      BETA_WINDOWS.map((w) => [
-        w,
-        latencyStat(latencies.filter((l) => inWindow(l.day, today, w)).map((l) => l.ms)),
-      ]),
-    ) as Record<BetaWindow, LatencyStat>,
+    candidateLatency: latencyByEvent(latencies, today).candidates_shown,
+    latency: latencyByEvent(latencies, today),
+    candidateAccuracy: candidateAccuracy(own(raw.picks ?? []), today),
+    northStar: retainedWeekly(raw, active),
+    calibration: shadowCalibration(raw.shadow ?? []),
     retention: retentionTable(raw.users, active, today),
     engagement: weeklyEngagement(userIds, active, raw.catches, raw.reviews, today),
     cost: costEstimate(raw, activeUsers30),

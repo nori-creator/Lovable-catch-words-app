@@ -57,9 +57,14 @@ export function reminderMessage(
     }
   }
   const title = tStatic("remind.title");
+  /**
+   * **語の数は文に入れない**（PRODUCT.md「Never present review backlog as debt」、
+   * ARCHITECTURE.md › No to-do counts、2026-10-03）。「7語あります」「12語が忘れかけ」は
+   * 溜まった宿題に見える。数は「時が来た語があるか」の判断にだけ使い、文は1分だけの誘い。
+   */
   if (n <= 0) return { title, body: tStatic("remind.bodyEmpty") };
-  if (p.reason === "srs") return { title, body: tStatic("remind.bodySrs", { n }) };
-  return { title, body: tStatic("remind.body", { n }) };
+  if (p.reason === "srs") return { title, body: tStatic("remind.bodySrs") };
+  return { title, body: tStatic("remind.body") };
 }
 
 export async function applyReminderSchedule(

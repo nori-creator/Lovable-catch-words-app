@@ -3,7 +3,7 @@ import { DEFAULT_TARGET_LANGUAGE } from "./target-lang";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { z } from "zod";
 import { assertWithinDailyCap, getTts, logUsage } from "./ai-provider.server";
-import { ttsObjectPath, TTS_VOICE_DEFAULT } from "./tts-cache";
+import { speechIdentity, ttsObjectPath, TTS_VOICE_DEFAULT } from "./tts-cache";
 import { isShareableTtsText, type TtsShareDb } from "./tts-share";
 import { ttsVoiceFor, withVoiceOverride } from "./tts-voice";
 import {
@@ -22,6 +22,14 @@ const Input = z.object({
   voice: z.string().optional().default(TTS_VOICE_DEFAULT),
   speed: z.number().optional().default(DEFAULT_SPEED),
   language: z.string().optional().default(DEFAULT_TARGET_LANGUAGE),
+  /**
+   * 読みと品詞（分かる時だけ。`tts-cache.ts` の `speechIdentity`）。多音字・同綴り異音語の
+   * 音を別の置き場所に貯めるため。無ければ今までと同じ置き場所を読む。
+   */
+  pinyin: z.string().max(200).optional(),
+  zhuyin: z.string().max(200).optional(),
+  ipa: z.string().max(200).optional(),
+  pos: z.string().max(40).optional(),
 });
 
 /**
@@ -114,7 +122,9 @@ export const synthesizeSpeech = createServerFn({ method: "POST" })
     const choice = await activeChoice(data.language);
     const tag = choice ? voiceTag(choice) : data.voice;
     const keyFor = (t: string) => (data.speed === DEFAULT_SPEED ? t : `${t}@${data.speed}`);
-    let path = await ttsObjectPath(data.language, keyFor(tag), data.text);
+    // 鍵の印はサーバで作り直す（端末が作った文字列をそのまま信じない）。
+    const identity = speechIdentity(data.language, data.text, data);
+    let path = await ttsObjectPath(data.language, keyFor(tag), data.text, identity);
 
     const { data: cached } = await supabase.storage
       .from("tts")
@@ -155,7 +165,7 @@ export const synthesizeSpeech = createServerFn({ method: "POST" })
           // 選んだ会社が駄目なときは、これまでの声で鳴らし、これまでの置き場所に貯める。
           console.warn("[tts] provider failed, falling back:", (e as Error).message);
           buf = await synthesizeMp3(data.text, data.speed, data.language);
-          path = await ttsObjectPath(data.language, keyFor(TTS_VOICE_DEFAULT), data.text);
+          path = await ttsObjectPath(data.language, keyFor(TTS_VOICE_DEFAULT), data.text, identity);
         }
       } else {
         buf = await synthesizeMp3(data.text, data.speed, data.language);
@@ -242,7 +252,7 @@ export const pregenerateDictionaryTts = createServerFn({ method: "POST" })
     const pending = () =>
       supabaseAdmin
         .from("dictionary_entries")
-        .select("id, headword", { count: "exact" })
+        .select("id, headword, pinyin, zhuyin, reading_primary, pos", { count: "exact" })
         .eq("language", language)
         .or(`audio_path.is.null,audio_path.not.like.${language}/${tag}/*`)
         .or(`tocfl_level.lte.${data.level_max},tocfl_level.is.null`);
@@ -275,7 +285,18 @@ export const pregenerateDictionaryTts = createServerFn({ method: "POST" })
       // 429が3連続したらこのバッチは中断 — 叩き続けても失敗が増えるだけ。
       if (consecutiveRateLimited >= 3) break;
       try {
-        const path = await ttsObjectPath(language, tag, entry.headword);
+        // 多音字・同綴り異音語は辞書の読みで置き場所を分ける（端末の `speechIdentity` と同じ印）。
+        const path = await ttsObjectPath(
+          language,
+          tag,
+          entry.headword,
+          speechIdentity(language, entry.headword, {
+            pinyin: entry.pinyin,
+            zhuyin: entry.zhuyin,
+            ipa: language.startsWith("en") ? entry.reading_primary : null,
+            pos: entry.pos,
+          }),
+        );
         // Reuse audio already cached by on-demand taps.
         const { data: existing } = await supabaseAdmin.storage
           .from("tts")
