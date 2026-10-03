@@ -229,7 +229,6 @@ function FirstCatchFlowInner({
   const lock = useRef(false);
   const [suggestions, setSuggestions] = useState<Suggestion[]>(initialSuggestions);
   const [manual, setManual] = useState("");
-  const [flipped, setFlipped] = useState(false);
   const [detailSeen, setDetailSeen] = useState(false);
   const [homeGuide, setHomeGuide] = useState<"album" | "camera">("album");
   const [landing, setLanding] = useState(false);
@@ -814,8 +813,8 @@ function FirstCatchFlowInner({
             selectedHead={sticker.word.headword}
             objectImg={draft.photo}
             selfieImg={null}
-            flipped={flipped}
-            setFlipped={setFlipped}
+            flipped={false}
+            setFlipped={() => {}}
             caption=""
             setCaption={() => {}}
             placeName={null}
