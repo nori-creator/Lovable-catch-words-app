@@ -60,7 +60,7 @@ The pre-signup AI endpoint uses server-side `SUPABASE_SERVICE_ROLE_KEY` only to 
 Guide sequence (every coach shows its chapter):
 
 1. Home — today's album (Next) → camera tab (tap).
-2. Catch — shutter → candidate list (the search box below stays usable) → meaning & speaker (Next) → peel the photo.
+2. Catch — shutter → candidate list (the search box below stays usable and uncovered: the coach is the one-row bottom coach; at heights ≤ 700px the photo and rows are compacted so the search box fits — 2026-10-03) → meaning & speaker (Next) → peel the photo.
 3. Collection — "added" cell (Next) → swipe the cover flow → tap the gallery-view button → tap your own photo (opens the detail).
 4. Word detail (Try a review).
 5. Review — intro on the question card (Next) → choices → the answer's Next button, twice → completion → account.

@@ -17,7 +17,7 @@ readySpeech(["衛生紙", "面紙", "濕紙巾", "捲筒紙", "珍珠奶茶"]);
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Toaster } from "@/components/ui/sonner";
-import { useT } from "@/lib/i18n";
+import { getUiLang, localeOf, useT } from "@/lib/i18n";
 import {
   CaptureCardPanel,
   CaptureObjectPanel,
@@ -177,7 +177,7 @@ export function CaptureReunionScene({ q }: { q: URLSearchParams }) {
       onPeel={() => {}}
       failed={q.get("variant") === "error"}
       onRetry={() => {}}
-      dateLocale="ja-JP"
+      dateLocale={localeOf(getUiLang())}
       reenc={
         {
           sticker_id: "s1",

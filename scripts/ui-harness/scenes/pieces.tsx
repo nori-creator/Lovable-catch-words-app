@@ -8,6 +8,7 @@
  * 入れずに「未検査」と記録する。嘘の合格を作らないため。
  */
 import { useState } from "react";
+import { getUiLang, localeOf } from "@/lib/i18n";
 import { ChunkLegend, ChunkPills } from "@/components/ChunkPills";
 import { RegisterMeter } from "@/components/WordCard";
 import { SceneBubbles } from "@/components/SceneBubbles";
@@ -158,7 +159,12 @@ export function PhotoHistoryScene({ q }: { q: URLSearchParams }) {
     { url: shot("#4a90d9"), taken_at: "2026-06-14T12:00:00Z", place: null, first: false },
     { url: shot("#f5a623"), taken_at: "2026-08-01T18:00:00Z", place: "士林夜市", first: false },
   ];
-  return <StickerPhotoHistory photos={one ? photos.slice(0, 1) : photos} dateLocale="ja-JP" />;
+  return (
+    <StickerPhotoHistory
+      photos={one ? photos.slice(0, 1) : photos}
+      dateLocale={localeOf(getUiLang())}
+    />
+  );
 }
 
 /**

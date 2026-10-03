@@ -801,10 +801,10 @@ export function FirstCatchFlow({
           title={t("first.pickTitle")}
           text={t("first.pick")}
           step="2 / 5"
-          // 背の低い画面（375×667 など）では札を下端の1段にする（2026-10-03 全画面の点検:
-          // 札が撮った写真を覆い、「違う単語を入力」が下のタブの下に隠れていた）。
-          // 下のタブはこの段では押せないので、その上に札を重ねても失う物が無い。
-          compact={typeof window !== "undefined" && window.innerHeight <= SHORT_VIEWPORT}
+          // 札は下端の1段（2026-10-03 全画面の点検: 枠の下に置くと「違う単語を入力」を、
+          // 上に置くと撮った写真を覆っていた）。下のタブはこの段では押せないので、その上に
+          // 札を重ねても失う物が無い。背の低い画面は候補の面も詰める（`PickWordPanel`）。
+          compact
           interactive
           gesture="tap"
         />
@@ -834,9 +834,6 @@ export function FirstCatchFlow({
     </div>,
   );
 }
-
-/** これ以下の高さ（px）を「背の低い画面」とする（iPhone SE / 8 の 667）。 */
-const SHORT_VIEWPORT = 700;
 
 /** 終わりの画面に降る紙吹雪: 横の位置(%)・遅れ(ms)・横の流れ(px)・回転(度)。決め打ちで毎回同じ絵。 */
 const CONFETTI_RAIN: ReadonlyArray<readonly [number, number, number, number]> = [

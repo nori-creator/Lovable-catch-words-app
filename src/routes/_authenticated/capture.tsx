@@ -1797,7 +1797,7 @@ export function PickWordPanel({
         置いたほうが見つかる。釦は撮る画面の検索と同じ虫眼鏡にして、
         「ここに打って調べる」が一目で分かる形に揃えた。
       */}
-      <div className="rounded-2xl border border-dashed border-border bg-card p-3">
+      <div className="rounded-2xl border border-dashed border-border bg-card p-3 [@media(max-height:700px)]:p-2">
         <Label htmlFor="manual" className="block text-end text-footnote text-muted-foreground">
           {t("capture.otherWord")}
         </Label>
