@@ -162,9 +162,17 @@ function halfWidthPunctuation() {
   return out;
 }
 
+/**
+ * 見本（UI ハーネス）だけが使う部品の置き場。自前の文言表（`copy.ts`）を持っていて、
+ * アプリの辞書のキーではないので数えない（数えると「未定義のキー」が 47 件出て、
+ * `npm run check` が本物の問題と見分けられなくなる）。
+ */
+const SKIP_DIRS = new Set([path.join("src", "components", "memory-designs")]);
+
 function walk(dir, out = []) {
   for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
     const p = path.join(dir, e.name);
+    if (e.isDirectory() && SKIP_DIRS.has(path.normalize(p))) continue;
     if (e.isDirectory()) walk(p, out);
     else if (/\.(ts|tsx)$/.test(e.name)) out.push(p);
   }
