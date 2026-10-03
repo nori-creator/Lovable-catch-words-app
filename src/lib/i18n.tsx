@@ -3372,10 +3372,13 @@ export const DICT: Record<string, Record<UiLang, string>> = {
     "zh-TW": "只有開發者看得到（訂閱尚未開啟）",
   },
   "ads.note": {
-    ja: "オンにしても、AdMob（広告の部品）をアプリに入れるまでは実際の広告は出ません。手順は docs/monetization.md。",
-    en: "Real ads appear only after AdMob is added to the app. Steps: docs/monetization.md.",
-    "zh-TW": "即使打開，在 App 加入 AdMob 之前也不會出現真正的廣告。步驟見 docs/monetization.md。",
+    ja: "Web 版: AdSense の番号（VITE_ADSENSE_CLIENT と枠の番号）を入れると、オンの間だけ図鑑・日記・復習の区切りに広告が出ます。Web ではごほうび広告と捕まえた後の全画面は出ません。iPhone・Android のアプリは AdMob を入れるまで出ません。手順は docs/monetization.md。",
+    en: "Web: once the AdSense IDs (VITE_ADSENSE_CLIENT and slot IDs) are set, ads appear in the Dex, diary and after review sets while this is on. Rewarded and after-catch full-screen ads never show on the web. The iOS/Android apps show no ads until AdMob is added. Steps: docs/monetization.md.",
+    "zh-TW":
+      "網頁版：設定 AdSense 編號（VITE_ADSENSE_CLIENT 與廣告單元編號）後，開啟期間會在圖鑑、日記與複習告一段落時顯示廣告。網頁版不顯示獎勵廣告與收集後的全螢幕廣告。iPhone／Android App 在加入 AdMob 之前不會顯示廣告。步驟見 docs/monetization.md。",
   },
+  // 広告の枠の印（AdSense の決まり: 英語は「Advertisements」か「Sponsored Links」だけ）。
+  "ads.label": { ja: "広告", en: "Advertisements", "zh-TW": "廣告" },
   "ads.saved": {
     ja: "広告の設定を保存しました",
     en: "Ad settings saved",

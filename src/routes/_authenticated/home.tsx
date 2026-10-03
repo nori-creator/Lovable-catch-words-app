@@ -41,6 +41,8 @@ import { useServerFn } from "@tanstack/react-start";
 import { AppShell } from "@/components/AppShell";
 import { InstallBanner } from "@/components/InstallApp";
 import { HomeShelf } from "@/components/HomeShelf";
+import { useWebAdSlot, WebAdUnit } from "@/components/WebAdSlot";
+import { diarySlots, type AdConfig } from "@/lib/ad-policy";
 import { LoadFailed } from "@/components/LoadFailed";
 import { StickerSheet } from "@/components/StickerSheet";
 import type { HeroOrigin as FlightOrigin } from "@/components/use-hero-reveal";
@@ -363,6 +365,8 @@ function HomePage() {
    * 消して」）。前はここで日記を読み、過去の日の写真の向かいに挟んでいた。
    * 日記はホームの本棚の本に書く（`HomeShelf`）。AI 添削つきの `/journal` は 2026-10-01 に消した。
    */
+  /** Web 版の広告の枠（日記の間。`diaryEvery` 日ごと。`ad-policy.ts`）。チュートリアルには渡さない。 */
+  const diaryAd = useWebAdSlot("diary");
   return (
     <AppShell>
       {/*
@@ -400,6 +404,16 @@ function HomePage() {
         truncated={truncated}
         shown={shown}
         total={total}
+        diaryAd={
+          diaryAd
+            ? {
+                cfg: diaryAd.cfg,
+                render: (n) => (
+                  <WebAdUnit key={`ad-${n}`} client={diaryAd.client} slot={diaryAd.slot} />
+                ),
+              }
+            : undefined
+        }
       >
         <PendingCapturesBanner />
         {memorialToday &&
@@ -478,6 +492,7 @@ export function HomeSurface({
   truncated = false,
   shown,
   total,
+  diaryAd,
   children,
 }: {
   albumItems: StickerWithWord[];
@@ -504,6 +519,10 @@ export function HomeSurface({
   total?: number;
   /** 本棚の下・誌面の上に挟む帯（未送信の写真・記念日など）。 */
   children?: React.ReactNode;
+  /**
+   * 日記の間の広告（Web 版。本物のホームだけが渡す）。`n` は何日目の後か（0始まり、今日を含む）。
+   */
+  diaryAd?: { cfg: AdConfig; render: (n: number) => React.ReactNode };
 }) {
   const todayKey = dayKey(today);
   /**
@@ -525,6 +544,13 @@ export function HomeSurface({
     return groupBySpan(past, (s) => new Date(s.created_at), "day");
   }, [albumItems, todayKey]);
   const ready = !loading && !failed && albumItems.length > 0;
+  /** 今日の誌面があれば、それが1日目（広告の位置は今日から数える）。 */
+  const dayOffset = todayStickers.length > 0 ? 1 : 0;
+  const diaryCfg = diaryAd?.cfg;
+  const dayAdSlots = useMemo(
+    () => new Set(diaryCfg ? diarySlots(dayOffset + pastGroups.length, diaryCfg, false) : []),
+    [diaryCfg, dayOffset, pastGroups.length],
+  );
   const albumHidden = useAlbumHidden();
   /**
    * **本の左ページを長押し → ホームと同じ並べ替えの画面**（オーナー指示 2026-10-02「ホームの
@@ -606,6 +632,11 @@ export function HomeSurface({
           truncated={truncated}
           shown={shown ?? albumItems.length}
           total={total ?? albumItems.length}
+          adAfter={
+            diaryAd && dayAdSlots.size > 0
+              ? (i) => (dayAdSlots.has(i + dayOffset) ? diaryAd.render(i + dayOffset) : null)
+              : undefined
+          }
         />
       )}
     </div>
@@ -739,9 +770,12 @@ export function PastDays({
   total,
   onLongPress,
   surface,
+  adAfter,
 }: {
   /** 壁の地（`album-bg-*`）。今日の誌面と同じ物。 */
   surface?: string;
+  /** `i` 番目の日の後ろに挟む物（Web 版の広告）。無ければ何も挟まない。 */
+  adAfter?: (i: number) => React.ReactNode;
   days: Array<[string, StickerWithWord[]]>;
   onOpen: (id: string, from?: FlightOrigin | null) => void;
   truncated: boolean;
@@ -771,7 +805,7 @@ export function PastDays({
           {t("dex.truncated", { n: formatCount(shown), total: formatCount(total) })}
         </p>
       )}
-      {days.map(([k, items]) => (
+      {days.map(([k, items], i) => (
         <div key={k}>
           {/* k is a local YYYY-MM-DD; append time so it parses as LOCAL
               midnight (bare `new Date("YYYY-MM-DD")` is UTC → off-by-one
@@ -785,6 +819,7 @@ export function PastDays({
             onOpen={onOpen}
             onLongPress={onLongPress}
           />
+          {adAfter?.(i)}
         </div>
       ))}
     </section>

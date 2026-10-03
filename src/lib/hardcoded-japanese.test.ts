@@ -36,7 +36,8 @@ const KNOWN: Record<string, number> = {
   // 設定の開発者欄「文字検索のAI画像」（管理者だけが見る。2026-09-28 main から）。
   "src/routes/_authenticated/settings.tsx": 12,
   // 利用状況の閲覧・決済・広告の条項を足した（2026-09-28。日本語版そのもの）。
-  "src/routes/privacy.tsx": 32,
+  // 2026-10-03 Web 版の広告（AdSense・Cookie）の記載を足した（日本語版そのもの）。
+  "src/routes/privacy.tsx": 41,
   "src/routes/terms.tsx": 16,
 };
 

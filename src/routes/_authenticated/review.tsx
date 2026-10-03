@@ -67,6 +67,8 @@ import { LoadFailed } from "@/components/LoadFailed";
 // このファイルには復習用の `EmptyState` が既にあるので別名で受ける。
 import { EmptyState as EmptyStateCard } from "@/components/EmptyState";
 import { batchEndKind, type ReviewBatchState } from "@/lib/review-batch";
+import { useWebAdSlot, WebAdUnit } from "@/components/WebAdSlot";
+import { onReviewBatchEnd, readWebAdHistory, writeWebAdHistory } from "@/lib/web-ads";
 import {
   Eye,
   Sparkles,
@@ -391,6 +393,35 @@ function ReviewPage() {
   const done = cards && idx >= cards.length;
 
   /**
+   * **Web 版の広告: 復習の束の区切り**（2026-10-03）。AdSense には好きな時に出せる全画面が
+   * 無いので、終わりの画面の**下に**ページの中の枠を1つ置く（ボタンからは離す）。
+   * 何束ごと・間隔・1日の上限は全画面と同じ決まり（`ad-policy.ts` の `decideInterstitial`）。
+   * 束が終わるたびに1回だけ数える（答えていない束は数えない）。
+   */
+  const reviewAd = useWebAdSlot("review_end");
+  const [reviewAdShown, setReviewAdShown] = useState(false);
+  const reviewAdCounted = useRef(false);
+  useEffect(() => {
+    if (!done) {
+      reviewAdCounted.current = false;
+      setReviewAdShown(false);
+      return;
+    }
+    if (reviewAdCounted.current || !reviewAd || tally.answered === 0) return;
+    reviewAdCounted.current = true;
+    const now = Date.now();
+    const r = onReviewBatchEnd({
+      cfg: reviewAd.cfg,
+      isPro: false,
+      accountCreatedAt: reviewAd.accountCreatedAt,
+      now,
+      history: readWebAdHistory(now),
+    });
+    writeWebAdHistory(r.next);
+    setReviewAdShown(r.show);
+  }, [done, reviewAd, tally.answered]);
+
+  /**
    * **束の写真を、届いた時点で全部端末へ**（`warmCachedImages`）。
    * 音は下の `usePrefetchSpeech` が同じことをしている。
    */
@@ -509,28 +540,33 @@ function ReviewPage() {
       ) : !cards?.length ? (
         <EmptyState />
       ) : done ? (
-        <DoneState
-          answered={tally.answered}
-          correct={tally.correct}
-          batch={cap}
-          onAgain={() => {
-            // **憶えた続きも捨てる。** 新しい束が届くので、古い位置を
-            // 残すと「3枚目から始まる」になる。
-            writeMark(null, EMPTY_MARK);
-            restoredFor.current = null;
-            setIdx(0);
-            setTally({ answered: 0, correct: 0 });
-            // 用意しておいた次の束があれば、**読み直さずに**そのまま出す。
-            const next = nextBatch.current;
-            nextBatch.current = null;
-            if (next?.length) {
-              qc.setQueryData(["reviews-due", null], next);
-              return;
-            }
-            replacing.current = true;
-            void refetch();
-          }}
-        />
+        <>
+          <DoneState
+            answered={tally.answered}
+            correct={tally.correct}
+            batch={cap}
+            onAgain={() => {
+              // **憶えた続きも捨てる。** 新しい束が届くので、古い位置を
+              // 残すと「3枚目から始まる」になる。
+              writeMark(null, EMPTY_MARK);
+              restoredFor.current = null;
+              setIdx(0);
+              setTally({ answered: 0, correct: 0 });
+              // 用意しておいた次の束があれば、**読み直さずに**そのまま出す。
+              const next = nextBatch.current;
+              nextBatch.current = null;
+              if (next?.length) {
+                qc.setQueryData(["reviews-due", null], next);
+                return;
+              }
+              replacing.current = true;
+              void refetch();
+            }}
+          />
+          {reviewAdShown && reviewAd && (
+            <WebAdUnit client={reviewAd.client} slot={reviewAd.slot} className="mt-10" />
+          )}
+        </>
       ) : replacing.current && isFetching ? (
         /**
          * **束を「入れ替えている」間だけ待たせる。**
