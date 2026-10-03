@@ -136,3 +136,10 @@ With words collected in Japanese, switch the display language to English and the
 - Japanese UI with Japanese words looks exactly as before (harness `review-choice&lang=ja&mixed=1&photo=1&answer=right`).
 - First run (2026-10-03): before the display language is chosen, `/welcome` and the first question follow the browser language (zh-TW / zh-Hant / zh-HK → 繁體中文, ja → 日本語, otherwise English) and preselect it; a stored choice is never overwritten (harness `first-catch&browser=en-US`).
 - English counts use the singular for 1 (`{n|photo|photos}` in `i18n.tsx`): "1 photo", "met 1 time", "Caught 1 word today".
+
+## Web billing checks (2026-10-03)
+
+- `/pro` logged out: prices come from Stripe (never hard-coded); the button leads to sign-up and back to `/pro`. With the purchase switch off, non-admins see no purchase button.
+- Checkout success returns to Settings with a thank-you notice and Pro turns on within seconds (webhook); cancel shows the "no payment was made" notice. The `?pro=` parameter is removed from the address.
+- A paid Pro user always sees "Manage payments / cancel" in Settings (even with the switch off); it opens the Stripe portal, and cancelling keeps Pro until the end of the paid period (portal set to "cancel at period end").
+- `/legal/commerce`, `/terms`, `/privacy` render in all three UI languages; unset seller fields show the disclose-on-request wording, and the contact email is set before launch.
