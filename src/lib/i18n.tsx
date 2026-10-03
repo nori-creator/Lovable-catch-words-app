@@ -3614,6 +3614,11 @@ export const DICT: Record<string, Record<UiLang, string>> = {
     en: "Simplified to Taiwanese traditional Chinese",
     "zh-TW": "簡體字轉台灣正體字",
   },
+  "sources.pinyinPro": {
+    ja: "台湾華語の読み（拼音・注音）の確認",
+    en: "Checking Taiwan Mandarin readings (pinyin and zhuyin)",
+    "zh-TW": "核對華語讀音（拼音、注音）",
+  },
   // 日本語の読み(2026-10-01)。学ぶ人は英語か繁體中文で読むので、その2つが本番の文言。
   "settings.kana": { ja: "ふりがな", en: "Kana (furigana)", "zh-TW": "假名（振假名）" },
   "settings.romaji": { ja: "ローマ字", en: "Romaji", "zh-TW": "羅馬拼音" },

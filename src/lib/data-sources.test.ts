@@ -65,6 +65,10 @@ describe("使っているデータに出典が付いている", () => {
     expect(sourcesFor("grammar_level").map((s) => s.id)).toContain("cefrj-grammar");
   });
 
+  it("読みの確認 — pinyin-pro（`tw-reading.server.ts`）", () => {
+    expect(sourcesFor("lexicon").map((s) => s.id)).toContain("pinyin-pro");
+  });
+
   it("字の変換 — OpenCC", () => {
     expect(sourcesFor("script").map((s) => s.id)).toContain("opencc");
   });
