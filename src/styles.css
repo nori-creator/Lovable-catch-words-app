@@ -7608,6 +7608,32 @@ html[data-motion="reduce"] .dex-day__card {
     0 2px 6px rgb(0 0 0 / 0.08),
     0 22px 40px -18px rgb(0 0 0 / 0.45);
   backface-visibility: hidden;
+  container-type: inline-size;
+}
+/* 小さな札（320 幅で 128px、360 幅で 165px）。字の段を詰め、写真に場所を残す。
+   日付と場所の行は消さない（2026-10-03 画面の監査: 高さ 0 に潰れていた）。 */
+@container (max-width: 200px) {
+  .dex-cf__body {
+    padding: 0.5rem 0.625rem 0.5625rem;
+  }
+  .dex-cf__headword {
+    font-size: 1.0625rem;
+  }
+  /* 意味は2行まで折る（1行では「タピオカミルク…」で切れていた）。 */
+  .dex-cf__meaning {
+    display: -webkit-box;
+    margin-top: 0.125rem;
+    font-size: var(--text-footnote);
+    line-height: 1.35;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+  }
+  .dex-cf__meta {
+    margin-top: 0.25rem;
+  }
 }
 /* カードの下の青い点（`dotWindow`）。いまの1枚は主色の丸、ほかは薄い丸、
    続きのある端は小さく。押せる所は 24px（点の間を指で狙う物ではないので、
