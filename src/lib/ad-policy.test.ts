@@ -5,6 +5,8 @@ import {
   diarySlots,
   nativeSlots,
   normalizeAdConfig,
+  normalizePublisherId,
+  normalizeSlotId,
   rewardedAvailable,
 } from "./ad-policy";
 
@@ -145,6 +147,55 @@ describe("広告を出すかどうか", () => {
       enabled: true,
       maxPerDay: 3,
       nativeEvery: 12,
+    });
+  });
+});
+
+/** Web 版の広告（AdSense）の番号（2026-10-03「アプリ内の広告が動く 機能するようにしたい。」）。 */
+describe("AdSense の番号の確かめ", () => {
+  it("既定は空（= まだ用意していない）で、広告もオフ", () => {
+    expect(normalizeAdConfig(null)).toMatchObject({
+      enabled: false,
+      adsensePublisherId: "",
+      slotDexInFeed: "",
+      slotDiaryInFeed: "",
+      slotReviewEnd: "",
+    });
+  });
+
+  it("運営者 ID は ca-pub- と数字だけ。pub-… で貼っても直す。前後の空白は削る", () => {
+    expect(normalizePublisherId("ca-pub-1234567890123456")).toBe("ca-pub-1234567890123456");
+    expect(normalizePublisherId("  pub-1234567890123456 ")).toBe("ca-pub-1234567890123456");
+    expect(normalizePublisherId("ca-pub-12ab")).toBe("");
+    expect(normalizePublisherId("ca-app-pub-1234567890123456")).toBe("");
+    expect(normalizePublisherId('ca-pub-1234567890"><script>')).toBe("");
+    expect(normalizePublisherId(1234)).toBe("");
+  });
+
+  it("広告ユニット ID は数字だけ（数でも文字でも）。違えば空", () => {
+    expect(normalizeSlotId("1234567890")).toBe("1234567890");
+    expect(normalizeSlotId(1234567890)).toBe("1234567890");
+    expect(normalizeSlotId(" 1234567890 ")).toBe("1234567890");
+    expect(normalizeSlotId("12345-67890")).toBe("");
+    expect(normalizeSlotId("ca-pub-1")).toBe("");
+    expect(normalizeSlotId(null)).toBe("");
+  });
+
+  it("保存した形を読み直すと、形の違う番号は空になる（他の値は残る）", () => {
+    expect(
+      normalizeAdConfig({
+        enabled: true,
+        adsensePublisherId: "pub-1234567890123456",
+        slotDexInFeed: "111111111",
+        slotDiaryInFeed: "abc",
+        slotReviewEnd: 2222222222,
+      }),
+    ).toMatchObject({
+      enabled: true,
+      adsensePublisherId: "ca-pub-1234567890123456",
+      slotDexInFeed: "111111111",
+      slotDiaryInFeed: "",
+      slotReviewEnd: "2222222222",
     });
   });
 });
