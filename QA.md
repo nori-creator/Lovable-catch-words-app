@@ -139,3 +139,10 @@ With words collected in Japanese, switch the display language to English and the
 - Small phones (2026-10-03): at 320×568 and 360×640 the first questions keep "Next" on screen, the goals list never cuts "Exam preparation / TOCFL", and round choice rows ("10 min", 時刻を指定, 無制限) shrink or wrap instead of "10 …" (`ChoiceRow` measures after layout).
 - First load (2026-10-03): route files export only `Route` (`route-split.test.ts`); after `npx vite build`, root + route preloads stay under ~300 KB gzip for `/welcome`, `/home`, `/dex`. The tutorial's later stages load in the background — walk welcome → questions → ready → home on a slow connection and confirm no blank screen lingers.
 - Collections over 120 items (2026-10-03): Home/Dex show the newest items first and fill in the rest within seconds; search, map and calendar include old items once loaded; saving or deleting does not shrink the Dex while it reloads; at 3,000+ items the truncated notice still appears.
+
+## Shared word content checks (2026-10-03 audit, after applying `20261003130000`–`20261003130200`)
+
+- Catch a word nobody has caught before (photo → pick a candidate → save **immediately**, before the card finishes): the Dex shows its meaning and reading right away; after the card finishes, opening the word shows example, chunks and related words. Same for a typed catch, a scan catch and the guest first catch transferred after sign-in.
+- Open a word whose explanation already exists in your display language: nothing visibly changes after the background fill (shown items are never replaced).
+- Regenerate an example section (↻): the new example never quotes your note, place or diary.
+- Rearrange a home album day with many photos, and from the diary book: the order saves in one go; reload shows the same layout.

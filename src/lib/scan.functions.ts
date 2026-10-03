@@ -229,6 +229,29 @@ export const detectScan = createServerFn({ method: "POST" })
      */
     parsed.items = keepTargetHeadwords(parsed.items, target);
 
+    /**
+     * 見つけた語の意味と読みを控える（監査 2026-10-03 M3、`generated-cards.ts`）。
+     * かざして拾った語を保存すると、新しい共有の語の行はこの控え（か辞書）から中身を取る
+     * — 画面の送った文は使わない。返事は待たせない。
+     */
+    if (parsed.items.length > 0) {
+      const { runAfterResponse } = await import("./after-response");
+      const items = parsed.items;
+      await runAfterResponse("scan: record candidate receipts", async () => {
+        const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+        const { recordGeneratedCards } = await import("./generated-cards");
+        await recordGeneratedCards(
+          supabaseAdmin,
+          items.map((it) => ({
+            language: target,
+            headword: it.headword,
+            kind: "candidate" as const,
+            card: { meaning_ja: it.meaning_ja, reading_zhuyin: it.zhuyin, pinyin: it.pinyin },
+          })),
+        );
+      });
+    }
+
     // 自動で貯まる共有辞書: AIが今調べた読み・意味を蓄積(fire-and-forget)。
     // 次のスキャンからは辞書ヒット=AI再問い合わせゼロで即表示になる。
     // ついでに1日1回の自己改善(辞書監査+ニュースコーパス観察)も起動。

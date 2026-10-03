@@ -5,6 +5,7 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { z } from "zod";
 import { normalizeExtras } from "./extras";
 import { UI_LANGS } from "./i18n";
+import { fillReaderExplanation } from "./shared-word-guard";
 import {
   explanationKey,
   pickExplanation,
@@ -105,34 +106,19 @@ export const getWordExplanation = createServerFn({ method: "GET" })
 /**
  * 解説を共有キャッシュへ置く。
  *
- * **`updateWordExtras` から呼ぶ。** 呼ぶ側は今までどおり extras を送るだけで、
- * その中の `explain_lang` / `explain_l1` から置き場所が決まる。
+ * **`updateWordExtras` から呼ぶ。** 置き場所は `explain_lang` / `l1` の鍵で決まる。
  *
- * 上書きしてよい理由: 鍵が「語 × 解説の言語 × 母語」なので、**同じ鍵の行は
- * 同じ人向けの同じ解説**。他人の別の言語の解説を潰すことはない
- * (これが分ける前と決定的に違う所)。
+ * **空の所だけ埋める**（監査 2026-10-03 H2）。鍵が「語 × 解説の言語 × 母語」なので、
+ * 同じ鍵の行は**同じ言語・同じ母語で読む全員**が見る。前はここで行ごと上書きしていたので、
+ * 札を1枚持てば、その全員の解説を好きな文に変えられた。判断は
+ * `fillReaderExplanation`（`shared-word-guard.ts`）1つ — 行が無ければ置き、在れば空の項目
+ * （と、読む人の言語で書かれていない意味・訳）だけを埋める。
  *
- * ただし**人が確かめた解説は上書きしない**。正確性の担保はそこに載る。
+ * **人が確かめた解説は触らない**。中身を丸ごと作り直して書くのは、サーバが自分で作って
+ * 確かめる道（`runSectionRegen` → `mergeIntoReaderExplanation`）だけ。
  */
 export async function saveWordExplanation(
-  admin: {
-    from: (t: string) => {
-      select: (c: string) => {
-        eq: (
-          k: string,
-          v: string,
-        ) => {
-          eq: (
-            k: string,
-            v: string,
-          ) => {
-            eq: (k: string, v: string) => { maybeSingle: () => Promise<{ data: unknown }> };
-          };
-        };
-      };
-      upsert: (rows: unknown, opts: unknown) => Promise<{ error: { message: string } | null }>;
-    };
-  },
+  admin: unknown,
   input: {
     word_id: string;
     explain_lang: string;
@@ -143,34 +129,60 @@ export async function saveWordExplanation(
   },
 ): Promise<{ saved: boolean; reason?: string }> {
   const key = explanationKey(input.explain_lang, input.l1);
+  const db = admin as SaveDb;
   try {
-    // 人が確かめた解説は触らない。
-    const { data: existing } = await admin
+    const { data: existing, error: readErr } = await db
       .from("word_explanations")
-      .select("source")
+      .select("meaning, example_translation, extras, source")
       .eq("word_id", input.word_id)
       .eq("explain_lang", key.explainLang)
       .eq("l1", key.l1)
       .maybeSingle();
-    if ((existing as { source?: string } | null)?.source === "verified") {
-      return { saved: false, reason: "verified" };
+    if (readErr) {
+      if (/word_explanations/.test(readErr.message)) {
+        console.warn("saveWordExplanation: 表がまだ無い", readErr.message);
+        return { saved: false, reason: "migration" };
+      }
+      // 読めないまま書くと、在る行を上書きしかねない。**書かない。**
+      console.warn("saveWordExplanation: 行を読めない", readErr.message);
+      return { saved: false, reason: "error" };
     }
-    const { error } = await admin.from("word_explanations").upsert(
-      [
-        {
-          word_id: input.word_id,
-          explain_lang: key.explainLang,
-          l1: key.l1,
-          meaning: input.meaning,
-          // 読む人の言語でない訳（例文の写しなど）は貯めない（2026-09-29）。
-          example_translation: readerText(input.example_translation, key.explainLang) || null,
-          extras: input.extras,
-          source: "ai",
-          updated_at: new Date().toISOString(),
-        },
-      ],
-      { onConflict: "word_id,explain_lang,l1" },
+    const write = fillReaderExplanation(
+      existing as Record<string, unknown> | null as never,
+      {
+        meaning: input.meaning,
+        // 読む人の言語でない訳（例文の写しなど）は貯めない（2026-09-29）。
+        example_translation: readerText(input.example_translation, key.explainLang) || null,
+        extras: input.extras,
+      },
+      key.explainLang,
     );
+    if (write.kind === "skip") return { saved: false, reason: write.reason };
+    const now = new Date().toISOString();
+    const { error } =
+      write.kind === "insert"
+        ? await db.from("word_explanations").upsert(
+            [
+              {
+                word_id: input.word_id,
+                explain_lang: key.explainLang,
+                l1: key.l1,
+                meaning: write.row.meaning,
+                example_translation: write.row.example_translation ?? null,
+                extras: write.row.extras,
+                source: "ai",
+                updated_at: now,
+              },
+            ],
+            // 同じ鍵の行が間に作られていたら**そちらを残す**（上書きしない）。
+            { onConflict: "word_id,explain_lang,l1", ignoreDuplicates: true },
+          )
+        : await db
+            .from("word_explanations")
+            .update({ ...write.patch, updated_at: now })
+            .eq("word_id", input.word_id)
+            .eq("explain_lang", key.explainLang)
+            .eq("l1", key.l1);
     if (error) {
       if (/word_explanations/.test(error.message)) {
         // 移行待ち。**黙って飲まない** — 記録には残す。
@@ -187,6 +199,42 @@ export async function saveWordExplanation(
     return { saved: false, reason: "error" };
   }
 }
+
+/** `saveWordExplanation` が触る所だけを書いた緩い形（生成済みの型に無い表があるため）。 */
+type SaveDb = {
+  from: (t: string) => {
+    select: (c: string) => {
+      eq: (
+        k: string,
+        v: string,
+      ) => {
+        eq: (
+          k: string,
+          v: string,
+        ) => {
+          eq: (
+            k: string,
+            v: string,
+          ) => {
+            maybeSingle: () => Promise<{ data: unknown; error: { message: string } | null }>;
+          };
+        };
+      };
+    };
+    upsert: (rows: unknown, opts: unknown) => Promise<{ error: { message: string } | null }>;
+    update: (row: unknown) => {
+      eq: (
+        k: string,
+        v: string,
+      ) => {
+        eq: (
+          k: string,
+          v: string,
+        ) => { eq: (k: string, v: string) => Promise<{ error: { message: string } | null }> };
+      };
+    };
+  };
+};
 
 const MeaningsInput = z.object({
   word_ids: z.array(z.string().uuid()).min(1).max(200),

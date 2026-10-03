@@ -41,7 +41,7 @@ export function writeCachedExplanation<T>(key: string, value: T): void {
   }
 }
 
-function lacksNotes(v: unknown): boolean {
+export function lacksNotes(v: unknown): boolean {
   return (
     Array.isArray(v) && v.every((r) => !String((r as { note?: unknown } | null)?.note ?? "").trim())
   );

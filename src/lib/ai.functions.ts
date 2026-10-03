@@ -27,13 +27,10 @@ import {
 import { readerText, scrubForReader, scrubForeignNotes } from "./note-language";
 import { explanationKey } from "./word-explanation";
 import { mergeIntoReaderExplanation, readReaderExplanation } from "./word-explanation.functions";
-import {
-  worldExampleRule,
-  exampleSourceRule,
-  DIARY_COUNT,
-  type PersonalMaterial,
-} from "./example-sources";
+import { worldExampleRule, sharedExampleSourceRule } from "./example-sources";
 import { CardSchema, CardShapeError, type GeneratedCard } from "./card-schema";
+import { fillSharedWordFromCard, recordGeneratedCards, trustedCardFrom } from "./generated-cards";
+import { runAfterResponse } from "./after-response";
 
 // 形は `card-schema.ts` に移したが、**取り込み元は変えない** —
 // 5箇所が `@/lib/ai.functions` から型を取っている。移した都合を
@@ -131,6 +128,43 @@ const SuggestionSchema = z.object({
     .min(1)
     .max(12),
 });
+
+/**
+ * **候補の意味と読みを控える**（監査 2026-10-03 M3、`generated-cards.ts`）。
+ *
+ * キャッチの画面は候補を選んだ瞬間にその意味でカードを出し、`generateCard` の完成を
+ * 待たずに保存できる。その時に新しく作る共有の語の行は、画面の送った文ではなくこの控えから
+ * 中身を取る。返事は待たせない（人が候補を選んで保存するまでには間がある）。
+ */
+async function recordCandidateReceipts(
+  language: string,
+  items: ReadonlyArray<{
+    headword: string;
+    meaning_ja?: string;
+    reading_zhuyin?: string;
+    pinyin?: string;
+    category_key?: string;
+  }>,
+): Promise<void> {
+  if (items.length === 0) return;
+  await runAfterResponse("record candidate receipts", async () => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    await recordGeneratedCards(
+      supabaseAdmin,
+      items.map((c) => ({
+        language,
+        headword: c.headword,
+        kind: "candidate" as const,
+        card: {
+          meaning_ja: c.meaning_ja,
+          reading_zhuyin: c.reading_zhuyin,
+          pinyin: c.pinyin,
+          category_key: c.category_key,
+        },
+      })),
+    );
+  });
+}
 
 export const suggestWords = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
@@ -261,15 +295,15 @@ ${distinctionRule(profile.promptName, profile.capture.distinctionExamples)}
           heads: parsed.suggestions.map((x) => x.headword).slice(0, 6),
         });
       }
-      return {
-        suggestions: orderByRegister(usable).map((s) => ({
-          // 候補の読みも検める（`tw-reading.server.ts`）。
-          ...correctTaiwanReading(data.targetLanguage, s.headword, s),
-          // 候補の意味も語の長さに（R17「湯咖哩の英語の単語の候補…が長すぎる」）。
-          meaning_ja: shortMeaning(s.meaning_ja),
-          category_key: normalizeCategory(s.headword, s.category_key),
-        })),
-      };
+      const suggestions = orderByRegister(usable).map((s) => ({
+        // 候補の読みも検める（`tw-reading.server.ts`）。
+        ...correctTaiwanReading(data.targetLanguage, s.headword, s),
+        // 候補の意味も語の長さに（R17「湯咖哩の英語の単語の候補…が長すぎる」）。
+        meaning_ja: shortMeaning(s.meaning_ja),
+        category_key: normalizeCategory(s.headword, s.category_key),
+      }));
+      await recordCandidateReceipts(profile.code, suggestions);
+      return { suggestions };
     } catch (e) {
       // **理由を飲まない**(カード生成で踏んだのと同じ)。
       console.warn("suggestWords: 候補の形が合わない", {
@@ -416,6 +450,7 @@ ${langRule}
       .slice(0, 5)
       // 候補の読みも検める（`tw-reading.server.ts`）。
       .map((c) => correctTaiwanReading(data.targetLanguage, c.headword, c));
+    await recordCandidateReceipts(candProfile.code, candidates);
     return { candidates };
   });
 
@@ -825,7 +860,7 @@ ${data.hintCategory ? `カテゴリのヒント: ${data.hintCategory}` : ""}`;
       ).catch(() => null);
       if (picked) categoryKey = normalizeCategory(resolvedHead, picked);
     }
-    return {
+    const out = {
       ...card,
       // **訳は読む人の言語で**（2026-09-29「例文の訳に中文が混ざってる」）。例文の写しや
       // 別の言語で返ってきた訳は落とす（空なら画面は訳を出さず、作り直しが埋める）。
@@ -852,6 +887,41 @@ ${data.hintCategory ? `カテゴリのヒント: ${data.hintCategory}` : ""}`;
         explain_l1: l1Info.code,
       },
     };
+    /**
+     * **作ったカードを控える**（監査 2026-10-03 H2 / M3、`generated-cards.ts`）。
+     *
+     * 保存の道（`saveSticker` → `upsertWord`・`updateWordExtras`）は、画面が送り返して
+     * くる文ではなく、この控えを共有の行に書く。画面はこの返事のすぐ後に保存を呼ぶので、
+     * 控えは**返す前に**残す（1回の書き込み）。
+     *
+     * 既に在る語の行（候補の意味だけで先に保存された語など）の空の所は、返事の後に
+     * このカードで埋める（`fillSharedWordFromCard`、返事は待たせない）。
+     */
+    {
+      const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+      const key = explanationKey(explainLang, l1Info.code);
+      const heads = [data.headword, resolvedHead];
+      await recordGeneratedCards(
+        supabaseAdmin,
+        heads.map((headword) => ({
+          language: cardLanguage,
+          headword,
+          explainLang: key.explainLang,
+          l1: key.l1,
+          kind: "card" as const,
+          card: out,
+        })),
+      );
+      const trusted = trustedCardFrom(out);
+      await runAfterResponse("generateCard: fill shared word", () =>
+        fillSharedWordFromCard(supabaseAdmin, {
+          language: cardLanguage,
+          headwords: heads,
+          card: trusted,
+        }),
+      );
+    }
+    return out;
   });
 
 // --- Phrase cards (§5.2): front = the scene, back = phrase + replies -------
@@ -928,6 +998,15 @@ export const generatePhraseCard = createServerFn({ method: "POST" })
         throw new Error("AI did not return a structured phrase card");
       }
     })();
+    // 意味と読みだけを候補として控える（保存の時に共有の行に入る。`generated-cards.ts`）。
+    await recordCandidateReceipts(phraseProfile.code, [
+      {
+        headword: data.phrase,
+        meaning_ja: shortMeaning(card.meaning_ja),
+        reading_zhuyin: card.reading_zhuyin,
+        pinyin: card.pinyin,
+      },
+    ]);
     return card;
   });
 
@@ -1169,38 +1248,26 @@ async function runSectionRegen(
   // 所有チェック: この語のステッカーを持つユーザーだけが編集できる。
   const { data: owned } = await supabase
     .from("stickers")
-    .select("id, caption, location_name, taken_at")
+    .select("id")
     .eq("user_id", userId)
     .eq("word_id", data.word_id)
-    .order("taken_at", { ascending: false })
     .limit(1)
     .maybeSingle();
   if (!owned) throw new Error("この単語を編集する権限がありません");
 
-  // 例文をその人の記録から作るための材料(オーナー指摘)。
-  // **例文の項目を作り直すときだけ**読む — ほかの項目には要らないし、
-  // 毎回2本の問い合わせを足す理由が無い。
-  let material: PersonalMaterial = {};
-  if (data.section === "example" || data.section === "examples_extra") {
-    const st = owned as {
-      caption?: string | null;
-      location_name?: string | null;
-      taken_at?: string | null;
-    };
-    // 日記が読めなくても例文は作れる。**失敗で全体を落とさない。**
-    const { data: diaryRows } = await supabase
-      .from("journal_entries")
-      .select("user_draft")
-      .eq("user_id", userId)
-      .order("entry_date", { ascending: false })
-      .limit(DIARY_COUNT);
-    material = {
-      caption: st.caption ?? null,
-      place: st.location_name ?? null,
-      takenAt: st.taken_at ?? null,
-      diaries: ((diaryRows ?? []) as Array<{ user_draft: string | null }>).map((d) => d.user_draft),
-    };
-  }
+  /**
+   * **その人の記録（一言・撮った場所と日・日記）は、ここでは読まない**（監査 2026-10-03 H1）。
+   *
+   * 前は例文の項目を作り直すとき、その人の一言・場所・日時と最近の日記3本をプロンプトに
+   * 入れ、「例文のうち1つはこの人の記録から作る」と頼んでいた。ところが作った例文の書き先は
+   * **共有の行**（`words.example_sentence` / `extras.examples_extra` と、同じ言語で読む全員の
+   * `word_explanations`。後者は anon にも読めた）なので、その人の日記や居場所が、同じ語を
+   * 持つ他の人のカードに出ていた。
+   *
+   * 共有の行に書く生成には、個人の材料を一切渡さない（`sharedExampleSourceRule`）。
+   * その人だけの例文が要るなら、書き先をその人の札にする（スピーキングの足場
+   * `stickers.speaking_scaffold` と同じ形）— それまでは作らない。
+   */
 
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   const { data: word, error } = await supabaseAdmin
@@ -1297,7 +1364,7 @@ async function runSectionRegen(
       }),
     },
     example: {
-      prompt: `${base}\nネイティブが「${head}」を使う**いちばん自然で、いちばんよく出会う場面を1つだけ**選び、その場面でそのまま言う例文を1つ。辞書的な作文・説明文にしない。目標レベルは ${regenLevelGoal} — 語彙・文型はこのレベル以下。\n${exampleSourceRule(material, NL, regenProfile.code)}\n${chunkRule(word.language as string | null)}\n{"example_sentence":"${targetName}の例文","example_translation":"訳(${NL})","example_chunks":[{"text":"","pos":""}]}`,
+      prompt: `${base}\nネイティブが「${head}」を使う**いちばん自然で、いちばんよく出会う場面を1つだけ**選び、その場面でそのまま言う例文を1つ。辞書的な作文・説明文にしない。目標レベルは ${regenLevelGoal} — 語彙・文型はこのレベル以下。\n${sharedExampleSourceRule(NL, regenProfile.code)}\n${chunkRule(word.language as string | null)}\n{"example_sentence":"${targetName}の例文","example_translation":"訳(${NL})","example_chunks":[{"text":"","pos":""}]}`,
       schema: z.object({
         example_sentence: z.string().min(1),
         example_translation: z.string().catch(""),
@@ -1307,7 +1374,7 @@ async function runSectionRegen(
       }),
     },
     examples_extra: {
-      prompt: `${base}\n追加の例文2つ。それぞれ scene(いつ・どんな気持ちで言うか)と chunks を付ける。目標レベルは ${regenLevelGoal} — 語彙・文型はこのレベル以下。1つ目の例文と違う場面・気持ちにする。\n${exampleSourceRule(material, NL, regenProfile.code)}\n${chunkRule(word.language as string | null)}\n{"examples_extra":[{"zh":"","ja":"","scene":"","chunks":[{"text":"","pos":""}]}]}`,
+      prompt: `${base}\n追加の例文2つ。それぞれ scene(いつ・どんな気持ちで言うか)と chunks を付ける。目標レベルは ${regenLevelGoal} — 語彙・文型はこのレベル以下。1つ目の例文と違う場面・気持ちにする。\n${sharedExampleSourceRule(NL, regenProfile.code)}\n${chunkRule(word.language as string | null)}\n{"examples_extra":[{"zh":"","ja":"","scene":"","chunks":[{"text":"","pos":""}]}]}`,
       schema: z.object({
         examples_extra: z
           .array(
