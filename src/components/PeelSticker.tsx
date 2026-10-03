@@ -1,4 +1,11 @@
 import { peelGeometry } from "@/lib/peel-geometry";
+import {
+  movePeelDrag,
+  peelOutcome,
+  pointerDrives,
+  startPeelDrag,
+  type PeelDrag,
+} from "@/lib/peel-gesture";
 import { useEffect, useId, useRef, useState, type PointerEvent } from "react";
 import { usePrefersReducedMotion } from "@/hooks/use-reduced-motion";
 import { haptic } from "@/lib/haptics";
@@ -14,8 +21,16 @@ type Props = {
   onPeel: () => void;
 };
 
+/**
+ * 写真の読み込みを待つ上限（ms）。`onload` が来ない端末・壊れた写真でも、札を
+ * はがせないまま置き去りにしない（その時は下に敷いた `<img>` がそのまま見える）。
+ */
+const READY_TIMEOUT = 2500;
+
 /** The photo as a rounded sticker. The peeled half reflects across
- * the drag direction; the back uses the same mask rather than a rectangular fake fold. */
+ * the drag direction; the back uses the same mask rather than a rectangular fake fold.
+ *
+ * 指の動きの決まり（iPhone の Safari ではがせなかった件を含む）は `lib/peel-gesture.ts`。 */
 export function PeelSticker({
   photoUrl,
   label,
@@ -27,22 +42,26 @@ export function PeelSticker({
   const id = useId().replace(/:/g, "");
   const reduced = usePrefersReducedMotion();
   const [loaded, setLoaded] = useState<string | null>(null);
-  const [pose, setPose] = useState({ p: 0, x: 0, y: 0 });
+  const [pose, setPoseState] = useState({ p: 0, x: 0, y: 0 });
   const [angle, setAngle] = useState(Math.PI / 4);
   const [held, setHeld] = useState(false);
   const [committed, setCommitted] = useState(false);
-  const drag = useRef<{
-    id: number;
-    x: number;
-    y: number;
-    width: number;
-    p: number;
-    angle: number | null;
-  } | null>(null);
+  const drag = useRef<PeelDrag | null>(null);
+  const button = useRef<HTMLButtonElement>(null);
   const frame = useRef(0);
   const artwork = photoUrl;
   const ready = !!artwork && loaded === artwork;
   const url = (name: string) => `url(#${id}-${name})`;
+  /**
+   * 最新の値。Touch の受け口は `addEventListener` で付ける（React の `onTouchMove` は
+   * passive なので `preventDefault()` が効かない）ため、描画ごとの値をここから読む。
+   */
+  const live = useRef({ disabled, committed, ready, reduced, angle, pose, onPeel });
+  live.current = { disabled, committed, ready, reduced, angle, pose, onPeel };
+  const setPose = (next: { p: number; x: number; y: number }) => {
+    live.current.pose = next;
+    setPoseState(next);
+  };
   useEffect(() => {
     setLoaded(null);
     setPose({ p: 0, x: 0, y: 0 });
@@ -52,13 +71,18 @@ export function PeelSticker({
     cancelAnimationFrame(frame.current);
     if (!artwork) return;
     let alive = true;
-    const image = new Image();
-    image.onload = () => {
+    const done = () => {
       if (alive) setLoaded(artwork);
     };
+    const image = new Image();
+    image.onload = done;
+    // 読めなかった・知らせが来ない時も、はがせる面は出す（写真は下の `<img>` が見せる）。
+    image.onerror = done;
+    const timer = setTimeout(done, READY_TIMEOUT);
     image.src = artwork;
     return () => {
       alive = false;
+      clearTimeout(timer);
     };
   }, [artwork]);
   useEffect(() => () => cancelAnimationFrame(frame.current), []);
@@ -76,11 +100,12 @@ export function PeelSticker({
   }, [disabled, committed]);
   function settle(target: number) {
     cancelAnimationFrame(frame.current);
-    if (reduced) {
+    if (live.current.reduced) {
       setPose({ p: target, x: 0, y: 0 });
       return;
     }
-    const from = { ...pose, p: drag.current?.p ?? pose.p };
+    const current = live.current.pose;
+    const from = { ...current, p: drag.current?.p ?? current.p };
     const start = performance.now();
     const tick = (now: number) => {
       const t = Math.min(1, (now - start) / 520);
@@ -95,61 +120,148 @@ export function PeelSticker({
     frame.current = requestAnimationFrame(tick);
   }
   function commit() {
-    if (disabled || committed || !ready) return;
+    const state = live.current;
+    if (state.disabled || state.committed || !state.ready) return;
+    live.current.committed = true;
     setCommitted(true);
     haptic("medium");
     settle(1);
     // Keep the gesture intact for native/photo-library APIs and existing save.
-    onPeel();
+    state.onPeel();
+  }
+  function canStart() {
+    const state = live.current;
+    return !state.disabled && !state.committed && state.ready;
+  }
+  function begin(next: PeelDrag) {
+    cancelAnimationFrame(frame.current);
+    drag.current = next;
+    setHeld(true);
+  }
+  function update(x: number, y: number) {
+    const d = drag.current;
+    if (!d) return;
+    const { p, angle: chosen } = movePeelDrag(d, x, y, live.current.angle);
+    if (chosen !== null && chosen !== live.current.angle) {
+      live.current.angle = chosen;
+      setAngle(chosen);
+    }
+    setPose({ p: live.current.reduced ? 0 : p, x: 0, y: 0 });
+  }
+  function finish(cancelled: boolean) {
+    const d = drag.current;
+    if (!d) return;
+    drag.current = null;
+    setHeld(false);
+    if (peelOutcome(d, performance.now(), cancelled) === "commit") commit();
+    else settle(0);
   }
   function down(e: PointerEvent<HTMLButtonElement>) {
     e.stopPropagation();
-    if (disabled || committed || !ready || !e.isPrimary || e.button !== 0) return;
-    cancelAnimationFrame(frame.current);
-    e.currentTarget.setPointerCapture(e.pointerId);
-    drag.current = {
-      id: e.pointerId,
-      x: e.clientX,
-      y: e.clientY,
-      width: e.currentTarget.clientWidth,
-      p: 0,
-      angle: null,
-    };
-    setHeld(true);
-    haptic("selection");
+    if (!canStart() || !e.isPrimary || e.button !== 0) return;
+    // Touch Events が先に始めた引っ張り（`touchstart` が先に来る端末）は、そのまま続ける。
+    if (drag.current?.touch != null) return;
+    // 指（touch）は Touch Events が来ればそちらへ渡す（`touchstart` が `touch` を埋める）。
+    try {
+      e.currentTarget.setPointerCapture(e.pointerId);
+    } catch {
+      /* 捕まえられない端末でも、引っ張りは続ける */
+    }
+    begin(
+      startPeelDrag({
+        id: e.pointerId,
+        x: e.clientX,
+        y: e.clientY,
+        width: e.currentTarget.clientWidth,
+        now: performance.now(),
+      }),
+    );
+    // 指で触れた瞬間に震わせるのは Pointer の時だけ。iPhone の Safari の触覚
+    // （`haptics.ts` の見えないスイッチを押す）は、引いている指の最中に挟まない。
+    if (e.pointerType !== "touch") haptic("selection");
   }
   function move(e: PointerEvent<HTMLButtonElement>) {
     e.stopPropagation();
-    const d = drag.current;
-    if (!d || d.id !== e.pointerId) return;
-    const dx = e.clientX - d.x,
-      dy = e.clientY - d.y;
-    if (d.angle === null && Math.hypot(dx, dy) > 5) {
-      d.angle = Math.atan2(dy, dx);
-      setAngle(d.angle);
-    }
-    const direction = d.angle ?? angle;
-    const p = Math.max(
-      0,
-      Math.min(1, (dx * Math.cos(direction) + dy * Math.sin(direction)) / (d.width * 1.75)),
-    );
-    d.p = p;
-    setPose({
-      p: reduced ? 0 : p,
-      x: 0,
-      y: 0,
-    });
+    if (!pointerDrives(drag.current, e.pointerId)) return;
+    update(e.clientX, e.clientY);
   }
   function release(e: PointerEvent<HTMLButtonElement>, cancelled = false) {
     e.stopPropagation();
-    if (drag.current?.id !== e.pointerId) return;
-    if (!cancelled && drag.current.p >= 0.32) commit();
-    else settle(0);
-    drag.current = null;
-    setHeld(false);
-    if (e.currentTarget.hasPointerCapture(e.pointerId))
+    if (!pointerDrives(drag.current, e.pointerId)) return;
+    finish(cancelled);
+    if (e.currentTarget.hasPointerCapture?.(e.pointerId))
       e.currentTarget.releasePointerCapture(e.pointerId);
   }
+  /**
+   * **指は Touch Events でも追う**（iPhone の Safari、`lib/peel-gesture.ts`）。
+   * 受け口は `passive: false` — 引いている間の `touchmove` を止めないと、iOS は画面を
+   * 巻き取り始めて Pointer の引っ張りを `pointercancel` で切る。
+   */
+  useEffect(() => {
+    const el = button.current;
+    if (!el || !ready) return;
+    const find = (list: TouchList, identifier: number | null) => {
+      for (let i = 0; i < list.length; i++) {
+        const t = list.item(i);
+        if (t && (identifier === null || t.identifier === identifier)) return t;
+      }
+      return null;
+    };
+    const start = (e: TouchEvent) => {
+      const t = e.changedTouches.item(0);
+      if (!t) return;
+      const d = drag.current;
+      if (d && d.touch === null) {
+        // Pointer で始まった同じ指。ここからは Touch の側で動かす。
+        d.touch = t.identifier;
+        return;
+      }
+      if (d || e.touches.length > 1 || !canStart()) return;
+      // Pointer Events が来ない端末: Touch だけで始める。
+      begin(
+        startPeelDrag({
+          id: -1 - t.identifier,
+          touch: t.identifier,
+          x: t.clientX,
+          y: t.clientY,
+          width: el.clientWidth,
+          now: performance.now(),
+        }),
+      );
+    };
+    const moveTouch = (e: TouchEvent) => {
+      const d = drag.current;
+      if (!d || d.touch === null) return;
+      const t = find(e.changedTouches, d.touch);
+      if (!t) return;
+      // 巻き取り・ゴムの伸び・拡大を止める（引いている指は、シールだけが受ける）。
+      if (e.cancelable) e.preventDefault();
+      e.stopPropagation();
+      update(t.clientX, t.clientY);
+    };
+    const end = (cancelled: boolean) => (e: TouchEvent) => {
+      const d = drag.current;
+      if (!d || d.touch === null || !find(e.changedTouches, d.touch)) return;
+      // 指を離した後の作り物の click（カードを裏返す親の onClick）を出さない。
+      if (e.cancelable) e.preventDefault();
+      e.stopPropagation();
+      finish(cancelled);
+    };
+    const touchEnd = end(false);
+    const touchCancel = end(true);
+    el.addEventListener("touchstart", start, { passive: false });
+    el.addEventListener("touchmove", moveTouch, { passive: false });
+    el.addEventListener("touchend", touchEnd, { passive: false });
+    el.addEventListener("touchcancel", touchCancel, { passive: false });
+    return () => {
+      el.removeEventListener("touchstart", start);
+      el.removeEventListener("touchmove", moveTouch);
+      el.removeEventListener("touchend", touchEnd);
+      el.removeEventListener("touchcancel", touchCancel);
+    };
+    // 受け口は面が出た時に1回だけ付ける。中の値は `live` から読む。
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ready]);
   const fold = peelGeometry(pose.p, angle);
   return (
     <div
@@ -166,6 +278,7 @@ export function PeelSticker({
       {ready && (
         <>
           <button
+            ref={button}
             type="button"
             className="cw-peel-touch"
             aria-label={`${label}: ${actionLabel}`}
@@ -174,9 +287,7 @@ export function PeelSticker({
             onPointerMove={move}
             onPointerUp={(e) => release(e)}
             onPointerCancel={(e) => release(e, true)}
-            onLostPointerCapture={(e) => {
-              if (drag.current?.id === e.pointerId) release(e, true);
-            }}
+            onLostPointerCapture={(e) => release(e, true)}
             onClick={(e) => {
               e.stopPropagation();
               if (e.detail === 0) commit();

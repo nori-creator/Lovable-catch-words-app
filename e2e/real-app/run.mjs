@@ -22,6 +22,7 @@
  *   LANGS        表示言語（既定 ja,en,zh-TW）
  *   TARGETS      学習言語（既定 zh-TW,zh-TW,en。表示言語ごとに順に当てる）
  *   BROWSERS     chromium,webkit（webkit = iPhone の Safari と同じ描画の仕組み）
+ *   TOUCH        1 なら Chromium でも指で操作する（WebKit はいつも指。`touch.mjs`）
  *   E2E_EMAIL / E2E_PASSWORD  試験用アカウント。あればログイン後の画面も回る
  *   OUT          出力先（既定 e2e-report）
  *   CHROMIUM_PATH  Chromium の場所を明示するとき
@@ -31,6 +32,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { chromium, webkit, devices } from "playwright";
 import { writeReport } from "./report.mjs";
+import { touchDrag, touchTap } from "./touch.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const BASE_URL = (process.env.BASE_URL || "https://catchwords.lovable.app").replace(/\/$/, "");
@@ -50,6 +52,30 @@ const PHOTO_BYTES = fs.readFileSync(path.join(here, "../../public/first-catch-ca
 const PHOTO = `data:image/webp;base64,${PHOTO_BYTES.toString("base64")}`;
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+/**
+ * **指で操作する画面**（WebKit = iPhone の Safari の代わり）。2026-10-03 の実機の報告
+ * 「シールがはがせない・図鑑に追加できない」は、マウスで押す自動操作では出なかった —
+ * iOS は指で引いた時だけ画面の巻き取りに回して `pointercancel` を送る。WebKit の回は
+ * 押す・はがすを指で行い、iOS と同じく引き始めで `pointercancel` を送る（`IOS_POINTER_CANCEL`）。
+ */
+const touchPages = new WeakSet();
+const IOS_POINTER_CANCEL = `(() => {
+  const sent = new Set();
+  document.addEventListener("pointermove", (e) => {
+    if (e.pointerType !== "touch" || !e.isTrusted || sent.has(e.pointerId)) return;
+    sent.add(e.pointerId);
+    e.target.dispatchEvent(new PointerEvent("pointercancel", {
+      pointerId: e.pointerId, pointerType: "touch", isPrimary: true, bubbles: true,
+    }));
+  }, true);
+})();`;
+
+/** 押す。指の画面では指で（`touchscreen.tap`）、ほかはマウスで。 */
+async function press(page, x, y) {
+  if (touchPages.has(page)) await touchTap(page, x, y);
+  else await page.mouse.click(x, y);
+}
 
 /** 1回分（ブラウザ × 表示言語 × 学習言語）の記録。 */
 function newRun(browserName, lang, target, scenario) {
@@ -250,7 +276,8 @@ async function step(page, run) {
   // 1) 案内の札の「次へ」。
   const next = page.locator(".tour-coach__next");
   if (await next.isVisible().catch(() => false)) {
-    await next.click();
+    if (touchPages.has(page)) await next.tap();
+    else await next.click();
     return "案内の次へ";
   }
   // 2) 最初の質問（表示言語・学習言語・時間・目的・興味）。
@@ -377,11 +404,33 @@ async function step(page, run) {
     .catch(() => null);
   if (ring) {
     if (ring.primary) {
-      await page.mouse.click(ring.primary.x, ring.primary.y);
+      await press(page, ring.primary.x, ring.primary.y);
       return "案内の枠の中の次へ";
     }
     if (ring.peel || ring.gesture === "peel") {
-      // シールをはがす: 右下の角から左上へ引く。
+      // シールをはがす: 右下の角から左上へ引く。指の画面では指で（iPhone の Safari と同じ道）。
+      if (touchPages.has(page)) {
+        const from = { x: ring.x + ring.w * 0.4, y: ring.y + ring.h * 0.4 };
+        const to = { x: ring.x - ring.w * 0.44, y: ring.y - ring.h * 0.44 };
+        const used = await touchDrag(page, from, to, { steps: 12, stepMs: 30 });
+        // はがれたか（はがれると札が閉じ、着地の演出が始まる）。はがれなければ記録に残す。
+        const peeled = await page
+          .waitForFunction(
+            () =>
+              !!document.querySelector('.cw-peel[data-committed="true"], #reward-catch') ||
+              !document.querySelector('[data-tour="peel"]'),
+            null,
+            { timeout: 4000 },
+          )
+          .then(() => true)
+          .catch(() => false);
+        if (!peeled)
+          run.console.push({
+            type: "指の操作",
+            text: `指（${used}）で引いてもシールがはがれない（iPhone の Safari の報告と同じ症状）`,
+          });
+        return `シールをはがす（${used === "touch" ? "指" : "マウス"}）`;
+      }
       await page.mouse.move(ring.x + ring.w * 0.4, ring.y + ring.h * 0.4);
       await page.mouse.down();
       for (let i = 1; i <= 12; i++) {
@@ -408,11 +457,11 @@ async function step(page, run) {
       return "写真を横にめくる";
     }
     if (ring.tap) {
-      await page.mouse.click(ring.tap.x, ring.tap.y);
+      await press(page, ring.tap.x, ring.tap.y);
       return `案内の印を押す${ring.tap.name ? `（${ring.tap.name}）` : ""}`;
     }
     const at = ring.btn ?? ring;
-    await page.mouse.click(at.x, at.y);
+    await press(page, at.x, at.y);
     return `案内の枠を押す${ring.btn?.name ? `（${ring.btn.name}）` : ""}`;
   }
   // 4) 撮る前の一枚（チュートリアルで、カメラの許可がまだの時）: 「カメラを使う」。
@@ -603,6 +652,7 @@ async function runOne(browserType, browserName, lang, target, scenario) {
   const context = await browser.newContext({
     ...device,
     // Chromium は iPhone の名乗りをしても isMobile が効かない版があるので、画面の形だけ借りる。
+    // WebKit は機種の設定（iPhone 13 = isMobile・hasTouch）のまま。押す・はがすは指で（`touch.mjs`）。
     ...(browserName === "chromium" ? { isMobile: true, hasTouch: true } : {}),
     locale: { ja: "ja-JP", en: "en-US", "zh-TW": "zh-TW" }[lang] ?? "ja-JP",
     timezoneId: "Asia/Taipei",
@@ -620,7 +670,10 @@ async function runOne(browserType, browserName, lang, target, scenario) {
     );
   }
   await context.addInitScript(INSTRUMENT);
+  const touch = browserName === "webkit" || process.env.TOUCH === "1";
+  if (touch) await context.addInitScript(IOS_POINTER_CANCEL);
   const page = await context.newPage();
+  if (touch) touchPages.add(page);
   page.on("console", (m) => {
     if (m.type() === "error" || m.type() === "warning")
       run.console.push({ type: m.type(), text: m.text().slice(0, 300) });
