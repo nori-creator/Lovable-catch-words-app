@@ -57,6 +57,100 @@ export function planChangeFromEvent(
   return null;
 }
 
+/** Stripe の API を GET で読む（`/v1/...`）。失敗は投げる（知らせの受け口が 500 を返し、Stripe が送り直す）。 */
+export type StripeGet = (path: string) => Promise<unknown>;
+
+type StripeSubscription = {
+  id?: unknown;
+  status?: unknown;
+  customer?: unknown;
+  metadata?: Record<string, unknown> | null;
+};
+
+const strOrNull = (v: unknown): string | null => (typeof v === "string" && v ? v : null);
+
+/**
+ * **知らせの順番を信じない**（監査 2026-10-03）。Stripe は知らせを順番どおりに届ける
+ * 約束をしていない — 「解約」の後に古い「更新（active）」が届くと、解約した人が Pro に
+ * 戻っていた。知らせは「誰の・どの定期購入か」を知るためだけに使い、**状態はその場で
+ * Stripe から読み直す**（`GET /v1/subscriptions/:id`）。
+ *
+ * - その定期購入が active / trialing なら Pro
+ * - そうでなければ、同じ人の**ほかの**定期購入（`metadata.user_id` で検索）に
+ *   active / trialing が在れば Pro（2つ買って片方を解約した人を無料に落とさない）。
+ *   検索が使えないときはその定期購入の状態で決める。
+ * - 定期購入の `metadata.user_id` が知らせの人と違えば何もしない（取り違えを書かない）
+ *
+ * 関係ない知らせ・人の分からない知らせは null。
+ */
+export async function resolvePlanChange(
+  event: unknown,
+  stripeGet: StripeGet,
+): Promise<{ userId: string; plan: Plan; customer: string | null } | null> {
+  if (!event || typeof event !== "object") return null;
+  const e = event as { type?: string; data?: { object?: Record<string, unknown> } };
+  const o = e.data?.object ?? {};
+  const meta = (o.metadata ?? {}) as Record<string, unknown>;
+  let userId: string | null;
+  let subId: string | null;
+  if (e.type === "checkout.session.completed") {
+    userId = strOrNull(o.client_reference_id) ?? strOrNull(meta.user_id);
+    const sub = o.subscription;
+    subId =
+      strOrNull(sub) ??
+      (sub && typeof sub === "object" ? strOrNull((sub as { id?: unknown }).id) : null);
+  } else if (
+    e.type === "customer.subscription.created" ||
+    e.type === "customer.subscription.updated" ||
+    e.type === "customer.subscription.deleted"
+  ) {
+    userId = strOrNull(meta.user_id);
+    subId = strOrNull(o.id);
+  } else {
+    return null;
+  }
+  if (!userId || !subId) return null;
+
+  const sub = (await stripeGet(
+    `/v1/subscriptions/${encodeURIComponent(subId)}`,
+  )) as StripeSubscription | null;
+  if (!sub || typeof sub !== "object") throw new Error("stripe: subscription not readable");
+  const owner = strOrNull(sub.metadata?.user_id);
+  if (owner && owner !== userId) return null;
+  const customer = strOrNull(sub.customer);
+  const status = strOrNull(sub.status);
+  if (planFromSubscriptionStatus(status) === "pro") return { userId, plan: "pro", customer };
+
+  // この定期購入は有効でない。同じ人のほかの定期購入を確かめる。
+  try {
+    const q = encodeURIComponent(`metadata['user_id']:'${userId.replace(/'/g, "")}'`);
+    const found = (await stripeGet(`/v1/subscriptions/search?query=${q}&limit=100`)) as {
+      data?: StripeSubscription[];
+    } | null;
+    const other = (found?.data ?? []).some(
+      (s) =>
+        strOrNull(s.id) !== subId &&
+        strOrNull(s.metadata?.user_id) === userId &&
+        planFromSubscriptionStatus(strOrNull(s.status)) === "pro",
+    );
+    if (other) return { userId, plan: "pro", customer };
+  } catch {
+    // 検索が使えない。読み直したこの定期購入の状態で決める。
+  }
+  return { userId, plan: "free", customer };
+}
+
+/** Stripe の秘密鍵で GET する（`resolvePlanChange` に渡す形）。 */
+export function stripeGetWith(secretKey: string, fetchImpl: typeof fetch = fetch): StripeGet {
+  return async (path) => {
+    const res = await fetchImpl(`https://api.stripe.com${path}`, {
+      headers: { Authorization: `Bearer ${secretKey}` },
+    });
+    if (!res.ok) throw new Error(`stripe ${res.status}`);
+    return res.json();
+  };
+}
+
 /**
  * 知らせが本当に Stripe から来たかを確かめる（Stripe の公式の方式）。
  *

@@ -1677,6 +1677,16 @@ export const DICT: Record<string, Record<UiLang, string>> = {
     en: "You've reached today's limit. It resets automatically within 24 hours.",
     "zh-TW": "已達今日使用上限，24 小時內會自動恢復。",
   },
+  "err.aiBusy": {
+    ja: "本日のAIの利用が上限に達しました。時間をおいてもう一度お試しください。",
+    en: "AI features have reached today's limit. Please try again later.",
+    "zh-TW": "今天的 AI 使用量已達上限，請稍後再試。",
+  },
+  "err.usageCheck": {
+    ja: "利用回数を確認できませんでした。少し待ってからもう一度お試しください。",
+    en: "We couldn't check your usage just now. Please try again in a moment.",
+    "zh-TW": "目前無法確認使用次數，請稍候再試一次。",
+  },
   "err.proOnly": {
     ja: "Pro 限定の機能です",
     en: "This is a Pro feature",
