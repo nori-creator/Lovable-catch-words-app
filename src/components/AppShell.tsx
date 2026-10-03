@@ -279,17 +279,7 @@ export function AppShell({
   useSwipeBack({ enabled: tabIndex < 0, onBack: () => router.history.back() });
   // 指の位置(小数)。バーの印と色はこれ1つから決まる。
   const cursor = tabIndex < 0 ? -1 : tabIndex + progress;
-  /**
-   * **カメラの升目には印を乗せない**（オーナー指示 2026-09-15
-   * 「青いバブルで囲うのではなく、カメラのアイコンの中の色を変えてほしい」）。
-   *
-   * 出す・消すの2値にしない。指で払っている最中はカメラの上を**通過する**
-   * ので、2値だと真ん中で印がぱっと消えてぱっと戻る。近づくほど薄れ、
-   * 離れるほど戻る濃さで渡せば、通り過ぎる動き自体は途切れない。
-   * 0.85 升ぶん手前から薄れ始める。
-   */
-  const cameraIndex = items.findIndex((i) => i.to === "/capture");
-  const indicatorOpacity = cursor < 0 ? 0 : Math.min(1, Math.abs(cursor - cameraIndex) / 0.85);
+  // カメラの升目で印を薄める決まりは `AppNavigation` が持つ（チュートリアルの殻と同じ1箇所）。
 
   /**
    * **プロフィールの言語設定を端末に写す。**
@@ -352,7 +342,6 @@ export function AppShell({
       navigation={
         <AppNavigation
           cursor={cursor}
-          indicatorOpacity={indicatorOpacity}
           onCamera={onCameraScreen}
           renderLink={({ to }, _index, props) => {
             const isScan = to === "/capture";
@@ -485,7 +474,10 @@ export function AppShellFrame({
                 アイコンを押した人は必ずホームへ飛ばされていた。
                 行き先は名前のほうが持つ。 */}
               {brandMenu ?? <BrandMark />}
-              <Link to="/home" className="transition-transform duration-150 active:scale-95">
+              <Link
+                to="/home"
+                className="app-title-link transition-transform duration-150 active:scale-95"
+              >
                 {/* §15: app title is a small headline — tight tracking, no wrapping.
                   **ここは h1 にしない。** 一度 h1 にしたが、ホーム・復習・
                   単語カードにはすでに h1 があるので、**全ページが h1 を2つ

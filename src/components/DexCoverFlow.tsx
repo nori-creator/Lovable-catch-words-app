@@ -560,7 +560,9 @@ function CardFace({
   const date = new Date(s.taken_at);
   return (
     <>
-      <span className="relative block h-[64%] w-full overflow-hidden bg-secondary">
+      {/* 写真は 64% を目安に、字の段が入りきらない小さな札（320・360 幅）では写真の方が縮む。
+          前は字の段が縮み、日付と場所の行が高さ 0 になって消えていた（2026-10-03 画面の監査）。 */}
+      <span className="relative block h-[64%] min-h-0 w-full shrink overflow-hidden bg-secondary">
         {photo ? (
           <CachedImg
             src={photo}
@@ -579,27 +581,29 @@ function CardFace({
         </span>
         {mem && <MemoryBadge info={mem} className="absolute right-2 top-2" />}
       </span>
-      <span className="flex min-h-0 flex-1 flex-col justify-between p-3.5">
+      <span className="dex-cf__body flex flex-1 shrink-0 flex-col justify-between p-3.5">
         <span className="block min-w-0">
           {zhuyinUnits ? (
             <ZhuyinWord
               units={zhuyinUnits}
               lang={s.word.language}
-              className="block text-title font-bold leading-tight"
+              className="dex-cf__headword block text-title font-bold leading-tight"
             />
           ) : (
-            <Zh className="block truncate text-title font-bold leading-tight">{s.word.headword}</Zh>
+            <Zh className="dex-cf__headword block truncate text-title font-bold leading-tight">
+              {s.word.headword}
+            </Zh>
           )}
           {reading && !zhuyinUnits && (
             <span className="mt-0.5 block truncate text-footnote text-muted-foreground">
               {reading}
             </span>
           )}
-          <span className="mt-1 block truncate text-body">
+          <span className="dex-cf__meaning mt-1 block truncate text-body">
             <ReaderMeaning text={s.word.meaning_ja} wordId={s.word_id} />
           </span>
         </span>
-        <span className="mt-2 flex items-center gap-1.5 truncate text-caption text-muted-foreground">
+        <span className="dex-cf__meta mt-2 flex min-w-0 shrink-0 items-center gap-1.5 overflow-hidden whitespace-nowrap text-caption text-muted-foreground">
           <span className="shrink-0 tabular-nums">
             {Number.isNaN(date.getTime())
               ? ""

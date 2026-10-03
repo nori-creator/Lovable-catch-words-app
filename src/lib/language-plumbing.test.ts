@@ -3269,10 +3269,14 @@ describe("N. 下のタブ帯と、札を開く動き", () => {
    * 2値だと真ん中で印がぱっと消えてぱっと戻る。
    */
   it("カメラの升目に近づくと印が薄れる（2値で消さない）", () => {
-    const shell = codeOnly(read("components/AppShell.tsx"));
-    expect(shell).toMatch(/const cameraIndex = items\.findIndex\(\(i\) => i\.to === "\/capture"\)/);
-    expect(shell).toMatch(/Math\.abs\(cursor - cameraIndex\)/);
-    expect(shell).toMatch(/indicatorOpacity=\{indicatorOpacity\}/);
+    // 決まりは `AppNavigation` の1箇所（アプリの殻とチュートリアルの殻の両方が通る。
+    // 2026-10-03 画面の監査: チュートリアルの失敗の面で印が図鑑とカメラの間に残っていた）。
+    const nav = codeOnly(read("components/AppNavigation.tsx"));
+    expect(nav).toMatch(
+      /const CAMERA_INDEX = APP_NAV_ITEMS\.findIndex\(\(i\) => i\.to === "\/capture"\)/,
+    );
+    expect(nav).toMatch(/Math\.abs\(cursor - CAMERA_INDEX\) \/ 0\.85/);
+    expect(nav).toMatch(/indicatorOpacity=\{Math\.min\(indicatorOpacity, cameraFade\)\}/);
     // 印の側も濃さを受け取れること。
     expect(codeOnly(read("components/SlidingIndicator.tsx"))).toMatch(/opacity = 1,/);
   });
@@ -5443,9 +5447,12 @@ describe("スキャンの後の下の段（オーナー指摘 2026-09-22）", ()
         /pb-\[calc\(7\.5rem\+env\(safe-area-inset-bottom\)\)\]/,
       );
     }
+    // 端の近くの印は札を内側へ折り返し（右の4分の1は右端揃え・左の4分の1は左端揃え）、
+    // そのうえで枠の端から 4px より外へは出さない（2026-10-03 画面の監査）。
     expect(scan).toMatch(
-      /clamp\(\$\{4 - dotX\}px, -50%, calc\(\$\{boxWidth - 4 - dotX\}px - 100%\)\) 0/,
+      /clamp\(\$\{4 - dotX\}px, \$\{base\}, calc\(\$\{boxWidth - 4 - dotX\}px - 100%\)\) 0/,
     );
+    expect(scan).toMatch(/side === "end" \? "calc\(-100% \+ 22px\)"/);
     expect(scan).toMatch(/boxWidth=\{boxSize\.w\}/);
   });
 

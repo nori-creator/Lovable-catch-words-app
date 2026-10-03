@@ -201,9 +201,11 @@ function HeroWord({
               className="mt-0.5 block text-footnote text-muted-foreground"
             />
           )}
-          <span className="mt-1 line-clamp-2 block break-words text-body text-muted-foreground">
-            {c.meaning_ja}
-          </span>
+          {c.meaning_ja && (
+            <span className="mt-1 line-clamp-2 block break-words text-body text-muted-foreground">
+              {c.meaning_ja}
+            </span>
+          )}
           {c.distinction && (
             <span className="mt-0.5 line-clamp-2 block break-words text-footnote text-primary-ink">
               {c.distinction}
@@ -279,9 +281,12 @@ function WordLine({
           className="block text-caption text-muted-foreground"
         />
       )}
-      <span className="line-clamp-2 block break-words text-footnote text-muted-foreground">
-        {c.meaning_ja}
-      </span>
+      {/* 表示言語の意味が無い時は空（別の言語の意味は出さない）。空の行は描かない。 */}
+      {c.meaning_ja && (
+        <span className="line-clamp-2 block break-words text-footnote text-muted-foreground">
+          {c.meaning_ja}
+        </span>
+      )}
       {note && c.distinction && (
         <span className="line-clamp-2 block break-words text-caption text-primary-ink">
           {c.distinction}

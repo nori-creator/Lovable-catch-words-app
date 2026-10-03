@@ -25,6 +25,11 @@ async function previewRequest(data: FirstCatchAIRequest): Promise<unknown> {
   return body;
 }
 async function preparePreview() {
+  // `?fail=guest` / `?fail=network`: 登録前の分析が使えない時の札（「見本で体験を続ける」が
+  // 出て、押すと見本の写真と単語で続く）を、撮る・写真を選ぶだけで確かめられるように。
+  const fail = new URLSearchParams(location.search).get("fail");
+  if (fail === "guest") throw new Error("FIRST_CATCH_GUEST_UNAVAILABLE");
+  if (fail === "network") throw new Error("FIRST_CATCH_NETWORK");
   const response = await fetch("/api/first-catch", { signal: AbortSignal.timeout(8000) });
   if (!response.ok || !(await response.json()).available)
     throw new Error("FIRST_CATCH_PREVIEW_UNAVAILABLE");
