@@ -275,7 +275,7 @@ describe("画面の道が関所を通っている（ソースの形）", () => {
       /rows = rows\.filter\(\(r\) => headwordMatchesTarget\(r\.words\?\.headword, targetLanguage\)\)/,
     );
     expect(read("lib/reviews.functions.ts")).toMatch(
-      /\.filter\(\(r\) => wordBelongsToTarget\(r\.stickers\?\.words, targetLanguage\)\)\s*\.slice\(0, fetchLimit\)/,
+      /\.filter\(\(r\) => wordBelongsToTarget\(r\.stickers\?\.words, targetLanguage\)\);[\s\S]{0,800}?ordered\.slice\(0, fetchLimit\)/,
     );
     expect(read("components/screens/ReviewScreen.tsx")).toMatch(
       /batch\.cards\.every\(\(c\) => wordBelongsToTarget\(c, target\)\)/,
