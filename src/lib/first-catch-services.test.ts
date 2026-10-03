@@ -34,8 +34,8 @@ describe("first photo on iOS-like browsers", () => {
     vi.stubGlobal("window", { setTimeout, clearTimeout });
     const photo = await firstCatchPhoto({ type: "image/heic", size: 1024 } as File);
     expect(photo).toMatch(/^data:image\/jpeg;base64,/);
-    expect(canvas.width).toBe(1280);
-    expect(canvas.height).toBe(853);
+    expect(canvas.width).toBe(1024);
+    expect(canvas.height).toBe(683);
     expect(drawImage).toHaveBeenCalledOnce();
     expect(revoke).toHaveBeenCalledWith("blob:camera");
   });
