@@ -359,6 +359,8 @@ const REVIEW_SCENES: Array<{ scene: string; label: string }> = [
   // 手書き体（芫荽）に。小さい4枚の札も同じ。
   { scene: "first-catch", label: "ウェルカム: 海邊を台湾の標準字形に" },
   { scene: "first-catch&theme=dark", label: "ウェルカム（暗いテーマ）" },
+  // 品質検査: はがした後の約4秒の固まりを直した（3D 紙吹雪の作り方を変えたので見た目を確かめる）。
+  { scene: "reward-catch", label: "はがした後のお祝い（固まらない・紙吹雪）" },
   // 2026-10-03 品質検査: ウェルカムはブラウザの言語で出す（選ぶ前）。
   { scene: "first-catch&browser=en-US", label: "ウェルカム: 英語のブラウザ" },
   { scene: "first-catch&browser=zh-TW", label: "ウェルカム: 繁體中文のブラウザ" },
