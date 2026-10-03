@@ -54,7 +54,8 @@ describe("guest AI reservation", () => {
 
 describe("guest gate", () => {
   it("one tutorial (suggest + card + lesson + a retry) fits well inside a day's cap", () => {
-    expect(GUEST_IP_LIMIT_PER_DAY).toBeGreaterThanOrEqual(24);
+    // 1回の体験は 3〜6 回。15 回でも撮り直しを含めて 2〜3 回通せる（断られても匿名の道へ）。
+    expect(GUEST_IP_LIMIT_PER_DAY).toBeGreaterThanOrEqual(12);
     expect(GUEST_GLOBAL_LIMIT_PER_DAY).toBeGreaterThan(GUEST_IP_LIMIT_PER_DAY);
   });
   it("reads the caller address from whichever header the host sets, never a shared 'unknown'", () => {
@@ -83,7 +84,12 @@ describe("guest gate", () => {
     expect(isSameOriginRequest(req)).toBe(false);
   });
   it("falls back to the per-device account only for gate refusals, not for real AI errors", () => {
-    for (const code of ["FIRST_CATCH_LIMIT", "FIRST_CATCH_ORIGIN", "FIRST_CATCH_AI_UNAVAILABLE"])
+    for (const code of [
+      "FIRST_CATCH_LIMIT",
+      "FIRST_CATCH_TRIAL_FULL",
+      "FIRST_CATCH_ORIGIN",
+      "FIRST_CATCH_AI_UNAVAILABLE",
+    ])
       expect(isGuestRefusal(new Error(code))).toBe(true);
     expect(isGuestRefusal(new Error("Invalid input"))).toBe(false);
     expect(isGuestRefusal("FIRST_CATCH_LIMIT")).toBe(false);
@@ -115,9 +121,9 @@ describe("guestIpBucket（数える単位）", () => {
   });
 });
 
-describe("guest budget limits stay as they were", () => {
-  it("30 per address per day, 1000 for everyone", () => {
-    expect(GUEST_IP_LIMIT_PER_DAY).toBe(30);
+describe("guest budget limits", () => {
+  it("15 per address per day (監査 2026-10-03, was 30), 1000 for everyone", () => {
+    expect(GUEST_IP_LIMIT_PER_DAY).toBe(15);
     expect(GUEST_GLOBAL_LIMIT_PER_DAY).toBe(1000);
   });
 });

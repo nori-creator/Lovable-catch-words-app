@@ -21,10 +21,11 @@ export async function reserveGuestSlot(
   db: SupabaseClient<Database>,
   prefix: string,
   limit: number,
+  limitCode: "FIRST_CATCH_LIMIT" | "FIRST_CATCH_TRIAL_FULL" = "FIRST_CATCH_LIMIT",
 ): Promise<number> {
   return reserveBudgetSlot(db as unknown as BudgetDb, prefix, limit, {
     unavailable: "FIRST_CATCH_AI_UNAVAILABLE",
-    limit: "FIRST_CATCH_LIMIT",
+    limit: limitCode,
   });
 }
 
@@ -34,8 +35,13 @@ export const GUEST_BUDGET_ROOT = "first-catch-budget:";
  * 1回のチュートリアルで AI は最低3回(候補・カード・解説)、撮り直しや再試行で
  * もっと呼ぶ。12回/日では数回の体験(開発者の確認も同じ枠を使う)で尽きて、
  * 新規ユーザーが**原因の出ない失敗**になっていた。
+ *
+ * **1つの回線は 15 回/日**（監査 2026-10-03。前は 30）。1000 回/日の全体の枠を
+ * 少ない回線で使い切れないように。15 回でもチュートリアルは撮り直しを含めて
+ * 3〜4 回通せる。ここで断られた人は、画面がその端末の匿名アカウントの道
+ * （本人の枠・匿名の人の子の枠、`ai-cap.ts`）に切り替えるので、体験は止まらない。
  */
-export const GUEST_IP_LIMIT_PER_DAY = 30;
+export const GUEST_IP_LIMIT_PER_DAY = 15;
 export const GUEST_GLOBAL_LIMIT_PER_DAY = 1000;
 
 /**
@@ -134,7 +140,14 @@ export async function executeGuestFirstCatch(raw: unknown, request: Request) {
       );
     }
     const globalPrefix = `${GUEST_BUDGET_ROOT}${day}:global:`;
-    const slot = await reserveGuestSlot(supabaseAdmin, globalPrefix, GUEST_GLOBAL_LIMIT_PER_DAY);
+    // 全体の枠が尽きた時は別のコード（画面は匿名の道に切り替え、そこも尽きていれば
+    // 「今日の体験の受け付けはいっぱい」と出す）。
+    const slot = await reserveGuestSlot(
+      supabaseAdmin,
+      globalPrefix,
+      GUEST_GLOBAL_LIMIT_PER_DAY,
+      "FIRST_CATCH_TRIAL_FULL",
+    );
     reserved.push(`${globalPrefix}${slot}`);
     // 古い日の枠の行を、ときどき消す（`app_config` が日ごとに増え続けないように）。
     if (shouldPruneAfter(slot)) {
@@ -150,6 +163,8 @@ export async function executeGuestFirstCatch(raw: unknown, request: Request) {
   } catch (e) {
     // 原因は画面にコードで出す。ここにも残す(写真・単語・IPは含めない)。
     console.error("[first-catch] guest gate refused:", e instanceof Error ? e.message : "unknown");
+    // 回線の枠は取れたが全体の枠で断られた時は、回線の枠を返す（AI は呼んでいない）。
+    if (db && reserved.length) await releaseGuestSlots(db, reserved);
     throw e;
   }
   const { runFirstCatchAI, failedRun } = await import("./first-catch-ai.server");

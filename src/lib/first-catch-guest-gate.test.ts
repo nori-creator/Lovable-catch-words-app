@@ -56,7 +56,11 @@ vi.mock("./first-catch-ai.server", async () => {
   };
 });
 
-import { executeGuestFirstCatch, GUEST_IP_LIMIT_PER_DAY } from "./first-catch-guest.server";
+import {
+  executeGuestFirstCatch,
+  GUEST_GLOBAL_LIMIT_PER_DAY,
+  GUEST_IP_LIMIT_PER_DAY,
+} from "./first-catch-guest.server";
 import { runFirstCatchAI as generateFirstCatchAI } from "./first-catch-ai.server";
 import { AiAttemptsFailed } from "./ai-attempts";
 
@@ -108,6 +112,23 @@ describe("executeGuestFirstCatch", () => {
     await expect(
       executeGuestFirstCatch(input, request({ origin, "x-forwarded-for": "2001:db8:1:3::1" })),
     ).resolves.toEqual({ ok: true });
+  });
+
+  it("全体の枠が尽きたら別のコードで断り、取った回線の枠は返す（AI は呼ばない）", async () => {
+    const day = new Date().toISOString().slice(0, 10);
+    for (let i = 0; i < GUEST_GLOBAL_LIMIT_PER_DAY; i++)
+      state.rows.push({
+        key: `first-catch-budget:${day}:global:${i}`,
+        updated_at: new Date().toISOString(),
+      });
+    await expect(
+      executeGuestFirstCatch(
+        input,
+        request({ origin: "https://app.example", "x-forwarded-for": "1.2.3.4" }),
+      ),
+    ).rejects.toThrow("FIRST_CATCH_TRIAL_FULL");
+    expect(generateFirstCatchAI).not.toHaveBeenCalled();
+    expect(state.rows.filter((r) => r.key.includes(":ip:"))).toEqual([]);
   });
 
   it("prunes old budget rows on the first reservation of the day", async () => {

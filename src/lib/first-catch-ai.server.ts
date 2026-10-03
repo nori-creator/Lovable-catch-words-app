@@ -12,11 +12,31 @@ import { personalizationRule } from "./learning-preferences";
 import { targetProfile } from "./target-profile";
 import { coerceTargetHeadword, isTargetHeadword } from "./target-language";
 import { CATEGORY_KEYS } from "./category";
+import { DAILY_CAPS } from "./ai-cap";
 import { correctTaiwanReading } from "./tw-reading.server";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, Json } from "@/integrations/supabase/types";
 
-export const FIRST_CATCH_DAILY_LIMIT = 24;
+/** その人のチュートリアルの AI の 24 時間の上限（数えるのは `ai-cap.ts`）。 */
+export const FIRST_CATCH_DAILY_LIMIT = DAILY_CAPS.first_catch_ai;
+
+/**
+ * 全体の AI の枠（匿名の人の子の枠を含む）が尽きた時のコード。画面は「今日の体験の
+ * 受け付けはいっぱい」と出す（`first.trialFull`）。
+ */
+export const FIRST_CATCH_TRIAL_FULL = "FIRST_CATCH_TRIAL_FULL";
+
+/**
+ * 上限の失敗（`ai-cap.ts` の印）を、チュートリアルの画面が読めるコードに直す。
+ * 上限でない失敗はそのまま。
+ */
+export function firstCatchCapError(e: unknown): Error {
+  const msg = e instanceof Error ? e.message : String(e ?? "");
+  if (msg.includes("AI_DAILY_CAP")) return new Error("FIRST_CATCH_LIMIT");
+  if (msg.includes("AI_GLOBAL_CAP")) return new Error(FIRST_CATCH_TRIAL_FULL);
+  if (msg.includes("AI_USAGE_CHECK_FAILED")) return new Error("FIRST_CATCH_AI_UNAVAILABLE");
+  return e instanceof Error ? e : new Error(msg);
+}
 
 /** Used by both the real app and the authenticated Netlify preview endpoint.
  * No shared dictionary writes: personalized material belongs to this learner. */
@@ -25,24 +45,21 @@ export async function executeFirstCatchAI(
   context: { userId: string; supabase: SupabaseClient<Database> },
 ) {
   const data = FirstCatchAIInput.parse(raw);
-  const since = new Date(Date.now() - 86_400_000).toISOString();
-  // Fail closed if usage cannot be checked; no unauthenticated paid AI endpoint.
-  const quota = await context.supabase
-    .from("usage_events")
-    .select("id", { count: "exact", head: true })
-    .eq("user_id", context.userId)
-    .eq("kind", "first_catch_ai")
-    .gte("created_at", since);
-  if (quota.error || quota.count == null) throw new Error("FIRST_CATCH_AI_UNAVAILABLE");
-  if (quota.count >= FIRST_CATCH_DAILY_LIMIT) throw new Error("FIRST_CATCH_LIMIT");
-  // Reserve before the provider call so failed calls are also metered.
-  // The server-side fallback inside one request reuses this single reservation.
-  const reserved = await context.supabase
-    .from("usage_events")
-    .insert({ user_id: context.userId, kind: "first_catch_ai" })
-    .select("id")
-    .single();
-  if (reserved.error) throw new Error("FIRST_CATCH_AI_UNAVAILABLE");
+  /**
+   * **他の AI と同じ蓋で確保する**（監査 2026-10-03）。前はここだけ自分で
+   * 「数える → 入れる」をしていて、同時に送ると上限を超えられ、全体の 1 日の枠にも
+   * 数えていなかった（匿名アカウントを作り直すだけで、全体の費用の天井の外で呼べた）。
+   * 今は `reserveAiCallFor`: その人の 24 回（1回で数えて入れる）+ 匿名・無料の人の
+   * 子の枠 + 全体の枠。数えられない時は断る。
+   * The server-side fallback inside one request reuses this single reservation.
+   */
+  const { reserveAiCallFor } = await import("./ai-provider.server");
+  let reserved: { usageId: number | null };
+  try {
+    reserved = await reserveAiCallFor(context.userId, "first_catch_ai");
+  } catch (e) {
+    throw firstCatchCapError(e);
+  }
   try {
     const { value, run } = await runFirstCatchAI(data);
     await recordMemberRun(context, run);
@@ -52,7 +69,8 @@ export async function executeFirstCatchAI(
     if (run) {
       // 返事を1つも受け取れなかった（締め切り切れ・通信の失敗）回は枠に数えない。
       // 利用者の「もう一度試す」で、1回分の写真が2回分に数えられないように。
-      if (!run.chargeable) run.refunded = await refundMemberReservation(reserved.data?.id);
+      if (!run.chargeable)
+        run.refunded = await refundMemberReservation(reserved.usageId ?? undefined);
       await recordMemberRun(context, run);
     }
     throw e;

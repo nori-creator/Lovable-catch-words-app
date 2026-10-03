@@ -1836,8 +1836,10 @@ describe("ネットの画像は、届いてから並べる", () => {
     const fn = codeOnly(read("lib/images.functions.ts"));
     expect(fn).toMatch(/commonsSearchUrl\(data\.query\)/);
     expect(fn).toMatch(/source: "commons"/);
+    // 写真の候補が無い時の最後の控え（AI の1枚）は、コモンズを探した後。
+    // 2026-10-03 から控えの1枚は枠を確保してから作る（`optionalAiImage`）。
     expect(fn.indexOf("commonsSearchUrl")).toBeLessThan(
-      fn.indexOf("generateOneAiImage(data.query)"),
+      fn.lastIndexOf("optionalAiImage(data.query"),
     );
   });
 
@@ -6221,10 +6223,11 @@ describe("Pro: 単語の詳細の写真を 3D にする（R17）", () => {
     const hero = codeOnly(read("components/Object3DHero.tsx"));
     expect(hero).toMatch(/const cached = await readCached\(stickerId\);/);
     expect(hero).toMatch(/await c\.put\(/);
-    // サーバ側でも開発者か確かめる（画面の条件だけに頼らない）。2つの入口の両方で。
+    // サーバ側でも開発者か確かめる（画面の条件だけに頼らない）。作る2つの入口と、
+    // 進み具合を聞く入口（2026-10-03 監査で追加）の3つで。
     const fns = codeOnly(read("lib/object3d.functions.ts"));
     expect(fns.match(/if \(!object3dAllowed\(\{ isAdmin: Boolean\(isAdmin\) \}\)\)/g)?.length).toBe(
-      2,
+      3,
     );
     expect(fns).not.toMatch(/isProUser/);
   });
