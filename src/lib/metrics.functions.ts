@@ -2,6 +2,12 @@ import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { z } from "zod";
 import { taipeiDay } from "./taipei-day";
+import {
+  FUNNEL_LATENCY_LOOP,
+  LATENCY_EVENTS,
+  MAX_FUNNEL_LATENCY_MS,
+  MEMBER_FUNNEL_EVENTS,
+} from "./funnel-events";
 
 function dayKey(iso: string): string {
   return taipeiDay(iso);
@@ -13,7 +19,7 @@ function dayKey(iso: string): string {
  * the server just accepts a whitelisted kind.
  */
 
-const APP_EVENTS = [
+export const APP_EVENTS = [
   "app_open",
   "onboarding_done",
   "first_scan",
@@ -42,15 +48,42 @@ const APP_EVENTS = [
   "bg_failed_reader_explain",
   "bg_failed_first_catch_ai",
   "bg_failed_sticker_storage",
+  // ベータの計測（2026-10-03、ロードマップ Phase 9.4）: 撮る・復習・課金の段
+  // （`funnel-events.ts`）。種類と時刻だけで、写真・語・答えは送らない。
+  ...MEMBER_FUNNEL_EVENTS,
 ] as const;
 export type AppEventKind = (typeof APP_EVENTS)[number];
 
+/**
+ * 受け取る形。`ms`（待ち時間）は `LATENCY_EVENTS` の段だけが付けられる
+ * （`candidates_shown` = シャッターから候補が並ぶまで）。
+ */
+export const AppEventInput = z
+  .object({
+    kind: z.enum(APP_EVENTS),
+    ms: z.number().int().min(0).max(MAX_FUNNEL_LATENCY_MS).optional(),
+  })
+  .refine(
+    (v) => v.ms === undefined || (LATENCY_EVENTS as readonly string[]).includes(v.kind),
+    "ms is only accepted for latency events",
+  );
+
 export const logAppEvent = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => z.object({ kind: z.enum(APP_EVENTS) }).parse(input))
+  .inputValidator((input: unknown) => AppEventInput.parse(input))
   .handler(async ({ context, data }) => {
     const { supabase, userId } = context;
     await supabase.from("usage_events").insert({ user_id: userId, kind: data.kind });
+    // 待ち時間は `usage_events` に列が無いので、本人の `ai_runs` に1行（表を足さない）。
+    // 中身は段の名前と ms だけ。
+    if (data.ms !== undefined)
+      await supabase.from("ai_runs").insert({
+        user_id: userId,
+        loop: FUNNEL_LATENCY_LOOP,
+        iterations: 0,
+        accepted: 0,
+        meta: { event: data.kind, ms: data.ms },
+      });
     return { ok: true };
   });
 

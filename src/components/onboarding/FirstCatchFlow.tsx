@@ -19,6 +19,8 @@ import type { suggestWords } from "@/lib/ai.functions";
 import { firstCatchAI, firstCatchMemberAI } from "@/lib/first-catch-ai.functions";
 import { createFirstCatchServices } from "@/lib/first-catch-ai-client";
 import { reportBackgroundFailure } from "@/lib/background-failure";
+import type { TutorialStep } from "@/lib/funnel-events";
+import { trackTutorialStep } from "@/lib/tutorial-funnel-client";
 import { LearningPreferencesSchema } from "@/lib/learning-preferences";
 import type { FirstCatchAIRequest } from "@/lib/first-catch-ai-schema";
 import {
@@ -95,6 +97,7 @@ export function FirstCatchEntry() {
         },
         async () => {},
       )}
+      onFunnel={trackTutorialStep}
       onAccount={() => {
         void supabase.auth.getUser().then(({ data }) => {
           void navigate(
@@ -107,6 +110,20 @@ export function FirstCatchEntry() {
     />
   );
 }
+
+/**
+ * チュートリアルの画面の段のうち、数える物（`funnel-events.ts` の `TUTORIAL_STEPS`）。
+ * 写真を撮った・候補が並んだは段ではなく出来事なので、それぞれの所で数える。
+ * 登録の画面（signup_view）と登録できた（signup_done）は `/auth` と取り込みの画面で数える。
+ */
+const FUNNEL_STEP_OF_STAGE: Partial<Record<FirstCatch["stage"], TutorialStep>> = {
+  intro: "welcome_view",
+  notifications: "questions_done",
+  ready: "questions_done",
+  home: "tutorial_start",
+  added: "catch_done",
+  complete: "practice_done",
+};
 
 function freshFirstCatch(): FirstCatch {
   return {
@@ -131,7 +148,13 @@ export function FirstCatchFlow({
   persist = writeFirstCatch,
   initialSettingsOpen = false,
   initialSuggestions = [],
+  onFunnel,
 }: {
+  /**
+   * チュートリアルの段を数える口（ベータの計測、`tutorial-funnel-client.ts`）。人を特定しない
+   * 日ごとの数だけ。確認用ページ（UI ハーネス）では渡さない = 数えない。
+   */
+  onFunnel?: (step: TutorialStep) => void;
   /** 見本（UI ハーネス）で設定画面を開いた状態から見せるため。 */
   initialSettingsOpen?: boolean;
   /**
@@ -177,6 +200,8 @@ export function FirstCatchFlow({
   const fly = useRef<HTMLImageElement>(null);
   const pronounce = usePronounce(useTargetLang());
   const mounted = useRef(true);
+  const funnelRef = useRef(onFunnel);
+  funnelRef.current = onFunnel;
   useEffect(() => {
     preloadFirstCatchImages();
     mounted.current = true;
@@ -294,7 +319,10 @@ export function FirstCatchFlow({
       }),
     ]).finally(() => clearTimeout(timer));
     if (!result.suggestions.length) throw new Error("FIRST_CATCH_NO_WORDS");
-    if (mounted.current && mine === run.current) setSuggestions(result.suggestions);
+    if (mounted.current && mine === run.current) {
+      setSuggestions(result.suggestions);
+      funnelRef.current?.("candidates_shown");
+    }
   }
   function photo(file: File) {
     if (!draft) return;
@@ -309,6 +337,7 @@ export function FirstCatchFlow({
         stage: "camera" as const,
       };
       await commit(next); // Durable BEFORE any network request.
+      funnelRef.current?.("photo_taken");
       await analyze(next);
     }, "photo");
   }
@@ -362,6 +391,11 @@ export function FirstCatchFlow({
   }
   useEffect(() => {
     if (draft?.stage === "account") onAccount();
+  }, [draft?.stage]);
+  /** 画面の段 → 数える段（同じ段はタブごとに1回だけ数える）。 */
+  useEffect(() => {
+    const step = draft ? FUNNEL_STEP_OF_STAGE[draft.stage] : undefined;
+    if (step) funnelRef.current?.(step);
   }, [draft?.stage]);
 
   /**

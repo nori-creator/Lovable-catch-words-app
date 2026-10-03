@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
+import { Route as AdsDottxtRouteImport } from './routes/ads[.]txt'
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as McpRouteImport } from './routes/mcp'
 import { Route as NativeAuthRouteImport } from './routes/native-auth'
@@ -33,8 +34,10 @@ import { Route as ApiNativeAiRouteImport } from './routes/api.native-ai'
 import { Route as ApiNativeFnRouteImport } from './routes/api.native-fn'
 import { Route as ApiObject3dModelRouteImport } from './routes/api.object3d-model'
 import { Route as ApiStripeWebhookRouteImport } from './routes/api.stripe-webhook'
+import { Route as LegalTokushohoRouteImport } from './routes/legal.tokushoho'
 import { Route as DotlovableOauthConsentRouteImport } from './routes/[.]lovable.oauth.consent'
 import { Route as Char91DotmcpChar93InvokeToolToolRouteImport } from './routes/[.mcp]/invoke-tool/$tool'
+import { Route as AuthenticatedAdminBetaRouteImport } from './routes/_authenticated/admin.beta'
 import { Route as AuthenticatedAdminDictionaryRouteImport } from './routes/_authenticated/admin.dictionary'
 import { Route as AuthenticatedAdminMetricsRouteImport } from './routes/_authenticated/admin.metrics'
 import { Route as AuthenticatedAdminUsersRouteImport } from './routes/_authenticated/admin.users'
@@ -47,6 +50,11 @@ const IndexRoute = IndexRouteImport.update({
 } as any)
 const AuthenticatedRouteRoute = AuthenticatedRouteRouteImport.update({
   id: '/_authenticated',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AdsDottxtRoute = AdsDottxtRouteImport.update({
+  id: '/ads.txt',
+  path: '/ads.txt',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AuthRoute = AuthRouteImport.update({
@@ -161,6 +169,11 @@ const ApiStripeWebhookRoute = ApiStripeWebhookRouteImport.update({
   path: '/api/stripe-webhook',
   getParentRoute: () => rootRouteImport,
 } as any)
+const LegalTokushohoRoute = LegalTokushohoRouteImport.update({
+  id: '/legal/tokushoho',
+  path: '/legal/tokushoho',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const DotlovableOauthConsentRoute = DotlovableOauthConsentRouteImport.update({
   id: '/.lovable/oauth/consent',
   path: '/.lovable/oauth/consent',
@@ -172,6 +185,11 @@ const Char91DotmcpChar93InvokeToolToolRoute =
     path: '/.mcp/invoke-tool/$tool',
     getParentRoute: () => rootRouteImport,
   } as any)
+const AuthenticatedAdminBetaRoute = AuthenticatedAdminBetaRouteImport.update({
+  id: '/admin/beta',
+  path: '/admin/beta',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 const AuthenticatedAdminDictionaryRoute =
   AuthenticatedAdminDictionaryRouteImport.update({
     id: '/admin/dictionary',
@@ -198,6 +216,7 @@ const AuthenticatedDexStickerIdRoute =
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/ads.txt': typeof AdsDottxtRoute
   '/auth': typeof AuthRoute
   '/mcp': typeof McpRoute
   '/native-auth': typeof NativeAuthRoute
@@ -220,8 +239,10 @@ export interface FileRoutesByFullPath {
   '/api/native-fn': typeof ApiNativeFnRoute
   '/api/object3d-model': typeof ApiObject3dModelRoute
   '/api/stripe-webhook': typeof ApiStripeWebhookRoute
+  '/legal/tokushoho': typeof LegalTokushohoRoute
   '/.lovable/oauth/consent': typeof DotlovableOauthConsentRoute
   '/.mcp/invoke-tool/$tool': typeof Char91DotmcpChar93InvokeToolToolRoute
+  '/admin/beta': typeof AuthenticatedAdminBetaRoute
   '/admin/dictionary': typeof AuthenticatedAdminDictionaryRoute
   '/admin/metrics': typeof AuthenticatedAdminMetricsRoute
   '/admin/users': typeof AuthenticatedAdminUsersRoute
@@ -229,6 +250,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/ads.txt': typeof AdsDottxtRoute
   '/auth': typeof AuthRoute
   '/mcp': typeof McpRoute
   '/native-auth': typeof NativeAuthRoute
@@ -251,8 +273,10 @@ export interface FileRoutesByTo {
   '/api/native-fn': typeof ApiNativeFnRoute
   '/api/object3d-model': typeof ApiObject3dModelRoute
   '/api/stripe-webhook': typeof ApiStripeWebhookRoute
+  '/legal/tokushoho': typeof LegalTokushohoRoute
   '/.lovable/oauth/consent': typeof DotlovableOauthConsentRoute
   '/.mcp/invoke-tool/$tool': typeof Char91DotmcpChar93InvokeToolToolRoute
+  '/admin/beta': typeof AuthenticatedAdminBetaRoute
   '/admin/dictionary': typeof AuthenticatedAdminDictionaryRoute
   '/admin/metrics': typeof AuthenticatedAdminMetricsRoute
   '/admin/users': typeof AuthenticatedAdminUsersRoute
@@ -262,6 +286,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/_authenticated': typeof AuthenticatedRouteRouteWithChildren
+  '/ads.txt': typeof AdsDottxtRoute
   '/auth': typeof AuthRoute
   '/mcp': typeof McpRoute
   '/native-auth': typeof NativeAuthRoute
@@ -284,8 +309,10 @@ export interface FileRoutesById {
   '/api/native-fn': typeof ApiNativeFnRoute
   '/api/object3d-model': typeof ApiObject3dModelRoute
   '/api/stripe-webhook': typeof ApiStripeWebhookRoute
+  '/legal/tokushoho': typeof LegalTokushohoRoute
   '/.lovable/oauth/consent': typeof DotlovableOauthConsentRoute
   '/.mcp/invoke-tool/$tool': typeof Char91DotmcpChar93InvokeToolToolRoute
+  '/_authenticated/admin/beta': typeof AuthenticatedAdminBetaRoute
   '/_authenticated/admin/dictionary': typeof AuthenticatedAdminDictionaryRoute
   '/_authenticated/admin/metrics': typeof AuthenticatedAdminMetricsRoute
   '/_authenticated/admin/users': typeof AuthenticatedAdminUsersRoute
@@ -295,6 +322,7 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/ads.txt'
     | '/auth'
     | '/mcp'
     | '/native-auth'
@@ -317,8 +345,10 @@ export interface FileRouteTypes {
     | '/api/native-fn'
     | '/api/object3d-model'
     | '/api/stripe-webhook'
+    | '/legal/tokushoho'
     | '/.lovable/oauth/consent'
     | '/.mcp/invoke-tool/$tool'
+    | '/admin/beta'
     | '/admin/dictionary'
     | '/admin/metrics'
     | '/admin/users'
@@ -326,6 +356,7 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/ads.txt'
     | '/auth'
     | '/mcp'
     | '/native-auth'
@@ -348,8 +379,10 @@ export interface FileRouteTypes {
     | '/api/native-fn'
     | '/api/object3d-model'
     | '/api/stripe-webhook'
+    | '/legal/tokushoho'
     | '/.lovable/oauth/consent'
     | '/.mcp/invoke-tool/$tool'
+    | '/admin/beta'
     | '/admin/dictionary'
     | '/admin/metrics'
     | '/admin/users'
@@ -358,6 +391,7 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/_authenticated'
+    | '/ads.txt'
     | '/auth'
     | '/mcp'
     | '/native-auth'
@@ -380,8 +414,10 @@ export interface FileRouteTypes {
     | '/api/native-fn'
     | '/api/object3d-model'
     | '/api/stripe-webhook'
+    | '/legal/tokushoho'
     | '/.lovable/oauth/consent'
     | '/.mcp/invoke-tool/$tool'
+    | '/_authenticated/admin/beta'
     | '/_authenticated/admin/dictionary'
     | '/_authenticated/admin/metrics'
     | '/_authenticated/admin/users'
@@ -391,6 +427,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AuthenticatedRouteRoute: typeof AuthenticatedRouteRouteWithChildren
+  AdsDottxtRoute: typeof AdsDottxtRoute
   AuthRoute: typeof AuthRoute
   McpRoute: typeof McpRoute
   NativeAuthRoute: typeof NativeAuthRoute
@@ -405,6 +442,7 @@ export interface RootRouteChildren {
   ApiNativeFnRoute: typeof ApiNativeFnRoute
   ApiObject3dModelRoute: typeof ApiObject3dModelRoute
   ApiStripeWebhookRoute: typeof ApiStripeWebhookRoute
+  LegalTokushohoRoute: typeof LegalTokushohoRoute
   DotlovableOauthConsentRoute: typeof DotlovableOauthConsentRoute
   Char91DotmcpChar93InvokeToolToolRoute: typeof Char91DotmcpChar93InvokeToolToolRoute
 }
@@ -423,6 +461,13 @@ declare module '@tanstack/react-router' {
       path: ''
       fullPath: '/'
       preLoaderRoute: typeof AuthenticatedRouteRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/ads.txt': {
+      id: '/ads.txt'
+      path: '/ads.txt'
+      fullPath: '/ads.txt'
+      preLoaderRoute: typeof AdsDottxtRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/auth': {
@@ -579,6 +624,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiStripeWebhookRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/legal/tokushoho': {
+      id: '/legal/tokushoho'
+      path: '/legal/tokushoho'
+      fullPath: '/legal/tokushoho'
+      preLoaderRoute: typeof LegalTokushohoRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/.lovable/oauth/consent': {
       id: '/.lovable/oauth/consent'
       path: '/.lovable/oauth/consent'
@@ -592,6 +644,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/.mcp/invoke-tool/$tool'
       preLoaderRoute: typeof Char91DotmcpChar93InvokeToolToolRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/_authenticated/admin/beta': {
+      id: '/_authenticated/admin/beta'
+      path: '/admin/beta'
+      fullPath: '/admin/beta'
+      preLoaderRoute: typeof AuthenticatedAdminBetaRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/admin/dictionary': {
       id: '/_authenticated/admin/dictionary'
@@ -644,6 +703,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedReviewRoute: typeof AuthenticatedReviewRoute
   AuthenticatedScanRoute: typeof AuthenticatedScanRoute
   AuthenticatedSettingsRoute: typeof AuthenticatedSettingsRoute
+  AuthenticatedAdminBetaRoute: typeof AuthenticatedAdminBetaRoute
   AuthenticatedAdminDictionaryRoute: typeof AuthenticatedAdminDictionaryRoute
   AuthenticatedAdminMetricsRoute: typeof AuthenticatedAdminMetricsRoute
   AuthenticatedAdminUsersRoute: typeof AuthenticatedAdminUsersRoute
@@ -658,6 +718,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedReviewRoute: AuthenticatedReviewRoute,
   AuthenticatedScanRoute: AuthenticatedScanRoute,
   AuthenticatedSettingsRoute: AuthenticatedSettingsRoute,
+  AuthenticatedAdminBetaRoute: AuthenticatedAdminBetaRoute,
   AuthenticatedAdminDictionaryRoute: AuthenticatedAdminDictionaryRoute,
   AuthenticatedAdminMetricsRoute: AuthenticatedAdminMetricsRoute,
   AuthenticatedAdminUsersRoute: AuthenticatedAdminUsersRoute,
@@ -669,6 +730,7 @@ const AuthenticatedRouteRouteWithChildren =
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
+  AdsDottxtRoute: AdsDottxtRoute,
   AuthRoute: AuthRoute,
   McpRoute: McpRoute,
   NativeAuthRoute: NativeAuthRoute,
@@ -684,6 +746,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiNativeFnRoute: ApiNativeFnRoute,
   ApiObject3dModelRoute: ApiObject3dModelRoute,
   ApiStripeWebhookRoute: ApiStripeWebhookRoute,
+  LegalTokushohoRoute: LegalTokushohoRoute,
   DotlovableOauthConsentRoute: DotlovableOauthConsentRoute,
   Char91DotmcpChar93InvokeToolToolRoute: Char91DotmcpChar93InvokeToolToolRoute,
 }

@@ -45,6 +45,7 @@ import { targetProfile } from "@/lib/target-profile";
 import { levelOptions, restoreLevel } from "@/lib/level-scale";
 import { UI_LANGS, UI_LANG_LABEL_KEYS, TARGET_LANG_LABEL_KEYS, normalizeUiLang } from "@/lib/i18n";
 import { useT, setUiLang, storedUiLang } from "@/lib/i18n";
+import { useFunnelEvent } from "@/lib/use-funnel-event";
 import { reconcileLanguage } from "@/lib/language-sync";
 import { storedLevels, setStoredLevels } from "@/lib/level-pref";
 import { restoreSettings } from "@/lib/settings-restore";
@@ -66,9 +67,16 @@ import {
 import { getAiModelConfig, listProviderModels, setAiModelConfig } from "@/lib/admin.functions";
 import { recommendedKind, splitSpec, supportsVision } from "@/lib/ai-provider-models";
 import { getAdConfig, setAdConfig } from "@/lib/monetization.functions";
-import { createCheckoutSession, getBillingStatus } from "@/lib/billing.functions";
+import {
+  createBillingPortalSession,
+  createCheckoutSession,
+  getBillingStatus,
+} from "@/lib/billing.functions";
+import { ProPlanCardView, type ProPlanBusy } from "@/components/ProPlanCardView";
+import { LegalLinks } from "@/components/legal/LegalShell";
 import { billingSurface } from "@/lib/stripe-billing";
-import type { AdConfig } from "@/lib/ad-policy";
+import { normalizePublisherId, normalizeSlotId, type AdConfig } from "@/lib/ad-policy";
+import { adsTxtBody } from "@/lib/adsense";
 import {
   MAX_CUSTOM_TIMES,
   writeLocalReminderPrefs,
@@ -903,6 +911,10 @@ function SettingsPage() {
           <ProPlanCard />
         </SafeSection>
 
+        <SafeSection name="legal">
+          <LegalLinksCard />
+        </SafeSection>
+
         <SafeSection name="admin">
           <AdminOnlySection />
         </SafeSection>
@@ -1196,6 +1208,10 @@ function DeveloperPanel() {
             {/* 利用者ごとの詳しい情報（開発者だけ、オーナー指示 2026-09-27）。 */}
             <Link to="/admin/users" className="block text-footnote text-primary underline">
               {t("settings.usersLink")}
+            </Link>
+            {/* ベータの指標（ファネル・継続・使い方・費用・解析の確かさ。2026-10-03）。 */}
+            <Link to="/admin/beta" className="block text-footnote text-primary underline">
+              {t("settings.betaLink")}
             </Link>
           </>
         )}
@@ -1761,51 +1777,72 @@ function ImageGenTestPanel() {
  */
 function ProPlanCard() {
   const t = useT();
+  const readable = useReadableError();
   const statusFn = useServerFn(getBillingStatus);
   const checkoutFn = useServerFn(createCheckoutSession);
+  const portalFn = useServerFn(createBillingPortalSession);
   const { data: s } = useQuery({
     queryKey: ["billing-status"],
     queryFn: () => statusFn(),
     staleTime: 60_000,
   });
-  const [busy, setBusy] = useState<null | "monthly" | "yearly">(null);
-  if (!s || !s.enabled || billingSurface(Capacitor.isNativePlatform()) === "none") return null;
+  const [busy, setBusy] = useState<ProPlanBusy>(null);
+  // ベータの計測（2026-10-03）: 買える状態の案内を見た・支払いへ進んだ。種類と時刻だけ。
+  const track = useFunnelEvent();
+  const offered =
+    !!s &&
+    s.enabled &&
+    !s.isPro &&
+    s.configured &&
+    billingSurface(Capacitor.isNativePlatform()) !== "none";
+  useEffect(() => {
+    if (offered) track("paywall_viewed");
+  }, [offered, track]);
+  if (!s || billingSurface(Capacitor.isNativePlatform()) === "none") return null;
+  // スイッチがオフでも、**実際に払っている人には解約の口を出す**（請求だけ続く、を作らない）。
+  if (!s.enabled && !s.paidPro) return null;
   const go = async (period: "monthly" | "yearly") => {
     setBusy(period);
+    track("checkout_started");
     try {
       const { url } = await checkoutFn({ data: { period } });
       window.location.assign(url);
-    } catch {
-      toast.error(t("pro.failed"));
+    } catch (e) {
+      toast.error(readable(e, t("pro.failed")));
+      setBusy(null);
+    }
+  };
+  const manage = async () => {
+    setBusy("manage");
+    try {
+      const { url } = await portalFn();
+      window.location.assign(url);
+    } catch (e) {
+      toast.error(readable(e, t("pro.manageFailed")));
       setBusy(null);
     }
   };
   return (
     <SettingsCard title={t("pro.title")}>
-      {s.isPro ? (
-        <p className="text-body font-semibold">{t("pro.active")}</p>
-      ) : !s.configured ? (
-        <p className="text-footnote text-muted-foreground">{t("pro.notConfigured")}</p>
-      ) : (
-        <div className="grid gap-2">
-          {s.prices.monthly && (
-            <Button onClick={() => void go("monthly")} disabled={busy !== null} className="h-12">
-              {busy === "monthly" ? <Loader2 className="h-4 w-4 animate-spin" /> : t("pro.monthly")}
-            </Button>
-          )}
-          {s.prices.yearly && (
-            <Button
-              variant="outline"
-              onClick={() => void go("yearly")}
-              disabled={busy !== null}
-              className="h-12"
-            >
-              {busy === "yearly" ? <Loader2 className="h-4 w-4 animate-spin" /> : t("pro.yearly")}
-            </Button>
-          )}
-        </div>
-      )}
-      {s.isAdmin && <p className="mt-2 text-caption text-muted-foreground">{t("pro.devOnly")}</p>}
+      <ProPlanCardView
+        status={s}
+        busy={busy}
+        onBuy={(p) => void go(p)}
+        onManage={() => void manage()}
+      />
+    </SettingsCard>
+  );
+}
+
+/**
+ * **規約・プライバシー・特商法の表記へのリンク**（ログインの画面と同じ3つ）。
+ * アプリの中からも、いつでも条件を読み返せるようにする。
+ */
+export function LegalLinksCard() {
+  const t = useT();
+  return (
+    <SettingsCard title={t("legal.sectionTitle")}>
+      <LegalLinks className="text-footnote" />
     </SettingsCard>
   );
 }
@@ -1813,9 +1850,17 @@ function ProPlanCard() {
 /**
  * **広告のオン・オフと出し方（開発者だけ）**（オーナー指示 2026-09-27「広告は開発者の
  * 私はオンオフできるようにして」）。決まりそのものは `lib/ad-policy.ts`。
- * オンにしても、AdMob（広告の部品）を入れるまで実際の広告は出ない（`docs/monetization.md`）。
+ *
+ * **Web 版は Google AdSense**（2026-10-03「アプリ内の広告が動く 機能するようにしたい。」）。
+ * 運営者 ID と広告ユニット ID をここに貼る（`/ads.txt` も ID から自動で出る）。
+ * Web では全画面・ごほうびを出さない（`lib/adsense.ts`）ので、その2つは「アプリ版用」と書く。
+ * アプリ版（Android）は AdMob を入れるまで出ない（`docs/monetization.md`）。
+ *
+ * 確認用ページで中身入りを描けるよう export する（`defaultOpen`）。
  */
-function AdsPanel() {
+type AdIdKey = "adsensePublisherId" | "slotDexInFeed" | "slotDiaryInFeed" | "slotReviewEnd";
+
+export function AdsPanel({ defaultOpen = false }: { defaultOpen?: boolean }) {
   const t = useT();
   const readable = useReadableError();
   const getFn = useServerFn(getAdConfig);
@@ -1823,6 +1868,8 @@ function AdsPanel() {
   const qc = useQueryClient();
   const { data } = useQuery({ queryKey: ["ad-config"], queryFn: () => getFn(), staleTime: 30_000 });
   const [draft, setDraft] = useState<AdConfig | null>(null);
+  /** 打っている途中の ID（形が整うまで保存しない）。 */
+  const [typing, setTyping] = useState<Partial<Record<AdIdKey, string>>>({});
   useEffect(() => {
     if (data) setDraft(data);
   }, [data]);
@@ -1852,8 +1899,41 @@ function AdsPanel() {
       />
     </label>
   );
+  const idField = (k: AdIdKey, label: string, placeholder: string) => {
+    const norm = k === "adsensePublisherId" ? normalizePublisherId : normalizeSlotId;
+    const value = typing[k] ?? draft[k];
+    const bad = value.trim() !== "" && norm(value) === "";
+    const id = `ads-${k}`;
+    return (
+      <div className="space-y-1">
+        <label htmlFor={id} className="block text-footnote">
+          {label}
+        </label>
+        <Input
+          id={id}
+          value={value}
+          placeholder={placeholder}
+          inputMode={k === "adsensePublisherId" ? "text" : "numeric"}
+          autoCapitalize="off"
+          autoCorrect="off"
+          spellCheck={false}
+          aria-invalid={bad}
+          onChange={(e) => setTyping({ ...typing, [k]: e.target.value })}
+          onBlur={() => {
+            if (bad) return;
+            const next = norm(value);
+            setTyping(({ [k]: _done, ...rest }) => rest);
+            if (next !== draft[k]) void save({ ...draft, [k]: next });
+          }}
+          className="h-11 font-mono"
+        />
+        {bad && <p className="text-caption text-destructive">{t("ads.badFormat")}</p>}
+      </div>
+    );
+  };
+  const adsTxt = adsTxtBody(draft);
   return (
-    <details className="rounded-2xl border border-border bg-card p-4">
+    <details className="rounded-2xl border border-border bg-card p-4" open={defaultOpen}>
       <summary className="cursor-pointer list-none text-body font-semibold [&::-webkit-details-marker]:hidden">
         {t("settings.ads")}
       </summary>
@@ -1864,6 +1944,20 @@ function AdsPanel() {
           value={draft.enabled}
           onChange={(v) => void save({ ...draft, enabled: v })}
         />
+        {/* Web 版の広告の番号（AdSense）。ID を貼ると /ads.txt も出る。 */}
+        <div className="space-y-2 rounded-xl bg-secondary/60 p-3">
+          <p className="text-footnote font-semibold">{t("ads.adsenseTitle")}</p>
+          {idField("adsensePublisherId", t("ads.publisherId"), "ca-pub-0000000000000000")}
+          {idField("slotDexInFeed", t("ads.slotDex"), "1234567890")}
+          {idField("slotDiaryInFeed", t("ads.slotDiary"), "1234567890")}
+          {idField("slotReviewEnd", t("ads.slotReviewEnd"), "1234567890")}
+          {adsTxt && (
+            <p className="text-caption text-muted-foreground">
+              {t("ads.adsTxt")}
+              <code className="mt-0.5 block break-all font-mono text-foreground">{adsTxt}</code>
+            </p>
+          )}
+        </div>
         {num("graceDays", t("ads.grace"), 0, 60)}
         {num("batchesPerInterstitial", t("ads.batches"), 1, 20)}
         {num("minGapMin", t("ads.gap"), 0, 240)}
@@ -1887,6 +1981,9 @@ function AdsPanel() {
           value={draft.diaryNativeEnabled}
           onChange={(v) => void save({ ...draft, diaryNativeEnabled: v })}
         />
+        <p className="pt-1 text-caption leading-relaxed text-muted-foreground">
+          {t("ads.webOnlyNote")}
+        </p>
         <ToggleRow
           label={t("ads.rewarded")}
           value={draft.rewardedEnabled}

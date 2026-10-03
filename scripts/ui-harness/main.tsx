@@ -59,7 +59,9 @@ import { PromoFilmScene } from "./scenes/promo-film";
 import { ScanPickDesignsScene } from "./scenes/scan-pick-designs";
 import { NotifyBarDesignsScene } from "./scenes/notify-bar-designs";
 import { AdminUsersScene } from "./scenes/admin-users";
+import { AdminBetaScene } from "./scenes/admin-beta";
 import { MonetizationDesignsScene } from "./scenes/monetization-designs";
+import { DexAdsScene, HomeAdsScene, ReviewEndAdsScene, SettingsAdsScene } from "./scenes/ads";
 import { FxLabScene } from "./scenes/fx-lab";
 import { WordDetailDesignsScene } from "./scenes/word-detail-designs";
 import { WordDetailRefineScene } from "./scenes/word-detail-refine";
@@ -73,6 +75,12 @@ import { CatchSoundScene } from "./scenes/catch-sound";
 import { DexMapScene } from "./scenes/dex-map";
 import { ScanCameraScene, ScanChipScene, ScanDotsScene, ScanNothingScene } from "./scenes/scan";
 import { AuthScene, ResetPasswordScene } from "./scenes/auth";
+import {
+  LegalPrivacyScene,
+  LegalTermsScene,
+  LegalTokushohoScene,
+  ProPlanScene,
+} from "./scenes/legal";
 import {
   HomeAlbumScene,
   HomeMemorialScene,
@@ -145,6 +153,11 @@ const SCENES: Record<string, ((p: { q: URLSearchParams }) => ReactNode) | undefi
   "chunk-designs": ChunkDesignsScene,
   auth: AuthScene,
   "reset-password": ResetPasswordScene,
+  // 法務の頁と Pro の購入口（2026-10-03 課金の準備）。`&legal=missing` で未設定、`&lang=` で言語。
+  "legal-privacy": LegalPrivacyScene,
+  "legal-terms": LegalTermsScene,
+  "legal-tokushoho": LegalTokushohoScene,
+  "pro-plan": ProPlanScene,
   home: HomeScene,
   "home-shelf": HomeShelfScene,
   "install-app": InstallAppScene,
@@ -184,7 +197,14 @@ const SCENES: Record<string, ((p: { q: URLSearchParams }) => ReactNode) | undefi
   "scan-pick-designs": ScanPickDesignsScene,
   "notify-bar-designs": NotifyBarDesignsScene,
   "admin-users": AdminUsersScene,
+  // ベータの指標（ファネル・継続・使い方・費用・解析の確かさ。2026-10-03）。
+  "admin-beta": AdminBetaScene,
   "monetization-designs": MonetizationDesignsScene,
+  // Web 版の広告（AdSense。2026-10-03「アプリ内の広告が動く 機能するようにしたい。」）。
+  "dex-ads": DexAdsScene,
+  "home-ads": HomeAdsScene,
+  "review-end-ads": ReviewEndAdsScene,
+  "settings-ads": SettingsAdsScene,
   "fx-lab": FxLabScene,
   "word-detail-designs": WordDetailDesignsScene,
   "word-detail-refine": WordDetailRefineScene,
@@ -314,12 +334,16 @@ function Frame({ children, immersive = false }: { children: ReactNode; immersive
  * どちらも「別の画面を見ている」なので、場面ごとに決める。
  */
 /** 本番で上の帯を出さない画面（`AppShell immersive`）。 */
-const IMMERSIVE = new Set(["dex-cards", "dex-drag"]);
+const IMMERSIVE = new Set(["dex-cards", "dex-drag", "dex-ads"]);
 
 const BARE = new Set([
   "first-catch",
   "auth",
   "reset-password",
+  // 法務の頁は本番でもアプリの枠の外（ログイン前にも開く）。
+  "legal-privacy",
+  "legal-terms",
+  "legal-tokushoho",
   "sticker-peel",
   "onboarding",
   "sticker-sheet",
@@ -355,39 +379,23 @@ const q = new URLSearchParams(location.search);
  * 「これを見てください」と差し出すことになる。
  */
 const REVIEW_SCENES: Array<{ scene: string; label: string }> = [
-  // 2026-10-03「海邊の字体が台湾華語の正式な文字ではないから修整して」— 台湾の教育部標準字形の
-  // 手書き体（芫荽）に。小さい4枚の札も同じ。
-  { scene: "first-catch", label: "ウェルカム: 海邊を台湾の標準字形に" },
-  { scene: "first-catch&theme=dark", label: "ウェルカム（暗いテーマ）" },
-  // 品質検査: はがした後の約4秒の固まりを直した（3D 紙吹雪の作り方を変えたので見た目を確かめる）。
-  { scene: "reward-catch", label: "はがした後のお祝い（固まらない・紙吹雪）" },
-  // 2026-10-03 品質検査: ウェルカムはブラウザの言語で出す（選ぶ前）。
-  { scene: "first-catch&browser=en-US", label: "ウェルカム: 英語のブラウザ" },
-  { scene: "first-catch&browser=zh-TW", label: "ウェルカム: 繁體中文のブラウザ" },
-  {
-    scene: "first-catch&step=questions&question=0&browser=zh-TW",
-    label: "最初の質問: ブラウザの言語が選ばれている",
-  },
-  // 品質検査: 切れ・はみ出し・日本語の漏れ・押す所の大きさ・注音の見やすさ・英語の複数形。
-  {
-    scene: "first-catch&step=home&settings=1&lang=en&target=zh-TW",
-    label: "チュートリアルの設定: 1日の時間が切れない",
-  },
-  {
-    scene: "first-catch&step=complete&lang=en&target=zh-TW",
-    label: "チュートリアルの終わり（英語）",
-  },
-  { scene: "first-catch&step=pick&lang=ja&target=zh-TW", label: "候補: 検索欄が隠れない" },
-  { scene: "sticker-detail&lang=en", label: "単語の詳細（英語）: 品詞が英語" },
-  { scene: "place-memory&nophoto=1&lang=en", label: "場所の思い出（英語）: 日本語が出ない" },
-  { scene: "review-choice&lang=en", label: "復習の4択（英語）" },
-  { scene: "review-memory-list&lang=en", label: "記憶の一覧: 4文字の語が切れない" },
-  { scene: "capture-object&variant=error&lang=en", label: "撮影のエラー: 倍率の札と重ならない" },
-  { scene: "capture-card&lang=en&target=en", label: "撮った後のカード: 意味の準備中" },
-  { scene: "dex-calendar&lang=ja&theme=dark", label: "図鑑のカレンダー（暗い）: 見やすさ" },
-  { scene: "word-card&lang=zh-TW", label: "単語カード（繁體中文）: 語塊・注音の見やすさ" },
-  { scene: "settings-sources&lang=en", label: "設定: データの出典（英語）" },
-  { scene: "review-end&variant=capped&lang=zh-TW", label: "復習の終わり（繁體中文）" },
+  // 2026-10-03「アプリ内の広告が動く 機能するようにしたい」— Google AdSense のウェブ広告。
+  // 見本は本物の広告の代わりに「広告」の箱を出す。`&fill=unfilled` で広告が来ない時（枠が閉じる）。
+  { scene: "dex-ads", label: "広告: 図鑑の一覧の途中" },
+  { scene: "dex-ads&view=list", label: "広告: 図鑑のリスト表示" },
+  { scene: "home-ads", label: "広告: ホームの日と日の間" },
+  { scene: "review-end-ads", label: "広告: 復習の終わり（カード）" },
+  { scene: "dex-ads&fill=unfilled", label: "広告: 来ない時は枠が閉じる" },
+  { scene: "settings-ads", label: "開発者設定: 広告の ID と枠の番号" },
+  // 2026-10-03「続けて」— ベータで使う計測（ファネル・継続率・費用・解析の安定）。管理者だけ。
+  { scene: "admin-beta", label: "管理: ベータの指標" },
+  // 売り始める準備: 規約・プライバシー（広告の項を含む）・特商法の表記・値段と解約の口。
+  { scene: "pro-plan", label: "Pro の案内: 値段・自動更新・解約の口（全部の状態）" },
+  { scene: "legal-tokushoho&legal=missing", label: "特商法の表記: 未設定（販売しない）" },
+  { scene: "legal-tokushoho&legal=ready", label: "特商法の表記: 設定済み（見本の値）" },
+  { scene: "legal-privacy&legal=ready", label: "プライバシーポリシー" },
+  { scene: "legal-privacy&legal=ready&lang=zh-TW", label: "プライバシーポリシー（繁體中文）" },
+  { scene: "legal-terms&legal=ready", label: "利用規約" },
 ];
 
 /**

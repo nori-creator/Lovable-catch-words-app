@@ -500,6 +500,10 @@ const BARE_SCENES = new Set([
   // 迎える面は自前で画面いっぱい（上の帯も下のタブ帯も無い）。
   "auth",
   "reset-password",
+  // 法務の頁（規約・プライバシー・特商法）も本番はアプリの枠の外（2026-10-03）。
+  "legal-privacy",
+  "legal-terms",
+  "legal-tokushoho",
   // 剥がして捕まえる演出（main 2026-09-19）も全画面。
   "sticker-peel",
   "onboarding",

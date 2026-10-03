@@ -83,6 +83,9 @@ import { tStatic } from "@/lib/i18n";
 import { readerMeaning, readerText } from "@/lib/note-language";
 import { pickReviewExplain, quizPromptMeaning } from "@/lib/review-explain";
 import { useReaderMeaningFor } from "@/lib/reader-meanings";
+import { useFunnelEvent } from "@/lib/use-funnel-event";
+import { useWebAds } from "@/hooks/use-web-ads";
+import { ReviewEndAd } from "@/components/ads/ReviewEndAd";
 import {
   useReviewReaderExplanations,
   type ReaderReviewView,
@@ -135,6 +138,7 @@ function ReviewPage() {
   const fetchDue = useServerFn(getDueReviews);
   const fetchStats = useServerFn(getOverallMemoryStats);
   const qc = useQueryClient();
+  const webAds = useWebAds();
   // 場所の知らせから来たときは、その1枚を先頭に置いて始める。
   const { sticker: wantedSticker } = Route.useSearch();
   /**
@@ -391,6 +395,23 @@ function ReviewPage() {
   const done = cards && idx >= cards.length;
 
   /**
+   * **ベータの計測**（2026-10-03、`funnel-events.ts`）: 束の1枚目が出たら `review_started`、
+   * 出し切ったら `review_session_done`。答えた数は各問（`review_answered`）。種類と時刻だけ。
+   */
+  const track = useFunnelEvent();
+  const reviewOpenRef = useRef(false);
+  useEffect(() => {
+    if (!cards?.length) return;
+    if (!done && !reviewOpenRef.current) {
+      reviewOpenRef.current = true;
+      track("review_started");
+    } else if (done && reviewOpenRef.current) {
+      reviewOpenRef.current = false;
+      track("review_session_done");
+    }
+  }, [cards, done, track]);
+
+  /**
    * **束の写真を、届いた時点で全部端末へ**（`warmCachedImages`）。
    * 音は下の `usePrefetchSpeech` が同じことをしている。
    */
@@ -509,28 +530,32 @@ function ReviewPage() {
       ) : !cards?.length ? (
         <EmptyState />
       ) : done ? (
-        <DoneState
-          answered={tally.answered}
-          correct={tally.correct}
-          batch={cap}
-          onAgain={() => {
-            // **憶えた続きも捨てる。** 新しい束が届くので、古い位置を
-            // 残すと「3枚目から始まる」になる。
-            writeMark(null, EMPTY_MARK);
-            restoredFor.current = null;
-            setIdx(0);
-            setTally({ answered: 0, correct: 0 });
-            // 用意しておいた次の束があれば、**読み直さずに**そのまま出す。
-            const next = nextBatch.current;
-            nextBatch.current = null;
-            if (next?.length) {
-              qc.setQueryData(["reviews-due", null], next);
-              return;
-            }
-            replacing.current = true;
-            void refetch();
-          }}
-        />
+        <>
+          <DoneState
+            answered={tally.answered}
+            correct={tally.correct}
+            batch={cap}
+            onAgain={() => {
+              // **憶えた続きも捨てる。** 新しい束が届くので、古い位置を
+              // 残すと「3枚目から始まる」になる。
+              writeMark(null, EMPTY_MARK);
+              restoredFor.current = null;
+              setIdx(0);
+              setTally({ answered: 0, correct: 0 });
+              // 用意しておいた次の束があれば、**読み直さずに**そのまま出す。
+              const next = nextBatch.current;
+              nextBatch.current = null;
+              if (next?.length) {
+                qc.setQueryData(["reviews-due", null], next);
+                return;
+              }
+              replacing.current = true;
+              void refetch();
+            }}
+          />
+          {/* 区切りの広告は**終わりの画面の下の札**（Web に全画面は無い）。回数は ad-policy。 */}
+          <ReviewEndAd ads={webAds} />
+        </>
       ) : replacing.current && isFetching ? (
         /**
          * **束を「入れ替えている」間だけ待たせる。**
@@ -1225,6 +1250,7 @@ export function LightModeCard({
   reader?: ReaderReviewView;
 }) {
   const grade = useServerFn(gradeReview);
+  const trackAnswer = useFunnelEvent();
   const t = useT();
   const uiLang = useUiLang();
   /**
@@ -1309,6 +1335,7 @@ export function LightModeCard({
     setPicked(pickedValue);
     void pronounce(card.headword);
     if (practice) return;
+    trackAnswer("review_answered");
     void grade({
       data: {
         review_id: card.review_id,

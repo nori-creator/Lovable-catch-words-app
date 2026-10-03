@@ -30,3 +30,43 @@ export function isTruncated(total: number | null, returned: number, limit: numbe
   // 黙って消えるほうがずっと悪い。
   return returned >= limit;
 }
+
+/** PostgREST が1回に返す行の上限（`db-max-rows` の既定）。これより大きく頼んでも来ない。 */
+export const POSTGREST_PAGE = 1000;
+
+/**
+ * **全部の行を、1000 行ずつ読む**（ベータの指標、2026-10-03）。
+ *
+ * `.limit(50000)` と書いても PostgREST は 1000 行で切る（上の注の2回目と同じ罠）。
+ * `page(from, to)` は `.order(…).range(from, to)` を付けた問い合わせを返すこと
+ * （並びが決まっていないと、ページの境で行が抜けたり重なったりする）。
+ * `parallel` ページずつ並べて読み、短いページが来たら終わり。`maxRows` で止めた時は
+ * `truncated: true`（黙って切らない）。
+ */
+export async function readAllPages<T>(
+  page: (
+    from: number,
+    to: number,
+  ) => PromiseLike<{ data: T[] | null; error: { message?: string } | null }>,
+  opts: { pageSize?: number; maxRows?: number; parallel?: number } = {},
+): Promise<{ rows: T[]; truncated: boolean }> {
+  const size = Math.min(opts.pageSize ?? POSTGREST_PAGE, POSTGREST_PAGE);
+  const maxRows = opts.maxRows ?? 100_000;
+  const parallel = Math.max(1, opts.parallel ?? 4);
+  const rows: T[] = [];
+  for (let start = 0; ; start += size * parallel) {
+    const batch = await Promise.all(
+      Array.from({ length: parallel }, (_, i) => {
+        const from = start + i * size;
+        return page(from, from + size - 1);
+      }),
+    );
+    for (const res of batch) {
+      if (res.error) throw new Error(res.error.message ?? "read failed");
+      const got = res.data ?? [];
+      rows.push(...got);
+      if (rows.length >= maxRows) return { rows: rows.slice(0, maxRows), truncated: true };
+      if (got.length < size) return { rows, truncated: false };
+    }
+  }
+}

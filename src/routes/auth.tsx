@@ -3,6 +3,7 @@ import { sampleStickers } from "@/components/onboarding/FirstCatchHome";
 import { useTargetLang } from "@/lib/target-lang-pref";
 import { LearningPreferencesSchema } from "@/lib/learning-preferences";
 import { readFirstCatch, canRequestAccount, type FirstCatch } from "@/lib/first-catch";
+import { trackTutorialStep } from "@/lib/tutorial-funnel-client";
 import "@/components/onboarding/first-catch.css";
 import { siteUrlFor } from "@/lib/site-url";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
@@ -72,6 +73,8 @@ function AuthPage() {
         if (saved && canRequestAccount(saved)) {
           setDraft(saved);
           setMode("signup");
+          // チュートリアルから来た人が登録の画面を見た（人を特定しない日ごとの数）。
+          trackTutorialStep("signup_view");
         }
       })
       .catch(() => {});
@@ -411,6 +414,10 @@ export function AuthView({
             <a href="/terms">{t("auth.terms")}</a>
             <span aria-hidden="true">·</span>
             <a href="/privacy">{t("auth.privacy")}</a>
+            {/* 名前が長いので、いつも2行目に1つで置く（行末に「·」だけ残さない）。 */}
+            <a href="/legal/tokushoho" className="auth-legal__own-line">
+              {t("legal.tokushoho")}
+            </a>
           </p>
         </div>
       </main>
