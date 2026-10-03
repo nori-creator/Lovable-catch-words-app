@@ -187,6 +187,7 @@ export const createCheckoutSession = createServerFn({ method: "POST" })
  * **定期購入の管理（解約・支払い方法・領収書）— Stripe の Billing Portal**。
  *
  * 顧客 ID は新しい列に持たない。定期購入の `metadata.user_id`、無ければメールで探す
+ * （メールで当たった顧客も `metadata.user_id` が本人の物だけ。ほかの人の管理画面を開かない）
  * （`stripe-catalog.ts`）。スイッチがオフでも、**実際に払っている人は解約できる**
  * （解約の口を閉じて請求だけ続く、を作らない）。
  */
