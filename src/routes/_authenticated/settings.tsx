@@ -140,6 +140,34 @@ const CHOICE_COLS = {
 } as const;
 
 /**
+ * **字が丸に収まらない列は、字を一段小さくする**（2026-10-03 全画面の点検: 英語・中文で
+ * 「10 …」「By due d…」と切れていた）。折り返すと丸が楕円になるので折らない。
+ *
+ * 幅は 375px の画面（束の中身 309px）で見積もる — 一番狭い端末で収まれば広い端末でも
+ * 収まる。字の幅はおおよそ（漢字・かな 1em、英数字 0.6em、i や 1 は細く m は広い）。
+ * どれか1つでも本文の大きさ（15px）で入らなければ、列ぜんぶを 13px（それでも入らなければ
+ * 11px）にそろえる（列の中で字の大きさが混ざらない）。
+ */
+export function choiceTextClass(labels: readonly string[], cols: number): string {
+  // 375px の画面の束の中身は 309px。枠 2px と左右の余白 4px を引く。
+  const inner = (309 - 8 * (cols - 1)) / cols - 6;
+  const em = (label: string) =>
+    [...label].reduce((w, c) => {
+      if (/[\u3000-\u9fff\uff00-\uffef]/.test(c)) return w + 1;
+      if (c === " ") return w + 0.3;
+      if (/[il.,'j]/.test(c)) return w + 0.32;
+      if (/[mwMW]/.test(c)) return w + 0.95;
+      if (/[A-Z]/.test(c)) return w + 0.72;
+      return w + 0.64;
+    }, 0);
+  // 選ばれている丸は太字（約 8% 広い）。どれが選ばれても収まるように太字で測る。
+  const widest = Math.max(0, ...labels.map(em)) * 1.08;
+  if (widest * 15 <= inner) return "px-1 text-body";
+  if (widest * 13 <= inner) return "px-0.5 text-footnote";
+  return "px-0.5 text-caption";
+}
+
+/**
  * 丸いボタンで1つ選ぶ列。復習の型・厳しさ・1日の量・重点・見た目・
  * 発音表記・音量 — この画面の選択はすべてこの形。
  *
@@ -163,6 +191,10 @@ export function ChoiceRow<T extends string | number>({
   // 見出しの id はラベルの文字から作らない。同じ語が2箇所に出た瞬間に
   // id が重複して、読み上げがどちらを指すか決まらなくなる。
   const labelId = useId();
+  const textClass = choiceTextClass(
+    options.map((o) => o.label),
+    Number(cols),
+  );
   return (
     <div>
       <Label id={labelId}>{label}</Label>
@@ -220,7 +252,7 @@ export function ChoiceRow<T extends string | number>({
             // **地の色は自分では塗らない。** 選ばれている印は上の
             // `SlidingIndicator` が滑ってくるので、ここで塗ると印の下に
             // もう1枚同じ色の面ができて、滑って見えなくなる。
-            className={`seg-option relative z-10 min-h-11 truncate rounded-full border px-1 py-2.5 text-body transition-colors duration-200 ${
+            className={`seg-option relative z-10 min-h-11 truncate rounded-full border py-2.5 ${textClass} transition-colors duration-200 ${
               value === o.value
                 ? "border-primary font-semibold text-primary-foreground"
                 : "border-border bg-background"
@@ -997,12 +1029,14 @@ export function DangerZone({
   return (
     <details
       open={defaultOpen}
-      className="group rounded-2xl border border-destructive/30 bg-card p-4"
+      className="group rounded-2xl border border-destructive/30 bg-card px-4 py-1.5"
     >
-      <summary className="cursor-pointer list-none text-body font-semibold text-destructive-ink [&::-webkit-details-marker]:hidden">
+      {/* 開く所は**指の下限 44px**（2026-10-03 全画面の点検: 字の高さ 24px しかなかった）。
+          箱の上下の余白をその分だけ減らし、閉じた時の見た目の高さは前と同じ。 */}
+      <summary className="flex min-h-11 cursor-pointer list-none items-center text-body font-semibold text-destructive-ink [&::-webkit-details-marker]:hidden">
         {t("settings.deleteAccount")}
       </summary>
-      <div className="mt-3 space-y-3">
+      <div className="mt-1 space-y-3 pb-2.5">
         <p className="text-footnote text-muted-foreground">{t("settings.deleteWarn")}</p>
         <div>
           <Label htmlFor="del-confirm">{t("settings.deleteTypeLabel")}</Label>

@@ -2,6 +2,42 @@ import { CatchLandingOverlay, runCatchLanding } from "@/components/CatchLanding"
 import { unlockAudio } from "@/lib/sound-engine";
 import { useEffect, useRef, useState } from "react";
 import { PeelSticker } from "@/components/PeelSticker";
+import { getUiLang, tStatic } from "@/lib/i18n";
+
+/**
+ * 見本だけの文言（本番に無い説明・見本の図鑑の見出し）。**表示言語で出す** —
+ * 日本語を直書きしていたので、英語・繁體中文の見本でもここだけ日本語だった
+ * （2026-10-03 全画面の点検）。本番にある文言は本番の鍵（`tStatic`）で引く。
+ */
+const L = {
+  catch: ["キャッチ", "Catch", "捕捉"],
+  dexAll: ["図鑑 · すべて", "Dex · All", "圖鑑 · 全部"],
+  dexAllAria: ["全カテゴリーの図鑑", "Dex, all categories", "全部分類的圖鑑"],
+  food: ["食べ物", "Food", "食物"],
+  daily: ["日用品", "Everyday items", "日用品"],
+  drinks: ["飲み物", "Drinks", "飲料"],
+  addedTo: ["飲み物の欄に追加しました", "Added to Drinks", "已加入飲料"],
+  again: ["もう一度キャッチ", "Catch again", "再捕捉一次"],
+  previewOnly: [
+    "保存先はプレビュー用です。実際の図鑑には追加されません。",
+    "This is a preview. Nothing is added to your real Dex.",
+    "這是預覽，不會加入你真正的圖鑑。",
+  ],
+  meaning: ["タピオカミルクティー", "bubble tea", "珍珠奶茶（加了粉圓的奶茶）"],
+  anyDirection: [
+    "どの方向でも。少し引いて離すと元に戻ります。",
+    "Any direction. Pull a little and let go to put it back.",
+    "哪個方向都可以。稍微拉一下再放開就會回到原位。",
+  ],
+  check: ["動作を確認する", "Try the motion", "確認動作"],
+  reduce: ["動きを減らす", "Reduce motion", "減少動態效果"],
+  voiceNote: [
+    "音声は端末の台湾華語音声を使用。本番は既存の単語音声を使用します。",
+    "Uses the device's Taiwan Mandarin voice. The app uses the word's own audio.",
+    "使用裝置的台灣華語語音。正式版使用單字本身的語音。",
+  ],
+} as const;
+const say = (k: keyof typeof L) => L[k][getUiLang() === "en" ? 1 : getUiLang() === "zh-TW" ? 2 : 0];
 
 // Deterministic photo fixture, no external image, AI call or authentication.
 const cup = `<defs><linearGradient id="tea" x2=".8" y2="1"><stop stop-color="#eed4ad"/><stop offset=".55" stop-color="#c88c56"/><stop offset="1" stop-color="#a96d3c"/></linearGradient><linearGradient id="glass"><stop stop-color="#fff" stop-opacity=".8"/><stop offset=".2" stop-color="#fff" stop-opacity=".05"/><stop offset=".7" stop-color="#fff" stop-opacity=".05"/><stop offset="1" stop-color="#fff" stop-opacity=".6"/></linearGradient></defs><g transform="rotate(-9 160 160)"><path d="M174 22h13l-11 80h-13z" fill="#b76247"/><path d="M91 89h142l-19 187q-52 19-103 0z" fill="url(#tea)" stroke="#e8c6a0" stroke-width="3"/><ellipse cx="162" cy="91" rx="74" ry="16" fill="#e8d3b6"/><ellipse cx="162" cy="87" rx="69" ry="10" fill="#eaddc9"/><g fill="#3d2521">${[
@@ -107,13 +143,13 @@ export function PeelStickerScene() {
             CatchWords<span style={{ color: "#087cf4" }}>✦</span>
           </b>
           <span style={{ fontSize: 12, color: "#7d847e" }}>
-            {saved ? "図鑑 / すべて" : "キャッチ"}
+            {saved ? say("dexAll") : say("catch")}
           </span>
         </header>
         {saved ? (
-          <section aria-label="全カテゴリーの図鑑">
-            <h1 style={{ fontSize: 30, margin: "8px 0 24px" }}>図鑑 · すべて</h1>
-            {["食べ物", "日用品"].map((name) => (
+          <section aria-label={say("dexAllAria")}>
+            <h1 style={{ fontSize: 30, margin: "8px 0 24px" }}>{say("dexAll")}</h1>
+            {[say("food"), say("daily")].map((name) => (
               <section key={name} style={{ marginBottom: 28 }}>
                 <h2 style={{ fontSize: 22, marginBottom: 16 }}>{name}</h2>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
@@ -136,7 +172,7 @@ export function PeelStickerScene() {
               </section>
             ))}
             <p style={{ fontSize: 12, color: "#7d847e" }}>YOUR COLLECTION</p>
-            <h1 style={{ fontSize: 30, margin: "8px 0 24px" }}>飲み物</h1>
+            <h1 style={{ fontSize: 30, margin: "8px 0 24px" }}>{say("drinks")}</h1>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
               <div
                 style={{
@@ -172,7 +208,7 @@ export function PeelStickerScene() {
             {!saving && (
               <>
                 <p role="status" style={{ textAlign: "center", fontSize: 13, margin: 24 }}>
-                  飲み物の欄に追加しました
+                  {say("addedTo")}
                 </p>
                 <button
                   onClick={reset}
@@ -184,11 +220,9 @@ export function PeelStickerScene() {
                     color: "white",
                   }}
                 >
-                  もう一度キャッチ
+                  {say("again")}
                 </button>
-                <p style={{ fontSize: 11, color: "#888", marginTop: 16 }}>
-                  保存先はプレビュー用です。実際の図鑑には追加されません。
-                </p>
+                <p style={{ fontSize: 11, color: "#888", marginTop: 16 }}>{say("previewOnly")}</p>
               </>
             )}
           </section>
@@ -199,8 +233,8 @@ export function PeelStickerScene() {
                 key={round}
                 photoUrl={photo}
                 label="珍珠奶茶"
-                hint="好きな方向にはがしてキャッチ"
-                actionLabel="図鑑へ追加"
+                hint={tStatic("capture.peelHint")}
+                actionLabel={tStatic("capture.addToDex")}
                 disabled={saving}
                 onPeel={() => void save()}
               />
@@ -208,7 +242,7 @@ export function PeelStickerScene() {
             <div style={{ margin: "22px 0" }}>
               <h2 style={{ fontSize: 24, margin: 0 }}>珍珠奶茶</h2>
               <p style={{ fontSize: 12, color: "#7d847e", marginTop: 6 }}>
-                ㄓㄣ ㄓㄨ ㄋㄞˇ ㄔㄚˊ · タピオカミルクティー
+                ㄓㄣ ㄓㄨ ㄋㄞˇ ㄔㄚˊ · {say("meaning")}
               </p>
             </div>
             <button
@@ -225,13 +259,15 @@ export function PeelStickerScene() {
                 fontWeight: 600,
               }}
             >
-              図鑑へ登録
+              {tStatic("capture.addToDex")}
             </button>
             <p style={{ fontSize: 12, color: "#7d847e", textAlign: "center", margin: 18 }}>
-              どの方向でも。少し引いて離すと元に戻ります。
+              {say("anyDirection")}
             </p>
             <details style={{ fontSize: 12, color: "#7d847e" }}>
-              <summary>動作を確認する</summary>
+              <summary style={{ minHeight: 44, display: "flex", alignItems: "center" }}>
+                {say("check")}
+              </summary>
               <div style={{ display: "grid", gap: 14, marginTop: 16 }}>
                 <label>
                   <input
@@ -240,9 +276,9 @@ export function PeelStickerScene() {
                     checked={reduced}
                     onChange={(e) => setReduced(e.target.checked)}
                   />{" "}
-                  動きを減らす
+                  {say("reduce")}
                 </label>
-                <small>音声は端末の台湾華語音声を使用。本番は既存の単語音声を使用します。</small>
+                <small>{say("voiceNote")}</small>
               </div>
             </details>
           </>

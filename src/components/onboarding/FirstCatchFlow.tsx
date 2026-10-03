@@ -11,7 +11,7 @@ import { Term } from "@/components/Term";
 import { useServerFn } from "@tanstack/react-start";
 import { useNavigate } from "@tanstack/react-router";
 import { supabase } from "@/integrations/supabase/client";
-import { getUiLang, useT } from "@/lib/i18n";
+import { initialUiLang, useT } from "@/lib/i18n";
 import { FirstCatchQuestions } from "./FirstCatchQuestions";
 import { FirstCatchIntro, FirstCatchNotifications, FirstCatchReady } from "./FirstCatchPages";
 import { getTargetLang } from "@/lib/target-lang-pref";
@@ -101,7 +101,9 @@ function freshFirstCatch(): FirstCatch {
   return {
     version: 1,
     id: crypto.randomUUID(),
-    uiLanguage: getUiLang(),
+    // 表示言語を選ぶ前（ウェルカム）はブラウザの言語に合わせる。選んだことがあればそれ
+    // （`initialUiLang`）。`applyFirstCatchLanguage` が書くので、次の質問でも選ばれた状態になる。
+    uiLanguage: initialUiLang(),
     targetLanguage: getTargetLang(),
     dailyMinutes: 10,
     stage: "intro",
@@ -771,7 +773,8 @@ export function FirstCatchFlow({
           }
           title={t(homeGuide === "album" ? "first.homeTitle" : "first.shootTitle")}
           text={t(homeGuide === "album" ? "first.home" : "first.tapCamera")}
-          step={homeGuide === "album" ? "1 / 5" : "2 / 5"}
+          // ホーム → カメラのタブまでが第1章（`docs/first-catch-onboarding.md` の章立て）。
+          step="1 / 5"
           nextLabel={t("first.next")}
           onNext={homeGuide === "album" ? () => setHomeGuide("camera") : undefined}
           interactive={homeGuide === "camera"}
@@ -798,6 +801,10 @@ export function FirstCatchFlow({
           title={t("first.pickTitle")}
           text={t("first.pick")}
           step="2 / 5"
+          // 札は下端の1段（2026-10-03 全画面の点検: 枠の下に置くと「違う単語を入力」を、
+          // 上に置くと撮った写真を覆っていた）。下のタブはこの段では押せないので、その上に
+          // 札を重ねても失う物が無い。背の低い画面は候補の面も詰める（`PickWordPanel`）。
+          compact
           interactive
           gesture="tap"
         />

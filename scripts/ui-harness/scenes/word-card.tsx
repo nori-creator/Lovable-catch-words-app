@@ -6,6 +6,7 @@
  * 決めてあった箇所。まず見えるようにする。
  */
 import { readySpeech } from "../speech";
+import { getUiLang, localeOf } from "@/lib/i18n";
 import { SectionsPanel } from "@/components/SectionsPanel";
 
 /**
@@ -382,7 +383,7 @@ export function StickerDetailScene({ objectUrl }: { q?: URLSearchParams; objectU
       <BackToDexLink />
       <StickerDetailBody
         sticker={objectUrl ? ({ ...(STICKER as object), object_url: objectUrl } as never) : STICKER}
-        dateLocale="ja-JP"
+        dateLocale={localeOf(getUiLang())}
         photos={[
           {
             url: shot(160, 160, "#d0483c"),
@@ -436,7 +437,7 @@ export function StickerDetailScene({ objectUrl }: { q?: URLSearchParams; objectU
 export function StickerHeroScene() {
   return (
     <StickerDetailHero
-      dateLocale="ja-JP"
+      dateLocale={localeOf(getUiLang())}
       sticker={
         {
           id: "s1",

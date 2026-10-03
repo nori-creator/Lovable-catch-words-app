@@ -28,9 +28,13 @@ const ITEMS: Array<{ labelKey: string; icon: typeof Home; lens?: boolean }> = [
 
 const CAMERA = ITEMS.findIndex((i) => i.lens);
 
-export function TabBarScene() {
+/**
+ * `initial` … 最初に光らせるタブ（図鑑の場面は 1 = 図鑑。前は図鑑を映しながら
+ * ホームが光っていた。2026-10-03 全画面の点検）。
+ */
+export function TabBarScene({ initial = 0 }: { initial?: number; q?: URLSearchParams } = {}) {
   const t = useT();
-  const [index, setIndex] = useState(0);
+  const [index, setIndex] = useState(initial);
   /**
    * **画面が入れ替わったことにする。**
    *

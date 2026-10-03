@@ -251,6 +251,15 @@ describe("外した行き先", () => {
     }
     expect(realUsageLinks("lamp", "en").find((l) => l.id === "ygl")?.href).toContain("english/us");
   });
+
+  it("**Yahoo!知恵袋は表示言語が日本語の人にだけ出す**（2026-10-03 全画面の点検）", () => {
+    const has = (reader?: string) =>
+      realUsageLinks("傘", "ja", reader).some((l) => l.id === "chiebukuro");
+    expect(has("ja")).toBe(true);
+    expect(has(undefined)).toBe(true);
+    expect(has("zh-TW")).toBe(false);
+    expect(has("en")).toBe(false);
+  });
 });
 
 describe("画面に写しが残っていない", () => {

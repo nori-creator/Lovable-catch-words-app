@@ -47,36 +47,28 @@ import { LogOut } from "lucide-react";
 import { useState } from "react";
 
 /**
- * 学習の束。丸いボタンの列が2列・3列・5列で並び、末尾にスイッチが2つ付く。
+ * 学習の束。**本番の並びと同じ**（2026-10-03 全画面の点検で直した）:
+ * 表示する写真（2列）→ 1日の復習量（5列）→ 区切り線 → 撮影後に自撮り → 写真の同期。
+ *
+ * 前はここに、本番から消えた「発音判定の厳しさ」「優先する記憶段階」（期限順など）の
+ * 列が残っていて、本番に無い「By due d…」の切れを検査していた。場所の通知は本番では
+ * 通知の束にある（`SettingsNotifyScene`）。
  */
 export function SettingsChoicesScene() {
   const [photo, setPhoto] = useState("object");
-  const [strict, setStrict] = useState("normal");
   const [limit, setLimit] = useState(20);
-  const [focus, setFocus] = useState("all");
+  const [selfie, setSelfie] = useState(true);
   return (
     <SettingsCard title={t("settings.study")}>
       <div className="space-y-3">
-        {/* 要望 #16 の設定。**4つ並ぶ**ので、狭い画面で札が潰れないかを見る。 */}
         <ChoiceRow
-          cols={3}
+          cols={2}
           label={t("settings.photoPref")}
           value={photo}
           onChange={setPhoto}
           options={[
             { value: "object", label: t("settings.photoObject") },
             { value: "selfie", label: t("settings.photoSelfie") },
-          ]}
-        />
-        <ChoiceRow
-          cols={3}
-          label={t("settings.strictness")}
-          value={strict}
-          onChange={setStrict}
-          options={[
-            { value: "easy", label: t("settings.easy") },
-            { value: "normal", label: t("settings.normal") },
-            { value: "strict", label: t("settings.strict") },
           ]}
         />
         {/* 5列は**いちばん狭い**。390px の画面で 5 つの丸を並べるので、
@@ -94,23 +86,16 @@ export function SettingsChoicesScene() {
             { value: 0, label: t("settings.reviewLimitNone") },
           ]}
         />
-        <ChoiceRow
-          cols={3}
-          label={t("settings.reviewFocus")}
-          value={focus}
-          onChange={setFocus}
-          options={[
-            { value: "all", label: t("settings.focusAll") },
-            { value: "weak", label: t("settings.focusWeak") },
-            { value: "new", label: t("settings.focusNew") },
-          ]}
+      </div>
+      <div className="mt-4 border-t border-border pt-3">
+        <ToggleRow
+          label={t("settings.selfieMode")}
+          description={t("settings.selfieModeDesc")}
+          value={selfie}
+          onChange={setSelfie}
         />
       </div>
-      {/* 束の**中**に入る。丸い列の下に区切り線で足されるので、
-          外に出すと区切り線の位置も余白も別物になる。
-          録画（インカメ）は 2026-09-22 に消し、「撮影後に自撮り」に置き換えた。 */}
       <PhotoLibrarySyncToggle />
-      <PlaceReminderToggle />
     </SettingsCard>
   );
 }
@@ -230,20 +215,17 @@ export function SettingsTogglesScene() {
 }
 
 /**
- * 画面のいちばん下。保存・サインアウト・**取り消せない操作**。
+ * 画面のいちばん下。サインアウト・**取り消せない操作**。
  * 消去は開いた状態と、確認語を入れて武装した状態の両方を撮る
  * (閉じたままでは中身が一度も描かれない)。
+ *
+ * **保存の釦は無い**（本番から消えた。オーナー指示 2026-09-23「変更したら即適用して」）。
+ * 前はここにだけ残っていて、本番に無い釦を検査していた（2026-10-03 全画面の点検）。
  */
 export function SettingsDangerScene({ q }: { q: URLSearchParams }) {
   const variant = q.get("variant");
-  const saving = variant === "saving";
   return (
     <div className="space-y-7">
-      {/* 保存中は文字が「保存」→「保存中...」に伸びて、押せなくなる。
-          伸びた側と沈んだ色を撮らないと、待っている間の面が未検査になる。 */}
-      <Button className="w-full" disabled={saving}>
-        {saving ? t("settings.saving") : t("settings.save")}
-      </Button>
       <Button variant="outline" className="w-full">
         <LogOut className="mr-2 h-4 w-4" /> {t("settings.signout")}
       </Button>
@@ -252,24 +234,19 @@ export function SettingsDangerScene({ q }: { q: URLSearchParams }) {
   );
 }
 
+/**
+ * 設定の上半分を本番の順で（言語 → 学習 → 通知）。前は学習の束が2回出ていた。
+ */
 export function SettingsPolishScene() {
-  const [selfie, setSelfie] = useState(true);
   // 保存ボタンは無い（オーナー指示 2026-09-23「変更したら即適用して」）。
   return (
     <div className="settings-page space-y-7 pb-24">
       <SettingsSelectsScene />
-      <SettingsCard title={t("settings.study")}>
-        {/* 名前を直して一言の説明を付けた3つ（オーナー指示 2026-09-23）。 */}
-        <ToggleRow
-          label={t("settings.selfieMode")}
-          description={t("settings.selfieModeDesc")}
-          value={selfie}
-          onChange={setSelfie}
-        />
-        <PhotoLibrarySyncToggle />
+      <SettingsChoicesScene />
+      <SettingsCard title={t("settings.notifications")}>
+        <ReviewReminderSettings />
         <PlaceReminderToggle />
       </SettingsCard>
-      <SettingsChoicesScene />
     </div>
   );
 }
