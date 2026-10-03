@@ -9,8 +9,13 @@ import {
   difficultyToEase,
   ratingOf,
   modeFor,
+  effectiveDueMs,
+  effectiveDueIso,
+  dueNowOrFilter,
   MIN_EASE,
   MAX_EASE,
+  MAX_INTERVAL_DAYS,
+  CHOICE_GAIN,
   TARGET_RETENTION,
   type SrsState,
 } from "./srs";
@@ -169,6 +174,123 @@ describe("nextSrs — 向き（オーナー指示 2026-10-02）", () => {
   });
 });
 
+/**
+ * **4択の正解で記憶を言い過ぎない**（2026-10-03 監査「6 回正解で次が 3 年後」）。
+ *
+ * 直す前（伸びを FSRS のまま、上限 100 年）: 2 → 11 → 46 → 163 → 497 → 1346 日。
+ * 直した後（4択の正解は伸びを半分、上限 180 日）: 2 → 6 → 17 → 42 → 96 → 180 日。
+ */
+describe("4択（見分ける）の証拠は控えめに数える", () => {
+  it("上限は 180 日、伸びの係数は 0.5", () => {
+    expect(MAX_INTERVAL_DAYS).toBe(180);
+    expect(CHOICE_GAIN).toBe(0.5);
+  });
+
+  it("**4択で 6 回続けて正解しても、次は 180 日以内**（前は 1346 日 = 3.7 年）", () => {
+    const states = chain(fresh, 5, 6);
+    expect(states.map((s) => s.interval_days)).toEqual([2, 6, 17, 42, 96, 180]);
+    for (const s of states) expect(s.interval_days).toBeLessThanOrEqual(MAX_INTERVAL_DAYS);
+  });
+
+  it("その先いくら正解しても 180 日を超えない（半年に 1 回は出る）", () => {
+    const states = chain(fresh, 5, 20);
+    expect(Math.max(...states.map((s) => s.interval_days))).toBe(MAX_INTERVAL_DAYS);
+    // 遅れて答えても（R が低いほど伸びる）上限は同じ。
+    const late = nextSrs({ ease: 3, interval_days: 150, repetitions: 9 }, 5, { elapsedDays: 400 });
+    expect(late.interval_days).toBe(MAX_INTERVAL_DAYS);
+  });
+
+  it("証拠の既定は 4択（何も渡さなければ控えめな方）", () => {
+    const prev = { ease: 2.5, interval_days: 10, repetitions: 2 };
+    expect(nextSrs(prev, 5, { elapsedDays: 10 })).toEqual(
+      nextSrs(prev, 5, { elapsedDays: 10, evidence: "choice" }),
+    );
+  });
+
+  it("思い出す形（話す・打つ）の正解は 4択より大きく伸びる。上限は同じ 180 日", () => {
+    const prev = { ease: 2.5, interval_days: 10, repetitions: 2 };
+    const choice = nextSrs(prev, 5, { elapsedDays: 10, evidence: "choice" });
+    const recall = nextSrs(prev, 5, { elapsedDays: 10, evidence: "recall" });
+    expect(recall.interval_days).toBeGreaterThan(choice.interval_days);
+    // 伸びの分（S' − S）がおよそ半分。
+    const gainChoice = choice.interval_days - prev.interval_days;
+    const gainRecall = recall.interval_days - prev.interval_days;
+    expect(Math.abs(gainChoice - gainRecall * CHOICE_GAIN)).toBeLessThanOrEqual(1);
+    // 難しさ D（ease）の動きは証拠の強さによらない（評価だけで決まる）。
+    expect(choice.ease).toBeCloseTo(recall.ease, 9);
+    let s = nextSrs(fresh, 5);
+    for (let i = 0; i < 10; i++) {
+      s = nextSrs(s, 5, { elapsedDays: s.interval_days, evidence: "recall" });
+      expect(s.interval_days).toBeLessThanOrEqual(MAX_INTERVAL_DAYS);
+    }
+  });
+
+  it("Hard（ぼかし・時間切れ）の 4択の正解は Good の 4択よりさらに伸びない。最初の復習と間違いは変わらない", () => {
+    const prev = { ease: 2.5, interval_days: 10, repetitions: 2 };
+    const hard = nextSrs(prev, 4, { elapsedDays: 10 });
+    const good = nextSrs(prev, 5, { elapsedDays: 10 });
+    expect(hard.interval_days).toBeLessThan(good.interval_days);
+    expect(hard.interval_days).toBeGreaterThanOrEqual(prev.interval_days);
+    // 未復習からの初期値・間違えたときの縮み方には係数を掛けない。
+    for (const score of [1, 3, 5]) {
+      expect(nextSrs(fresh, score, { evidence: "choice" })).toEqual(
+        nextSrs(fresh, score, { evidence: "recall" }),
+      );
+    }
+    const mature = { ease: 2.5, interval_days: 90, repetitions: 6 };
+    expect(nextSrs(mature, 1, { elapsedDays: 90, evidence: "choice" })).toEqual(
+      nextSrs(mature, 1, { elapsedDays: 90, evidence: "recall" }),
+    );
+  });
+});
+
+/**
+ * **DB に入っている長い間隔は書き換えない。** 読むときに 180 日で頭を打つ。
+ * 2026-10-03 より前に、4択の正解だけで数年先へ飛んだ語を、表示・次の計算・出題の
+ * どれでも 180 日として扱う。
+ */
+describe("既存の長い間隔は読むときに 180 日として働く（移行なし）", () => {
+  const now = Date.UTC(2026, 9, 3);
+  const legacy = { ease: 2.5, interval_days: 1346, repetitions: 6 };
+
+  it("安定度は 180 日で頭打ち。% は 180 日目に 90%（1346 日のままなら 98% と言い過ぎていた）", () => {
+    expect(stabilityOf(legacy.interval_days, legacy.ease)).toBe(MAX_INTERVAL_DAYS);
+    const r = retentionNow(legacy.interval_days, legacy.ease, now - 180 * DAY, now);
+    expect(Math.round(r)).toBe(90);
+    expect(100 * forgettingCurve(180, 1346)).toBeGreaterThan(97);
+  });
+
+  it("次の計算も 180 日から始まり、180 日を超えない", () => {
+    const good = nextSrs(legacy, 5, { elapsedDays: 200 });
+    expect(good.interval_days).toBe(MAX_INTERVAL_DAYS);
+    expect(good.repetitions).toBe(7);
+    const lapsed = nextSrs(legacy, 1, { elapsedDays: 200 });
+    expect(lapsed.interval_days).toBeLessThan(30);
+    expect(lapsed.repetitions).toBe(0);
+  });
+
+  it("出題の期限は `due_at` と「最後の復習 + 180 日」の早い方", () => {
+    const last = new Date(now - 200 * DAY).toISOString();
+    const farDue = new Date(now + 1146 * DAY).toISOString();
+    expect(effectiveDueMs(farDue, last)).toBe(now - 20 * DAY);
+    expect(effectiveDueIso(farDue, last)).toBe(new Date(now - 20 * DAY).toISOString());
+    // 最近復習した札は `due_at` のまま。
+    const soon = new Date(now + 3 * DAY).toISOString();
+    expect(effectiveDueMs(soon, new Date(now - 10 * DAY).toISOString())).toBe(now + 3 * DAY);
+    // 未復習（最後の復習が無い）は `due_at` のまま、期限が無ければ null のまま。
+    expect(effectiveDueMs(soon, null)).toBe(now + 3 * DAY);
+    expect(effectiveDueMs(null, last)).toBeNull();
+    expect(effectiveDueIso(null, null)).toBeNull();
+  });
+
+  it("DB で選ぶ条件も同じ規則（`due_at <= 今` か、期限があって最後の復習が 180 日以上前）", () => {
+    expect(dueNowOrFilter(now)).toBe(
+      `due_at.lte."${new Date(now).toISOString()}",` +
+        `and(due_at.not.is.null,last_reviewed_at.lte."${new Date(now - 180 * DAY).toISOString()}")`,
+    );
+  });
+});
+
 describe("忘却曲線（FSRS のべき関数）", () => {
   it("出題日（経過 = 安定度）の定着度は 90%（間隔・ease によらない）", () => {
     for (const s of [1, 3, 7, 30, 90, 365]) {
@@ -244,8 +366,10 @@ describe("retentionNow", () => {
 });
 
 describe("stabilityOf", () => {
-  it("安定度は `interval_days` そのもの（0 = 未復習）。ease は効かない", () => {
+  it("安定度は `interval_days` そのもの（0 = 未復習）。ease は効かない。180 日で頭打ち", () => {
     expect(stabilityOf(0, 2.5)).toBe(0);
+    expect(stabilityOf(180)).toBe(180);
+    expect(stabilityOf(36500)).toBe(180);
     expect(stabilityOf(10, 1.3)).toBe(10);
     expect(stabilityOf(10, 3.0)).toBe(10);
     expect(stabilityOf(0.4)).toBe(1);

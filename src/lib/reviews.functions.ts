@@ -20,7 +20,11 @@ import {
   modeFor,
   stabilityOf,
   daysUntilRetention,
+  effectiveDueMs,
+  effectiveDueIso,
+  dueNowOrFilter,
   LAPSE_SCORE,
+  MAX_INTERVAL_DAYS,
 } from "@/lib/srs";
 import { pickInterval } from "@/lib/jev-tasks";
 import { isAlreadyGraded } from "@/lib/review-grade-guard";
@@ -304,7 +308,9 @@ export const getDueReviews = createServerFn({ method: "GET" })
         .from("reviews")
         .select(dueSelect(true))
         .eq("user_id", userId)
-        .lte("due_at", nowIso);
+        // 期限が来た札。2026-10-03 より前の数年先の期限は、最後の復習から 180 日で
+        // 来た扱い（`dueNowOrFilter`。DB は書き換えない）。
+        .or(dueNowOrFilter(Date.parse(nowIso)));
       const scoped = withLang ? base.or(langFilter, { referencedTable: "stickers.words" }) : base;
       const focused =
         stageFocus === "weak"
@@ -330,7 +336,7 @@ export const getDueReviews = createServerFn({ method: "GET" })
           "id, sticker_id, ease, interval_days, repetitions, blur_seen, last_reviewed_at, stickers(cutout_image_url, object_image_url, caption, location_name, taken_at, words(id, headword, reading_zhuyin, pinyin, meaning_ja, example_sentence, example_translation, category_key))",
         )
         .eq("user_id", userId)
-        .lte("due_at", nowIso)
+        .or(dueNowOrFilter(Date.parse(nowIso)))
         .order("due_at", { ascending: true })
         .limit(fetchLimit)) as unknown as { data: typeof data; error: typeof error });
     }
@@ -829,14 +835,14 @@ async function countDue(
       .from("reviews")
       .select("id, stickers!inner(words!inner(language))", { count: "exact", head: true })
       .eq("user_id", userId)
-      .lte("due_at", new Date().toISOString());
+      .or(dueNowOrFilter(Date.now()));
   const res = await base().or(langFilter, { referencedTable: "stickers.words" });
   if (!res.error) return { count: res.count ?? 0 };
   const plain = await db
     .from("reviews")
     .select("id", { count: "exact", head: true })
     .eq("user_id", userId)
-    .lte("due_at", new Date().toISOString());
+    .or(dueNowOrFilter(Date.now()));
   return { count: plain.error ? null : (plain.count ?? 0) };
 }
 
@@ -891,7 +897,9 @@ export const gradeReview = createServerFn({ method: "POST" })
      * 二重送信・別の端末で先に済ませた札。進めずに今の状態を返す。
      */
     const nowMs = Date.now();
-    if (isAlreadyGraded(row.due_at, nowMs)) {
+    // 期限は「最後の復習 + 180 日」で頭を打つ（`effectiveDueMs`）。2026-10-03 より前の
+    // 数年先の期限の札も、出題された（`dueNowOrFilter`）なら採点できる。
+    if (isAlreadyGraded(effectiveDueIso(row.due_at, row.last_reviewed_at), nowMs)) {
       return {
         score: row.last_score ?? 0,
         next_due_at: row.due_at as string,
@@ -915,7 +923,8 @@ export const gradeReview = createServerFn({ method: "POST" })
     const srs = nextSrs(
       { ease: row.ease, interval_days: row.interval_days, repetitions: row.repetitions },
       score,
-      { elapsedDays },
+      // 復習はすべて 4択（`LightModeCard`）。見分けた証拠なので伸びは控えめ（srs.ts の冒頭）。
+      { elapsedDays, evidence: "choice" },
     );
 
     /**
@@ -954,7 +963,8 @@ export const gradeReview = createServerFn({ method: "POST" })
         ? await jevScheduleDays(supabase as never, scheduleArgs)
         : null;
     const picked = pickInterval(srs.interval_days, jev?.days ?? null, score, LAPSE_SCORE);
-    const next = { ...srs, interval_days: picked.days };
+    // Jev（live）の日数も上限 180 日の中に収める（`MAX_INTERVAL_DAYS`。4択だけの証拠）。
+    const next = { ...srs, interval_days: Math.min(picked.days, MAX_INTERVAL_DAYS) };
     const dueAt = new Date(now + next.interval_days * 86400 * 1000).toISOString();
 
     // 読んだ時の期限のままの時だけ書く（同時に2回届いた時、後の方は0行になる）。
@@ -1123,7 +1133,8 @@ export const getStickerMemoryHistory = createServerFn({ method: "GET" })
             ease: rev.ease,
             interval_days: rev.interval_days,
             last_reviewed_at: rev.last_reviewed_at,
-            due_at: rev.due_at,
+            // 次の復習日も 180 日で頭打ち（`effectiveDueIso`）。
+            due_at: effectiveDueIso(rev.due_at, rev.last_reviewed_at),
           }
         : null,
       taken_at: (st as { taken_at?: string | null } | null)?.taken_at ?? null,
@@ -1198,7 +1209,10 @@ export const getOverallMemoryStats = createServerFn({ method: "GET" })
       keep.has(e.sticker_id),
     );
     const now = Date.now();
-    const dueNow = raw.filter((r) => r.due_at && new Date(r.due_at).getTime() <= now).length;
+    const dueNow = raw.filter((r) => {
+      const due = effectiveDueMs(r.due_at, r.last_reviewed_at);
+      return due != null && due <= now;
+    }).length;
 
     const { series, avg_retention } = buildRetentionSeries({ cards, events, nowMs: now });
 
@@ -1287,7 +1301,7 @@ export const getMemoryOverview = createServerFn({ method: "GET" })
           retention,
           interval_days: r.interval_days,
           repetitions: r.repetitions,
-          due_at: r.due_at,
+          due_at: effectiveDueIso(r.due_at, r.last_reviewed_at),
           days_until_forgot: daysUntilForgot,
           fresh: r.repetitions <= 2,
           long_term: r.interval_days >= 30,
