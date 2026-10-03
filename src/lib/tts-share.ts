@@ -57,7 +57,14 @@ export async function isShareableTtsText(
   if (!t) return false;
   // 1. 見出し語（索引が効く）
   const [dict, word] = await Promise.all([
-    found(db.from("dictionary_entries").select("id").eq("language", language).eq("headword", t).limit(1)),
+    found(
+      db
+        .from("dictionary_entries")
+        .select("id")
+        .eq("language", language)
+        .eq("headword", t)
+        .limit(1),
+    ),
     found(db.from("words").select("id").eq("language", language).eq("headword", t).limit(1)),
   ]);
   if (dict || word) return true;
@@ -67,7 +74,9 @@ export async function isShareableTtsText(
     found(
       db.from("words").select("id").eq("language", language).eq("example_sentence", t).limit(1),
     ),
-    found(db.from("words").select("id").eq("language", language).contains("extras", extra).limit(1)),
+    found(
+      db.from("words").select("id").eq("language", language).contains("extras", extra).limit(1),
+    ),
     found(db.from("word_explanations").select("word_id").contains("extras", extra).limit(1)),
   ]);
   return hits.some(Boolean);

@@ -1039,123 +1039,165 @@ const UpdateExtrasInput = z.object({
   reader_meaning: z.string().max(200).optional(),
 });
 
+export type UpdateWordExtrasData = z.infer<typeof UpdateExtrasInput>;
+
+/** `applyWordExtrasUpdate` が外の世界に触る所（試験で偽物を渡す）。 */
+export type WordExtrasDeps = {
+  /** 呼んだ人の権限の client（札の持ち主の確かめ）。 */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  supabase: any;
+  /** サーバの鍵の client（共有の語を書く）。 */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  admin: any;
+  /** 読む人の言語の解説の行を置く（`saveWordExplanation`）。 */
+  saveExplanation: (input: {
+    word_id: string;
+    explain_lang: string;
+    l1: string;
+    meaning: string;
+    example_translation?: string | null;
+    extras: Record<string, unknown>;
+  }) => Promise<unknown>;
+};
+
 export const updateWordExtras = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) => UpdateExtrasInput.parse(input))
   .handler(async ({ context, data }) => {
-    const { supabase, userId } = context;
-    // Ownership check (docs/design/03 §1): words is a shared table — only a
-    // user who owns a sticker referencing this word may edit it.
-    const { data: owned } = await supabase
-      .from("stickers")
-      .select("id")
-      .eq("user_id", userId)
-      .eq("word_id", data.word_id)
-      .limit(1)
-      .maybeSingle();
-    if (!owned) throw new Error("この単語を編集する権限がありません");
-
-    // The words UPDATE policy only covers source='ai', so writing through the
-    // user client silently updates 0 rows for dictionary (verified) words —
-    // their extras never persisted and the enrichment AI call was re-paid on
-    // every open. Write via the service role instead, with a hard rule that
-    // keeps constitution §2-1 intact: verified base fields (reading, meaning,
-    // examples…) are never touched — verified words only ever gain `extras`,
-    // which the UI already labels as AI-generated supplements.
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const { data: word, error: readErr } = await supabaseAdmin
-      .from("words")
-      // 意味と例文訳も読む。下で共有キャッシュに置くとき、`patch` が
-      // 意味を運んでこない回(項目だけ作り直したとき)の落とし所になる。
-      // ここを空のまま置くと「意味が空 = 未完成」と数えられて、次に開いた
-      // ときにまた作りに行く — 止めたかった作り直しがそのまま復活する。
-      // 共有の列はすべて読む — 空の列だけを埋めるため（`fillEmptySharedColumns`）。
-      .select(
-        "id, source, extras, meaning_ja, reading_zhuyin, pinyin, part_of_speech, level, example_sentence, example_translation",
-      )
-      .eq("id", data.word_id)
-      .maybeSingle();
-    if (readErr) throw new Error(readErr.message);
-    if (!word) throw new Error("単語が見つかりません");
-    const shared = word as unknown as Record<SharedWordColumn, string | null> & {
-      source: string | null;
-      extras?: unknown;
-    };
-
-    /**
-     * **共有の行は、空の所を埋めるだけ**（監査 2026-10-03「札を1枚持てば他人のカードの
-     * 意味を書き換えられる」）。
-     *
-     * - 共有の列: いま空の列だけ（人が確かめた語は触らない）
-     * - 共有の extras: 空の項目だけ・同じ言語のときだけ。ExtrasSchema に無いキー
-     *   （復習の足場キャッシュ speaking_scaffold_* など）は残す
-     *
-     * 送られた解説の全体は、下の**読む人の言語の行**（`word_explanations`）に入る。
-     * 画面が出すのはそちらなので、作り直した本人の見え方は変わらない。
-     */
-    const prevRaw = shared.extras;
-    const merged: Record<string, unknown> =
-      prevRaw && typeof prevRaw === "object" && !Array.isArray(prevRaw)
-        ? { ...(prevRaw as Record<string, unknown>), ...data.extras }
-        : (data.extras as unknown as Record<string, unknown>);
-    const update: Record<string, unknown> = fillEmptySharedColumns(shared, data.patch, {
-      verified: shared.source === "verified",
-    });
-    const filledExtras = fillEmptySharedExtras(
-      prevRaw,
-      data.extras as unknown as Record<string, unknown>,
+    const { saveWordExplanation } = await import("./word-explanation.functions");
+    return applyWordExtrasUpdate(
+      {
+        supabase: context.supabase,
+        admin: supabaseAdmin,
+        saveExplanation: (input) => saveWordExplanation(supabaseAdmin as never, input),
+      },
+      context.userId,
+      data,
     );
-    if (filledExtras) update.extras = filledExtras;
-    if (Object.keys(update).length > 0) {
-      const { error } = await supabaseAdmin
-        .from("words")
-        .update(update as never)
-        .eq("id", data.word_id);
-      if (error) throw new Error(error.message);
-    }
-
-    /**
-     * **解説を共有キャッシュにも置く**(2026-08-24)。
-     *
-     * `words` は `(language, headword)` で全ユーザー共有の1行。ところが解説は
-     * 読む人の言語と母語で中身が変わるので、そこに置くと**開くたびに作り直して
-     * 上書きし合う**(遅い・高い・解説が揺れる)。置き場所を
-     * `word_explanations (word_id, explain_lang, l1)` に分けた。
-     *
-     * ここに足したのは、**書く所が既に1つに集まっていたから**。生成の経路が
-     * 増えても、保存は必ずここを通る。2箇所に分けると片方だけ書き忘れて
-     * 「作ったのに次に開くとまた作る」になる(この app が何度も踏んだ形)。
-     *
-     * 置けなくても**カードの保存は成功として返す** — 共有キャッシュは
-     * 速さのための付け足しで、無くても動く(移行待ちの環境がまさにそれ)。
-     */
-    const ex = (data.extras ?? {}) as Record<string, unknown>;
-    // 行の鍵は言語の符号だけ。それ以外の値で共有の行を作らせない。
-    if (
-      !isExplanationLangCode(ex.explain_lang ?? "") ||
-      !isExplanationLangCode(ex.explain_l1 ?? "")
-    ) {
-      throw new Error("解説の言語の形が違います");
-    }
-    // **待ってから返す**（βテスト 2026-09-30「単語の項目を表示するのが遅い」）。
-    // 待たずに返すと、画面が解説を読み直した時点でまだ書けておらず、
-    // 次に開くまで（最大30分の読み置き）古い解説が出続けていた。
-    // 失敗しても投げない関数なので、カードの保存は巻き込まない。
-    await import("./word-explanation.functions").then(({ saveWordExplanation }) =>
-      saveWordExplanation(supabaseAdmin as never, {
-        word_id: data.word_id,
-        explain_lang: String(ex.explain_lang ?? ""),
-        l1: String(ex.explain_l1 ?? ""),
-        // 意味は共有の列にも在るが、**読む人の言語の物**なのでこちらが正。
-        meaning: String(
-          data.reader_meaning?.trim() || data.patch?.meaning_ja || shared.meaning_ja || "",
-        ),
-        example_translation: data.patch?.example_translation ?? shared.example_translation ?? null,
-        extras: merged,
-      }),
-    );
-    return { ok: true };
   });
+
+/**
+ * `updateWordExtras` の中身（試験から呼べるように切り出した）。
+ *
+ * 1. その語の札を持っている人だけ
+ * 2. 共有の語（`words`）は**空の列・空の項目を埋めるだけ**（`shared-word-guard.ts`）
+ * 3. 送られた解説の全体は、読む人の言語の行（`word_explanations`）に置く
+ */
+export async function applyWordExtrasUpdate(
+  deps: WordExtrasDeps,
+  userId: string,
+  data: UpdateWordExtrasData,
+): Promise<{ ok: true }> {
+  const { supabase, admin: supabaseAdmin } = deps;
+  // Ownership check (docs/design/03 §1): words is a shared table — only a
+  // user who owns a sticker referencing this word may edit it.
+  const { data: owned } = await supabase
+    .from("stickers")
+    .select("id")
+    .eq("user_id", userId)
+    .eq("word_id", data.word_id)
+    .limit(1)
+    .maybeSingle();
+  if (!owned) throw new Error("この単語を編集する権限がありません");
+
+  const ex = (data.extras ?? {}) as Record<string, unknown>;
+  // 解説の行の鍵は言語の符号だけ。それ以外の値で共有の行を作らせない（書く前に断る）。
+  if (
+    !isExplanationLangCode(ex.explain_lang ?? "") ||
+    !isExplanationLangCode(ex.explain_l1 ?? "")
+  ) {
+    throw new Error("解説の言語の形が違います");
+  }
+
+  // The words UPDATE policy only covers source='ai', so writing through the
+  // user client silently updates 0 rows for dictionary (verified) words —
+  // their extras never persisted and the enrichment AI call was re-paid on
+  // every open. Write via the service role instead, with a hard rule that
+  // keeps constitution §2-1 intact: verified base fields (reading, meaning,
+  // examples…) are never touched — verified words only ever gain `extras`,
+  // which the UI already labels as AI-generated supplements.
+  const { data: word, error: readErr } = await supabaseAdmin
+    .from("words")
+    // 意味と例文訳も読む。下で共有キャッシュに置くとき、`patch` が
+    // 意味を運んでこない回(項目だけ作り直したとき)の落とし所になる。
+    // ここを空のまま置くと「意味が空 = 未完成」と数えられて、次に開いた
+    // ときにまた作りに行く — 止めたかった作り直しがそのまま復活する。
+    // 共有の列はすべて読む — 空の列だけを埋めるため（`fillEmptySharedColumns`）。
+    .select(
+      "id, source, extras, meaning_ja, reading_zhuyin, pinyin, part_of_speech, level, example_sentence, example_translation",
+    )
+    .eq("id", data.word_id)
+    .maybeSingle();
+  if (readErr) throw new Error(readErr.message);
+  if (!word) throw new Error("単語が見つかりません");
+  const shared = word as unknown as Record<SharedWordColumn, string | null> & {
+    source: string | null;
+    extras?: unknown;
+  };
+
+  /**
+   * **共有の行は、空の所を埋めるだけ**（監査 2026-10-03「札を1枚持てば他人のカードの
+   * 意味を書き換えられる」）。
+   *
+   * - 共有の列: いま空の列だけ（人が確かめた語は触らない）
+   * - 共有の extras: 空の項目だけ・同じ言語のときだけ。ExtrasSchema に無いキー
+   *   （復習の足場キャッシュ speaking_scaffold_* など）は残す
+   *
+   * 送られた解説の全体は、下の**読む人の言語の行**（`word_explanations`）に入る。
+   * 画面が出すのはそちらなので、作り直した本人の見え方は変わらない。
+   */
+  const prevRaw = shared.extras;
+  const merged: Record<string, unknown> =
+    prevRaw && typeof prevRaw === "object" && !Array.isArray(prevRaw)
+      ? { ...(prevRaw as Record<string, unknown>), ...ex }
+      : ex;
+  const update: Record<string, unknown> = fillEmptySharedColumns(shared, data.patch, {
+    verified: shared.source === "verified",
+  });
+  const filledExtras = fillEmptySharedExtras(prevRaw, ex);
+  if (filledExtras) update.extras = filledExtras;
+  if (Object.keys(update).length > 0) {
+    const { error } = await supabaseAdmin
+      .from("words")
+      .update(update as never)
+      .eq("id", data.word_id);
+    if (error) throw new Error(error.message);
+  }
+
+  /**
+   * **解説を共有キャッシュにも置く**(2026-08-24)。
+   *
+   * `words` は `(language, headword)` で全ユーザー共有の1行。ところが解説は
+   * 読む人の言語と母語で中身が変わるので、そこに置くと**開くたびに作り直して
+   * 上書きし合う**(遅い・高い・解説が揺れる)。置き場所を
+   * `word_explanations (word_id, explain_lang, l1)` に分けた。
+   *
+   * ここに足したのは、**書く所が既に1つに集まっていたから**。生成の経路が
+   * 増えても、保存は必ずここを通る。2箇所に分けると片方だけ書き忘れて
+   * 「作ったのに次に開くとまた作る」になる(この app が何度も踏んだ形)。
+   *
+   * 置けなくても**カードの保存は成功として返す** — 共有キャッシュは
+   * 速さのための付け足しで、無くても動く(移行待ちの環境がまさにそれ)。
+   *
+   * **待ってから返す**（βテスト 2026-09-30「単語の項目を表示するのが遅い」）。
+   * 待たずに返すと、画面が解説を読み直した時点でまだ書けておらず、
+   * 次に開くまで（最大30分の読み置き）古い解説が出続けていた。
+   * 失敗しても投げない関数なので、カードの保存は巻き込まない。
+   */
+  await deps.saveExplanation({
+    word_id: data.word_id,
+    explain_lang: String(ex.explain_lang ?? ""),
+    l1: String(ex.explain_l1 ?? ""),
+    // 意味は共有の列にも在るが、**読む人の言語の物**なのでこちらが正。
+    meaning: String(
+      data.reader_meaning?.trim() || data.patch?.meaning_ja || shared.meaning_ja || "",
+    ),
+    example_translation: data.patch?.example_translation ?? shared.example_translation ?? null,
+    extras: merged,
+  });
+  return { ok: true };
+}
 
 // --- User feedback: report a wrong word (§ self-improvement) -----------------
 //

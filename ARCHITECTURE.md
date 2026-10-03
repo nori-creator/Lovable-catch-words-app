@@ -137,7 +137,15 @@ A background failure that the UI deliberately survives (TTS falling back to the 
 
 ## Day boundaries
 
-User-facing "today" counts use Taiwan time (`Asia/Taipei`; `startOfAppDay` for plan limits). AI abuse caps (`assertWithinDailyCap`) are a rolling 24 hours on purpose, and their message says so.
+User-facing "today" counts use Taiwan time (`Asia/Taipei`; `startOfAppDay` in `taipei-day.ts`, used for plan limits and the review daily limit). AI abuse caps (`assertWithinDailyCap`) are a rolling 24 hours on purpose, and their message says so.
+
+## Security audit fixes (2026-10-03)
+
+- Shared `words` rows: client-sent canonical columns and `extras` only **fill empty fields** (`shared-word-guard.ts`; same-language extras only; `verified` words untouched). The caller's full explanation goes to the reader-language `word_explanations` row, size-capped. Server-verified writes (`reportAndFixSection`, `regenerateCardSection`) are separate paths.
+- AI caps (`ai-cap.ts`): fail closed when usage can't be counted; one usage row is reserved **before** the provider call (callers no longer `logUsage` the same kind afterwards); a global per-Taipei-day ceiling across all users (`AI_GLOBAL_DAILY_CAP`, default 5,000, TTS excluded) is counted in server-only `app_config` slots (`budget-slots.ts`), old slots pruned. Errors carry codes (`AI_DAILY_CAP`, `AI_GLOBAL_CAP`, `AI_USAGE_CHECK_FAILED`) localised via `errors.ts`.
+- Shared TTS cache: only headwords and dictionary example sentences are stored (`tts-share.ts`); other text is synthesized and returned uncached.
+- `/api/native-ai` is off unless `NATIVE_AI_ENABLED=1` (no shipped client; iOS design is `/api/v1/*`).
+- Stripe webhook re-reads the subscription from Stripe instead of trusting event order.
 
 ## AI-assisted fixes
 

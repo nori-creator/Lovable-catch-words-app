@@ -3,6 +3,7 @@ import {
   GUEST_GLOBAL_LIMIT_PER_DAY,
   GUEST_IP_LIMIT_PER_DAY,
   guestClientIp,
+  guestIpBucket,
   isSameOriginRequest,
   reserveGuestSlot,
 } from "./first-catch-guest.server";
@@ -64,7 +65,6 @@ describe("guest gate", () => {
   it("accepts same-origin and proxied-host requests, refuses a foreign page", () => {
     const at = (headers: Record<string, string>) =>
       new Request("http://internal/_serverFn/x", { method: "POST", headers });
-    expect(isSameOriginRequest(at({}))).toBe(true);
     expect(isSameOriginRequest(at({ origin: "http://internal" }))).toBe(true);
     expect(
       isSameOriginRequest(at({ origin: "https://app.example", "x-forwarded-host": "app.example" })),
@@ -75,10 +75,49 @@ describe("guest gate", () => {
       ),
     ).toBe(false);
   });
+  it("refuses a call without an Origin header (browsers always send one on POST)", () => {
+    const req = new Request("http://internal/_serverFn/x", {
+      method: "POST",
+      headers: { "x-forwarded-host": "app.example", host: "internal" },
+    });
+    expect(isSameOriginRequest(req)).toBe(false);
+  });
   it("falls back to the per-device account only for gate refusals, not for real AI errors", () => {
     for (const code of ["FIRST_CATCH_LIMIT", "FIRST_CATCH_ORIGIN", "FIRST_CATCH_AI_UNAVAILABLE"])
       expect(isGuestRefusal(new Error(code))).toBe(true);
     expect(isGuestRefusal(new Error("Invalid input"))).toBe(false);
     expect(isGuestRefusal("FIRST_CATCH_LIMIT")).toBe(false);
+  });
+});
+
+describe("guestIpBucket（数える単位）", () => {
+  it("puts every address of one IPv6 /64 into the same bucket", () => {
+    const a = guestIpBucket("2001:db8:1234:5678:aaaa:bbbb:cccc:dddd");
+    expect(a).toBe("2001:db8:1234:5678::/64");
+    expect(guestIpBucket("2001:0db8:1234:5678::1")).toBe(a);
+    expect(guestIpBucket("2001:DB8:1234:5678:ffff::")).toBe(a);
+    expect(guestIpBucket("[2001:db8:1234:5678::9]:443")).toBe(a);
+    expect(guestIpBucket("2001:db8:1234:5678::9%eth0")).toBe(a);
+  });
+  it("keeps different /64s apart", () => {
+    expect(guestIpBucket("2001:db8:1234:5679::1")).not.toBe(guestIpBucket("2001:db8:1234:5678::1"));
+    expect(guestIpBucket("::1")).toBe("0:0:0:0::/64");
+  });
+  it("leaves IPv4 alone (including the IPv4-mapped IPv6 form and a port)", () => {
+    expect(guestIpBucket("1.2.3.4")).toBe("1.2.3.4");
+    expect(guestIpBucket("::ffff:1.2.3.4")).toBe("1.2.3.4");
+    expect(guestIpBucket("1.2.3.4:5678")).toBe("1.2.3.4");
+    expect(guestIpBucket("1.2.3.4")).not.toBe(guestIpBucket("1.2.3.5"));
+  });
+  it("does not crash on junk (counts it as it is)", () => {
+    expect(guestIpBucket("not-an-ip")).toBe("not-an-ip");
+    expect(guestIpBucket("1:2:3:4:5:6:7:8:9")).toBe("1:2:3:4:5:6:7:8:9");
+  });
+});
+
+describe("guest budget limits stay as they were", () => {
+  it("30 per address per day, 1000 for everyone", () => {
+    expect(GUEST_IP_LIMIT_PER_DAY).toBe(30);
+    expect(GUEST_GLOBAL_LIMIT_PER_DAY).toBe(1000);
   });
 });

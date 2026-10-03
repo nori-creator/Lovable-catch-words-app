@@ -3,12 +3,7 @@ import { targetProfile } from "@/lib/target-profile";
 import { generateText, Output } from "ai";
 import type { z } from "zod";
 import { UI_LANG_PROMPT_NAMES } from "./i18n";
-import {
-  DAILY_CAPS,
-  USAGE_CHECK_FAILED_MESSAGE,
-  globalAiDailyCap,
-  reserveAiCall,
-} from "./ai-cap";
+import { DAILY_CAPS, USAGE_CHECK_FAILED_MESSAGE, globalAiDailyCap, reserveAiCall } from "./ai-cap";
 import type { BudgetDb } from "./budget-slots";
 
 /**

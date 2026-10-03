@@ -18,10 +18,7 @@ export type BudgetDb = {
       cols: string,
       opts: { count: "exact"; head: true },
     ) => {
-      like: (
-        col: string,
-        pattern: string,
-      ) => PromiseLike<{ count: number | null; error: unknown }>;
+      like: (col: string, pattern: string) => PromiseLike<{ count: number | null; error: unknown }>;
     };
     insert: (row: { key: string; value: Record<string, never> }) => PromiseLike<{
       error: { code?: string } | null;
@@ -83,10 +80,11 @@ export async function pruneBudgetRows(
 ): Promise<boolean> {
   try {
     const before = new Date(now.getTime() - keepDays * 86_400_000).toISOString();
-    const { error } = await db.from("app_config").delete().like("key", `${root}%`).lt(
-      "updated_at",
-      before,
-    );
+    const { error } = await db
+      .from("app_config")
+      .delete()
+      .like("key", `${root}%`)
+      .lt("updated_at", before);
     if (error) {
       console.warn("[budget] prune failed", root);
       return false;

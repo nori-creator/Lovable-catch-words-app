@@ -236,7 +236,6 @@ ${distinctionRule(profile.promptName, profile.capture.distinctionExamples)}
     }
     if (!content) throw new Error("AIから候補が返りませんでした。もう一度お試しください。");
 
-
     try {
       const parsed = SuggestionSchema.parse(parseJsonFromAiText(content));
       /**

@@ -136,7 +136,6 @@ function topChunkOf(
   return null;
 }
 
-
 export type ReviewStageFocus = "all" | "weak" | "new";
 
 /**

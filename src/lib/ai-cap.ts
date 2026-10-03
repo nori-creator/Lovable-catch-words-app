@@ -1,4 +1,9 @@
-import { pruneBudgetRows, reserveBudgetSlot, shouldPruneAfter, type BudgetDb } from "./budget-slots";
+import {
+  pruneBudgetRows,
+  reserveBudgetSlot,
+  shouldPruneAfter,
+  type BudgetDb,
+} from "./budget-slots";
 import { taipeiDay } from "./taipei-day";
 
 /**

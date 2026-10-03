@@ -3,11 +3,7 @@ import { internalFailure } from "./safe-error";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { generateText } from "ai";
 import { z } from "zod";
-import {
-  assertWithinDailyCap,
-  getAiFor,
-  getUserTargetLanguage,
-} from "./ai-provider.server";
+import { assertWithinDailyCap, getAiFor, getUserTargetLanguage } from "./ai-provider.server";
 import { targetProfile, type WordbookPhrases } from "./target-profile";
 import { nextSrs } from "./srs";
 import {

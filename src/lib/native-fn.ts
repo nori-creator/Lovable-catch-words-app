@@ -113,7 +113,11 @@ export function statusForError(e: unknown): number {
   const name = (e as { name?: string })?.name ?? "";
   const msg = e instanceof Error ? e.message : String(e ?? "");
   if (msg.startsWith("Unauthorized")) return 401;
-  if (msg.includes("1日の利用上限") || msg.includes("AI_DAILY_CAP") || msg.includes("AI_GLOBAL_CAP"))
+  if (
+    msg.includes("1日の利用上限") ||
+    msg.includes("AI_DAILY_CAP") ||
+    msg.includes("AI_GLOBAL_CAP")
+  )
     return 429;
   // 利用回数を数えられない（閉じる側に倒した）— 少し待てば通る。
   if (msg.includes("AI_USAGE_CHECK_FAILED")) return 503;

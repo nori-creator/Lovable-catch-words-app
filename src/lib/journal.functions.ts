@@ -388,7 +388,6 @@ export const getJournalPrompts = createServerFn({ method: "GET" })
         `**書き出しの形**(穴埋めできる形)、ja はどんなときに使うかの一言(${NL})。`,
     });
 
-
     // **番号は信じきらない。** 範囲外なら結び付けを諦めて null にする —
     // 間違った1枚を指すより、指さないほうが害が小さい。
     const prompts: JournalPrompt[] = out.prompts.map((p) => {
