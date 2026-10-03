@@ -1265,17 +1265,24 @@ html[data-motion="reduce"] .first-run * {
   height: calc(var(--w) * var(--m) * 0.2);
   font-size: calc(var(--m) * 50);
 }
-/* **字体**（オーナー指示 2026-10-03「海邊はこのウェルカム画面にふさわしい字体にして」）。
-   見本の「世界を、ことばに。」の、細いペンで少し崩して書いた字に近い Zen Kurenaido
-   （アプリが端末内に配っている手書き。海・邊ともに持つ）。線を 1.8% だけ太らせて
-   マーカーの筆圧を出し、字間を少し空けて、ほんの少し傾ける。台湾の字形の芫荽より、
-   見本の軽いペン字に近い（比べた7書体の結果）。 */
+/* **字体**（オーナー指示 2026-10-03「海邊はこのウェルカム画面にふさわしい字体にして」
+   「海邊の字体が台湾華語の正式な文字ではないから修整して」）。
+   **芫荽（Iansui）** — 台湾の教育部標準字體に合わせた手書き風の字体。前の Zen Kurenaido は
+   日本の字体で、「海」の右が日本の「毎」の形、「邊」のしんにょうが2点の日本の形で出ていた。
+   見本の軽いペン字に寄せて、紺のインク・字間を少し空け・少し傾けて右へ流す。
+   最初の画面に出る字だけを切り出した1枚（`iansui-welcome.woff2`、約4KB）を先読みする。 */
+@font-face {
+  font-family: "Iansui Welcome";
+  font-style: normal;
+  font-weight: 400;
+  font-display: block;
+  src: url(/fonts/iansui/iansui-welcome.woff2) format("woff2");
+}
 .first-welcome-pen {
   display: inline-block;
-  font-family: "Zen Kurenaido", "Iansui", var(--font-ui);
-  -webkit-text-stroke: 0.018em currentColor;
-  letter-spacing: 0.08em;
-  rotate: -2deg;
+  font-family: "Iansui Welcome", "Iansui", var(--font-ui);
+  letter-spacing: 0.1em;
+  transform: rotate(-3deg) skewX(-6deg);
 }
 .first-welcome-shot {
   position: relative;

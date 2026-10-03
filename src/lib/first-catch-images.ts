@@ -16,13 +16,11 @@ export const WELCOME_IMAGES = [
   "/first-catch-welcome-blur-lake.webp",
 ];
 /**
- * 最初の画面の「海邊」を書く手書き（Zen Kurenaido）のうち、海・邊を持つ2つの切り出し。
- * 字体は `font-display: block` なので、先に取っておくと字の出る前の空白が短い。
+ * 最初の画面の写真の下に書く語（海邊・花・貓・咖啡・湖）だけを切り出した芫荽（台湾の
+ * 教育部標準字體の手書き）。字体は `font-display: block` なので、先に取っておくと
+ * 字の出る前の空白が短い。
  */
-export const WELCOME_FONTS = [
-  "/fonts/zen-kurenaido/zk-114.woff2",
-  "/fonts/zen-kurenaido/zk-64.woff2",
-];
+export const WELCOME_FONTS = ["/fonts/iansui/iansui-welcome.woff2"];
 export const FIRST_CATCH_IMAGES = [
   ...new Set([
     ...WELCOME_IMAGES,
