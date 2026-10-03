@@ -151,6 +151,15 @@ User-facing "today" counts use Taiwan time (`Asia/Taipei`; `startOfAppDay` in `t
 - `/api/native-ai` is off unless `NATIVE_AI_ENABLED=1` (no shipped client; iOS design is `/api/v1/*`).
 - Stripe webhook re-reads the subscription from Stripe instead of trusting event order.
 
+## Beta analytics (2026-10-03, roadmap 9.4 / 11)
+
+What is measured, for the 2–4 week beta (dashboard: `/admin/beta`, admin only, server-checked `has_role`; link in Settings → developer and on `/admin/metrics`). No migration: existing tables only.
+
+- **Signed-in funnel** — whitelisted kinds in `usage_events` via `logAppEvent` (`metrics.functions.ts`, names in `funnel-events.ts`): `camera_open → shutter → candidates_shown → candidate_picked → first_audio_played → catch_saved`, `review_started → review_answered → review_session_done`, `paywall_viewed → checkout_started`. Kind and time only. `candidates_shown` may carry `ms` (shutter → candidates); it is stored as an `ai_runs` row `loop="funnel_latency"`, `meta={event, ms}` because `usage_events` has no payload column.
+- **Pre-signup tutorial funnel (anonymous)** — `welcome_view, questions_done, tutorial_start, photo_taken, candidates_shown, catch_done, practice_done, signup_view, signup_done`, sent by `tutorial-funnel-client.ts` to the public `recordTutorialStep` (`tutorial-funnel.server.ts`). One `app_config` row per step and session: `funnel:<Taipei day>:<step>:<HMAC(session id)>` with value `{}`; the unique key makes it idempotent (a session counts each step once; the client also dedupes in `sessionStorage`). The session id is a random per-tab value in `sessionStorage`. **No photos, words, emails, IPs or user ids are stored.** Abuse limits: same-origin only, 200 rows per network per day (counted in `funnel-rate:<day>:ip:<HMAC(day+IP bucket)>:<n>` slots, pruned after 2 days, raw IP never stored), 3,000 rows per day overall; funnel rows are pruned after 120 days. Failures never block the tutorial.
+- **Dashboard** (`beta-metrics.functions.ts` reads, `beta-metrics.ts` computes — pure, tested): tutorial funnel (7/30 days) → signup → first catch → first review; retention by Taipei signup day (D1/D7/D30 exact day, plus "on or after"; only finished days count; active = any usage event, review or catch; anonymous accounts and admins excluded); weekly catches/reviews per active user and median review session length (answers split on 10-minute gaps); AI/TTS **cost estimate** = calls × unit cost (`DEFAULT_UNIT_COST_USD`, admin-editable override in `app_config.beta_unit_costs`), per active user per month, pre-signup cost shown separately, admin usage excluded; first-catch analysis success rate and p50/p90 from `ai_runs` `first_catch_ai` and guest `first-catch-run:*` keys (kept 14 days, UTC day).
+- All reads page through PostgREST 1,000 rows at a time (`readAllPages`); the screen warns when a safety limit truncated a table. Harness: `?scene=admin-beta` (`&window=7`, `&lang=en|zh-TW|ja`).
+
 ## AI-assisted fixes
 
 AI may diagnose and prepare fixes automatically.

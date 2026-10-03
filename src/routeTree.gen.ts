@@ -35,6 +35,7 @@ import { Route as ApiObject3dModelRouteImport } from './routes/api.object3d-mode
 import { Route as ApiStripeWebhookRouteImport } from './routes/api.stripe-webhook'
 import { Route as DotlovableOauthConsentRouteImport } from './routes/[.]lovable.oauth.consent'
 import { Route as Char91DotmcpChar93InvokeToolToolRouteImport } from './routes/[.mcp]/invoke-tool/$tool'
+import { Route as AuthenticatedAdminBetaRouteImport } from './routes/_authenticated/admin.beta'
 import { Route as AuthenticatedAdminDictionaryRouteImport } from './routes/_authenticated/admin.dictionary'
 import { Route as AuthenticatedAdminMetricsRouteImport } from './routes/_authenticated/admin.metrics'
 import { Route as AuthenticatedAdminUsersRouteImport } from './routes/_authenticated/admin.users'
@@ -172,6 +173,11 @@ const Char91DotmcpChar93InvokeToolToolRoute =
     path: '/.mcp/invoke-tool/$tool',
     getParentRoute: () => rootRouteImport,
   } as any)
+const AuthenticatedAdminBetaRoute = AuthenticatedAdminBetaRouteImport.update({
+  id: '/admin/beta',
+  path: '/admin/beta',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 const AuthenticatedAdminDictionaryRoute =
   AuthenticatedAdminDictionaryRouteImport.update({
     id: '/admin/dictionary',
@@ -222,6 +228,7 @@ export interface FileRoutesByFullPath {
   '/api/stripe-webhook': typeof ApiStripeWebhookRoute
   '/.lovable/oauth/consent': typeof DotlovableOauthConsentRoute
   '/.mcp/invoke-tool/$tool': typeof Char91DotmcpChar93InvokeToolToolRoute
+  '/admin/beta': typeof AuthenticatedAdminBetaRoute
   '/admin/dictionary': typeof AuthenticatedAdminDictionaryRoute
   '/admin/metrics': typeof AuthenticatedAdminMetricsRoute
   '/admin/users': typeof AuthenticatedAdminUsersRoute
@@ -253,6 +260,7 @@ export interface FileRoutesByTo {
   '/api/stripe-webhook': typeof ApiStripeWebhookRoute
   '/.lovable/oauth/consent': typeof DotlovableOauthConsentRoute
   '/.mcp/invoke-tool/$tool': typeof Char91DotmcpChar93InvokeToolToolRoute
+  '/admin/beta': typeof AuthenticatedAdminBetaRoute
   '/admin/dictionary': typeof AuthenticatedAdminDictionaryRoute
   '/admin/metrics': typeof AuthenticatedAdminMetricsRoute
   '/admin/users': typeof AuthenticatedAdminUsersRoute
@@ -286,6 +294,7 @@ export interface FileRoutesById {
   '/api/stripe-webhook': typeof ApiStripeWebhookRoute
   '/.lovable/oauth/consent': typeof DotlovableOauthConsentRoute
   '/.mcp/invoke-tool/$tool': typeof Char91DotmcpChar93InvokeToolToolRoute
+  '/_authenticated/admin/beta': typeof AuthenticatedAdminBetaRoute
   '/_authenticated/admin/dictionary': typeof AuthenticatedAdminDictionaryRoute
   '/_authenticated/admin/metrics': typeof AuthenticatedAdminMetricsRoute
   '/_authenticated/admin/users': typeof AuthenticatedAdminUsersRoute
@@ -319,6 +328,7 @@ export interface FileRouteTypes {
     | '/api/stripe-webhook'
     | '/.lovable/oauth/consent'
     | '/.mcp/invoke-tool/$tool'
+    | '/admin/beta'
     | '/admin/dictionary'
     | '/admin/metrics'
     | '/admin/users'
@@ -350,6 +360,7 @@ export interface FileRouteTypes {
     | '/api/stripe-webhook'
     | '/.lovable/oauth/consent'
     | '/.mcp/invoke-tool/$tool'
+    | '/admin/beta'
     | '/admin/dictionary'
     | '/admin/metrics'
     | '/admin/users'
@@ -382,6 +393,7 @@ export interface FileRouteTypes {
     | '/api/stripe-webhook'
     | '/.lovable/oauth/consent'
     | '/.mcp/invoke-tool/$tool'
+    | '/_authenticated/admin/beta'
     | '/_authenticated/admin/dictionary'
     | '/_authenticated/admin/metrics'
     | '/_authenticated/admin/users'
@@ -593,6 +605,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof Char91DotmcpChar93InvokeToolToolRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/_authenticated/admin/beta': {
+      id: '/_authenticated/admin/beta'
+      path: '/admin/beta'
+      fullPath: '/admin/beta'
+      preLoaderRoute: typeof AuthenticatedAdminBetaRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/admin/dictionary': {
       id: '/_authenticated/admin/dictionary'
       path: '/admin/dictionary'
@@ -644,6 +663,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedReviewRoute: typeof AuthenticatedReviewRoute
   AuthenticatedScanRoute: typeof AuthenticatedScanRoute
   AuthenticatedSettingsRoute: typeof AuthenticatedSettingsRoute
+  AuthenticatedAdminBetaRoute: typeof AuthenticatedAdminBetaRoute
   AuthenticatedAdminDictionaryRoute: typeof AuthenticatedAdminDictionaryRoute
   AuthenticatedAdminMetricsRoute: typeof AuthenticatedAdminMetricsRoute
   AuthenticatedAdminUsersRoute: typeof AuthenticatedAdminUsersRoute
@@ -658,6 +678,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedReviewRoute: AuthenticatedReviewRoute,
   AuthenticatedScanRoute: AuthenticatedScanRoute,
   AuthenticatedSettingsRoute: AuthenticatedSettingsRoute,
+  AuthenticatedAdminBetaRoute: AuthenticatedAdminBetaRoute,
   AuthenticatedAdminDictionaryRoute: AuthenticatedAdminDictionaryRoute,
   AuthenticatedAdminMetricsRoute: AuthenticatedAdminMetricsRoute,
   AuthenticatedAdminUsersRoute: AuthenticatedAdminUsersRoute,

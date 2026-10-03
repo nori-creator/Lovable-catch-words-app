@@ -49,9 +49,15 @@ function AdminMetricsPage() {
         <h1 className="flex items-center gap-2 text-title font-semibold tracking-tight">
           <BarChart3 className="h-5 w-5 text-primary" /> KPIダッシュボード
         </h1>
-        <Link to="/admin/dictionary" className="text-footnote text-primary underline">
-          辞書管理へ
-        </Link>
+        <div className="flex items-center gap-3">
+          {/* ベータの指標（ファネル・継続・費用。2026-10-03）。 */}
+          <Link to="/admin/beta" className="text-footnote text-primary underline">
+            Beta
+          </Link>
+          <Link to="/admin/dictionary" className="text-footnote text-primary underline">
+            辞書管理へ
+          </Link>
+        </div>
       </div>
 
       {isLoading || !dash ? (

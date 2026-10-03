@@ -45,6 +45,7 @@ import { targetProfile } from "@/lib/target-profile";
 import { levelOptions, restoreLevel } from "@/lib/level-scale";
 import { UI_LANGS, UI_LANG_LABEL_KEYS, TARGET_LANG_LABEL_KEYS, normalizeUiLang } from "@/lib/i18n";
 import { useT, setUiLang, storedUiLang } from "@/lib/i18n";
+import { useFunnelEvent } from "@/lib/use-funnel-event";
 import { reconcileLanguage } from "@/lib/language-sync";
 import { storedLevels, setStoredLevels } from "@/lib/level-pref";
 import { restoreSettings } from "@/lib/settings-restore";
@@ -1197,6 +1198,10 @@ function DeveloperPanel() {
             <Link to="/admin/users" className="block text-footnote text-primary underline">
               {t("settings.usersLink")}
             </Link>
+            {/* ベータの指標（ファネル・継続・使い方・費用・解析の確かさ。2026-10-03）。 */}
+            <Link to="/admin/beta" className="block text-footnote text-primary underline">
+              {t("settings.betaLink")}
+            </Link>
           </>
         )}
       </div>
@@ -1769,9 +1774,21 @@ function ProPlanCard() {
     staleTime: 60_000,
   });
   const [busy, setBusy] = useState<null | "monthly" | "yearly">(null);
+  // ベータの計測（2026-10-03）: 買える状態の案内を見た・支払いへ進んだ。種類と時刻だけ。
+  const track = useFunnelEvent();
+  const offered =
+    !!s &&
+    s.enabled &&
+    !s.isPro &&
+    s.configured &&
+    billingSurface(Capacitor.isNativePlatform()) !== "none";
+  useEffect(() => {
+    if (offered) track("paywall_viewed");
+  }, [offered, track]);
   if (!s || !s.enabled || billingSurface(Capacitor.isNativePlatform()) === "none") return null;
   const go = async (period: "monthly" | "yearly") => {
     setBusy(period);
+    track("checkout_started");
     try {
       const { url } = await checkoutFn({ data: { period } });
       window.location.assign(url);

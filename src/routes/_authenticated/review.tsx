@@ -83,6 +83,7 @@ import { tStatic } from "@/lib/i18n";
 import { readerMeaning, readerText } from "@/lib/note-language";
 import { pickReviewExplain, quizPromptMeaning } from "@/lib/review-explain";
 import { useReaderMeaningFor } from "@/lib/reader-meanings";
+import { useFunnelEvent } from "@/lib/use-funnel-event";
 import {
   useReviewReaderExplanations,
   type ReaderReviewView,
@@ -389,6 +390,23 @@ function ReviewPage() {
    */
   const readerViews = useReviewReaderExplanations(cards, idx, REVIEW_PRACTICE_ENABLED);
   const done = cards && idx >= cards.length;
+
+  /**
+   * **ベータの計測**（2026-10-03、`funnel-events.ts`）: 束の1枚目が出たら `review_started`、
+   * 出し切ったら `review_session_done`。答えた数は各問（`review_answered`）。種類と時刻だけ。
+   */
+  const track = useFunnelEvent();
+  const reviewOpenRef = useRef(false);
+  useEffect(() => {
+    if (!cards?.length) return;
+    if (!done && !reviewOpenRef.current) {
+      reviewOpenRef.current = true;
+      track("review_started");
+    } else if (done && reviewOpenRef.current) {
+      reviewOpenRef.current = false;
+      track("review_session_done");
+    }
+  }, [cards, done, track]);
 
   /**
    * **束の写真を、届いた時点で全部端末へ**（`warmCachedImages`）。
@@ -1225,6 +1243,7 @@ export function LightModeCard({
   reader?: ReaderReviewView;
 }) {
   const grade = useServerFn(gradeReview);
+  const trackAnswer = useFunnelEvent();
   const t = useT();
   const uiLang = useUiLang();
   /**
@@ -1309,6 +1328,7 @@ export function LightModeCard({
     setPicked(pickedValue);
     void pronounce(card.headword);
     if (practice) return;
+    trackAnswer("review_answered");
     void grade({
       data: {
         review_id: card.review_id,
