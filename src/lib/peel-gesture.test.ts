@@ -73,7 +73,7 @@ describe("peel gesture (iPhone Safari)", () => {
   it("the hidden face of a flip card is not hit-tested (iOS stacks the turned-away back on top)", () => {
     const css = source("styles.css");
     expect(css).toMatch(
-      /\.card-flip:not\(\.flipped\) > \.card-back,\s*\.card-flip\.flipped > \.card-face:not\(\.card-back\) \{\s*visibility: hidden;/,
+      /\.card-flip:not\(\.flipped\) > \.card-back,\s*\.card-flip\.flipped > \.card-face:not\(\.card-back\) \{\s*pointer-events: none;\s*visibility: hidden;/,
     );
   });
 });
