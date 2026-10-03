@@ -102,14 +102,22 @@ export function HeroPhotoPicker({
   const t = useT();
   const candidateCutout = urlOf(sources, "cutout");
   const [validCutout, setValidCutout] = useState<string | null>(null);
+  /**
+   * 切り抜きを元写真と見比べている間。**その升目の場所を先に取っておく**
+   * （2026-10-03 画面の監査: 見比べ終わってから切り抜きの升目が差し込まれ、
+   * 後ろの升目が一段下へずれていた — CLS 約 0.13）。
+   */
+  const [checkingCutout, setCheckingCutout] = useState(!!candidateCutout);
   useEffect(() => {
     let cancelled = false;
     const object = sources.object_url ?? sources.object_thumb_url ?? null;
     if (!candidateCutout || !object) {
       setValidCutout(candidateCutout);
+      setCheckingCutout(false);
       return;
     }
     setValidCutout(null);
+    setCheckingCutout(true);
     void Promise.all([
       fetch(object).then((r) => r.arrayBuffer()),
       fetch(candidateCutout).then((r) => r.arrayBuffer()),
@@ -128,12 +136,17 @@ export function HeroPhotoPicker({
       .catch(() => {
         // 同一画像か確認できないときは、誤って「切り抜き」と見せない。
         if (!cancelled) setValidCutout(null);
+      })
+      .finally(() => {
+        if (!cancelled) setCheckingCutout(false);
       });
     return () => {
       cancelled = true;
     };
   }, [candidateCutout, sources.object_url, sources.object_thumb_url]);
-  const available = ORDER.filter((r) => (r !== "cutout" ? !!urlOf(sources, r) : !!validCutout));
+  const available = ORDER.filter((r) =>
+    r !== "cutout" ? !!urlOf(sources, r) : !!validCutout || (checkingCutout && !!candidateCutout),
+  );
 
   return (
     <div className="space-y-3">
@@ -159,6 +172,18 @@ export function HeroPhotoPicker({
       <ul className="grid grid-cols-2 gap-2">
         {available.map((role) => {
           const url = role === "cutout" ? validCutout : urlOf(sources, role);
+          if (!url && role === "cutout")
+            // 見比べている間の空の升目（押せない。大きさは本物の升目と同じ）。
+            return (
+              <li key={role} aria-hidden="true">
+                <span className="block w-full overflow-hidden rounded-2xl border border-border">
+                  <span className="block aspect-square animate-pulse bg-secondary motion-reduce:animate-none" />
+                  <span className="block px-2 py-2 text-footnote font-medium text-muted-foreground">
+                    {t(LABEL[role])}
+                  </span>
+                </span>
+              </li>
+            );
           if (!url) return null;
           const on = current === role;
           return (

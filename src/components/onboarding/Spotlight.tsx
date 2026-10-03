@@ -345,14 +345,19 @@ export function Spotlight({
             data-tour-primary={primary}
             style={
               {
-                top: ring.top,
-                left: ring.left,
+                // **位置は `translate` で置く**（top / left は 0 のまま）。枠が広がる・滑る・巻き取りに
+                // 付いて行くたびに配置が動き、画面のずれ（CLS 0.3〜0.39）と数えられていた
+                // （2026-10-03 画面の監査）。大きさは width / height のままなので線は 2px のまま。
+                top: 0,
+                left: 0,
+                translate: `${ring.left}px ${ring.top}px`,
                 width: ring.width,
                 height: ring.height,
                 borderRadius: ringRadius(box.radii),
                 pointerEvents: interactive ? "none" : "auto",
-                "--ring-cx": `${ring.left + ring.width / 2}px`,
-                "--ring-cy": `${ring.top + ring.height / 2}px`,
+                // 広がりの始まり（対象の真ん中の 24px）を、縮める割合で渡す。
+                "--ring-sx": 24 / Math.max(ring.width, 24),
+                "--ring-sy": 24 / Math.max(ring.height, 24),
               } as React.CSSProperties
             }
           />

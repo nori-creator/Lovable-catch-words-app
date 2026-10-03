@@ -115,9 +115,17 @@ describe("tutorial guide frame and beats", () => {
     expect(qa).toMatch(/over 480ms/);
     expect(qa).toMatch(/0\.4 s/);
     expect(css).toMatch(/\.tour-ring--expand \{\s*animation: tour-focus-expand 700ms/);
-    expect(css).toMatch(/\.tour-ring--move \{\s*transition:\s*top 480ms/);
-    // 広がりは対象の真ん中から（画面の真ん中から飛んで来ない）。
-    expect(css).toMatch(/top: calc\(var\(--ring-cy\) - 12px\)/);
+    expect(css).toMatch(/\.tour-ring--move \{\s*transition:\s*translate 480ms/);
+    expect(spot).toMatch(/translate: `\$\{ring\.left\}px \$\{ring\.top\}px`/);
+    // 広がりは対象の真ん中の 24px から（画面の真ん中から飛んで来ない）。枠は `transform`
+    // だけで動かす — 配置（top / left / width / height）を動かすと画面のずれと数えられる
+    // （2026-10-03 画面の監査: CLS 0.3〜0.39）。
+    expect(css).toMatch(/scale: var\(--ring-sx\) var\(--ring-sy\)/);
+    expect(spot).toMatch(/"--ring-sx": 24 \/ Math\.max\(ring\.width, 24\)/);
+    const ringCss = css.slice(css.indexOf(".tour-ring--expand {"), css.indexOf(".tour-coach {"));
+    expect(ringCss).not.toMatch(/\b(top|left) \d+ms/);
+    const expand = css.slice(css.indexOf("@keyframes tour-focus-expand"));
+    expect(expand.slice(0, expand.indexOf("\n}\n"))).not.toMatch(/^\s*(top|left|width|height):/m);
   });
   it("the frame hugs the target with one even gap and concentric corners", () => {
     expect(RING_GAP).toBe(4);

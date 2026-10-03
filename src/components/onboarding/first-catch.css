@@ -461,16 +461,20 @@
     0 0 0 9999px rgb(11 24 42 / 0.57);
 }
 /* 新しい画面の2コマ目: 暗幕と一緒に、対象の真ん中の 24px から対象の形まで広がる
-   （`TOUR_TIMING.ringIn`）。 */
+   （`TOUR_TIMING.ringIn`）。**枠は最初から対象の位置と大きさに置き、縮めた `scale` から
+   戻す** — 前は top / left / width / height を動かしていたので、広がるたびに配置が
+   動いたと数えられていた（2026-10-03 画面の監査: CLS 0.3〜0.39）。縮める割合は
+   `--ring-sx` / `--ring-sy`（24px ÷ 枠の幅・高さ、`Spotlight.tsx`）。 */
 .tour-ring--expand {
   animation: tour-focus-expand 700ms cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 /* 同じ画面の次の案内: 暗幕は保ったまま、枠が前の物から次の物へ**滑って**移る
-   （`TOUR_TIMING.ringMove`。どこからどこへ目を移すのかが分かる）。 */
+   （`TOUR_TIMING.ringMove`。どこからどこへ目を移すのかが分かる）。位置は `translate`
+   で滑らせる（配置の top / left は動かさない — 画面のずれと数えられない）。大きさは
+   width / height のまま変える（`scale` で変えると線と光が太って見える）。 */
 .tour-ring--move {
   transition:
-    top 480ms cubic-bezier(0.22, 1, 0.36, 1),
-    left 480ms cubic-bezier(0.22, 1, 0.36, 1),
+    translate 480ms cubic-bezier(0.22, 1, 0.36, 1),
     width 480ms cubic-bezier(0.22, 1, 0.36, 1),
     height 480ms cubic-bezier(0.22, 1, 0.36, 1),
     border-radius 480ms cubic-bezier(0.22, 1, 0.36, 1);
@@ -2117,11 +2121,9 @@ html[data-motion="reduce"] .first-run *::after {
    どこを見るのか分かる前に目が画面を横切る。暗幕も同じ時間で濃くなる。 */
 @keyframes tour-focus-expand {
   from {
-    top: calc(var(--ring-cy) - 12px);
-    left: calc(var(--ring-cx) - 12px);
-    width: 24px;
-    height: 24px;
-    border-radius: 12px;
+    /* 対象の真ん中の 24px の丸から（縮めた後に 12px の丸みになる角）。 */
+    scale: var(--ring-sx) var(--ring-sy);
+    border-radius: calc(12px / var(--ring-sx)) / calc(12px / var(--ring-sy));
     box-shadow:
       0 0 0 3px color-mix(in oklab, var(--primary) 0%, transparent),
       0 0 20px color-mix(in oklab, var(--primary) 0%, transparent),
