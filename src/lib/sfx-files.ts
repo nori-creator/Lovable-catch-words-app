@@ -22,11 +22,7 @@
 import { audioOut } from "./sound-engine";
 
 export type SfxName =
-  | "analyze-loop"
-  | "catch-impact"
-  | "book-open"
-  | "gallery-slide"
-  | "celebrate-sting";
+  "analyze-loop" | "catch-impact" | "book-open" | "gallery-slide" | "celebrate-sting";
 
 /** 素材ごとの音量（素材の大きさの違いを揃える）と、鳴らし始める位置。 */
 const TRIM: Record<SfxName, { gain: number; offset: number }> = {

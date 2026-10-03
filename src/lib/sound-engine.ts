@@ -40,8 +40,7 @@ function ensureCtx(): AudioContext | null {
   if (!ctx) {
     const Ctor = (window.AudioContext ||
       (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext) as
-      | typeof AudioContext
-      | undefined;
+      typeof AudioContext | undefined;
     if (!Ctor) return null;
     ctx = new Ctor();
     master = ctx.createGain();

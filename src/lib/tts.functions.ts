@@ -307,17 +307,16 @@ export const pregenerateDictionaryTts = createServerFn({ method: "POST" })
  * 声を変えたら端末の古い音も使われなくなる。誰でも読める（値は札だけ）。
  */
 // ログイン前の画面（チュートリアル等）でも呼ばれるので認証は要らない。返すのは札だけ。
-export const getTtsVoiceTags = createServerFn({ method: "GET" })
-  .handler(async () => {
-    const { currentVoiceTag, isLockedFor } = await import("./tts-provider.server");
-    const tags: Record<string, string> = {};
-    const locked: Record<string, boolean> = {};
-    for (const lang of TTS_LANGUAGES) {
-      tags[lang] = await currentVoiceTag(lang);
-      locked[lang] = await isLockedFor(lang);
-    }
-    return { tags, locked };
-  });
+export const getTtsVoiceTags = createServerFn({ method: "GET" }).handler(async () => {
+  const { currentVoiceTag, isLockedFor } = await import("./tts-provider.server");
+  const tags: Record<string, string> = {};
+  const locked: Record<string, boolean> = {};
+  for (const lang of TTS_LANGUAGES) {
+    tags[lang] = await currentVoiceTag(lang);
+    locked[lang] = await isLockedFor(lang);
+  }
+  return { tags, locked };
+});
 
 async function assertAdmin(context: { supabase: unknown; userId: string }) {
   const sb = context.supabase as {

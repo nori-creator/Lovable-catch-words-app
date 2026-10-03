@@ -1,0 +1,48 @@
+# 合流（マージ）の前に、型・テスト・翻訳・lint・ビルドを自動で確かめる（2026-10-03 品質検査）。
+#
+# これまで自動の確認は「実物確認」（手動）と Android の組み立てだけで、テストが落ちても
+# 型が壊れても PR はそのまま合流できた。ここで全部を回し、赤なら合流前に気づけるようにする。
+# GitHub の Settings → Branches で「ci」を必須にすると、赤のまま合流できなくなる。
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      - name: 依存を入れる
+        run: npm ci --no-audit --no-fund --ignore-scripts
+
+      - name: 型の確認
+        run: npx tsc --noEmit -p .
+
+      - name: 翻訳の確認（未定義のキー・抜けた言語）
+        run: npm run i18n:check
+
+      - name: lint（エラーだけで落とす）
+        run: npx eslint src --ext .ts,.tsx --quiet
+
+      - name: テスト
+        run: npx vitest run
+
+      - name: アプリのビルド
+        run: npx vite build
+
+      - name: 見本（Deploy Preview）のビルド
+        run: npx vite build --config scripts/ui-harness/vite.config.ts
