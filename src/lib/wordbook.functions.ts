@@ -5,7 +5,8 @@ import { generateText } from "ai";
 import { z } from "zod";
 import { assertWithinDailyCap, getAiFor, getUserTargetLanguage } from "./ai-provider.server";
 import { targetProfile, type WordbookPhrases } from "./target-profile";
-import { effectiveDueMs, nextSrs } from "./srs";
+import { effectiveDueIso, effectiveDueMs, nextSrs } from "./srs";
+import { isAlreadyGraded } from "./review-grade-guard";
 import {
   cleanWordbookEntries,
   wordbookTitle,
@@ -332,41 +333,79 @@ const GradeInput = z.object({
   correct: z.boolean(),
 });
 
-/** 1語ぶんの採点。間隔の計算は図鑑の復習と**同じ** `nextSrs`。 */
+/**
+ * 1語ぶんの採点。間隔の計算は図鑑の復習と**同じ** `nextSrs`。
+ *
+ * **同じ答えが2回届いても1回分しか進めない**（2026-10-03 監査。図鑑の復習の `gradeReview`
+ * と同じ守り）。期限がまだ先の語はもう採点済み（通信のやり直し・二重送信・別の端末）なので
+ * 何も書かない。書く時も読んだ時の期限のままの行だけ（同時に2回届いたら後の方は0行）。
+ */
 export const gradeWordbookEntry = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) => GradeInput.parse(input))
-  .handler(async ({ context, data }): Promise<{ next_due_at: string; interval_days: number }> => {
-    const { supabase, userId } = context;
-    const { data: row, error } = await supabase
-      .from("wordbook_entries")
-      .select("id, ease, interval_days, repetitions")
-      .eq("id", data.entry_id)
-      .eq("user_id", userId)
-      .maybeSingle();
-    if (error) throw internalFailure("wordbook", error, "単語帳を読み込めませんでした");
-    if (!row) throw new Error("この語を編集する権限がありません");
+  .handler(
+    async ({
+      context,
+      data,
+    }): Promise<{ next_due_at: string; interval_days: number; duplicate?: boolean }> => {
+      const { supabase, userId } = context;
+      const { data: row, error } = await supabase
+        .from("wordbook_entries")
+        .select("id, ease, interval_days, repetitions, due_at, last_reviewed_at")
+        .eq("id", data.entry_id)
+        .eq("user_id", userId)
+        .maybeSingle();
+      if (error) throw internalFailure("wordbook", error, "単語帳を読み込めませんでした");
+      if (!row) throw new Error("この語を編集する権限がありません");
 
-    const prev = row as { ease: number; interval_days: number; repetitions: number };
-    const next = nextSrs(
-      { ease: Number(prev.ease), interval_days: prev.interval_days, repetitions: prev.repetitions },
-      data.correct ? 5 : 2,
-    );
-    const dueAt = new Date(Date.now() + next.interval_days * 86400_000).toISOString();
-    const { error: upErr } = await supabase
-      .from("wordbook_entries")
-      .update({
-        ease: next.ease,
-        interval_days: next.interval_days,
-        repetitions: next.repetitions,
-        due_at: dueAt,
-        last_reviewed_at: new Date().toISOString(),
-      })
-      .eq("id", data.entry_id)
-      .eq("user_id", userId);
-    if (upErr) throw internalFailure("wordbook", upErr, "採点を保存できませんでした");
-    return { next_due_at: dueAt, interval_days: next.interval_days };
-  });
+      const prev = row as {
+        ease: number;
+        interval_days: number;
+        repetitions: number;
+        due_at: string | null;
+        last_reviewed_at: string | null;
+      };
+      const nowMs = Date.now();
+      // 期限は「最後の復習 + 180 日」で頭を打つ（`effectiveDueIso`、出題の絞りと同じ）。
+      if (isAlreadyGraded(effectiveDueIso(prev.due_at, prev.last_reviewed_at), nowMs)) {
+        return {
+          next_due_at: prev.due_at as string,
+          interval_days: prev.interval_days,
+          duplicate: true,
+        };
+      }
+      const next = nextSrs(
+        {
+          ease: Number(prev.ease),
+          interval_days: prev.interval_days,
+          repetitions: prev.repetitions,
+        },
+        data.correct ? 5 : 2,
+      );
+      const dueAt = new Date(nowMs + next.interval_days * 86400_000).toISOString();
+      // 読んだ時の期限のままの時だけ書く（同時に2回届いた時、後の方は0行になる）。
+      const updateQuery = supabase
+        .from("wordbook_entries")
+        .update({
+          ease: next.ease,
+          interval_days: next.interval_days,
+          repetitions: next.repetitions,
+          due_at: dueAt,
+          last_reviewed_at: new Date(nowMs).toISOString(),
+        })
+        .eq("id", data.entry_id)
+        .eq("user_id", userId);
+      const { data: updated, error: upErr } = await (
+        prev.due_at ? updateQuery.eq("due_at", prev.due_at) : updateQuery.is("due_at", null)
+      ).select("id");
+      if (upErr) throw internalFailure("wordbook", upErr, "採点を保存できませんでした");
+      if (!updated || updated.length === 0) {
+        // 同じ答えが同時に2回届き、先の方がもう書いた。こちらは何も進めない。
+        return { next_due_at: dueAt, interval_days: next.interval_days, duplicate: true };
+      }
+      return { next_due_at: dueAt, interval_days: next.interval_days };
+    },
+  );
 
 /** 1冊まるごと消す。語も一緒に消える(外部キーの ON DELETE CASCADE)。 */
 export const deleteWordbook = createServerFn({ method: "POST" })

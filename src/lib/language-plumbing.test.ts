@@ -5627,8 +5627,11 @@ describe("Jev の使い方の約束（予定は Jev が決める: オーナー�
   it("**記録は待たない**（復習の返事を遅らせない）", () => {
     const grade = reviews.slice(reviews.indexOf("export const gradeReview"));
     const body = grade.slice(0, grade.indexOf("export const", 10));
-    expect(body).toMatch(/void logScheduleDecision\(/);
-    expect(body).toMatch(/void recordRecallShadow\(/);
+    // 投げっぱなしにはしない — Workers が返事の後に止めても落ちないよう、
+    // `runAfterResponse` が `waitUntil` に預ける（2026-10-03 監査）。
+    expect(body).toMatch(/shadowTasks\.push\(\(\) =>\s*logScheduleDecision\(/);
+    expect(body).toMatch(/shadowTasks\.push\(\(\) =>\s*recordRecallShadow\(/);
+    expect(body).toMatch(/await runAfterResponse\("review shadow log"/);
     // 記録の表を読んで判断を変える所はどこにも無い。
     for (const f of ["lib/reviews.functions.ts", "lib/ai.functions.ts", "lib/srs.ts"]) {
       expect([f, /model_shadow_predictions/.test(codeOnly(read(f)))]).toEqual([f, false]);
