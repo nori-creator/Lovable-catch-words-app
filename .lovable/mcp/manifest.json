@@ -114,7 +114,7 @@
       {
         "name": "list_due_reviews",
         "title": "List due reviews",
-        "description": "List the caller's SRS reviews that are due now (due_at ≤ now). Each row includes the sticker id, the associated Mandarin word, reading, and Japanese meaning, and the current SRS interval and ease.",
+        "description": "List the caller's SRS reviews that are due now (due_at ≤ now, or last reviewed 180+ days ago — the interval cap). Each row includes the sticker id, the associated Mandarin word, reading, and Japanese meaning, and the current SRS interval and ease.",
         "annotations": {
           "readOnlyHint": true,
           "idempotentHint": true,

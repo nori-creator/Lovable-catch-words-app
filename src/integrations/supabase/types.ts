@@ -360,6 +360,36 @@ export type Database = {
         }
         Relationships: []
       }
+      generated_cards: {
+        Row: {
+          card: Json
+          created_at: string
+          explain_lang: string
+          headword: string
+          kind: string
+          l1: string
+          language: string
+        }
+        Insert: {
+          card?: Json
+          created_at?: string
+          explain_lang?: string
+          headword: string
+          kind?: string
+          l1?: string
+          language: string
+        }
+        Update: {
+          card?: Json
+          created_at?: string
+          explain_lang?: string
+          headword?: string
+          kind?: string
+          l1?: string
+          language?: string
+        }
+        Relationships: []
+      }
       journal_entries: {
         Row: {
           body_ja: string | null
@@ -1296,6 +1326,16 @@ export type Database = {
         }
         Returns: boolean
       }
+      reserve_usage_event: {
+        Args: {
+          p_kind: string
+          p_limit: number
+          p_since: string
+          p_user_id: string
+        }
+        Returns: number
+      }
+      save_album_layout: { Args: { p_items: Json }; Returns: number }
     }
     Enums: {
       app_role: "admin" | "user"

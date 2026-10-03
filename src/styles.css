@@ -2518,6 +2518,12 @@
 .card-back {
   transform: rotateY(180deg);
 }
+/* Safari は裏返った面（backface-visibility: hidden）にも指の操作を渡すため、
+   見えていない面では明示的に操作を受け付けない（チュートリアルのシールはがし修復）。 */
+.card-flip:not(.flipped) > .card-back,
+.card-flip.flipped > .card-face:not(.card-back) {
+  pointer-events: none;
+}
 
 /* Hero image expand: image grows from small to large with a soft bounce */
 @keyframes hero-pop {
