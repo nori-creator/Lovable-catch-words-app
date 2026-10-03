@@ -70,7 +70,8 @@ import { Term } from "@/components/Term";
 import { Reading, useReadingText } from "@/lib/phonetic";
 import { ScanEffect } from "@/components/ScanEffect";
 import { CatchLandingOverlay, runCatchLanding } from "@/components/CatchLanding";
-import { usePronounce } from "@/lib/use-pronounce";
+import { onPronounced, usePronounce } from "@/lib/use-pronounce";
+import { useFunnelEvent } from "@/lib/use-funnel-event";
 import { useCatchLocation } from "@/lib/use-catch-location";
 import { localeOf, useT } from "@/lib/i18n";
 import { formatCount } from "@/lib/count";
@@ -364,6 +365,31 @@ function CapturePage() {
   }
   const autoOpenedRef = useRef(false);
   const handledParamRef = useRef<string | null>(null);
+  /**
+   * **ベータの計測**（2026-10-03、`funnel-events.ts`）: カメラを開いた → シャッター → 候補が
+   * 並んだ（待ち時間）→ 選んだ → 最初に発音を聞いた → 保存。送るのは種類と時刻だけ。
+   */
+  const track = useFunnelEvent();
+  const shutterAtRef = useRef<number | null>(null);
+  /** 発音を数え終えたか（候補を選ぶたびに戻す）。選ぶ前の発音は数えない。 */
+  const audioCountedRef = useRef(true);
+  /** この画面を開いてカメラを出したのを数えたか（開くたびに1回）。 */
+  const cameraCountedRef = useRef(false);
+  useEffect(() => {
+    if (step !== "object" || wordParam || pendingParam || cameraCountedRef.current) return;
+    cameraCountedRef.current = true;
+    track("camera_open");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [step]);
+  useEffect(
+    () =>
+      onPronounced(() => {
+        if (audioCountedRef.current) return;
+        audioCountedRef.current = true;
+        track("first_audio_played");
+      }),
+    [track],
+  );
 
   async function openNativeCamera() {
     try {
@@ -550,6 +576,8 @@ function CapturePage() {
   async function handleObjectFile(file: File, analysisImage?: string) {
     if (captureBusyRef.current) return;
     captureBusyRef.current = true;
+    shutterAtRef.current = Date.now();
+    track("shutter");
     selfiePendingRef.current = selfieCaptureEnabled();
     analysisNextRef.current = null;
     setSelfieImg(null);
@@ -636,6 +664,9 @@ function CapturePage() {
     const img = imgOverride ?? objectImg;
     if (!img) return;
     const token = ++runTokenRef.current;
+    // 候補が並ぶまでの待ち時間: シャッターからの時間（無ければ解析を始めた時から）。
+    const waitFrom = shutterAtRef.current ?? Date.now();
+    shutterAtRef.current = null;
     setWaitKind("analyze");
     showAnalysisStep("processing");
     setError(null);
@@ -658,6 +689,7 @@ function CapturePage() {
       // **学習言語の語だけを並べる**（サーバも絞るが、ここが保存の入口なので
       // もう一度。オーナー報告 2026-10-02「英語の図鑑にノート」）。
       setSuggestions(keepTargetHeadwords(suggestRes.suggestions, targetLanguage));
+      track("candidates_shown", Date.now() - waitFrom);
       showAnalysisStep("select");
     } catch (e) {
       console.error(e);
@@ -842,6 +874,8 @@ function CapturePage() {
     // ここへ来るので、`objectImg`（状態）はまだ前の値のまま。
     const photo = objectImageRef.current ?? objectImg;
     setSelectedHead(head);
+    // この語で最初に発音を聞いた時を1回だけ数える（`first_audio_played`）。
+    audioCountedRef.current = false;
     // キャッチ演出の「空中のタメ」で待たせずに鳴らせるよう、ここで先に取る。
     pronounce.prefetch(head);
     /**
@@ -1074,6 +1108,7 @@ function CapturePage() {
         },
       }),
     );
+    track("catch_saved");
     // 図鑑の再取得は待たない(演出中に裏で終わる) — 体感を最短にする。
     // 届いたら上の仮の札は同じ id の本物に置き換わる。
     void queryClient.invalidateQueries({ queryKey: ["stickers"] });
@@ -1414,7 +1449,10 @@ function CapturePage() {
           suggestions={suggestions}
           manualWord={manualWord}
           setManualWord={setManualWord}
-          onPick={(s) => confirmWord(s.headword, s)}
+          onPick={(s) => {
+            track("candidate_picked");
+            return confirmWord(s.headword, s);
+          }}
           // **ここも学習言語へ直してから進む**(`searchWord` の注)。
           // 写真の候補に無い語を手で打つ所なので、母語で書かれることが多い。
           onManual={() => void searchWord(manualWord)}

@@ -3431,6 +3431,11 @@ export const DICT: Record<string, Record<UiLang, string>> = {
     en: "Per-user details (developer only)",
     "zh-TW": "各使用者的資訊（僅開發者）",
   },
+  "settings.betaLink": {
+    ja: "ベータの指標（開発者だけ）",
+    en: "Beta metrics (developer only)",
+    "zh-TW": "Beta 指標（僅開發者）",
+  },
   // 開発者の AI 設定を機能ごとに（オーナー指示 2026-09-27）。
   "settings.aiOk": {
     ja: "AI は動いています（提供元: {p}）",

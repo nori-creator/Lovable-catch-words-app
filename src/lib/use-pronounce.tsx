@@ -130,6 +130,18 @@ function ensureAudio(
 }
 
 /**
+ * **発音を鳴らしたことを知らせる口**（ベータの計測、2026-10-03）。撮る画面が「撮ってから
+ * 最初に発音を聞いた」（`first_audio_played`）を数えるのに使う。語そのものは渡さない。
+ */
+const pronouncedListeners = new Set<() => void>();
+export function onPronounced(listener: () => void): () => void {
+  pronouncedListeners.add(listener);
+  return () => {
+    pronouncedListeners.delete(listener);
+  };
+}
+
+/**
  * @param language 読む語の学習言語。**渡さないと台湾華語として読む。**
  *   英語の語をそのまま渡すと、サーバは台湾華語の声で合成し、
  *   端末の控えも台湾華語の声を探す。しかも合成した音は保存されるので、
@@ -157,6 +169,13 @@ export function usePronounce(language: string = DEFAULT_TARGET_LANGUAGE): Pronou
   const pronounce = async function pronounce(text: string, waitUntilEnded = false) {
     const word = text.trim();
     if (!word) return;
+    for (const listener of pronouncedListeners) {
+      try {
+        listener();
+      } catch {
+        /* 数えられなくても発音は止めない */
+      }
+    }
     // 声が固定されている言語では、端末の別の声で読まない（黙る）。
     const deviceVoice = () =>
       isVoiceLockedFor(language)

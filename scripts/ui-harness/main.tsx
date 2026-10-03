@@ -59,6 +59,7 @@ import { PromoFilmScene } from "./scenes/promo-film";
 import { ScanPickDesignsScene } from "./scenes/scan-pick-designs";
 import { NotifyBarDesignsScene } from "./scenes/notify-bar-designs";
 import { AdminUsersScene } from "./scenes/admin-users";
+import { AdminBetaScene } from "./scenes/admin-beta";
 import { MonetizationDesignsScene } from "./scenes/monetization-designs";
 import { FxLabScene } from "./scenes/fx-lab";
 import { WordDetailDesignsScene } from "./scenes/word-detail-designs";
@@ -184,6 +185,8 @@ const SCENES: Record<string, ((p: { q: URLSearchParams }) => ReactNode) | undefi
   "scan-pick-designs": ScanPickDesignsScene,
   "notify-bar-designs": NotifyBarDesignsScene,
   "admin-users": AdminUsersScene,
+  // ベータの指標（ファネル・継続・使い方・費用・解析の確かさ。2026-10-03）。
+  "admin-beta": AdminBetaScene,
   "monetization-designs": MonetizationDesignsScene,
   "fx-lab": FxLabScene,
   "word-detail-designs": WordDetailDesignsScene,
