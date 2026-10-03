@@ -31,6 +31,13 @@ import { worldExampleRule, sharedExampleSourceRule } from "./example-sources";
 import { CardSchema, CardShapeError, type GeneratedCard } from "./card-schema";
 import { fillSharedWordFromCard, recordGeneratedCards, trustedCardFrom } from "./generated-cards";
 import { runAfterResponse } from "./after-response";
+import {
+  AiAttemptsFailed,
+  hedgeAfterFromEnv,
+  runAiAttempts,
+  type AiAttemptRecord,
+} from "./ai-attempts";
+import { fitSuggestionsToReader } from "./first-catch-meaning";
 
 // 形は `card-schema.ts` に移したが、**取り込み元は変えない** —
 // 5箇所が `@/lib/ai.functions` から型を取っている。移した都合を
@@ -64,6 +71,7 @@ import {
   assertWithinDailyCap,
   getAi,
   getAiFor,
+  getAiAttemptChain,
   getUserLevelGoal,
   getUserTargetLanguage,
   levelInstruction,
@@ -166,16 +174,77 @@ async function recordCandidateReceipts(
   });
 }
 
+/** 撮った後の候補: 1回ごとの締め切り（1番手・2番手）。画面の待ちは 20 秒。 */
+const SUGGEST_ATTEMPT_TIMEOUTS = [18_000, 13_000];
+/** 1番手がこの時間までに答えなければ2番手を並べる（`AI_HEDGE_AFTER_MS` で変更、`0` で止める）。 */
+const SUGGEST_HEDGE_AFTER_MS = 6_000;
+
+/**
+ * 撮った後の候補の1回を `ai_runs` に残す（`loop="capture_suggest"`）。中身は成否・待ち時間・
+ * 答えた AI の名前・各回の結果だけ — 写真・語は入れない。返事は待たせない。
+ */
+function recordSuggestRun(
+  context: { userId: string; supabase: { from: (t: "ai_runs") => unknown } },
+  run: {
+    ok: boolean;
+    ms: number;
+    aiMs: number | null;
+    via?: string;
+    hedged?: boolean;
+    attempts: AiAttemptRecord[];
+  },
+): void {
+  console.info(
+    `suggestWords: ${run.ok ? "ok" : "failed"} in ${run.ms}ms` +
+      (run.via ? ` via ${run.via}` : "") +
+      (run.hedged ? " (hedged)" : ""),
+  );
+  void runAfterResponse("suggestWords: ai_runs", async () => {
+    const table = context.supabase.from("ai_runs") as {
+      insert: (row: unknown) => PromiseLike<{ error: { message: string } | null }>;
+    };
+    const { error } = await table.insert({
+      user_id: context.userId,
+      loop: "capture_suggest",
+      iterations: run.attempts.length,
+      accepted: run.ok ? 1 : 0,
+      meta: {
+        ok: run.ok,
+        ms: run.ms,
+        ai_ms: run.aiMs,
+        ...(run.via ? { via: run.via } : {}),
+        hedged: run.hedged ?? false,
+        attempts: run.attempts.map((a) => ({
+          label: a.label,
+          ms: a.ms,
+          outcome: a.outcome,
+          ...(a.code ? { code: a.code } : {}),
+          ...(a.startMs ? { startMs: a.startMs } : {}),
+        })),
+      },
+    });
+    if (error) console.warn("suggestWords: ai_runs insert failed", error.message);
+  });
+}
+
 export const suggestWords = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) => SuggestInput.parse(input))
   .handler(async ({ data, context }) => {
-    const ai = await getAiFor("scan");
-    await assertWithinDailyCap(context.userId, "suggest");
+    const startedAt = Date.now();
+    // AI の前の読み出し（使う AI・枠の確保・級・解説の言語）は**並べて**待つ（実物確認
+    // 2026-10-03: シャッターから候補まで 4.5〜42 秒。前はここで4〜5往復を1つずつ待っていた）。
+    // 枠の確保が断られたら、そこで止まる（AI は呼ばない）。
     // レベルはクライアントの申告ではなく**プロフィールを正**とする
     // (以前は既定の TOCFL-2 が常に使われ、設定が効いていなかった)。
     // 級は**細かさの目安**としてだけ使う(下の `specificity`)。
-    const levelGoal = await getUserLevelGoal(context.userId);
+    const [chain, , levelGoal, langRule, reader] = await Promise.all([
+      getAiAttemptChain("scan"),
+      assertWithinDailyCap(context.userId, "suggest"),
+      getUserLevelGoal(context.userId),
+      explanationLanguageRule(context.userId, data.targetLanguage),
+      getExplanationLanguage(context.userId),
+    ]);
     const profile = targetProfile(data.targetLanguage);
     // **JLPT は数字の向きが逆**(N5 が入門)。数字を拾うと N5 の人が「上位」になり、
     // 専門の名前ばかり出る。JLPT だけは段(N5→1 … N1→5)で読む。
@@ -183,7 +252,6 @@ export const suggestWords = createServerFn({ method: "POST" })
     const jlptStep = profile.levels.id === JLPT_SCALE.id ? parseLevelStep(levelGoal) : null;
     const levelNum =
       typeof jlptStep === "number" ? jlptStep : Number(levelGoal.match(/(\d)/)?.[1] ?? 2);
-    const langRule = await explanationLanguageRule(context.userId, data.targetLanguage);
 
     // **ここに `levelInstruction` をそのまま掛けない。**
     //
@@ -253,65 +321,114 @@ ${distinctionRule(profile.promptName, profile.capture.distinctionExamples)}
   候補の画面は横に動かないので、長い文は読まれない（オーナー指示 2026-09-28
   「単語の説明が長すぎて、横にスクロールしないと見れないことがある。長すぎる文はなしで」）。`;
 
-    let content: string;
+    const instruction = `${prompt}\n\n必ずJSONだけを返してください。**${profile.promptName}の語を出す。他の言語の語を混ぜない。**\n形式: {"suggestions":[{"headword":"${profile.capture.jsonHeadwordHint}",${profile.capture.jsonReadingHint},"meaning_ja":"意味(上で指定した解説の言語で)","distinction":"使い分けの一言","category_key":"${CATEGORY_KEYS.join("|のどれか: ")}","register":"common|casual|specific|proper のどれか","group":0}]}。**確からしい順に並べ**、物は3〜5つ返してください(無理に5つに埋めない — 写っていない物を足すぐらいなら少なくてよい)。同じ物の別の呼び方は同じ group で。`;
+    const correctTaiwanReading = await loadReadingCheck();
+    /**
+     * **1番手が遅い時は2番手を並べて追いかける**（`ai-attempts.ts`、チュートリアルと同じ）。
+     * 前は1回の呼び出しに締め切りが無く、AI SDK が黙って2回まで再送していた（詰まった
+     * 相手を画面の 20 秒まで待ち続け、画面は「通信に時間がかかっています」）。いまは
+     * 1番手 18 秒・2番手 13 秒の締め切りで、1番手が 6 秒（`AI_HEDGE_AFTER_MS`）答えなければ
+     * 2番手を並べる。最悪 6 + 13 = 19 秒で、画面の 20 秒より先に理由つきで終わる。
+     * 枠の確保は上の1回だけ。形の崩れた返事は「使えない返事」として、もう片方を待つ。
+     */
+    let outcome: Awaited<ReturnType<typeof runAiAttempts<z.infer<typeof SuggestionSchema>>>>;
     try {
-      const result = await generateText({
-        model: ai.gateway(ai.modelFast),
-        messages: [
-          {
-            role: "user",
-            content: [
-              {
-                type: "text",
-                text: `${prompt}\n\n必ずJSONだけを返してください。**${profile.promptName}の語を出す。他の言語の語を混ぜない。**\n形式: {"suggestions":[{"headword":"${profile.capture.jsonHeadwordHint}",${profile.capture.jsonReadingHint},"meaning_ja":"意味(上で指定した解説の言語で)","distinction":"使い分けの一言","category_key":"${CATEGORY_KEYS.join("|のどれか: ")}","register":"common|casual|specific|proper のどれか","group":0}]}。**確からしい順に並べ**、物は3〜5つ返してください(無理に5つに埋めない — 写っていない物を足すぐらいなら少なくてよい)。同じ物の別の呼び方は同じ group で。`,
-              },
-              { type: "image", image: data.imageBase64 },
-            ],
+      outcome = await runAiAttempts(
+        chain.map((target, i) => ({
+          label: target.label,
+          timeoutMs: SUGGEST_ATTEMPT_TIMEOUTS[Math.min(i, SUGGEST_ATTEMPT_TIMEOUTS.length - 1)],
+          run: async (signal: AbortSignal) => {
+            const result = await generateText({
+              model: target.model,
+              abortSignal: signal,
+              maxRetries: 0,
+              messages: [
+                {
+                  role: "user",
+                  content: [
+                    { type: "text", text: instruction },
+                    { type: "image", image: data.imageBase64 },
+                  ],
+                },
+              ],
+            });
+            if (!result.text) throw new Error("SUGGEST_EMPTY");
+            try {
+              return SuggestionSchema.parse(parseJsonFromAiText(result.text));
+            } catch (e) {
+              // **理由を飲まない**(カード生成で踏んだのと同じ)。
+              console.warn("suggestWords: 候補の形が合わない", {
+                via: target.label,
+                why: e instanceof Error ? e.message.slice(0, 300) : String(e),
+                head: result.text.slice(0, 300),
+              });
+              throw new Error("SUGGEST_FORMAT");
+            }
           },
-        ],
+        })),
+        {
+          hedgeAfterMs: hedgeAfterFromEnv(process.env.AI_HEDGE_AFTER_MS, SUGGEST_HEDGE_AFTER_MS),
+          isUnusableReply: (e) =>
+            e instanceof Error && (e.message === "SUGGEST_FORMAT" || e.message === "SUGGEST_EMPTY"),
+          onAttemptFailed: (record, next) =>
+            console.warn(
+              `suggestWords: attempt failed: ${record.label} ${record.outcome} ${record.code ?? ""} after ${record.ms}ms` +
+                (next ? ` — trying ${next}` : ""),
+            ),
+        },
+      );
+    } catch (e) {
+      const failed = e instanceof AiAttemptsFailed ? e : null;
+      recordSuggestRun(context, {
+        ok: false,
+        ms: Date.now() - startedAt,
+        aiMs: failed?.ms ?? null,
+        attempts: failed?.attempts ?? [],
       });
-      content = result.text;
-    } catch {
+      if (failed?.attempts.some((a) => a.outcome === "unusable"))
+        throw new Error("候補の形が整いませんでした。もう一度お試しください。");
       throw new Error("画像のAI読み込みに失敗しました");
     }
-    if (!content) throw new Error("AIから候補が返りませんでした。もう一度お試しください。");
-
-    const correctTaiwanReading = await loadReadingCheck();
-    try {
-      const parsed = SuggestionSchema.parse(parseJsonFromAiText(content));
-      /**
-       * **学習言語の語だけを返す**（オーナー報告 2026-10-02「英語の図鑑に
-       * ノートが入っている」）。指示文に「他の言語の語を混ぜない」と書いても、
-       * 返ってくる物は別。ここは打った語の候補（`suggestWordCandidates`）と
-       * 違って**関所が無く**、英語を学ぶ人の候補に「ノート」がそのまま出て、
-       * 選ぶと `en` の語として保存されていた。直せる物は直し（注釈を落とす）、
-       * 直せない物は捨てる（`keepTargetHeadwords`）。
-       */
-      const usable = keepTargetHeadwords(parsed.suggestions, data.targetLanguage);
-      if (usable.length === 0 && parsed.suggestions.length > 0) {
-        // 全部が別の言語だった回。**黙って0件にしない** — 画面は「候補が無い」としか言えない。
-        console.warn("suggestWords: 学習言語の候補が1つも無い", {
-          target: data.targetLanguage,
-          heads: parsed.suggestions.map((x) => x.headword).slice(0, 6),
-        });
-      }
-      const suggestions = orderByRegister(usable).map((s) => ({
-        // 候補の読みも検める（`tw-reading.server.ts`）。
-        ...correctTaiwanReading(data.targetLanguage, s.headword, s),
-        // 候補の意味も語の長さに（R17「湯咖哩の英語の単語の候補…が長すぎる」）。
-        meaning_ja: shortMeaning(s.meaning_ja),
-        category_key: normalizeCategory(s.headword, s.category_key),
-      }));
-      await recordCandidateReceipts(profile.code, suggestions);
-      return { suggestions };
-    } catch (e) {
-      // **理由を飲まない**(カード生成で踏んだのと同じ)。
-      console.warn("suggestWords: 候補の形が合わない", {
-        why: e instanceof Error ? e.message : String(e),
-        head: content.slice(0, 300),
+    recordSuggestRun(context, {
+      ok: true,
+      ms: Date.now() - startedAt,
+      aiMs: outcome.ms,
+      via: outcome.via,
+      hedged: outcome.hedged,
+      attempts: outcome.attempts,
+    });
+    const parsed = outcome.value;
+    /**
+     * **学習言語の語だけを返す**（オーナー報告 2026-10-02「英語の図鑑に
+     * ノートが入っている」）。指示文に「他の言語の語を混ぜない」と書いても、
+     * 返ってくる物は別。ここは打った語の候補（`suggestWordCandidates`）と
+     * 違って**関所が無く**、英語を学ぶ人の候補に「ノート」がそのまま出て、
+     * 選ぶと `en` の語として保存されていた。直せる物は直し（注釈を落とす）、
+     * 直せない物は捨てる（`keepTargetHeadwords`）。
+     */
+    const usable = keepTargetHeadwords(parsed.suggestions, data.targetLanguage);
+    if (usable.length === 0 && parsed.suggestions.length > 0) {
+      // 全部が別の言語だった回。**黙って0件にしない** — 画面は「候補が無い」としか言えない。
+      console.warn("suggestWords: 学習言語の候補が1つも無い", {
+        target: data.targetLanguage,
+        heads: parsed.suggestions.map((x) => x.headword).slice(0, 6),
       });
-      throw new Error("候補の形が整いませんでした。もう一度お試しください。");
     }
+    // 意味と使い分けの一言は**表示言語で**（チュートリアルと同じ関門、`first-catch-meaning.ts`）。
+    // 別の言語で返った意味は空にする — 控え（共有の語の中身）にも残さない。
+    const suggestions = fitSuggestionsToReader(
+      orderByRegister(usable),
+      reader,
+      data.targetLanguage,
+    ).map((s) => ({
+      // 候補の読みも検める（`tw-reading.server.ts`）。
+      ...correctTaiwanReading(data.targetLanguage, s.headword, s),
+      // 候補の意味も語の長さに（R17「湯咖哩の英語の単語の候補…が長すぎる」）。
+      meaning_ja: shortMeaning(s.meaning_ja),
+      category_key: normalizeCategory(s.headword, s.category_key),
+    }));
+    await recordCandidateReceipts(profile.code, suggestions);
+    return { suggestions };
   });
 
 const CardInput = z.object({

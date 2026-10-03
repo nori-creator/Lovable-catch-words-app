@@ -27,7 +27,11 @@ import {
   seedFirstCatchReading,
   ensureFirstCatchSession,
   isGuestRefusal,
+  isNetworkFailure,
+  FIRST_CATCH_NETWORK,
 } from "@/lib/first-catch-services";
+import { offersSample, sampleFirstCatch } from "@/lib/first-catch-sample";
+import { downscaleDataUrl } from "@/lib/image-resize";
 import {
   readFirstCatch,
   writeFirstCatch,
@@ -77,9 +81,11 @@ export function FirstCatchEntry() {
         async (data) => {
           const started = Date.now();
           try {
-            const { data: auth } = await supabase.auth.getUser();
+            // 端末に残るログインを読むだけ（`getUser` は毎回 Auth に問い合わせ、AI の前に
+            // 1往復を足していた。本人かどうかはサーバが確かめる）。
+            const { data: auth } = await supabase.auth.getSession();
             // 登録済みの人も、すでに匿名アカウントを持つ端末も、本人の枠で動かす。
-            if (auth.user) return await memberAI({ data });
+            if (auth.session?.user) return await memberAI({ data });
             try {
               return await guestAI({ data });
             } catch (refused) {
@@ -97,10 +103,15 @@ export function FirstCatchEntry() {
               action: data.action,
               ms: Date.now() - started,
             });
+            // 通信が届かなかった失敗は、そうと分かる文で（生の "Failed to fetch" を出さない）。
+            if (isNetworkFailure(failed)) throw new Error(FIRST_CATCH_NETWORK);
             throw failed;
           }
         },
         async () => {},
+        // AI に送る写真は本物の撮影と同じ大きさ（長い辺 768px）。端末に残す写真はそのまま。
+        // 1024px の約半分の大きさで、送る時間と AI が読む量（タイル数）が減る。
+        (photo) => downscaleDataUrl(photo, 768, 0.8),
       )}
       onFunnel={trackTutorialStep}
       onAccount={() => {
@@ -212,6 +223,8 @@ function FirstCatchFlowInner({
   draftRef.current = draft;
   const [busy, setBusy] = useState<"photo" | "card" | "save" | null>(null);
   const [error, setError] = useState<string | null>(null);
+  /** いまの失敗のコード（見本で続けるボタンを出すかの判断）。 */
+  const [errorCode, setErrorCode] = useState<string | null>(null);
   const retry = useRef<() => void>(() => {});
   const lock = useRef(false);
   const [suggestions, setSuggestions] = useState<Suggestion[]>(initialSuggestions);
@@ -320,6 +333,7 @@ function FirstCatchFlowInner({
     const mine = ++run.current;
     lock.current = true;
     setError(null);
+    setErrorCode(null);
     setBusy(kind);
     retry.current = () => {
       void action(fn, kind);
@@ -327,13 +341,28 @@ function FirstCatchFlowInner({
     try {
       await fn();
     } catch (e) {
-      if (mounted.current && mine === run.current) setError(failureText(e));
+      if (mounted.current && mine === run.current) {
+        setError(failureText(e));
+        setErrorCode(e instanceof Error ? e.message : "");
+      }
     } finally {
       if (mine === run.current) {
         lock.current = false;
         if (mounted.current) setBusy(null);
       }
     }
+  }
+  /** 見本の写真と単語で、この先の流れを続ける（AI は呼ばない）。 */
+  function continueWithSample() {
+    const current = draftRef.current;
+    if (!current) return;
+    run.current++;
+    lock.current = false;
+    setSuggestions([]);
+    void action(async () => {
+      await commit(sampleFirstCatch(current));
+      setDetailSeen(false);
+    });
   }
   /** 分析中の面の「キャンセル」（本物の撮影画面と同じ出口）。撮る所へ戻る。 */
   function cancelAnalysis() {
@@ -456,6 +485,7 @@ function FirstCatchFlowInner({
       FIRST_CATCH_NO_WORDS: "first.noWords",
       FIRST_CATCH_AI_FORMAT: "first.aiFormat",
       FIRST_CATCH_STORAGE: "first.storage",
+      FIRST_CATCH_NETWORK: "first.network",
     };
     const key = known[code];
     if (key) return t(key);
@@ -482,6 +512,16 @@ function FirstCatchFlowInner({
           }}
         >
           {t("first.retake")}
+        </button>
+      )}
+      {/*
+        写真の分析・カードが使えない時の出口（2026-10-03 監査: 札は「見本の写真で体験できます」と
+        言うのに、そのボタンが無い行き止まりだった）。見本の写真と単語で続ける — AI は呼ばず、
+        登録後にも引き継がない（`first-catch-sample.ts`）。端末に保存できない失敗には出さない。
+      */}
+      {draft?.stage === "camera" && offersSample(errorCode) && (
+        <button className="first-secondary" onClick={continueWithSample} disabled={!!busy}>
+          {t("first.useSample")}
         </button>
       )}
     </div>
@@ -779,12 +819,32 @@ function FirstCatchFlowInner({
             caption=""
             setCaption={() => {}}
             placeName={null}
-            onRedo={() => move("camera")}
+            onRedo={() =>
+              draft.sample
+                ? // 見本から撮り直す時は、見本を外して自分の写真へ戻る。
+                  void action(() =>
+                    commit({
+                      ...draft,
+                      sample: false,
+                      photo: null,
+                      capturedAt: null,
+                      card: null,
+                      lesson: undefined,
+                      stage: "camera",
+                    }),
+                  )
+                : move("camera")
+            }
             onSave={catchWord}
             heroBoxRef={hero}
             saving={!detailSeen || !!busy}
             landing={landing}
           />
+          {draft.sample && (
+            <p className="first-sample-note" role="note">
+              {t("first.sampleNote")}
+            </p>
+          )}
           {errors}
         </FirstCatchShell>
       )}

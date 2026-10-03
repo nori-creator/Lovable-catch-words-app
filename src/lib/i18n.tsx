@@ -507,6 +507,11 @@ export const DICT: Record<string, Record<UiLang, string>> = {
     en: "Photo analysis isn't available before you sign up. You can try the rest with a sample photo.",
     "zh-TW": "註冊前無法用 AI 分析照片。可以用範例照片體驗接下來的流程。",
   },
+  "first.network": {
+    ja: "通信できませんでした。電波やWi-Fiを確かめて、もう一度試してください。写真は残っています。",
+    en: "Couldn't connect. Check your signal or Wi-Fi and try again. Your photo is kept.",
+    "zh-TW": "無法連線。請確認訊號或 Wi-Fi 後再試一次，照片仍保留著。",
+  },
   "first.useSample": {
     ja: "見本で体験を続ける",
     en: "Continue with a sample",

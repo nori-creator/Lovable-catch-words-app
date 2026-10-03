@@ -9,6 +9,7 @@ import {
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
 import type { FirstCatchRun } from "./first-catch-ai.server";
+import type { AiTarget } from "./ai-provider.server";
 
 /** A narrowly scoped public trial, not an authenticated-user impersonation.
  * Atomic unique-key reservations reuse the existing server-writable app_config
@@ -121,44 +122,57 @@ export async function executeGuestFirstCatch(raw: unknown, request: Request) {
   const data = FirstCatchAIInput.parse(raw);
   const reserved: string[] = [];
   let db: SupabaseClient<Database> | null = null;
+  let chain: Promise<AiTarget[]> | undefined;
   try {
     if (!isSameOriginRequest(request)) throw new Error("FIRST_CATCH_ORIGIN");
     const secret = process.env.SUPABASE_SERVICE_ROLE_KEY;
     if (!secret) throw new Error("FIRST_CATCH_AI_UNAVAILABLE");
+    // どの AI に頼むか（設定の読み出し）は、枠の確保と**並べて**引く（実物確認 2026-10-03:
+    // シャッターから候補まで 4.5〜42 秒。AI の前の往復を1つずつ待たない）。
+    chain = import("./first-catch-ai.server").then((m) => m.prefetchFirstCatchChain(data.action));
+    chain.catch(() => {});
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     db = supabaseAdmin;
     const day = new Date().toISOString().slice(0, 10);
     const ip = guestClientIp(request.headers);
-    if (ip) {
-      const hash = createHmac("sha256", secret)
-        .update(`${day}:${guestIpBucket(ip)}`)
-        .digest("hex")
-        .slice(0, 32);
-      const ipPrefix = `${GUEST_BUDGET_ROOT}${day}:ip:${hash}:`;
-      reserved.push(
-        `${ipPrefix}${await reserveGuestSlot(supabaseAdmin, ipPrefix, GUEST_IP_LIMIT_PER_DAY)}`,
-      );
-    }
+    const ipPrefix = ip
+      ? `${GUEST_BUDGET_ROOT}${day}:ip:${createHmac("sha256", secret)
+          .update(`${day}:${guestIpBucket(ip)}`)
+          .digest("hex")
+          .slice(0, 32)}:`
+      : null;
     const globalPrefix = `${GUEST_BUDGET_ROOT}${day}:global:`;
-    // 全体の枠が尽きた時は別のコード（画面は匿名の道に切り替え、そこも尽きていれば
-    // 「今日の体験の受け付けはいっぱい」と出す）。
-    const slot = await reserveGuestSlot(
-      supabaseAdmin,
-      globalPrefix,
-      GUEST_GLOBAL_LIMIT_PER_DAY,
-      "FIRST_CATCH_TRIAL_FULL",
-    );
-    reserved.push(`${globalPrefix}${slot}`);
+    // 回線の枠と全体の枠は**同時に**取る（前は1つずつで、往復が4回続いていた）。片方が
+    // 断られたら、取れた方は下の catch で返す。全体の枠が尽きた時は別のコード（画面は匿名の
+    // 道に切り替え、そこも尽きていれば「今日の体験の受け付けはいっぱい」と出す）。
+    const [ipSlot, globalSlot] = await Promise.allSettled([
+      ipPrefix
+        ? reserveGuestSlot(supabaseAdmin, ipPrefix, GUEST_IP_LIMIT_PER_DAY)
+        : Promise.resolve(null),
+      reserveGuestSlot(
+        supabaseAdmin,
+        globalPrefix,
+        GUEST_GLOBAL_LIMIT_PER_DAY,
+        "FIRST_CATCH_TRIAL_FULL",
+      ),
+    ]);
+    if (ipSlot.status === "fulfilled" && ipPrefix && ipSlot.value != null)
+      reserved.push(`${ipPrefix}${ipSlot.value}`);
+    if (globalSlot.status === "fulfilled") reserved.push(`${globalPrefix}${globalSlot.value}`);
+    // 回線の枠の断りを先に伝える（前と同じ: 回線の上限 → FIRST_CATCH_LIMIT）。
+    if (ipSlot.status === "rejected") throw ipSlot.reason;
+    if (globalSlot.status === "rejected") throw globalSlot.reason;
+    const slot = globalSlot.value;
     // 古い日の枠の行を、ときどき消す（`app_config` が日ごとに増え続けないように）。
+    // 返事は待たせない（`runAfterResponse`）。
     if (shouldPruneAfter(slot)) {
-      await pruneBudgetRows(supabaseAdmin as unknown as BudgetDb, GUEST_BUDGET_ROOT);
-      // 結果の記録（下の recordGuestRun）は失敗率を見るので長めに残す。
-      await pruneBudgetRows(
-        supabaseAdmin as unknown as BudgetDb,
-        GUEST_RUN_ROOT,
-        new Date(),
-        GUEST_RUN_KEEP_DAYS,
-      );
+      const admin = supabaseAdmin as unknown as BudgetDb;
+      const { runAfterResponse } = await import("./after-response");
+      await runAfterResponse("first-catch: prune guest budget", async () => {
+        await pruneBudgetRows(admin, GUEST_BUDGET_ROOT);
+        // 結果の記録（下の recordGuestRun）は失敗率を見るので長めに残す。
+        await pruneBudgetRows(admin, GUEST_RUN_ROOT, new Date(), GUEST_RUN_KEEP_DAYS);
+      });
     }
   } catch (e) {
     // 原因は画面にコードで出す。ここにも残す(写真・単語・IPは含めない)。
@@ -169,7 +183,7 @@ export async function executeGuestFirstCatch(raw: unknown, request: Request) {
   }
   const { runFirstCatchAI, failedRun } = await import("./first-catch-ai.server");
   try {
-    const { value, run } = await runFirstCatchAI(data);
+    const { value, run } = await runFirstCatchAI(data, { chain });
     if (db) await recordGuestRun(db, run);
     return value;
   } catch (e) {
