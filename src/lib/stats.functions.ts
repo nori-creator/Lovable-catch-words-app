@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { countStreak } from "@/lib/streak";
+import { dueNowOrFilter } from "@/lib/srs";
 import { taipeiDay } from "./taipei-day";
 
 export type UserStats = {
@@ -39,7 +40,8 @@ export const getMyStats = createServerFn({ method: "GET" })
         .from("reviews")
         .select("id", { count: "exact", head: true })
         .eq("user_id", userId)
-        .lte("due_at", nowIso),
+        // 期限は「最後の復習 + 180 日」で頭打ち（`dueNowOrFilter`）。
+        .or(dueNowOrFilter(Date.parse(nowIso))),
       supabase
         .from("reviews")
         .select("id, last_score, last_reviewed_at")

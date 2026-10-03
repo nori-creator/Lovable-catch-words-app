@@ -31,7 +31,7 @@ describe("first-catch rendering boundary", () => {
     expect(components("components/onboarding/FirstCatchHome.tsx")).not.toContain("TabBar");
   });
   it("collection view dispatch belongs only to the app surface", () => {
-    expect(components("routes/_authenticated/dex.tsx")).toContain("DexSurface");
+    expect(components("components/screens/DexScreen.tsx")).toContain("DexSurface");
     const tour = components("components/onboarding/FirstCatchPractice.tsx");
     expect(tour).toContain("DexSurface");
     for (const clone of ["DexCoverFlow", "DexAlbumGrid", "DexDayMap", "DexList", "DexHeader"])
@@ -50,7 +50,7 @@ describe("first-catch rendering boundary", () => {
     expect(flow).not.toContain("WordCard");
     expect(flow).not.toContain("PeelSticker");
     for (const path of [
-      "routes/_authenticated/review.tsx",
+      "components/screens/ReviewScreen.tsx",
       "components/onboarding/FirstCatchPractice.tsx",
     ])
       expect(components(path)).toContain("ReviewQuestion");
@@ -68,17 +68,17 @@ describe("first-catch rendering boundary", () => {
    */
   it("the tour renders whole production screens, not re-assembled parts", () => {
     const home = components("components/onboarding/FirstCatchHome.tsx");
-    expect(components("routes/_authenticated/home.tsx")).toContain("HomeSurface");
+    expect(components("components/screens/HomeScreen.tsx")).toContain("HomeSurface");
     expect(home).toContain("HomeSurface");
     for (const part of ["DayCollage", "DiaryDate", "HomeShelf", "PastDays", "DexAlbumGrid"])
       expect(home).not.toContain(part);
     const flow = components("components/onboarding/FirstCatchFlow.tsx");
-    expect(components("routes/_authenticated/capture.tsx")).toContain("CaptureAnalyzingPanel");
+    expect(components("components/screens/CaptureScreen.tsx")).toContain("CaptureAnalyzingPanel");
     expect(flow).toContain("CaptureAnalyzingPanel");
     expect(flow).not.toContain("ScanEffect");
     expect(source("components/onboarding/FirstCatchFlow.tsx")).toMatch(/view=\{JUST_CAUGHT_VIEW\}/);
     // 案内の印は本物の部品の上に在る。チュートリアルが包み直すと並び方が変わる。
-    expect(source("routes/_authenticated/review.tsx")).toMatch(/data-tour="review-question"/);
+    expect(source("components/screens/ReviewScreen.tsx")).toMatch(/data-tour="review-question"/);
     expect(source("components/onboarding/FirstCatchPractice.tsx")).not.toMatch(
       /<div data-tour="review-question"/,
     );
@@ -160,7 +160,9 @@ describe("tutorial guide frame and beats", () => {
 /** 2026-10-03 のオーナー指示（拼音・本棚・答え合わせの面・例文とチャンク・始まりと終わりの動き）。 */
 describe("tutorial owner revisions 2026-10-03", () => {
   it("Home in the tutorial shows only the album (no 3D shelf flashing first)", () => {
-    expect(source("routes/_authenticated/home.tsx")).toMatch(/\{ready && shelf \? \(\s*<HomeShelf/);
+    expect(source("components/screens/HomeScreen.tsx")).toMatch(
+      /\{ready && shelf \? \(\s*<HomeShelf/,
+    );
     expect(source("components/onboarding/FirstCatchHome.tsx")).toMatch(/shelf=\{false\}/);
   });
   it("the answer sheet is framed whole and its Next button pulses inside", () => {

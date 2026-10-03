@@ -167,6 +167,9 @@
 .first-goals {
   gap: 9px;
   margin: 22px 0;
+  /* 行は中身の高さ（2026-10-03 監査: 320×568 で、送れる枠の高さに合わせて行が縮み、
+     「Exam preparation / TOCFL」の3行目が枠の外へはみ出していた）。 */
+  grid-auto-rows: max-content;
 }
 .first-goals .first-choice {
   min-height: 62px;
@@ -2177,4 +2180,36 @@ html[data-motion="reduce"] .tour-primary,
 html[data-motion="reduce"] .tour-pulse,
 html[data-motion="reduce"] .tour-ring--tap::after {
   animation: none !important;
+}
+
+/* **背の低い画面（320×568・360×640）の質問**（2026-10-03 監査: 320×568 で「次へ」の釦の下が
+   画面の外で切れ、「ログイン」は下へ送らないと見えなかった）。見出し・選択肢・足元の余白を
+   詰め、釦まで1画面に収める。選択肢の押せる高さ（44px 以上）はそのまま。 */
+@media (max-height: 660px) {
+  .first-questions {
+    padding-top: max(8px, env(safe-area-inset-top));
+    padding-bottom: max(10px, env(safe-area-inset-bottom));
+  }
+  .first-question-heading {
+    margin-top: 6px;
+  }
+  .first-questions h1 {
+    font-size: 26px;
+    margin: 4px 0 10px;
+  }
+  .first-choices {
+    margin: 8px 0 12px;
+    gap: 10px;
+  }
+  .first-choice {
+    min-height: 62px;
+    padding-block: 10px;
+  }
+  .first-clock {
+    margin-block: 4px;
+  }
+  .first-footer {
+    padding-top: 12px;
+    gap: 2px;
+  }
 }

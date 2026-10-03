@@ -8,6 +8,7 @@ import {
   BILLING_ERRORS,
   createPortalSession,
   findStripeCustomerId,
+  hadSubscriptionBefore,
   readPlanPrices,
   type PriceInfo,
 } from "@/lib/stripe-catalog";
@@ -156,13 +157,18 @@ export const createCheckoutSession = createServerFn({ method: "POST" })
     )
       throw new Error(BILLING_ERRORS.legalNotReady);
     const { data: u } = await context.supabase.auth.getUser();
+    // 無料体験は1人1回だけ（前に定期購入が在る人には付けない）。
+    const trialDays =
+      legal.trialDays > 0 && (await hadSubscriptionBefore(context.userId, key))
+        ? 0
+        : legal.trialDays;
     const form = checkoutForm({
       priceId: price,
       userId: context.userId,
       email: u.user?.email ?? null,
       successUrl: siteUrlFor("/settings?pro=ok"),
       cancelUrl: siteUrlFor("/settings?pro=cancel"),
-      trialDays: legal.trialDays,
+      trialDays,
     });
     const res = await fetch("https://api.stripe.com/v1/checkout/sessions", {
       method: "POST",

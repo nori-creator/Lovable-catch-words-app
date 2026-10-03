@@ -24,7 +24,7 @@ import {
   ScanCandidateStrip,
   ScanDots,
   ScanSnapshotPhoto,
-} from "@/routes/_authenticated/scan";
+} from "@/components/screens/ScanScreen";
 import { containPoint } from "@/lib/scan-layout";
 
 // 本番の下のタブと同じ名前（表示言語で）。日本語を直書きすると英語・中文の見本が嘘になる。

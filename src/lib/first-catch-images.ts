@@ -1,4 +1,4 @@
-import { FIRST_CATCH_INTERESTS } from "@/lib/learning-preferences";
+import { FIRST_CATCH_INTERESTS } from "@/lib/learning-preference-options";
 
 /**
  * 最初の画面（`/welcome`）に出る写真と手（2026-10-03 の空と手の1枚）。`<head>` で

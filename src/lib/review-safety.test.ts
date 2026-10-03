@@ -63,13 +63,13 @@ describe("裏の処理の失敗を記録に残す", () => {
     const read = (p: string) => fs.readFileSync(p, "utf8");
     expect(read("src/lib/use-pronounce.tsx")).toMatch(/reportBackgroundFailure\("tts"/);
     expect(read("src/lib/sticker-upload.ts")).toMatch(/reportBackgroundFailure\("thumb_upload"/);
-    expect(read("src/routes/_authenticated/capture.tsx")).toMatch(
+    expect(read("src/components/screens/CaptureScreen.tsx")).toMatch(
       /reportBackgroundFailure\("photo_upload"/,
     );
     expect(read("src/components/ScanCatchSheet.tsx")).toMatch(
       /reportBackgroundFailure\("photo_upload"/,
     );
-    expect(read("src/routes/_authenticated/review.tsx")).toMatch(
+    expect(read("src/components/screens/ReviewScreen.tsx")).toMatch(
       /reportBackgroundFailure\("review_grade"/,
     );
   });

@@ -18,7 +18,7 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { BookOpen, Camera, Check, Home, Plus, RotateCcw, Settings, Sparkles } from "lucide-react";
 import { TabBar } from "@/components/TabBar";
-import { ScanDots } from "@/routes/_authenticated/scan";
+import { ScanDots } from "@/components/screens/ScanScreen";
 import { clampToVisible, coverPoint } from "@/lib/scan-layout";
 
 const TABS = [

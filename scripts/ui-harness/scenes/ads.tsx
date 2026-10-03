@@ -15,10 +15,10 @@
  */
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { DexSurface } from "@/routes/_authenticated/dex";
-import { PastDays } from "@/routes/_authenticated/home";
-import { DoneState } from "@/routes/_authenticated/review";
-import { AdsPanel } from "@/routes/_authenticated/settings";
+import { DexSurface } from "@/components/screens/DexScreen";
+import { PastDays } from "@/components/screens/HomeScreen";
+import { DoneState } from "@/components/screens/ReviewScreen";
+import { AdsPanel } from "@/components/screens/SettingsScreen";
 import { ReviewEndAdCard } from "@/components/ads/ReviewEndAd";
 import { AdCard } from "@/components/ads/AdCard";
 import { DEFAULT_AD_CONFIG, diarySlots, type AdConfig } from "@/lib/ad-policy";
@@ -27,7 +27,7 @@ import { NO_FILTER, type DexFilter } from "@/lib/dex-filter";
 import { groupBySpan } from "@/lib/album-span";
 import { tStatic } from "@/lib/i18n";
 import type { WebAds } from "@/hooks/use-web-ads";
-import type { ViewMode } from "@/routes/_authenticated/dex";
+import type { ViewMode } from "@/components/screens/DexScreen";
 import { makeStickers } from "./shelf";
 import { FIXTURES, makeSticker } from "./home";
 

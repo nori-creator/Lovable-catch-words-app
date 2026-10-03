@@ -22,7 +22,7 @@ import {
   ReviewHeader,
   ReviewPreparing,
   ReviewSessionHeader,
-} from "@/routes/_authenticated/review";
+} from "@/components/screens/ReviewScreen";
 import type { DueReviewCard } from "@/lib/reviews.functions";
 import { explainOf } from "@/lib/review-explain";
 import type { ReaderReviewView } from "@/lib/use-review-reader-explanations";

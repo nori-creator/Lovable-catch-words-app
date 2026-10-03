@@ -22,7 +22,7 @@ const KANA = /[ぁ-ゟァ-ヺ]/;
  * - admin.* と scan.tsx の計測欄は開発者だけが見る画面
  */
 const KNOWN: Record<string, number> = {
-  "src/routes/_authenticated/admin.dictionary.tsx": 23,
+  "src/components/screens/AdminDictionaryScreen.tsx": 23,
   "src/routes/_authenticated/admin.metrics.tsx": 36,
   // 利用者ごとの情報（開発者だけ、2026-09-27）。全体のグラフと比較を足した（2026-09-28）。
   // 写真の保存の失敗の回数（2026-09-30、開発者だけ）。裏の処理の失敗の回数（2026-10-01、開発者だけ）。
@@ -32,9 +32,9 @@ const KNOWN: Record<string, number> = {
   // 最初に読む塊へ引き込んでいた）。route に残るのは「管理者専用」の1行だけ。
   "src/components/AdminUsersViews.tsx": 138,
   "src/routes/_authenticated/admin.users.tsx": 1,
-  "src/routes/_authenticated/scan.tsx": 4,
+  "src/components/screens/ScanScreen.tsx": 4,
   // 設定の開発者欄「文字検索のAI画像」（管理者だけが見る。2026-09-28 main から）。
-  "src/routes/_authenticated/settings.tsx": 12,
+  "src/components/screens/SettingsScreen.tsx": 12,
   // 法務文書の**日本語版そのもの**（2026-10-03 に route から components/legal/ へ移し、
   // 繁體中文版を足した。英語・繁體中文の版は別のファイルで、ここには数えられない）。
   // 外部事業者・広告・保存期間・有料プランの条項を書き直したので行数が増えた。

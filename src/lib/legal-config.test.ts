@@ -81,9 +81,11 @@ describe("readLegalConfig", () => {
 });
 
 describe("trialDaysFrom", () => {
-  it("数でない・負・空は 0", () => {
-    for (const v of [undefined, "", "abc", "-3", "0", "9999"])
-      expect([v, trialDaysFrom(v)]).toEqual([v, 0]);
+  it("未設定・空は既定の7日（オーナー決定 2026-10-03）", () => {
+    for (const v of [undefined, "", "  "]) expect([v, trialDaysFrom(v)]).toEqual([v, 7]);
+  });
+  it("数でない・負・0・大きすぎる値は 0", () => {
+    for (const v of ["abc", "-3", "0", "9999"]) expect([v, trialDaysFrom(v)]).toEqual([v, 0]);
     expect(trialDaysFrom("14")).toBe(14);
     expect(trialDaysFrom("7.9")).toBe(7);
   });

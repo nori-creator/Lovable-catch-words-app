@@ -11,7 +11,7 @@ import {
   ScanChip,
   ScanDots,
   ScanNothingFound,
-} from "@/routes/_authenticated/scan";
+} from "@/components/screens/ScanScreen";
 
 const BASE = {
   headword: "珍珠奶茶",
@@ -152,7 +152,7 @@ export function ScanCameraScene({ q }: { q: URLSearchParams }) {
         hidden={false}
         facing="environment"
         onFlip={() => {}}
-        // 実物は `showZoom={ready}` で常に渡す（`routes/_authenticated/scan.tsx`）。
+        // 実物は `showZoom={ready}` で常に渡す（`components/screens/ScanScreen.tsx`）。
         // 倍率を1つしか持たない端末では `CameraZoomMeter` 自身が
         // 「押せない `1×` の札」に落とすので、`nozoom=1` は幅の方を潰す。
         showZoom

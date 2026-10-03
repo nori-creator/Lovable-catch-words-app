@@ -37,7 +37,7 @@ import {
   SettingsCard,
   SoundAndHapticsPanel,
   LEVEL_OPTIONS,
-} from "@/routes/_authenticated/settings";
+} from "@/components/screens/SettingsScreen";
 import { PickerRow } from "@/components/PickerRow";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";

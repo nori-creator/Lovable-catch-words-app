@@ -6,8 +6,8 @@
  * 受け取った関数を呼ぶだけ。ここではその関数を空にして、面だけを描く。
  */
 import { useState } from "react";
-import { AuthView } from "@/routes/auth";
-import { ResetPasswordView } from "@/routes/reset-password";
+import { AuthView } from "@/components/screens/AuthScreen";
+import { ResetPasswordView } from "@/components/screens/ResetPasswordScreen";
 
 export function AuthScene({ q }: { q: URLSearchParams }) {
   const [mode, setMode] = useState<"signin" | "signup">(

@@ -15,5 +15,21 @@ export default defineConfig({
   },
   vite: {
     plugins: [mcpPlugin()],
+    build: {
+      rollupOptions: {
+        output: {
+          /**
+           * **zod は自分の塊に分ける**（2026-10-03 最初の読み込みの監査）。分けないと、
+           * 束ね方の都合で React Query の中身と同じ塊（`schemas-*.js`）に入り、最初の画面が
+           * 使わない zod（約 30KB gz）まで最初に読んでいた。zod を使う画面・関数は今まで
+           * どおり、その塊を読む時に一緒に読む。
+           */
+          manualChunks(id: string) {
+            if (id.includes("/node_modules/zod/")) return "zod";
+            return undefined;
+          },
+        },
+      },
+    },
   },
 });

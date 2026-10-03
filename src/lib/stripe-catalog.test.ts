@@ -6,6 +6,7 @@ import {
   compareYearly,
   createPortalSession,
   findStripeCustomerId,
+  hadSubscriptionBefore,
   formatStripeAmount,
   priceFromStripe,
   readPlanPrices,
@@ -278,5 +279,23 @@ describe("createPortalSession", () => {
         s.impl,
       ),
     ).rejects.toThrow(BILLING_ERRORS.portalFailed);
+  });
+});
+
+describe("hadSubscriptionBefore — 無料体験は1人1回", () => {
+  it("定期購入が1つでも在れば（解約済みも）true、無ければ false", async () => {
+    const had = fakeStripe({
+      "/v1/subscriptions/search": {
+        body: { data: [{ id: "sub_old", customer: "cus_1", status: "canceled" }] },
+      },
+    });
+    expect(await hadSubscriptionBefore("u-1", "sk_test_k", had.impl)).toBe(true);
+    expect(decodeURIComponent(had.calls[0].url)).toContain("metadata['user_id']:'u-1'");
+    const none = fakeStripe({ "/v1/subscriptions/search": { body: { data: [] } } });
+    expect(await hadSubscriptionBefore("u-1", "sk_test_k", none.impl)).toBe(false);
+  });
+  it("検索に失敗したら false（初めての人から体験を取り上げない）", async () => {
+    const broken = fakeStripe({ "/v1/subscriptions/search": { status: 500, body: {} } });
+    expect(await hadSubscriptionBefore("u-1", "sk_test_k", broken.impl)).toBe(false);
   });
 });

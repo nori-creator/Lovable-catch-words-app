@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { toast } from "sonner";
 import { DexCategoryDrag } from "@/components/DexCategoryDrag";
-import { DexAlbumGrid, DexList } from "@/routes/_authenticated/dex";
+import { DexAlbumGrid, DexList } from "@/components/screens/DexScreen";
 import { FIXTURES, makeSticker } from "./home";
 
 /**

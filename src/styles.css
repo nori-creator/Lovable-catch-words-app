@@ -4740,8 +4740,10 @@ html[data-motion="reduce"] {
   stroke: var(--card);
   stroke-width: 1px;
 }
+/* 帯の名前は 10px なので 4.5:1 を割らない（2026-10-03 監査: 「うろ覚え」の帯の上で 4.48:1）。
+   段の色を 55% にして、前景（明るいテーマでは黒、暗いテーマでは白）へもう少し寄せる。 */
 .mem-band-label {
-  fill: color-mix(in oklab, var(--mem) 60%, var(--foreground));
+  fill: color-mix(in oklab, var(--mem) 55%, var(--foreground));
   paint-order: stroke;
   stroke: color-mix(in oklab, var(--mem) var(--mem-band-mix), var(--card));
   stroke-width: 3px;

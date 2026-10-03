@@ -25,7 +25,7 @@ import {
   OfflineSavedPanel,
   PickWordPanel,
   ReencounterPanel,
-} from "@/routes/_authenticated/capture";
+} from "@/components/screens/CaptureScreen";
 import { CameraModeStrip, CameraShutter } from "@/components/CameraChrome";
 
 const shot = (w: number, h: number, c: string) =>

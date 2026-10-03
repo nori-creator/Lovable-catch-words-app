@@ -13,7 +13,7 @@
  * 雛形の札は `shelf` 場面と共有する。同じ札を別の見え方で描くだけなので、
  * 二重に持つと片方だけ直る事故になる。
  */
-import { DexAlbumGrid } from "@/routes/_authenticated/dex";
+import { DexAlbumGrid } from "@/components/screens/DexScreen";
 import { makeStickers } from "./shelf";
 import { memoryBadgeMap } from "@/lib/memory-badge";
 

@@ -7,7 +7,7 @@ import { useEffect, useState } from "react";
  * `?n=N` で札を N 枚に増やす（何百枚でも送りが引っかからないかを見るため）。
  */
 import { DexCoverFlow } from "@/components/DexCoverFlow";
-import { DexHeader, DexOverlay } from "@/routes/_authenticated/dex";
+import { DexHeader, DexOverlay } from "@/components/screens/DexScreen";
 import { NO_FILTER } from "@/lib/dex-filter";
 import { memoryBadgeMap } from "@/lib/memory-badge";
 import { FIXTURES, makeSticker } from "./home";

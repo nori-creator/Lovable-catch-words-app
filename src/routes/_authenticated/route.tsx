@@ -1,8 +1,7 @@
 import { tStatic } from "@/lib/i18n";
 import { hasAddedCatch, readFirstCatch, type FirstCatch } from "@/lib/first-catch";
-import { FirstCatchTransfer } from "@/components/onboarding/FirstCatchTransfer";
 import { createFileRoute, Outlet, useNavigate } from "@tanstack/react-router";
-import { useCallback, useEffect, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { LoadFailed } from "@/components/LoadFailed";
 import { useServerFn } from "@tanstack/react-start";
@@ -15,6 +14,17 @@ import { getDueReviews } from "@/lib/reviews.functions";
 import { packBatch, readBatch, REVIEW_CACHE_KEY, REVIEW_CACHE_USER_KEY } from "@/lib/review-cache";
 import { warmCachedImages } from "@/lib/image-cache";
 import { stickerPhotoUrl } from "@/lib/sticker-photo";
+
+/**
+ * 登録前に捕まえた1枚を預け直す画面。**登録した直後の1回しか出ない**ので後から読む
+ * （2026-10-03 最初の読み込みの監査: ここから見本のホームの画面まで、どの画面でも最初に
+ * 読んでいた）。
+ */
+const FirstCatchTransfer = lazy(() =>
+  import("@/components/onboarding/FirstCatchTransfer").then((m) => ({
+    default: m.FirstCatchTransfer,
+  })),
+);
 
 export const Route = createFileRoute("/_authenticated")({
   component: AuthenticatedLayout,
@@ -200,18 +210,22 @@ function AuthenticatedLayout() {
     );
   }
 
-  if (state === "checking") {
-    return (
-      <div
-        className="grid min-h-screen place-items-center"
-        role="status"
-        aria-label={tStatic("common.loading")}
-      >
-        <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-      </div>
-    );
-  }
+  const spinner = (
+    <div
+      className="grid min-h-screen place-items-center"
+      role="status"
+      aria-label={tStatic("common.loading")}
+    >
+      <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+    </div>
+  );
+  if (state === "checking") return spinner;
 
-  if (pending) return <FirstCatchTransfer {...pending} onDone={() => setPending(null)} />;
+  if (pending)
+    return (
+      <Suspense fallback={spinner}>
+        <FirstCatchTransfer {...pending} onDone={() => setPending(null)} />
+      </Suspense>
+    );
   return <Outlet />;
 }

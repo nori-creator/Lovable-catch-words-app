@@ -1,0 +1,1277 @@
+import { Link, useNavigate, getRouteApi } from "@tanstack/react-router";
+import { ReaderMeaning } from "@/components/ReaderMeaning";
+import { stickerPhotoUrl } from "@/lib/sticker-photo";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useServerFn } from "@tanstack/react-start";
+import { AppShell } from "@/components/AppShell";
+import { StickerSheet } from "@/components/StickerSheet";
+import { listMyShelves, listMyStickers, type StickerWithWord } from "@/lib/stickers.functions";
+import { stickerListQueryFn } from "@/lib/sticker-pages";
+import { MemoryBadge } from "@/components/MemoryBadge";
+import { useMemoryBadges } from "@/lib/use-memory-map";
+import type { MemoryBadgeInfo } from "@/lib/memory-badge";
+import { PronounceButton } from "@/components/PronounceButton";
+import { CachedImg } from "@/lib/image-cache";
+import {
+  Fragment,
+  useCallback,
+  useMemo,
+  useState,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  type MouseEvent as ReactMouseEvent,
+} from "react";
+import {
+  Library,
+  LayoutGrid,
+  List,
+  Map as MapIcon,
+  GalleryHorizontal,
+  Search,
+  X,
+  Volume2,
+  MapPin,
+  Pencil,
+} from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { getUiLang, useT, TARGET_LANG_LABEL_KEYS } from "@/lib/i18n";
+import { readerMeaningCached } from "@/lib/reader-meanings";
+import { formatCount } from "@/lib/count";
+import { normalizeTargetLanguage } from "@/lib/target-lang";
+import { Zh } from "@/components/Zh";
+import { ZhuyinWord, useZhuyinUnits } from "@/components/ZhuyinWord";
+import { neutralReadings, useReadingText } from "@/lib/phonetic";
+import { asCategoryKey, categoryEmoji } from "@/lib/category";
+import {
+  NO_FILTER,
+  applyDexFilter,
+  categoryOptions,
+  dayOptions,
+  isFiltering,
+  pruneFilter,
+  type DexFilter,
+  type FilterOption,
+} from "@/lib/dex-filter";
+import { FilterMenu } from "@/components/FilterMenu";
+import { DexDayMap } from "@/components/DexDayMap";
+import { DexCoverFlow } from "@/components/DexCoverFlow";
+import { DexShelf } from "@/components/DexShelf";
+import { CategorySheet } from "@/components/CategorySheet";
+import { toast } from "sonner";
+import { DexCategoryDrag } from "@/components/DexCategoryDrag";
+import { wasFlown } from "@/lib/catch-flight";
+import { CategoryMembersSheet } from "@/components/CategoryMembersSheet";
+import { categoryDisplay, stickerCategoryKey } from "@/lib/user-category";
+import { useCategories } from "@/lib/use-categories";
+import { LoadFailed } from "@/components/LoadFailed";
+import { EmptyState } from "@/components/EmptyState";
+import { Sound } from "@/lib/sound-engine";
+import { haptic } from "@/lib/haptics";
+import { DEX_SHELF_ENABLED } from "@/lib/features";
+// 見せ方の種類と、捕まえた直後の見せ方は `lib/dex-view.ts`（チュートリアルが図鑑の画面を
+// 読まずに使えるように）。ここからも今までどおり出す。
+import { JUST_CAUGHT_VIEW, type ViewMode } from "@/lib/dex-view";
+export { JUST_CAUGHT_VIEW, type ViewMode };
+import { motionReducedNow } from "@/hooks/use-reduced-motion";
+import { neutralizeMeasureGe } from "@/lib/tw-neutral-tone";
+import { useWebAds, type WebAds } from "@/hooks/use-web-ads";
+import { nativeSlots } from "@/lib/ad-policy";
+import { groupAdSlots } from "@/lib/adsense";
+import { AdCard } from "@/components/ads/AdCard";
+
+/** この画面の検索条件・パラメータ（`Route` は route のファイルにだけ置く）。 */
+const routeApi = getRouteApi("/_authenticated/dex");
+
+/**
+ * 落ちてきたモノが棚板に触れる瞬間(演出の開始から何ミリ秒か)。
+ *
+ * 下の `slamIn` が `880ms linear 120ms both`、その 52% が接地(潰れ)。
+ * ここを直すときは**両方**直すこと — ずれると音だけ先に鳴る。
+ */
+const SLAM_IMPACT_MS = 520;
+
+declare global {
+  interface Window {
+    initDexMap?: () => void;
+    google?: unknown;
+  }
+}
+
+export function DexPage() {
+  const t = useT();
+  const fetchStickers = useServerFn(listMyStickers);
+  const stickerQc = useQueryClient();
+  const fetchShelves = useServerFn(listMyShelves);
+  const navigate = useNavigate();
+  const { justCaught } = routeApi.useSearch();
+  const webAds = useWebAds();
+  const {
+    data: stickers,
+    isLoading,
+    isError,
+    isFetching,
+    refetch,
+  } = useQuery({
+    queryKey: ["stickers"],
+    queryFn: stickerListQueryFn(stickerQc, fetchStickers),
+    // Keep the signed URLs stable across tab switches so the browser cache
+    // can serve the images instead of re-downloading them (roadmap B1).
+    staleTime: 5 * 60 * 1000,
+    gcTime: 30 * 60 * 1000,
+  });
+  /**
+   * その人だけの棚(AI が語を分析して作ったもの)。
+   *
+   * **これが読めなくても図鑑は出す。** 棚が無ければ既定の54棚だけで並ぶので、
+   * ここの失敗を画面に出す理由が無い(`listMyShelves` 側も空配列に畳む)。
+   */
+  const { data: shelfData } = useQuery({
+    queryKey: ["user-shelves"],
+    queryFn: () => fetchShelves(),
+    staleTime: 5 * 60 * 1000,
+    gcTime: 30 * 60 * 1000,
+  });
+  const shelves = useMemo(() => shelfData?.shelves ?? [], [shelfData]);
+  /**
+   * カテゴリーの見出し・絞り込み・検索は、**その人が移した先と付け直した名前**
+   * で組む（オーナー指示 2026-09-27「カテゴリーの名前を変更したり、作成したり、
+   * 写真のカテゴリーを移動したり」）。
+   */
+  const userCatKeys = useMemo(() => new Set(shelves.map((c) => c.key)), [shelves]);
+  const displayOf = useCallback(
+    (key: string) => categoryDisplay(key, shelves, (k) => t(`cat.${k}`)),
+    [shelves, t],
+  );
+  const cats = useCategories();
+  const [manageCats, setManageCats] = useState(false);
+  /** 見出しの長押しで開いた時、最初から編集しておくカテゴリー（R14）。 */
+  const [editCatKey, setEditCatKey] = useState<string | null>(null);
+  /** カテゴリーの側から単語を入れる・外す面（2026-09-28）。 */
+  const [membersKey, setMembersKey] = useState<string | null>(null);
+  // Memoize so the reference is stable across renders — otherwise `filtered`
+  // and `groups` below recompute on every render (a new `[]`/array identity
+  // invalidates their useMemo deps), re-filtering the whole gallery each time.
+  const captured = useMemo(() => stickers?.items ?? [], [stickers]);
+  /** 上限に達していて、この先が出せていない状態か。 */
+  const truncated = stickers?.truncated ?? false;
+  /** 本当の総数(サーバーが数えたもの)。取れなければ null。 */
+  const totalCount = stickers?.total ?? null;
+
+  /**
+   * **開いた時はいつもスライド（カード）**（オーナー指示 2026-09-29「図鑑を開いたときの
+   * デフォルトはこの画像がたくさん表示されているものではなく、スライドのタイプが開くように
+   * して」）。前に見ていた表示は覚えない — 覚えると、一度写真の升目にした人は毎回升目で
+   * 開き、「既定がスライド」にならない。キャッチ直後の着地だけは升目（下の効果）。
+   */
+  const [view, setView] = useState<ViewMode>("cards");
+  const landingStartedRef = useRef<string | null>(null);
+
+  // キャッチ演出v2の着弾。**キャッチ1回につき1度だけ**走らせる。
+  //
+  // 以前はここの依存配列に `view` が入っていた。この効果自身が
+  // `setView("shelf")` を呼ぶので、演出中(1.6秒)にユーザーが一覧や地図へ
+  // 切り替えると効果が再実行され、**棚へ引き戻して振動をもう一度鳴らす**。
+  // 押したのに戻される画面は、壊れているのと区別がつかない。
+  useEffect(() => {
+    if (!justCaught) return;
+    setView(JUST_CAUGHT_VIEW);
+    setSearch("");
+    if (!captured.some((item) => item.id === justCaught)) return;
+    if (landingStartedRef.current === justCaught) return;
+    landingStartedRef.current = justCaught;
+    // 飛んで着いた札は、着地の音と振動も飛行の側が鳴らした（二度鳴らさない）。
+    if (document.documentElement.dataset.rewardFlight || wasFlown(justCaught)) {
+      const t = setTimeout(() => {
+        void navigate({ to: "/dex", search: {}, replace: true, resetScroll: false });
+      }, 6000);
+      return () => clearTimeout(t);
+    }
+
+    // 「ドン」は**モノが棚板に触れた瞬間**に鳴らす。以前は演出の開始と同時に
+    // 振動していて、絵はまだ画面の上にあるのに手だけ先に着地していた。
+    // 音と振動が絵とずれると、着地したという実感がまるごと消える。
+    //
+    // slamIn は `880ms linear 120ms` で、52% が接地(潰れ)。
+    //   120 + 880 * 0.52 ≒ 578ms
+    // 動きを減らす設定のときは落下自体が無いので、待たずに鳴らす。
+    const reduced = motionReducedNow();
+    const impact = setTimeout(
+      () => {
+        Sound.shelfLand(); // 木の棚に載る「コッ」
+        // 生の navigator.vibrate は**振動オフの設定を無視する**。
+        haptic("heavy");
+      },
+      reduced ? 0 : SLAM_IMPACT_MS,
+    );
+
+    const t = setTimeout(() => {
+      void navigate({ to: "/dex", search: {}, replace: true, resetScroll: false });
+    }, 1600);
+    return () => {
+      clearTimeout(impact);
+      clearTimeout(t);
+    };
+  }, [justCaught, navigate, captured]);
+
+  // 全カテゴリーを表示したまま、着地先のセルへ移動する。
+  useEffect(() => {
+    if (!justCaught) return;
+    setFilter(NO_FILTER);
+  }, [justCaught]);
+
+  // 該当セルへスクロール。表示の切替が描かれた**後**に探す(同じ tick で
+  // getElementById すると、一覧表示を保存していた人はまだ棚が無い)。
+  // 図鑑の再取得が後から届くこともあるので件数も見る。
+  useEffect(() => {
+    if (!justCaught) return;
+    let stopped = false;
+    let attempts = 0;
+    const locate = () => {
+      if (stopped) return;
+      const el = document.getElementById(`dex-cell-${justCaught}`);
+      if (el) {
+        el.scrollIntoView({ block: "center", behavior: "instant" as ScrollBehavior });
+        return;
+      }
+      attempts += 1;
+      if (attempts < 12) requestAnimationFrame(locate);
+    };
+    const raf = requestAnimationFrame(locate);
+    return () => {
+      stopped = true;
+      cancelAnimationFrame(raf);
+    };
+  }, [justCaught, captured.length]);
+
+  // 見た目パックのレイアウト。"album" のときは既存の描画をそのまま通す。
+
+  /**
+   * 絞り込み(カテゴリー・日付)。どちらも `null` は「すべて」。
+   *
+   * **日付をここへ上げた**(オーナー指摘 2026-08-21)。前は地図の中だけに
+   * 在り、一覧・棚・カレンダーには手段が無く、地図を離れると黙って消えた。
+   */
+  const [filter, setFilter] = useState<DexFilter>(NO_FILTER);
+  const activeCategory = filter.category;
+  const [openId, setOpenId] = useState<string | null>(null);
+  const [search, setSearch] = useState("");
+  useEffect(() => {
+    if (justCaught) return; // Arrival must not restore a previous category/view filter.
+    const savedCat = typeof window !== "undefined" ? localStorage.getItem("dex-category") : null;
+    // **日付は覚えない。** 「その日だけ」は今この場の見方で、次に開いた
+    // ときまで続くと「図鑑が減った」ようにしか見えない。
+    if (savedCat) setFilter((f) => ({ ...f, category: savedCat }));
+  }, []);
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (activeCategory) localStorage.setItem("dex-category", activeCategory);
+    else localStorage.removeItem("dex-category");
+  }, [activeCategory]);
+
+  /** ボタンに並べる選択肢。数え方は `dex-filter.ts` が1つだけ持つ。 */
+  const catOptions = useMemo(() => categoryOptions(captured), [captured]);
+  const dOptions = useMemo(() => dayOptions(captured), [captured]);
+
+  // 選んだ物が1件も無くなったら「すべて」に戻す(空画面で詰まらせない)。
+  useEffect(() => {
+    setFilter((f) => pruneFilter(f, { categories: catOptions, days: dOptions }));
+  }, [catOptions, dOptions]);
+
+  const filtered = useMemo(
+    () => filterDexStickers(captured, filter, search, t, shelves),
+    [captured, search, filter, t, shelves],
+  );
+
+  return (
+    // **全画面**（オーナー指示 2026-09-23「図鑑の全ての種類は下のバーを含む全画面で
+    // 表示し、上のカテゴリー選択や日付選択検索はその画面の上に来るようにして」）。
+    // 上の帯は出さず、絞り込みと検索を画面の上に重ねる（`DexOverlay`）。
+    <AppShell title={t("title.dex")} immersive>
+      <DexSurface
+        captured={captured}
+        filtered={filtered}
+        view={view}
+        onView={setView}
+        filter={filter}
+        onFilter={setFilter}
+        search={search}
+        onSearch={setSearch}
+        categories={catOptions}
+        days={dOptions}
+        onOpen={setOpenId}
+        isError={isError}
+        isLoading={isLoading}
+        isFetching={isFetching}
+        onRetry={() => void refetch()}
+        truncated={truncated}
+        totalCount={totalCount}
+        otherLanguages={stickers?.otherLanguages ?? 0}
+        targetLanguage={stickers?.targetLanguage}
+        activeCategory={activeCategory}
+        justCaught={justCaught}
+        // 捕まえて戻ってきた瞬間（着地の演出）には広告を並べない（いちばん嬉しい所）。
+        ads={justCaught ? undefined : webAds}
+        shelves={shelves}
+        onManageCategories={() => {
+          setEditCatKey(null);
+          setManageCats(true);
+        }}
+        onEditCategory={(key) => {
+          setEditCatKey(key);
+          setManageCats(true);
+        }}
+        onMoveToCategory={(id, key) => {
+          const s = captured.find((x) => x.id === id);
+          if (!s) return;
+          const from = stickerCategoryKey(s, userCatKeys);
+          if (from === key) return;
+          const to = displayOf(key);
+          void cats
+            .setMembers([{ sticker_id: id, key }])
+            .then(() =>
+              toast(t("dex.movedTo", { word: s.word.headword, cat: `${to.emoji} ${to.label}` }), {
+                action: {
+                  label: t("album.undo"),
+                  onClick: () => void cats.setMembers([{ sticker_id: id, key: from }]),
+                },
+              }),
+            )
+            .catch(() => toast.error(t("dex.moveFailed")));
+        }}
+      />
+      <StickerSheet stickerId={openId} onClose={() => setOpenId(null)} />
+      {manageCats && (
+        <CategorySheet
+          initialEditing={editCatKey}
+          usedKeys={catOptions.map((o) => o.key)}
+          userCategories={cats.categories}
+          onSave={cats.save}
+          onDelete={cats.remove}
+          onEditMembers={(key) => setMembersKey(key)}
+          onClose={() => setManageCats(false)}
+        />
+      )}
+      {membersKey && (
+        <CategoryMembersSheet
+          categoryKey={membersKey}
+          userCategories={cats.categories}
+          items={captured.map((s) => ({
+            id: s.id,
+            shelf_key: s.shelf_key,
+            word: s.word,
+            headword: s.word.headword,
+            meaning: s.word.meaning_ja,
+            wordId: s.word_id,
+            thumb: s.cutout_thumb_url ?? s.cutout_url ?? s.object_thumb_url ?? s.object_url,
+          }))}
+          onApply={cats.setMembers}
+          onClose={() => setMembersKey(null)}
+        />
+      )}
+    </AppShell>
+  );
+}
+
+/**
+ * 図鑑に1枚も無いとき。**始めたばかりの人が最初に見る面**。
+ *
+ * ホームの空の面と同じ型(理由・次の一手・その場の導線)。ルートに
+ * 直書きのままだと `ui-audit` から描けず、機械の目に一度も映らない。
+ */
+
+export function filterDexStickers(
+  captured: StickerWithWord[],
+  filter: DexFilter,
+  search: string,
+  t: ReturnType<typeof useT>,
+  shelves: NonNullable<React.ComponentProps<typeof DexShelf>["userShelves"]> = [],
+) {
+  const q = search.trim().toLowerCase();
+  const byFilter = applyDexFilter(captured, filter);
+  if (!q) return byFilter;
+  // 意味は**画面に出ている物でも**引けるようにする（英語・繁體中文の人は、その人の言語の
+  // 意味を見て打つ。共有の意味は別の言語のことがある — 2026-10-02）。
+  const lang = getUiLang();
+  return byFilter.filter((s) => {
+    const w = s.word;
+    // カテゴリーは**表示名でも**引けるようにする(NORI指定)。
+    // category_key は "kitchenware" のような英語キーなので、それだけでは
+    // 「調理器具」と打っても引っかからなかった。
+    const catKey = stickerCategoryKey(s, new Set(shelves.map((c) => c.key)));
+    const catLabel = categoryDisplay(catKey, shelves, (k) => t(`cat.${k}`)).label;
+    return (
+      w.headword?.toLowerCase().includes(q) ||
+      w.reading_zhuyin?.toLowerCase().includes(q) ||
+      w.pinyin?.toLowerCase().includes(q) ||
+      w.meaning_ja?.toLowerCase().includes(q) ||
+      readerMeaningCached(s.word_id, lang).toLowerCase().includes(q) ||
+      catKey.toLowerCase().includes(q) ||
+      catLabel.toLowerCase().includes(q)
+    );
+  });
+}
+
+/** Single rendering source for the real collection and the first-catch tour.
+ * No tutorial layout or view implementation is allowed here; only data differs. */
+export function DexSurface({
+  captured,
+  filtered,
+  view,
+  onView: setView,
+  filter,
+  onFilter: setFilter,
+  search,
+  onSearch: setSearch,
+  categories: catOptions,
+  days: dOptions,
+  onOpen: setOpenId,
+  onBrowse,
+  memory,
+  isError = false,
+  isLoading = false,
+  isFetching = false,
+  onRetry = () => {},
+  truncated = false,
+  totalCount,
+  otherLanguages = 0,
+  targetLanguage,
+  activeCategory = null,
+  justCaught,
+  ads,
+  shelves = [],
+  onManageCategories,
+  onMoveToCategory,
+  onEditCategory,
+}: {
+  captured: StickerWithWord[];
+  filtered: StickerWithWord[];
+  view: ViewMode;
+  onView: (view: ViewMode) => void;
+  filter: DexFilter;
+  onFilter: (filter: DexFilter) => void;
+  search: string;
+  onSearch: (search: string) => void;
+  categories: readonly FilterOption[];
+  days: readonly FilterOption[];
+  onOpen: (id: string) => void;
+  onBrowse?: () => void;
+  onManageCategories?: () => void;
+  /** 長押しで運んだ札を、そのカテゴリーへ移す（R14）。 */
+  onMoveToCategory?: (stickerId: string, key: string) => void;
+  /** カテゴリーの見出しを長押し → そのカテゴリーを編集する（R14）。 */
+  onEditCategory?: (key: string) => void;
+  memory?: Map<string, MemoryBadgeInfo>;
+  isError?: boolean;
+  isLoading?: boolean;
+  isFetching?: boolean;
+  onRetry?: () => void;
+  truncated?: boolean;
+  totalCount?: number | null;
+  otherLanguages?: number;
+  targetLanguage?: string;
+  activeCategory?: string | null;
+  justCaught?: string;
+  /**
+   * Web の広告（`useWebAds`）。渡した時だけ、写真の並び・縦の一覧に札の形の広告を挟む
+   * （`ad-policy` の `nativeSlots`: 最初の `nativeFirst` 枚の中と一番下には置かない）。
+   */
+  ads?: WebAds;
+  shelves?: React.ComponentProps<typeof DexShelf>["userShelves"];
+}) {
+  const t = useT();
+  const userCatKeys = useMemo(() => new Set(shelves.map((c) => c.key)), [shelves]);
+  const displayOf = (key: string) => categoryDisplay(key, shelves, (k) => t(`cat.${k}`));
+  const groups = useMemo(() => {
+    const map = new Map<string, typeof filtered>();
+    for (const s of filtered) {
+      const k = stickerCategoryKey(s, userCatKeys);
+      if (!map.has(k)) map.set(k, []);
+      map.get(k)!.push(s);
+    }
+    return Array.from(map.entries()).sort((a, b) => b[1].length - a[1].length);
+  }, [filtered, userCatKeys]);
+  /** 組ごとの「何枚目の後に広告」（写真の並びは3列なので行の終わりへ送る）。 */
+  const adAfter = useMemo(() => {
+    if (!ads?.show || !ads.placements.dex || (view !== "gallery" && view !== "list")) return null;
+    return groupAdSlots(
+      groups.map(([, items]) => items.length),
+      nativeSlots(filtered.length, ads.cfg, false),
+      view === "gallery" ? 3 : 1,
+    );
+  }, [ads, view, groups, filtered.length]);
+  const renderAd = ads
+    ? (framed = true) => (
+        <AdCard client={ads.client} slot={ads.cfg.slotDexInFeed} minHeight={120} framed={framed} />
+      )
+    : undefined;
+  return (
+    <div data-tour="dex">
+      <style>{`
+        /* 上から落ちてきて空欄にドンと着地する。以前は拡大が縮むだけで、
+           「突然そこに現れた」ようにしか見えなかった(NORI指摘)。
+           落下 → 着地の潰れ → 跳ね返り → 収まる、の順。 */
+        @keyframes slamIn {
+          0%   { transform: translateY(-115vh) scaleX(0.92) scaleY(1.12); opacity: 0; animation-timing-function: cubic-bezier(0.6, 0, 0.95, 0.4); }
+          8%   { opacity: 1; animation-timing-function: cubic-bezier(0.6, 0, 0.95, 0.4); }
+          52%  { transform: translateY(0) scaleX(1.16) scaleY(0.82); animation-timing-function: cubic-bezier(0.2, 0.9, 0.3, 1); }
+          68%  { transform: translateY(-22%) scaleX(0.95) scaleY(1.07); }
+          84%  { transform: translateY(0) scaleX(1.05) scaleY(0.96); }
+          100% { transform: translateY(0) scale(1); }
+        }
+        .slam-in { animation: slamIn 880ms linear 120ms both; position: relative; z-index: 10; transform-origin: 50% 100%; }
+        /* 着地の衝撃。セルの足元から輪が広がる。 */
+        @keyframes slamShock {
+          0%   { transform: translate(-50%, -50%) scale(0.3); opacity: 0; }
+          52%  { transform: translate(-50%, -50%) scale(0.4); opacity: 0.85; }
+          100% { transform: translate(-50%, -50%) scale(3.2); opacity: 0; }
+        }
+        .slam-shock { animation: slamShock 900ms cubic-bezier(0.15, 0.6, 0.3, 1) 120ms both; }
+        @keyframes slamFlash {
+          0%   { opacity: 0; }
+          40%  { opacity: 1; }
+          100% { opacity: 0; }
+        }
+        .slam-flash { background: radial-gradient(circle, rgba(253,230,138,0.75), rgba(253,230,138,0) 70%); animation: slamFlash 760ms ease-out 520ms both; }
+        html[data-motion="reduce"] {
+          .slam-in { animation: none; }
+          .slam-shock { animation: none; }
+          .slam-flash { animation: slamFlash 600ms ease-out both; } /* keep a gentle glow, drop the scale slam */
+        }
+      `}</style>
+      <DexOverlay>
+        <DexHeader
+          found={captured.length}
+          caught={
+            captured.filter((s) => s.capture_type === "photo" || !!s.cutout_url || !!s.object_url)
+              .length
+          }
+          view={view}
+          onView={setView}
+          filter={filter}
+          onFilter={setFilter}
+          categories={catOptions}
+          days={dOptions}
+          categoryLabel={(k) => {
+            const d = displayOf(k);
+            return `${d.emoji} ${d.label}`;
+          }}
+          onManageCategories={onManageCategories}
+        />
+
+        {/* 検索とカテゴリーは地図でも効く(地図のピンも絞り込まれる)ので、
+          地図表示のときも出す。 */}
+        {
+          <div className="relative mt-2">
+            <Search
+              aria-hidden
+              className="pointer-events-none absolute left-3 top-1/2 z-10 h-4 w-4 -translate-y-1/2 text-muted-foreground"
+            />
+            <Input
+              type="search"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder={t("dex.search")}
+              aria-label={t("dex.searchAria")}
+              className="search-field rounded-full pl-9 pr-11"
+            />
+            {search && (
+              <button
+                onClick={() => setSearch("")}
+                aria-label={t("dex.clearSearch")}
+                className="absolute right-1 top-1/2 grid h-9 w-9 -translate-y-1/2 place-items-center rounded-full text-muted-foreground hover:bg-secondary"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            )}
+          </div>
+        }
+      </DexOverlay>
+      {/* 重ねた操作の高さぶん、中身を下げる（地図は画面に貼り付くので関係ない）。 */}
+      <div aria-hidden style={{ height: "var(--dex-overlay-h, 9rem)" }} />
+
+      {/* カテゴリーの実名で絞り込む(NORI指定: 「カテゴリー/品詞」の切替ボタンは
+          廃止し、家・体の部位…といった名前のボタンを並べる)。タップでその
+          カテゴリーの画像グループだけを表示する。
+          §2: 選択状態は色だけでなく aria-pressed と件数でも伝える。 */}
+      {/* 上限に達しているときは**そう言う**。
+          図鑑は「集めたものが全部ある」ことが値打ちの画面なので、黙って
+          途中で止まるのがいちばん悪い。持っているのに出せていないなら、
+          出せていないと書く(ページ送りはまだ作れていない)。 */}
+      {truncated && (
+        <p
+          role="status"
+          className="mb-3 rounded-xl bg-secondary px-3 py-2 text-caption text-muted-foreground"
+        >
+          {t("dex.truncated", {
+            n: formatCount(captured.length),
+            total: formatCount(totalCount ?? captured.length),
+          })}
+        </p>
+      )}
+
+      {/* 絞り込みの丸を横に並べる列は**やめた**(オーナー指摘 2026-08-21)。
+          上の「あなたの図鑑」の欄にボタンが2つあり、押すと選択肢が出る。
+          棚だけ別の解除口を持たせていたのも、そこへ一本化した。 */}
+
+      {/* 読み込み中と失敗は**表示形式より先**に判定する。以前この2つは
+          map / calendar の下に置かれていたので、地図とカレンダーだけは
+          取得に失敗しても「ピンが1本も無い地図」「予定の無いカレンダー」を
+          描き、再試行の手段も出ないままだった(§8)。 */}
+      {isError && captured.length === 0 ? (
+        // 失敗を「まだ何も無い」と描くと、集めたものが消えたように見える。
+        <LoadFailed onRetry={onRetry} retrying={isFetching} what={t("err.whatDex")} />
+      ) : isLoading && captured.length === 0 ? (
+        // §8: show the shape of the content while it loads — never flash the
+        // "empty" state before the first fetch resolves.
+        <div className="grid grid-cols-3 gap-2.5" aria-hidden>
+          {Array.from({ length: 9 }).map((_, i) => (
+            <div key={i} className="aspect-square animate-pulse rounded-2xl bg-secondary" />
+          ))}
+        </div>
+      ) : view === "map" ? (
+        // 地図もカテゴリー(と検索)の絞り込みに従う。ギャラリーだけ絞られて
+        // 地図には全部出ていると、同じ「図鑑」なのに見えるものが食い違う。
+        // **地図とカレンダーを1つにした**（オーナー指示 2026-09-23）。開くと
+        // 地図、下で日付を送り、暦から日を選び、時間軸でその日を辿る。
+        <DexDayMap stickers={filtered} onOpen={setOpenId} />
+      ) : view === "calendar" ? (
+        // 前に「カレンダー」を選んでいた人も、同じ地図へ。
+        <DexDayMap stickers={filtered} onOpen={setOpenId} />
+      ) : captured.length === 0 ? (
+        <DexEmptyState otherLanguages={otherLanguages} targetLanguage={targetLanguage} />
+      ) : filtered.length === 0 ? (
+        <DexNoMatch search={search} onClear={() => setSearch("")} />
+      ) : view === "cards" ? (
+        <DexCoverFlow stickers={filtered} memory={memory} onBrowse={onBrowse} onOpen={setOpenId} />
+      ) : DEX_SHELF_ENABLED && view === "shelf" ? (
+        <DexShelf
+          stickers={filtered}
+          activeCategory={activeCategory}
+          onOpen={setOpenId}
+          justCaught={justCaught}
+          userShelves={shelves}
+        />
+      ) : (
+        <DexCategoryDrag
+          onMove={(id, key) => onMoveToCategory?.(id, key)}
+          onEditCategory={onEditCategory}
+        >
+          {groups.map(([key, items], gi) => (
+            <section key={key} className="dex-cat mb-6" data-dex-cat={key}>
+              <div className="mb-2 flex items-baseline justify-between">
+                <h3
+                  className="dex-cat__head text-body font-semibold tracking-tight"
+                  data-dex-cat-head={onEditCategory ? key : undefined}
+                >
+                  {/* カテゴリーは既知なら翻訳、未知のキーはそのまま見せる
+                  (訳が無いより分かる)。 */}
+                  {displayOf(key).emoji} {displayOf(key).label}
+                </h3>
+                <span className="text-footnote text-muted-foreground">{items.length}</span>
+              </div>
+
+              {view === "gallery" ? (
+                // 試作品(Capture&Converse)のアルバム: 写真がタイルいっぱいに
+                // 表示される3列グリッド+下端のグラデーションに単語名。
+                <DexAlbumGrid
+                  items={items}
+                  memory={memory}
+                  justCaught={justCaught}
+                  onOpen={setOpenId}
+                  adAfter={adAfter?.[gi]}
+                  renderAd={renderAd}
+                />
+              ) : (
+                <DexList
+                  items={items}
+                  onOpen={setOpenId}
+                  adAfter={adAfter?.[gi]}
+                  renderAd={renderAd}
+                />
+              )}
+            </section>
+          ))}
+        </DexCategoryDrag>
+      )}
+    </div>
+  );
+}
+
+export function DexEmptyState({
+  otherLanguages = 0,
+  targetLanguage,
+}: {
+  /**
+   * **ほかの学習言語に何枚あるか。** 0 より大きいなら、この人は
+   * 「まだ何もキャッチしていない」のではなく**学習言語を切り替えた**。
+   * そこに「まだ何もキャッチしていません」と出すのは嘘で、
+   * 集めた物が消えたようにしか見えない。
+   */
+  otherLanguages?: number;
+  targetLanguage?: string;
+} = {}) {
+  const t = useT();
+  if (otherLanguages > 0) {
+    const lang = t(TARGET_LANG_LABEL_KEYS[normalizeTargetLanguage(targetLanguage)]);
+    return (
+      <EmptyState
+        icon={Library}
+        title={t("dex.emptyOtherLangTitle", { lang })}
+        hint={t("dex.emptyOtherLangHint", { n: formatCount(otherLanguages) })}
+        action={
+          <Link
+            to="/settings"
+            className="lift inline-flex min-h-11 items-center rounded-full bg-primary px-5 py-2.5 text-body font-semibold text-primary-foreground"
+          >
+            {t("dex.emptyOtherLangCta")}
+          </Link>
+        }
+      />
+    );
+  }
+  return (
+    <EmptyState
+      icon={Library}
+      title={t("dex.emptyTitle")}
+      hint={t("dex.emptyHint")}
+      action={
+        <Link
+          to="/capture"
+          className="lift inline-flex min-h-11 items-center rounded-full bg-primary px-5 py-2.5 text-body font-semibold text-primary-foreground"
+        >
+          {t("dex.emptyCta")}
+        </Link>
+      }
+    />
+  );
+}
+
+/**
+ * 検索に一致しないとき。**行き止まりにしない** — 検索欄の×は
+ * 画面の上端にあり、絞り込んだ結果を見ている人の目線から遠い。
+ * 「無かった」と言うなら、その場に戻り道を置く。
+ */
+export function DexNoMatch({ search, onClear }: { search: string; onClear: () => void }) {
+  const t = useT();
+  return (
+    <div className="rounded-3xl border border-dashed border-border bg-card p-8 text-center">
+      <p className="text-balance text-body text-muted-foreground">
+        「{search}」{t("dex.noMatch")}
+      </p>
+      <button
+        type="button"
+        onClick={onClear}
+        className="lift mt-4 inline-flex min-h-11 items-center rounded-full bg-secondary px-5 py-2.5 text-body font-semibold text-foreground"
+      >
+        {t("dex.clearSearch")}
+      </button>
+    </div>
+  );
+}
+
+/**
+ * Draw a map pin whose head is the sticker's own photo clipped in a circle
+ * (roadmap B4: every pin shows what was caught there, not a generic marker).
+ * Returns null when the image can't be drawn (CORS/load failure) so the
+ * caller keeps the emoji fallback pin.
+ */
+async function photoPinIcon(url: string): Promise<string | null> {
+  try {
+    const img = new Image();
+    img.crossOrigin = "anonymous";
+    await new Promise<void>((res, rej) => {
+      img.onload = () => res();
+      img.onerror = () => rej(new Error("pin image load failed"));
+      img.src = url;
+    });
+    const W = 104,
+      H = 120,
+      cx = 52,
+      cy = 46,
+      R = 42; // 2x for retina
+    const c = document.createElement("canvas");
+    c.width = W;
+    c.height = H;
+    const ctx = c.getContext("2d");
+    if (!ctx) return null;
+    // tail
+    ctx.beginPath();
+    ctx.moveTo(cx - 14, cy + R - 6);
+    ctx.lineTo(cx, H - 4);
+    ctx.lineTo(cx + 14, cy + R - 6);
+    ctx.closePath();
+    ctx.fillStyle = "#ffffff";
+    ctx.shadowColor = "rgba(0,0,0,0.25)";
+    ctx.shadowBlur = 6;
+    ctx.shadowOffsetY = 2;
+    ctx.fill();
+    // white ring
+    ctx.beginPath();
+    ctx.arc(cx, cy, R + 4, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.shadowColor = "transparent";
+    // photo clipped in circle (cover fit)
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(cx, cy, R, 0, Math.PI * 2);
+    ctx.clip();
+    const scale = Math.max((R * 2) / img.width, (R * 2) / img.height);
+    const dw = img.width * scale,
+      dh = img.height * scale;
+    ctx.drawImage(img, cx - dw / 2, cy - dh / 2, dw, dh);
+    ctx.restore();
+    return c.toDataURL("image/png");
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * 写真のアルバム(3列)。**図鑑を開いた人がまず見るのはこれ。**
+ *
+ * 図鑑の写真の並べ方はこれ1つ（見た目パックの別の並べ方は 2026-10-01 に消した）。`export` は雛形の検査(`scripts/ui-harness`)から
+ * 本物を描くため — ルートに直書きのままでは、この画面だけ一度も
+ * 絵に映らない(実際、性能の道具も絵の検査も、無効にした棚の方を
+ * 見ていた: `src/lib/features.ts` の `DEX_SHELF_ENABLED` は false)。
+ */
+export function DexAlbumGrid({
+  items,
+  justCaught,
+  onOpen,
+  memory,
+  adAfter,
+  renderAd,
+}: {
+  items: StickerWithWord[];
+  justCaught?: string;
+  onOpen: (id: string) => void;
+  /** この番号（0始まり）の札の後に、横いっぱいの広告を挟む（`groupAdSlots`）。 */
+  adAfter?: readonly number[];
+  renderAd?: (framed?: boolean) => React.ReactNode;
+  /**
+   * 札の id → 記憶の印。渡さなければ復習と同じ問い合わせから読む
+   * （`useMemoryBadges`）。雛形は通信できないので、こちらで渡す。
+   */
+  memory?: Map<string, MemoryBadgeInfo>;
+}) {
+  const t = useT();
+  const fetched = useMemoryBadges(memory === undefined);
+  const memoryById = memory ?? fetched;
+  return (
+    <div className="grid grid-cols-3 gap-2.5">
+      {items.map((s, i) => {
+        const photo = s.object_thumb_url ?? s.object_url;
+        // 下端の帯を出すかの判定。絵が1枚も無いときだけ false。
+        const hasImage = Boolean(photo || s.cutout_url || s.placeholder_url);
+        const sharedFlightActive =
+          typeof document !== "undefined" && Boolean(document.documentElement.dataset.rewardFlight);
+        // 飛んで着いた札は、図鑑の側で落とし直さない（`catch-flight.ts`）。
+        const slam = s.id === justCaught && !sharedFlightActive && !wasFlown(s.id);
+        const cell = (
+          <button
+            key={s.id}
+            data-dex-item={s.id}
+            onClick={() => onOpen(s.id)}
+            className="group relative block text-left"
+          >
+            {/* 着地の衝撃。セルは overflow-hidden なので、輪はその外側に置く */}
+            {slam && (
+              <span className="slam-shock pointer-events-none absolute left-1/2 top-full z-0 block h-10 w-10 rounded-full ring-4 ring-amber-400/70" />
+            )}
+            <div
+              id={`dex-cell-${s.id}`}
+              className={`relative aspect-square overflow-hidden rounded-2xl bg-white shadow-md ring-1 ring-black/5 transition-transform group-active:scale-95 motion-reduce:transition-none motion-reduce:group-active:scale-100 ${slam ? "slam-in ring-2 ring-amber-400" : ""}`}
+            >
+              {photo ? (
+                <CachedImg
+                  src={photo}
+                  alt={t("common.photoOf", { word: s.word.headword })}
+                  loading="lazy"
+                  decoding="async"
+                  className="h-full w-full object-cover"
+                />
+              ) : s.cutout_url ? (
+                <CachedImg
+                  src={s.cutout_thumb_url ?? s.cutout_url}
+                  alt={t("common.stickerOf", { word: s.word.headword })}
+                  loading="lazy"
+                  decoding="async"
+                  className="h-full w-full object-contain p-2"
+                />
+              ) : s.placeholder_url ? (
+                // ネット画像も普通の絵として見せる(段ボール/ゴースト廃止)
+                <CachedImg
+                  src={s.placeholder_url}
+                  alt={t("common.imageOf", { word: s.word.headword })}
+                  loading="lazy"
+                  decoding="async"
+                  className="h-full w-full object-cover"
+                />
+              ) : (
+                // 画像がまだ無いときは静かなプレースホルダ。
+                // 詳細を開くとネット画像が自動で入る。
+                // **`text-muted-foreground` をやめた。** 暗いテーマで
+                // 字 #99a6b8 / 地 #4e5865 = 2.92:1 しか無く、この文字は
+                // 札の中で**唯一その語を名指しているもの**なので、薄いと
+                // 何の札か分からない。
+                <div className="grid h-full place-items-center bg-gradient-to-br from-secondary to-secondary/50 px-2 text-center">
+                  <span lang="zh-Hant" className="text-body font-semibold text-foreground">
+                    {s.word.headword}
+                  </span>
+                </div>
+              )}
+              {/* **右上は記憶の印**（オーナー指示 2026-09-22「図鑑や復習の単語の
+                  画像の右上にその単語の記憶の状態と記憶数値を書きたして」）。
+                  再会の回数（×N）は下の名前の帯へ移した — 上の隅に2つ並べると、
+                  幅の狭い札では印どうしが重なり、段の名前の頭が隠れた
+                  （実測: 「忘れかけ」が「れかけ」になった）。 */}
+              {memoryById.get(s.id) && (
+                <MemoryBadge
+                  info={memoryById.get(s.id)!}
+                  className="absolute right-1 top-1 max-w-[calc(100%-0.5rem)]"
+                />
+              )}
+
+              {/* 下端の帯。**絵がある札だけ。** 絵が無い札は上のプレース
+                  ホルダが既に語を大きく出しているので、ここにも出すと
+                  **同じ語が1枚の札に2回**並ぶ(実際そうなっていた)。
+
+                  ## 濃さを一定にした理由
+                  前は `from-black/65 to-transparent` の**裾**に文字を置いて
+                  いた。裾の濃さは文字の位置で決まるので、実測では白文字の
+                  地が #949494 まで薄まり 3.03:1 しか無かった(基準 4.5)。
+                  明るい写真ほど読めなくなる —
+                  **いい写真を撮った人ほど名前が読めない**。
+
+                  白文字で 4.5:1 を満たすには地が #767676 以下、黒なら
+                  不透明度 0.535 以上。0.6 なら白い写真の上で #666666 =
+                  5.7:1 で少し余裕が出る。ぼかしは文字の**上**にだけ置く。 */}
+              {hasImage && (
+                <div className="absolute inset-x-0 bottom-0">
+                  <div className="h-5 bg-gradient-to-t from-black/60 to-transparent" />
+                  <div className="flex items-center gap-1 bg-black/60 px-2 pb-1.5">
+                    <div
+                      lang="zh-Hant"
+                      className="min-w-0 flex-1 truncate text-footnote font-semibold text-white"
+                    >
+                      {s.word.headword}
+                    </div>
+                  </div>
+                </div>
+              )}
+              {slam && (
+                <span className="pointer-events-none absolute inset-0 slam-flash rounded-2xl" />
+              )}
+            </div>
+          </button>
+        );
+        if (!renderAd || !adAfter?.includes(i)) return cell;
+        // 横いっぱい・上下に間（押し間違えない距離）。札と同じ角丸の箱。
+        return (
+          <Fragment key={s.id}>
+            {cell}
+            <div className="col-span-3 my-3 has-[[data-ad-card][hidden]]:hidden">{renderAd()}</div>
+          </Fragment>
+        );
+      })}
+    </div>
+  );
+}
+
+/** The same compact list used in the app and first-run Dex. */
+export function DexList({
+  items,
+  onOpen,
+  adAfter,
+  renderAd,
+}: {
+  items: StickerWithWord[];
+  onOpen: (id: string) => void;
+  /** この番号（0始まり）の行の後に広告の行を挟む（`groupAdSlots`）。 */
+  adAfter?: readonly number[];
+  renderAd?: (framed?: boolean) => React.ReactNode;
+}) {
+  const t = useT();
+  return (
+    <ul className="overflow-hidden rounded-3xl border border-border bg-card shadow-sm">
+      {items.map((s, i) => (
+        <Fragment key={s.id}>
+          <li
+            key={s.id}
+            className={`flex items-center gap-1 pr-2 transition-colors hover:bg-accent/40 ${i > 0 ? "border-t border-border" : ""}`}
+          >
+            <button
+              data-dex-item={s.id}
+              onClick={() => onOpen(s.id)}
+              className="flex min-w-0 flex-1 items-center gap-3 p-3 text-left active:bg-accent/50"
+            >
+              <div className="grid h-14 w-14 shrink-0 place-items-center overflow-hidden rounded-xl bg-secondary">
+                {/* 撮った写真 → 切り抜き → ネット画像 の順に、そのまま見せる */}
+                {(s.object_thumb_url ?? s.object_url) ? (
+                  <CachedImg
+                    src={(s.object_thumb_url ?? s.object_url)!}
+                    alt={t("common.photoOf", { word: s.word.headword })}
+                    loading="lazy"
+                    decoding="async"
+                    className="h-full w-full object-cover"
+                  />
+                ) : s.cutout_url ? (
+                  <CachedImg
+                    src={s.cutout_thumb_url ?? s.cutout_url}
+                    alt={t("common.stickerOf", { word: s.word.headword })}
+                    loading="lazy"
+                    decoding="async"
+                    className="h-full w-full object-contain p-1"
+                  />
+                ) : s.placeholder_url ? (
+                  <CachedImg
+                    src={s.placeholder_url}
+                    alt=""
+                    loading="lazy"
+                    decoding="async"
+                    className="h-full w-full object-cover"
+                  />
+                ) : (
+                  <span
+                    lang="zh-Hant"
+                    className="px-1 text-center text-caption font-semibold text-muted-foreground"
+                  >
+                    {s.word.headword}
+                  </span>
+                )}
+              </div>
+              <div className="min-w-0 flex-1">
+                <ListHeadword word={s.word} />
+                <div className="truncate text-body text-muted-foreground">
+                  <ReaderMeaning text={s.word.meaning_ja} wordId={s.word_id} />
+                </div>
+              </div>
+            </button>
+            {/* 発音ボタンは右側に (縦並びリスト) */}
+            <PronounceButton
+              text={s.word.headword}
+              language={s.word.language ?? undefined}
+              tone="hero"
+            />
+          </li>
+          {renderAd && adAfter?.includes(i) && (
+            // 行の中の広告。縁は一覧の物を使い、上下に間を取って隣の行と押し間違えないようにする。
+            <li className="border-t border-border px-3 py-4 has-[[data-ad-card][hidden]]:hidden">
+              {renderAd(false)}
+            </li>
+          )}
+        </Fragment>
+      ))}
+    </ul>
+  );
+}
+
+/**
+ * 縦の一覧の見出し語。**注音は字ごとに右へ縦に**（オーナー指示 2026-09-29「図鑑の縦に単語が
+ * 並ぶタイプの注音がそれぞれの漢字の横に配置されてない。4択の選択肢や単語の詳細の見出しの
+ * ように注音を配置して」）。4択・詳細・カードと同じ `ZhuyinWord`。ピンインを選んだ人・注音の
+ * 無い言語は、今までどおり語の横に読みを小さく。
+ */
+function ListHeadword({ word: w }: { word: StickerWithWord["word"] }) {
+  const units = useZhuyinUnits(w.language, w.headword, w.reading_zhuyin);
+  const reading = useReadingText(
+    w.language,
+    neutralReadings(w.language, w.reading_zhuyin, w.pinyin, w.headword),
+  );
+  if (units)
+    return (
+      <ZhuyinWord units={units} lang={w.language} className="block text-title font-semibold" />
+    );
+  return (
+    <div className="flex items-baseline gap-2">
+      <Zh className="text-body font-semibold">{w.headword}</Zh>
+      {reading && <span className="truncate text-footnote text-muted-foreground">{reading}</span>}
+    </div>
+  );
+}
+
+export function DexHeader({
+  found,
+  caught,
+  view,
+  onView,
+  filter,
+  onFilter,
+  categories,
+  days,
+  allowedViews,
+  categoryLabel,
+  onManageCategories,
+}: {
+  allowedViews?: ViewMode[];
+  found: number;
+  caught: number;
+  view: ViewMode;
+  onView: (v: ViewMode) => void;
+  filter: DexFilter;
+  onFilter: (f: DexFilter) => void;
+  categories: readonly FilterOption[];
+  days: readonly FilterOption[];
+  /** カテゴリーの見出し（その人が付け直した名前を含む）。無ければ既定の名前。 */
+  categoryLabel?: (key: string) => string;
+  /** カテゴリーの一覧と編集を開く（2026-09-27）。 */
+  onManageCategories?: () => void;
+}) {
+  const t = useT();
+  return (
+    <section>
+      {/* 見出しと数は**1行を丸ごと使う**。表示の切替(丸5つ=228px)を
+          同じ行の右に置いていたら、390px の画面で「あなたの図/鑑」と
+          2行に割れていた。数の検査は割れを見ないので、絵で見つけた。 */}
+      <div className="flex items-baseline justify-between gap-2">
+        <div className="pl-1">
+          {/* この画面の見出し。以前は h2 で、図鑑には h1 が1つも無かった。 */}
+          {/* 見出しは読み上げにだけ（全画面にした分、字は地図や写真に譲る）。 */}
+          <h1 className="sr-only">{t("dex.yours")}</h1>
+        </div>
+      </div>
+
+      {/* **1行に収める**(オーナー指示 2026-09-13「図鑑のカテゴリーと日付も
+          図鑑の種類のアイコンも含めて一列にして」)。折り返しをやめた代わりに、
+          入りきらない分は横に流す — 縦に増えると、その分だけ札が減る。
+          `overflow-x-auto` は画面のスワイプ移動から除かれる目印にもなる。 */}
+      {/* 外側の余白と安全領域は main 側（Lovable）の直しを採る。 */}
+      <div className="-ml-1 flex w-[calc(100%+0.25rem)] flex-nowrap items-center gap-2 overflow-x-auto pb-1 pl-1 pr-[max(1.5rem,env(safe-area-inset-right))] pt-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        {/* 中の隙間は 8px。**36px の丸に 44px の当たり判定を持たせるため。**
+            4px のままだと隣の当たり判定と 2px ずつ重なり、端を押したときに
+            隣のボタンが反応する(当たり判定は後ろの兄弟が勝つ)。
+            36 + 8 = 44 でちょうど隣り合い、重ならない。 */}
+        <div className="flex shrink-0 gap-2 rounded-full bg-secondary p-1" data-tour="dex-views">
+          {[
+            ...(DEX_SHELF_ENABLED ? [["shelf", Library, t("dex.shelf")] as const] : []),
+            // **並びは 箱 → カード → 地図 → 段**（オーナー指示 2026-09-23「図鑑の
+            // 種類は左からボックスのように表示されるもの、またカードのように横に
+            // スライドできるもの、そしてマップ、そして一番右に縦から段のように
+            // 並ぶやつに順番を変更して」）。
+            // **2026-09-27 に並べ替え**（オーナー指示「スライド、マップ、写真が
+            // 多いもの、縦に並ぶものの順に」）。
+            ["cards", GalleryHorizontal, t("dex.cards")] as const,
+            // 地図とカレンダーは1つ（地図の中に暦がある）。オーナー指示 2026-09-23。
+            ["map", MapIcon, t("dex.map")] as const,
+            ["gallery", LayoutGrid, t("dex.gallery")] as const,
+            ["list", List, t("dex.list")] as const,
+          ]
+            .filter(([v]) => !allowedViews || allowedViews.includes(v))
+            .map(([v, Icon, label]) => (
+              <button
+                key={v}
+                onClick={() => onView(v)}
+                // チュートリアルの案内が指す印（どの表示の釦か）。
+                data-view={v}
+                aria-label={label}
+                aria-pressed={view === v}
+                // 見た目は 36px のまま、**指が当たる範囲だけ 44px** に広げる
+                // (`-inset-1` = 上下左右 4px → 44px 四方)。絵の検査は
+                // `getBoundingClientRect()` ではなく `elementFromPoint` で
+                // 実際の当たり判定を見るので、これが正しいやり方
+                // (`scripts/ui-audit.mjs` の注)。
+                className={`relative inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full transition before:absolute before:-inset-1 before:content-[''] ${
+                  view === v ? "bg-background text-foreground shadow" : "text-muted-foreground"
+                }`}
+              >
+                <Icon className="h-[18px] w-[18px]" />
+              </button>
+            ))}
+        </div>
+
+        {/* 絞り込みは**この欄の中**に収める(オーナー指摘)。表示の切替と
+            同じ行に並べ、入りきらない分は横に流す。 */}
+        {(categories.length > 0 || days.length > 0) && (
+          <>
+            <FilterMenu
+              name={t("dex.filterCategory")}
+              value={filter.category}
+              options={categories}
+              allLabel={t("dex.allCategories")}
+              labelOf={(k) =>
+                categoryLabel ? categoryLabel(k) : `${categoryEmoji(k)} ${t(categoryLabelKey(k))}`
+              }
+              onChange={(category) => onFilter({ ...filter, category })}
+            />
+            <FilterMenu
+              name={t("dex.filterDay")}
+              value={filter.day}
+              options={days}
+              allLabel={t("dex.allDays")}
+              labelOf={(k) => k.slice(5).replace("-", "/")}
+              onChange={(day) => onFilter({ ...filter, day })}
+            />
+            {/* 絞り込んでいるときだけ解除口を出す。**棚にだけ別の解除口**を
+                持たせていたのも、ここへ一本化した。
+                **字ではなく×だけ**にする — 文字で置くと2つのボタンと
+                並びきらず、欄の中で4行目に折り返していた(絵で見つけた)。
+                読み上げには `aria-label` で同じことを言う。 */}
+            {/* カテゴリーを作る・名前を変える（オーナー指示 2026-09-27）。 */}
+            {onManageCategories && (
+              <button
+                type="button"
+                onClick={onManageCategories}
+                aria-label={t("catEdit.manage")}
+                title={t("catEdit.manage")}
+                className="grid h-11 w-11 shrink-0 place-items-center rounded-full text-muted-foreground"
+              >
+                <Pencil className="h-4 w-4" aria-hidden />
+              </button>
+            )}
+            {isFiltering(filter) && (
+              <button
+                onClick={() => onFilter(NO_FILTER)}
+                aria-label={t("dex.filterClearAll")}
+                title={t("dex.filterClearAll")}
+                className="grid h-11 w-11 shrink-0 place-items-center rounded-full text-muted-foreground"
+              >
+                <X className="h-4 w-4" aria-hidden />
+              </button>
+            )}
+          </>
+        )}
+      </div>
+    </section>
+  );
+}
+
+/**
+ * 図鑑の上に**重ねる**操作の板（表示の切替・カテゴリー・日付・検索）。
+ * 高さを `--dex-overlay-h` に書き出し、中身（と地図のピンを置く範囲）が
+ * その下から始まるようにする。
+ */
+export function DexOverlay({ children }: { children: React.ReactNode }) {
+  const ref = useRef<HTMLDivElement | null>(null);
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const root = document.documentElement;
+    const put = () => root.style.setProperty("--dex-overlay-h", `${el.offsetHeight}px`);
+    put();
+    const ro = new ResizeObserver(put);
+    ro.observe(el);
+    return () => {
+      ro.disconnect();
+      root.style.removeProperty("--dex-overlay-h");
+    };
+  }, []);
+  return (
+    <div
+      ref={ref}
+      className="dex-overlay fixed inset-x-0 top-0 z-30 material-thin pt-[env(safe-area-inset-top)]"
+    >
+      <div className="mx-auto max-w-3xl px-4 pb-2 pt-2">{children}</div>
+    </div>
+  );
+}
+
+/**
+ * カテゴリーの表示。定義は lib/category.ts の CATEGORY_META が唯一の正。
+ * 以前はここに56キーの Set が別途あり、CATEGORY_KEYS(54)と食い違っていた
+ * (place / object がここにだけ存在した)。DBに残っている古いキーは
+ * asCategoryKey が「その他」に寄せる。
+ */
+function categoryLabelKey(key: string | null | undefined): string {
+  return `cat.${asCategoryKey(key)}`;
+}

@@ -14,7 +14,7 @@
  * ※「現在」の折れ線の日付だけは本番の部品が端末の今日を使う。
  */
 import { useEffect, useMemo, useState, type CSSProperties } from "react";
-import { ReviewHeader, ReviewSessionHeader } from "@/routes/_authenticated/review";
+import { ReviewHeader, ReviewSessionHeader } from "@/components/screens/ReviewScreen";
 import {
   MemoryDesignA,
   MemoryDesignB,
