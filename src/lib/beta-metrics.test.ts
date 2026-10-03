@@ -313,7 +313,7 @@ describe("computeBetaMetrics", () => {
       users: { 7: 1, 30: 1 },
       events: { 7: 2, 30: 2 },
     });
-    expect(m.candidateLatency[7]).toEqual({ n: 1, p50: 3000, p90: 3000 });
+    expect(m.candidateLatency[7]).toEqual({ n: 1, p50: 3000, p90: 3000, p99: 3000 });
     expect(m.cost.activeUsers30).toBe(2); // A と B（D は 10/1 の記録が無いこの例では数えない）
     expect(m.engagement[0].catches).toBe(0);
     expect(m.truncated).toBe(false);

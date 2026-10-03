@@ -44,6 +44,9 @@ export function betaFixture(): BetaMetrics {
   const latencies: BetaRawData["latencies"] = [];
   const aiRuns: BetaRawData["aiRuns"] = [];
   const runs: BetaRawData["runs"] = [];
+  const picks: NonNullable<BetaRawData["picks"]> = [];
+  const reviewStates: NonNullable<BetaRawData["reviewStates"]> = [];
+  const shadow: NonNullable<BetaRawData["shadow"]> = [];
   const stay = users.map(() => r());
   users.forEach((u, i) => {
     for (let d = 0; d <= 40; d++) {
@@ -64,11 +67,35 @@ export function betaFixture(): BetaMetrics {
         latencies.push({ user_id: u.id, day, ms: 2200 + Math.round(r() * 4200) });
       const saved = Math.max(0, shots - (r() < 0.3 ? 1 : 0));
       add("candidate_picked", saved);
+      add("meaning_shown", saved);
       add("card", saved);
       add("first_audio_played", saved);
       add("tts", saved * 2);
+      add("catch_started", saved);
       add("catch_saved", saved);
-      for (let k = 0; k < saved; k++) catches.push({ user_id: u.id, day });
+      for (let k = 0; k < saved; k++) {
+        catches.push({ user_id: u.id, day });
+        // 写真の候補の何番目を選んだか（1番目が多く、たまに母語で調べ直す）。
+        const x = r();
+        picks.push(
+          x < 0.12
+            ? { user_id: u.id, day, via: "native_search", rank: 1, n: 1 }
+            : { user_id: u.id, day, via: "photo", rank: x < 0.62 ? 1 : x < 0.85 ? 2 : 4, n: 5 },
+        );
+        latencies.push(
+          { user_id: u.id, day, ms: 120 + Math.round(r() * 900), event: "meaning_shown" },
+          { user_id: u.id, day, ms: 150 + Math.round(r() * 1600), event: "first_audio_played" },
+          { user_id: u.id, day, ms: 700 + Math.round(r() * 2600), event: "catch_saved" },
+        );
+        // 撮った日のうちに1回目の復習（間隔 1〜20 日）。
+        if (r() < 0.8)
+          reviewStates.push({
+            user_id: u.id,
+            sticker_id: `${u.id}-${day}-${k}`,
+            at: `${day}T20:00:00+08:00`,
+            interval_days: 1 + Math.floor(r() * 20),
+          });
+      }
       if (d > 0 && r() < 0.7) {
         add("review_started");
         const answers = 4 + Math.floor(r() * 10);
@@ -78,6 +105,18 @@ export function betaFixture(): BetaMetrics {
         for (let k = 0; k < answers; k++)
           reviews.push({ user_id: u.id, at: new Date(start + k * 25_000).toISOString() });
         if (r() < 0.4) aiRuns.push({ user_id: u.id, loop: "review_distractor_pregen", day });
+        // 答えごとの見込み（復習の式・Jev の影）と実際の正誤。
+        for (let k = 0; k < answers; k++) {
+          const truth = 0.35 + r() * 0.6;
+          shadow.push({
+            task: "recall",
+            model: "jev-latest",
+            baseline: Math.min(1, truth + 0.1),
+            predicted: Math.min(1, Math.max(0, truth + (r() - 0.5) * 0.2)),
+            outcome: r() < truth,
+            day,
+          });
+        }
       }
       if (d === 0) {
         add("first_catch_ai", 3);
@@ -137,6 +176,10 @@ export function betaFixture(): BetaMetrics {
     runs,
     aiRuns,
     unitCosts: normalizeUnitCosts({ card: 0.004 }),
+    picks,
+    reviewStates,
+    shadow,
+    nowMs: Date.parse(`${TODAY}T12:00:00+08:00`),
   });
 }
 
