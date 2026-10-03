@@ -46,8 +46,14 @@ export function audioCacheKey(
   language: string,
   text: string,
   voice: string = TTS_VOICE_DEFAULT,
+  /**
+   * 発音の印（`tts-cache.ts` の `speechIdentity`）。空なら今までと同じ鍵 — 端末に
+   * 貯めた音をそのまま使う。多音字・英語の同綴り異音語で読みが分かる時だけ鍵が分かれる。
+   */
+  identity = "",
 ): string {
-  return `${language}|${voice}|${text.trim()}`;
+  const base = `${language}|${voice}|${text.trim()}`;
+  return identity ? `${base}#${identity}` : base;
 }
 
 export async function getCachedAudio(key: string): Promise<Blob | null> {

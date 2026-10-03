@@ -3,6 +3,7 @@ import { Volume2 } from "lucide-react";
 import { useT } from "@/lib/i18n";
 import { DEFAULT_TARGET_LANGUAGE } from "@/lib/target-lang";
 import { usePronounce, useSpeechReady } from "@/lib/use-pronounce";
+import type { SpeechIdentityInput } from "@/lib/tts-cache";
 
 /**
  * **鳴らせるようになってから出る**発音ボタン。
@@ -35,6 +36,7 @@ export function PronounceButton({
   label,
   stopPropagation = false,
   sticky = false,
+  ident,
 }: {
   text: string;
   /** 読む語の学習言語。渡さないと台湾華語として読む。 */
@@ -62,10 +64,15 @@ export function PronounceButton({
    * 消すと右端のボタンが無くなって見える。押せば、その場で作って鳴らす。
    */
   sticky?: boolean;
+  /**
+   * 読み・品詞（分かる時だけ）。多音字（行 xíng / háng）や英語の同綴り異音語（read・lead）で
+   * 別の読みの音を鳴らさない（`tts-cache.ts` の `speechIdentity`、2026-10-03）。
+   */
+  ident?: SpeechIdentityInput | null;
 }) {
   const t = useT();
   const pronounce = usePronounce(language);
-  const state = useSpeechReady(text, language);
+  const state = useSpeechReady(text, language, true, ident);
   /**
    * **一度出したボタンは引っ込めない**(オーナー指摘 2026-08-26
    * 「単語の候補の音声ボタン押したら消える」)。
@@ -122,7 +129,7 @@ export function PronounceButton({
       type="button"
       onClick={(e) => {
         if (stopPropagation) e.stopPropagation();
-        void pronounce(text);
+        void pronounce(text, false, ident);
       }}
       aria-label={label ?? t("common.playWord", { word: text })}
       className={`press-in grid ${box} ${skin} ${reach} shrink-0 place-items-center rounded-full active:scale-95 motion-reduce:active:scale-100 ${className}`}
