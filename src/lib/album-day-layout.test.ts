@@ -38,7 +38,15 @@ describe("R27: 1日のアルバムの置き方（ホームと本の左ページ�
       boardW: 340,
     });
     const boxes = items.map((it) =>
-      boxOf(it.place, it.ratio, dayExtra(stickers.find((s) => s.id === it.id)!, true, 340)),
+      boxOf(
+        it.place,
+        it.ratio,
+        dayExtra(
+          stickers.find((s) => s.id === it.id)!,
+          true,
+          340,
+        ),
+      ),
     );
     for (let i = 0; i < boxes.length; i++)
       for (let j = i + 1; j < boxes.length; j++)
