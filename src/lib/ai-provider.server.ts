@@ -172,6 +172,7 @@ export async function getAiRuntime(): Promise<AiConfig> {
   const rich = ov.rich ?? fast;
   return {
     provider: "openai-compatible",
+    name: ov.provider,
     gateway: createOpenAICompatible({
       name: ov.provider,
       baseURL,
@@ -214,6 +215,7 @@ export async function getAiFor(feature: AiFeature): Promise<AiConfig> {
   }
   return {
     provider: "openai-compatible",
+    name: providerId,
     gateway: createOpenAICompatible({
       name: providerId,
       baseURL: preset.base_url,
@@ -273,6 +275,76 @@ export async function withModelFallback<T>(
   );
 }
 
+/** 1回の呼び出しに使う AI（記録用の名前つき）。 */
+export type AiTarget = {
+  /** `会社:モデル`。記録と画面の確認用（鍵は含めない）。 */
+  label: string;
+  model: ReturnType<AiConfig["gateway"]>;
+};
+
+/**
+ * 写真を読める速いモデルの、会社ごとの控え（どれも各社の OpenAI 互換口に実在する ID。
+ * 2026-07-27 の障害のように、`-latest` などの別名は書かない）。
+ */
+const VISION_FAST_BACKUP: Record<string, string> = {
+  google: GOOGLE_DEFAULT_FAST,
+  lovable: "google/gemini-2.5-flash",
+  openrouter: "google/gemini-2.5-flash",
+};
+
+/**
+ * **その機能の AI と、落ちたときの2番手**（監査 2026-10-03「チュートリアルの写真の分析が
+ * 45〜50秒待って失敗した」）。
+ *
+ * 1番手は今までと同じ `getAiFor(feature)` の速いモデル（設定の開発者欄で選んだ物）。
+ * 2番手は、**すでに設定・鍵のある物**から、1番手と違う最初の1つ:
+ * 1. app_config の全体の設定（`getAiRuntime`）の速いモデル
+ * 2. 環境変数の設定（`getAi`）の速いモデル
+ * 3. 鍵のある会社の、写真を読める速い控え（`VISION_FAST_BACKUP`。別の会社を先に）
+ * どれも1番手と同じなら、2番手は無し（1回だけ試す）。設定が欠けていても投げない。
+ */
+export async function getAiAttemptChain(feature: AiFeature): Promise<AiTarget[]> {
+  const primary = await getAiFor(feature);
+  const primaryName = primary.name ?? primary.provider;
+  const chain: AiTarget[] = [];
+  const add = (name: string, gateway: AiConfig["gateway"], model: string | undefined) => {
+    if (!model || chain.length >= 2) return;
+    const label = `${name}:${model}`;
+    if (chain.some((t) => t.label === label)) return;
+    chain.push({ label, model: gateway(model) });
+  };
+  add(primaryName, primary.gateway, primary.modelFast);
+  const tryConfig = async (make: () => AiConfig | Promise<AiConfig>) => {
+    try {
+      const ai = await make();
+      add(ai.name ?? ai.provider, ai.gateway, ai.modelFast);
+    } catch {
+      // 鍵の無い設定は2番手にしない（1番手はもう決まっている）。
+    }
+  };
+  await tryConfig(getAiRuntime);
+  await tryConfig(getAi);
+  const backups = Object.keys(VISION_FAST_BACKUP).sort(
+    (a, b) => Number(a === primaryName) - Number(b === primaryName),
+  );
+  for (const id of backups) {
+    if (chain.length >= 2) break;
+    const key = findKey(id)?.value;
+    const preset = PROVIDER_PRESETS[id];
+    if (!key || !preset) continue;
+    const headers =
+      id === "lovable"
+        ? { "Lovable-API-Key": key, "X-Lovable-AIG-SDK": "vercel-ai-sdk" }
+        : providerHeaders(id, key);
+    add(
+      id,
+      createOpenAICompatible({ name: id, baseURL: preset.base_url, headers }),
+      VISION_FAST_BACKUP[id],
+    );
+  }
+  return chain;
+}
+
 /**
  * キーが1つも無いときの文言。**何をどこに入れれば直るか**まで書く
  * (以前は "Missing GEMINI_API_KEY" だけで、利用者には何も分からなかった)。
@@ -284,6 +356,8 @@ export const MISSING_KEY_MESSAGE =
 
 export type AiConfig = {
   provider: "lovable" | "google" | "openai-compatible";
+  /** 記録用の会社名（`google` / `lovable` / `openrouter` / `custom` …）。鍵は含めない。 */
+  name?: string;
   gateway: ReturnType<typeof createOpenAICompatible>;
   modelFast: string;
   modelRich: string;
@@ -365,6 +439,7 @@ export function getAi(): AiConfig {
     if (!key) throw new Error(MISSING_KEY_MESSAGE);
     return {
       provider,
+      name: "google",
       gateway: createOpenAICompatible({
         name: "google",
         baseURL: GOOGLE_BASE_URL,
@@ -388,6 +463,7 @@ export function getAi(): AiConfig {
       );
     return {
       provider,
+      name: "custom",
       gateway: createOpenAICompatible({
         name: "custom",
         baseURL,
@@ -403,6 +479,7 @@ export function getAi(): AiConfig {
   if (!key) throw new Error(MISSING_KEY_MESSAGE);
   return {
     provider: "lovable",
+    name: "lovable",
     gateway: createOpenAICompatible({
       name: "lovable",
       baseURL: LOVABLE_BASE_URL,

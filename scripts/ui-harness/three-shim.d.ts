@@ -42,6 +42,13 @@ declare module "three" {
   export const MeshPhysicalMaterial: any; // eslint-disable-line @typescript-eslint/no-explicit-any
   export type MeshBasicMaterial = any; // eslint-disable-line @typescript-eslint/no-explicit-any
   export const MeshBasicMaterial: any; // eslint-disable-line @typescript-eslint/no-explicit-any
+  export type MeshLambertMaterial = any; // eslint-disable-line @typescript-eslint/no-explicit-any
+  export const MeshLambertMaterial: any; // eslint-disable-line @typescript-eslint/no-explicit-any
+  export type MeshPhongMaterial = any; // eslint-disable-line @typescript-eslint/no-explicit-any
+  export const MeshPhongMaterial: any; // eslint-disable-line @typescript-eslint/no-explicit-any
+  export type CubeTexture = any; // eslint-disable-line @typescript-eslint/no-explicit-any
+  export const CubeTexture: any; // eslint-disable-line @typescript-eslint/no-explicit-any
+  export const MultiplyOperation: number;
   export type ShaderMaterial = any; // eslint-disable-line @typescript-eslint/no-explicit-any
   export const ShaderMaterial: any; // eslint-disable-line @typescript-eslint/no-explicit-any
   export type PlaneGeometry = any; // eslint-disable-line @typescript-eslint/no-explicit-any

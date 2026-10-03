@@ -9,6 +9,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const state = vi.hoisted(() => ({
   rows: [] as Array<{ key: string; updated_at: string }>,
   pruned: [] as string[],
+  released: [] as string[],
 }));
 
 vi.mock("@/integrations/supabase/client.server", () => ({
@@ -26,6 +27,12 @@ vi.mock("@/integrations/supabase/client.server", () => ({
         return { error: null };
       },
       delete: () => ({
+        // 返事を受け取れなかった回の枠の返却（2026-10-03）。
+        in: async (_: string, keys: string[]) => {
+          state.released.push(...keys);
+          state.rows = state.rows.filter((r) => !keys.includes(r.key));
+          return { error: null };
+        },
         like: (_: string, pattern: string) => ({
           lt: async () => {
             state.pruned.push(pattern);
@@ -36,12 +43,22 @@ vi.mock("@/integrations/supabase/client.server", () => ({
     }),
   },
 }));
-vi.mock("./first-catch-ai.server", () => ({
-  generateFirstCatchAI: vi.fn(async () => ({ ok: true })),
-}));
+vi.mock("./first-catch-ai.server", async () => {
+  const actual =
+    await vi.importActual<typeof import("./first-catch-ai.server")>("./first-catch-ai.server");
+  return {
+    runFirstCatchAI: vi.fn(async () => ({
+      value: { ok: true },
+      run: { action: "card", ok: true, ms: 1, attempts: [], chargeable: true },
+    })),
+    failedRun: actual.failedRun,
+    runMeta: actual.runMeta,
+  };
+});
 
 import { executeGuestFirstCatch, GUEST_IP_LIMIT_PER_DAY } from "./first-catch-guest.server";
-import { generateFirstCatchAI } from "./first-catch-ai.server";
+import { runFirstCatchAI as generateFirstCatchAI } from "./first-catch-ai.server";
+import { AiAttemptsFailed } from "./ai-attempts";
 
 const input = {
   action: "card",
@@ -56,6 +73,7 @@ const request = (headers: Record<string, string>) =>
 beforeEach(() => {
   state.rows.length = 0;
   state.pruned.length = 0;
+  state.released.length = 0;
   process.env.SUPABASE_SERVICE_ROLE_KEY = "test-secret";
   vi.spyOn(console, "error").mockImplementation(() => undefined);
 });
@@ -97,11 +115,54 @@ describe("executeGuestFirstCatch", () => {
       input,
       request({ origin: "https://app.example", "x-forwarded-for": "1.2.3.4" }),
     );
-    expect(state.pruned).toEqual(["first-catch-budget:%"]);
+    expect(state.pruned).toEqual(["first-catch-budget:%", "first-catch-run:%"]);
     await executeGuestFirstCatch(
       input,
       request({ origin: "https://app.example", "x-forwarded-for": "1.2.3.5" }),
     );
-    expect(state.pruned).toHaveLength(1);
+    expect(state.pruned).toHaveLength(2);
+  });
+
+  it("gives the slots back and logs the failure when no AI reply arrived (timeouts)", async () => {
+    vi.mocked(generateFirstCatchAI).mockRejectedValueOnce(
+      new AiAttemptsFailed(
+        "FIRST_CATCH_AI_TIMEOUT",
+        [
+          { label: "a:m", ms: 20_000, outcome: "timeout", code: "timeout" },
+          { label: "b:m", ms: 20_000, outcome: "timeout", code: "timeout" },
+        ],
+        null,
+      ),
+    );
+    vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    await expect(
+      executeGuestFirstCatch(
+        input,
+        request({ origin: "https://app.example", "x-forwarded-for": "1.2.3.4" }),
+      ),
+    ).rejects.toThrow("FIRST_CATCH_AI_TIMEOUT");
+    expect(state.released).toHaveLength(2);
+    expect(state.rows.filter((r) => r.key.startsWith("first-catch-budget:"))).toEqual([]);
+    expect(state.rows.map((r) => r.key)).toEqual([
+      expect.stringMatching(/^first-catch-run:\d{4}-\d{2}-\d{2}:fail:/),
+    ]);
+  });
+
+  it("keeps the slot when a reply arrived but was unusable", async () => {
+    vi.mocked(generateFirstCatchAI).mockRejectedValueOnce(
+      new AiAttemptsFailed(
+        "FIRST_CATCH_AI_FORMAT",
+        [{ label: "a:m", ms: 900, outcome: "unusable", code: "FIRST_CATCH_AI_FORMAT" }],
+        null,
+      ),
+    );
+    await expect(
+      executeGuestFirstCatch(
+        input,
+        request({ origin: "https://app.example", "x-forwarded-for": "1.2.3.4" }),
+      ),
+    ).rejects.toThrow("FIRST_CATCH_AI_FORMAT");
+    expect(state.released).toEqual([]);
+    expect(state.rows.filter((r) => r.key.startsWith("first-catch-budget:"))).toHaveLength(2);
   });
 });

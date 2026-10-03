@@ -18,6 +18,7 @@ import { getTargetLang } from "@/lib/target-lang-pref";
 import type { suggestWords } from "@/lib/ai.functions";
 import { firstCatchAI, firstCatchMemberAI } from "@/lib/first-catch-ai.functions";
 import { createFirstCatchServices } from "@/lib/first-catch-ai-client";
+import { reportBackgroundFailure } from "@/lib/background-failure";
 import { LearningPreferencesSchema } from "@/lib/learning-preferences";
 import type { FirstCatchAIRequest } from "@/lib/first-catch-ai-schema";
 import {
@@ -67,19 +68,29 @@ export function FirstCatchEntry() {
     <FirstCatchFlow
       services={createFirstCatchServices(
         async (data) => {
-          const { data: auth } = await supabase.auth.getUser();
-          // 登録済みの人も、すでに匿名アカウントを持つ端末も、本人の枠で動かす。
-          if (auth.user) return memberAI({ data });
+          const started = Date.now();
           try {
-            return await guestAI({ data });
-          } catch (refused) {
-            // 未登録用の窓口が断った(上限・環境・一時的な不具合)。以前の経路 —
-            // この端末だけの匿名アカウントで、本人の枠(24回/日)を使う — に切り替える。
-            // 匿名ログインが使えない環境では FIRST_CATCH_GUEST_UNAVAILABLE になり、
-            // 写真は残ったまま画面に理由が出る。
-            if (!isGuestRefusal(refused)) throw refused;
-            await ensureFirstCatchSession();
-            return memberAI({ data });
+            const { data: auth } = await supabase.auth.getUser();
+            // 登録済みの人も、すでに匿名アカウントを持つ端末も、本人の枠で動かす。
+            if (auth.user) return await memberAI({ data });
+            try {
+              return await guestAI({ data });
+            } catch (refused) {
+              // 未登録用の窓口が断った(上限・環境・一時的な不具合)。以前の経路 —
+              // この端末だけの匿名アカウントで、本人の枠(24回/日)を使う — に切り替える。
+              // 匿名ログインが使えない環境では FIRST_CATCH_GUEST_UNAVAILABLE になり、
+              // 写真は残ったまま画面に理由が出る。
+              if (!isGuestRefusal(refused)) throw refused;
+              await ensureFirstCatchSession();
+              return await memberAI({ data });
+            }
+          } catch (failed) {
+            // 画面は「もう一度試す」を出す。失敗と待った時間は開発者の記録にも残す。
+            reportBackgroundFailure("first_catch_ai", failed, {
+              action: data.action,
+              ms: Date.now() - started,
+            });
+            throw failed;
           }
         },
         async () => {},

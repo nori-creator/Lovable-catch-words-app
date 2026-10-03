@@ -9,6 +9,15 @@
  * 向きで空気の抵抗を変えて落とす。2割は金の箔（金属）にして、光った時にきらっと返す。
  *
  * 1回撃つと 4 秒ほどで全部落ち切り、自分で片付く（`onDone`）。
+ *
+ * **軽くした（UI 監査 2026-10-03: はがした後の「弾ける」瞬間に 4.3 秒の固まり）。**
+ * 固まりの正体は、撃つ瞬間に作っていた部屋の光（`RoomEnvironment` を PMREM でぼかす）と、
+ * それを読む物理ベースの材質の初回の組み立て。GPU 側の仕事が重く、主の処理がその間ずっと
+ * 待たされていた（ハーネスの計測で、紙吹雪を止めると固まりが消えた）。そこで:
+ * - 部屋の光は、6面の小さな絵（`roomCube`）を箔に**そのまま**映す（ぼかしの計算が要らない）。
+ * - 紙は Lambert、箔は Phong（光の受け方・明滅・金のきらめきは同じ考え方で、組み立てが軽い）。
+ * - 撃つ前に用意できる（`prepareConfetti3d` → `fire`）。演出は「持ち上げる」間に用意し、
+ *   弾ける瞬間は動かすだけにする。
  */
 import { createStage } from "./stage";
 
@@ -34,13 +43,63 @@ type Piece = {
   foil: boolean;
 };
 
+/**
+ * 部屋の光の代わりの、6面の小さな絵（上が明るい天井、横は窓のある壁、下は暗い床）。
+ * 箔はこれを映して金に光る。ぼかしの計算（PMREM）を通さないので、作るのも読むのも軽い。
+ */
+function roomCube(THREE: typeof import("three")) {
+  const face = (top: string, bottom: string, window = false) => {
+    const c = document.createElement("canvas");
+    c.width = c.height = 16;
+    const g = c.getContext("2d");
+    if (!g) return c;
+    const grad = g.createLinearGradient(0, 0, 0, 16);
+    grad.addColorStop(0, top);
+    grad.addColorStop(1, bottom);
+    g.fillStyle = grad;
+    g.fillRect(0, 0, 16, 16);
+    if (window) {
+      g.fillStyle = "#ffffff";
+      g.fillRect(4, 3, 8, 6);
+    }
+    return c;
+  };
+  const side = (window: boolean) => face("#f4f4f4", "#6b6f78", window);
+  // 並び: +x, -x, +y(天井), -y(床), +z, -z
+  const cube = new THREE.CubeTexture([
+    side(true),
+    side(false),
+    face("#ffffff", "#ffffff"),
+    face("#3a3d44", "#3a3d44"),
+    side(true),
+    side(false),
+  ]);
+  cube.colorSpace = THREE.SRGBColorSpace;
+  cube.needsUpdate = true;
+  return cube;
+}
+
+/** 撃つ前に用意した紙吹雪。`fire` で撃ち、`cancel` で（撃たずに）片付ける。 */
+export type ConfettiHandle = { fire(): void; cancel(): void };
+
 /** canvas の上で1回撃つ。止める関数（WebGL が無ければ `null`）。 */
 export function runConfetti3d(
   canvas: HTMLCanvasElement,
   shot: ConfettiShot,
   onDone?: () => void,
 ): (() => void) | null {
-  const stage = createStage(canvas, { fov: 40, z: 12, environment: true, tone: "neutral" });
+  const handle = setupConfetti3d(canvas, shot, onDone);
+  if (!handle) return null;
+  handle.fire();
+  return handle.cancel;
+}
+
+function setupConfetti3d(
+  canvas: HTMLCanvasElement,
+  shot: ConfettiShot,
+  onDone?: () => void,
+): ConfettiHandle | null {
+  const stage = createStage(canvas, { fov: 40, z: 12, environment: false, tone: "neutral" });
   if (!stage) return null;
   const { THREE, scene } = stage;
   const view = stage.viewAt(0);
@@ -50,23 +109,24 @@ export function runConfetti3d(
   const key = new THREE.DirectionalLight(0xffffff, 3);
   key.position.set(2, 8, 6);
   scene.add(key);
-  scene.add(new THREE.HemisphereLight(0xffffff, 0x8899aa, 0.8));
+  // 部屋の光（環境光）が受け持っていた柔らかい明るさを、空と床の光で補う。
+  scene.add(new THREE.HemisphereLight(0xffffff, 0x8899aa, 2.6));
 
   // 紙の大きさ: 画面の幅の 2.4% × 1.5%（スマホで 9×6px 前後、本物の紙吹雪の比）。
   const pw = view.w * 0.024;
   const ph = view.w * 0.015;
   const geo = new THREE.PlaneGeometry(pw, ph);
-  const paper = new THREE.MeshStandardMaterial({
-    side: THREE.DoubleSide,
-    roughness: 0.55,
-    metalness: 0,
-  });
-  const foil = new THREE.MeshStandardMaterial({
+  const room = roomCube(THREE);
+  const paper = new THREE.MeshLambertMaterial({ side: THREE.DoubleSide });
+  // 金属の箔: 部屋を映した色に金を掛ける（Multiply）＋上からの光の鋭いきらめき。
+  const foil = new THREE.MeshPhongMaterial({
     side: THREE.DoubleSide,
     color: 0xf2c867,
-    roughness: 0.22,
-    metalness: 1,
-    envMapIntensity: 1.6,
+    specular: 0xfff1c4,
+    shininess: 90,
+    envMap: room,
+    combine: THREE.MultiplyOperation,
+    reflectivity: 1,
   });
   const nFoil = Math.round(count * 0.2);
   const nPaper = count - nFoil;
@@ -123,8 +183,29 @@ export function runConfetti3d(
   const scl = new THREE.Vector3(1, 1, 1);
   const normal = new THREE.Vector3();
   let finished = false;
+  let fired = false;
   let fade = 1;
-  stage.start((t: number, dt: number) => {
+  // 撃つまでは全部の紙を大きさ 0 にしておく（用意の1枚は何も描かない）。
+  m.makeScale(0, 0, 0);
+  for (let i = 0; i < nPaper; i++) paperMesh.setMatrixAt(i, m);
+  for (let i = 0; i < nFoil; i++) foilMesh.setMatrixAt(i, m);
+  const dispose = () => {
+    if (finished) return;
+    finished = true;
+    room.dispose();
+    stage.dispose();
+  };
+  // 材質の組み立てを先に済ませる。並行して組み立てられる環境（KHR_parallel_shader_compile）
+  // なら主の処理を待たせない。済んだら何も映らない1枚を描き、GPU 側も温めておく。
+  const warm = () => {
+    if (!finished && !fired) stage.renderer.render(scene, stage.camera);
+  };
+  try {
+    void stage.renderer.compileAsync(scene, stage.camera).then(warm, warm);
+  } catch {
+    warm();
+  }
+  const run = (t: number, dt: number) => {
     let alive = 0;
     let pi = 0;
     let fi = 0;
@@ -160,16 +241,18 @@ export function runConfetti3d(
     if ((alive === 0 || t > 4.2) && !finished) {
       fade = Math.max(0, fade - dt * 3);
       if (fade === 0) {
-        finished = true;
-        stage.dispose();
+        dispose();
         onDone?.();
       }
     }
-  });
-  return () => {
-    if (finished) return;
-    finished = true;
-    stage.dispose();
+  };
+  return {
+    fire() {
+      if (fired || finished) return;
+      fired = true;
+      stage.start(run);
+    },
+    cancel: dispose,
   };
 }
 
@@ -183,7 +266,21 @@ export function burstConfetti3d(
   /** 置く場所。演出の層の中に置けば、その層の中の重なり順（札の後ろ等）に入る。 */
   parent: HTMLElement = document.body,
 ): boolean {
-  if (typeof document === "undefined") return false;
+  const handle = prepareConfetti3d(shot, zIndex, parent);
+  handle?.fire();
+  return !!handle;
+}
+
+/**
+ * **撃つ前に用意する**（canvas を置き、WebGL と材質を組み立てておく）。弾ける瞬間に
+ * `fire()` を呼ぶだけで動き出す。撃たれないまま 15 秒たつと自分で片付く。
+ */
+export function prepareConfetti3d(
+  shot: ConfettiShot,
+  zIndex = 90,
+  parent: HTMLElement = document.body,
+): ConfettiHandle | null {
+  if (typeof document === "undefined") return null;
   const canvas = document.createElement("canvas");
   canvas.setAttribute("aria-hidden", "true");
   Object.assign(canvas.style, {
@@ -195,10 +292,24 @@ export function burstConfetti3d(
     zIndex: String(zIndex),
   });
   parent.appendChild(canvas);
-  const stop = runConfetti3d(canvas, shot, () => canvas.remove());
-  if (!stop) {
+  const handle = setupConfetti3d(canvas, shot, () => canvas.remove());
+  if (!handle) {
     canvas.remove();
-    return false;
+    return null;
   }
-  return true;
+  const expire = setTimeout(() => {
+    handle.cancel();
+    canvas.remove();
+  }, 15_000);
+  return {
+    fire() {
+      clearTimeout(expire);
+      handle.fire();
+    },
+    cancel() {
+      clearTimeout(expire);
+      handle.cancel();
+      canvas.remove();
+    },
+  };
 }

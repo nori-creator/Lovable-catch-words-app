@@ -13,7 +13,7 @@ import {
   AdminOverviewView,
   AdminUserDetailView,
   AdminUserListView,
-} from "@/routes/_authenticated/admin.users";
+} from "@/components/AdminUsersViews";
 import type { AdminOverview, AdminUserDetail, AdminUserRow } from "@/lib/admin-users.functions";
 import {
   addDays,

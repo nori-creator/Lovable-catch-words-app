@@ -1,4 +1,4 @@
-import { createHmac } from "node:crypto";
+import { createHmac, randomUUID } from "node:crypto";
 import { FirstCatchAIInput } from "./first-catch-ai-schema";
 import {
   pruneBudgetRows,
@@ -8,6 +8,7 @@ import {
 } from "./budget-slots";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
+import type { FirstCatchRun } from "./first-catch-ai.server";
 
 /** A narrowly scoped public trial, not an authenticated-user impersonation.
  * Atomic unique-key reservations reuse the existing server-writable app_config
@@ -112,11 +113,14 @@ export function isSameOriginRequest(request: Request): boolean {
 
 export async function executeGuestFirstCatch(raw: unknown, request: Request) {
   const data = FirstCatchAIInput.parse(raw);
+  const reserved: string[] = [];
+  let db: SupabaseClient<Database> | null = null;
   try {
     if (!isSameOriginRequest(request)) throw new Error("FIRST_CATCH_ORIGIN");
     const secret = process.env.SUPABASE_SERVICE_ROLE_KEY;
     if (!secret) throw new Error("FIRST_CATCH_AI_UNAVAILABLE");
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    db = supabaseAdmin;
     const day = new Date().toISOString().slice(0, 10);
     const ip = guestClientIp(request.headers);
     if (ip) {
@@ -124,26 +128,79 @@ export async function executeGuestFirstCatch(raw: unknown, request: Request) {
         .update(`${day}:${guestIpBucket(ip)}`)
         .digest("hex")
         .slice(0, 32);
-      await reserveGuestSlot(
-        supabaseAdmin,
-        `${GUEST_BUDGET_ROOT}${day}:ip:${hash}:`,
-        GUEST_IP_LIMIT_PER_DAY,
+      const ipPrefix = `${GUEST_BUDGET_ROOT}${day}:ip:${hash}:`;
+      reserved.push(
+        `${ipPrefix}${await reserveGuestSlot(supabaseAdmin, ipPrefix, GUEST_IP_LIMIT_PER_DAY)}`,
       );
     }
-    const slot = await reserveGuestSlot(
-      supabaseAdmin,
-      `${GUEST_BUDGET_ROOT}${day}:global:`,
-      GUEST_GLOBAL_LIMIT_PER_DAY,
-    );
+    const globalPrefix = `${GUEST_BUDGET_ROOT}${day}:global:`;
+    const slot = await reserveGuestSlot(supabaseAdmin, globalPrefix, GUEST_GLOBAL_LIMIT_PER_DAY);
+    reserved.push(`${globalPrefix}${slot}`);
     // 古い日の枠の行を、ときどき消す（`app_config` が日ごとに増え続けないように）。
     if (shouldPruneAfter(slot)) {
       await pruneBudgetRows(supabaseAdmin as unknown as BudgetDb, GUEST_BUDGET_ROOT);
+      // 結果の記録（下の recordGuestRun）は失敗率を見るので長めに残す。
+      await pruneBudgetRows(
+        supabaseAdmin as unknown as BudgetDb,
+        GUEST_RUN_ROOT,
+        new Date(),
+        GUEST_RUN_KEEP_DAYS,
+      );
     }
   } catch (e) {
     // 原因は画面にコードで出す。ここにも残す(写真・単語・IPは含めない)。
     console.error("[first-catch] guest gate refused:", e instanceof Error ? e.message : "unknown");
     throw e;
   }
-  const { generateFirstCatchAI } = await import("./first-catch-ai.server");
-  return generateFirstCatchAI(data);
+  const { runFirstCatchAI, failedRun } = await import("./first-catch-ai.server");
+  try {
+    const { value, run } = await runFirstCatchAI(data);
+    if (db) await recordGuestRun(db, run);
+    return value;
+  } catch (e) {
+    const run = failedRun(data.action, e);
+    if (run && db) {
+      // 返事を1つも受け取れなかった回は枠を返す（「もう一度試す」で2回分に数えない）。
+      if (!run.chargeable) run.refunded = await releaseGuestSlots(db, reserved);
+      await recordGuestRun(db, run);
+    }
+    throw e;
+  }
+}
+
+/** 予約した枠を返す。返せなくても利用者は止めない（枠が1つ少なく数えられるだけ）。 */
+export async function releaseGuestSlots(
+  db: SupabaseClient<Database>,
+  keys: string[],
+): Promise<boolean> {
+  if (!keys.length) return false;
+  try {
+    const result = await db.from("app_config").delete().in("key", keys);
+    return !result.error;
+  } catch {
+    return false;
+  }
+}
+
+/** 未登録の人の結果の記録（失敗率と待ち時間）。予約の掃除のついでに古い物を消す。 */
+export const GUEST_RUN_ROOT = "first-catch-run:";
+export const GUEST_RUN_KEEP_DAYS = 14;
+
+/**
+ * 未登録の人の結果を残す（`ai_runs` は本人の id が要るので使えない。予約と同じ app_config に、
+ * 日付ごとの鍵で1行）。中身は機能・成否・待ち時間・試した AI の名前だけ — 写真・語・IP は無し。
+ * 失敗率は `first-catch-run:<日付>:fail:%` と `…:ok:%` の行数で出る。
+ */
+async function recordGuestRun(db: SupabaseClient<Database>, run: FirstCatchRun) {
+  try {
+    const day = new Date().toISOString().slice(0, 10);
+    const { runMeta } = await import("./first-catch-ai.server");
+    const result = await db.from("app_config").insert({
+      key: `${GUEST_RUN_ROOT}${day}:${run.ok ? "ok" : "fail"}:${randomUUID()}`,
+      value: runMeta(run),
+    });
+    if (result.error) console.warn("[first-catch] guest run log failed:", result.error.message);
+  } catch (e) {
+    console.warn("[first-catch] guest run log failed:", e instanceof Error ? e.message : "");
+  }
 }

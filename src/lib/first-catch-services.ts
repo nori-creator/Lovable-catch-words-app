@@ -48,6 +48,9 @@ export function seedFirstCatchReading(draft: Pick<FirstCatch, "targetLanguage">)
   if (draft.targetLanguage === ZH_TW_PROFILE.code) seedReadingPrefNow(ZH_TW_PROFILE, "pinyin");
 }
 
+export const FIRST_CATCH_PHOTO_MAX_SIDE = 1024;
+export const FIRST_CATCH_PHOTO_QUALITY = 0.7;
+
 /** Decode and re-encode even small photos, stripping EXIF/GPS before storage or AI. */
 export async function firstCatchPhoto(file: File): Promise<string> {
   if (!file.type.startsWith("image/") || file.size > 30_000_000) throw new Error("Invalid photo");
@@ -77,7 +80,9 @@ export async function firstCatchPhoto(file: File): Promise<string> {
     });
     if (!image.naturalWidth || !image.naturalHeight)
       throw new Error("FIRST_CATCH_PHOTO_UNSUPPORTED");
-    const scale = Math.min(1, 1280 / Math.max(image.width, image.height));
+    // 長い辺 1024px・画質 0.7（監査 2026-10-03）。1280px・0.82 の約半分の大きさで、
+    // 送る時間と AI が読む時間が縮む。候補を見分けるには十分な細かさ。
+    const scale = Math.min(1, FIRST_CATCH_PHOTO_MAX_SIDE / Math.max(image.width, image.height));
     const canvas = document.createElement("canvas");
     canvas.width = Math.max(1, Math.round(image.width * scale));
     canvas.height = Math.max(1, Math.round(image.height * scale));
@@ -85,8 +90,8 @@ export async function firstCatchPhoto(file: File): Promise<string> {
     if (!context) throw new Error("Image unavailable");
     try {
       context.drawImage(image, 0, 0, canvas.width, canvas.height);
-      let photo = canvas.toDataURL("image/jpeg", 0.82);
-      if (photo.length > 4_000_000) photo = canvas.toDataURL("image/jpeg", 0.65);
+      let photo = canvas.toDataURL("image/jpeg", FIRST_CATCH_PHOTO_QUALITY);
+      if (photo.length > 4_000_000) photo = canvas.toDataURL("image/jpeg", 0.5);
       if (!photo.startsWith("data:image/jpeg;base64,") || photo.length > 4_000_000)
         throw new Error("FIRST_CATCH_PHOTO_UNSUPPORTED");
       return photo;

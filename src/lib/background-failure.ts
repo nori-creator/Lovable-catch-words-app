@@ -22,6 +22,8 @@ export type BackgroundFailureArea =
   // 読む人の言語の意味・解説を裏で作る（2026-10-02。図鑑と復習。失敗しても意味が出ないだけ）。
   | "reader_meaning"
   | "reader_explain"
+  // チュートリアルの写真の分析・カード（2026-10-03。画面は「もう一度試す」を出す）。
+  | "first_catch_ai"
   // 札を消した後の写真の掃除（2026-10-03。札は消えている。写真が残るだけ）。
   | "sticker_storage";
 

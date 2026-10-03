@@ -6355,7 +6355,7 @@ describe("R25（2026-09-30: ベータテストの指摘・最初の画面の4枚
     );
     const admin = codeOnly(read("lib/admin-users.functions.ts"));
     expect(admin).toMatch(/saveFailures: \{/);
-    expect(codeOnly(read("routes/_authenticated/admin.users.tsx"))).toMatch(/写真の保存の失敗/);
+    expect(codeOnly(read("components/AdminUsersViews.tsx"))).toMatch(/写真の保存の失敗/);
   });
 
   it("剥がした登録前の1枚は、案内の途中でログインしても引き継ぐ", () => {
