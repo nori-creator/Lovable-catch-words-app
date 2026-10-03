@@ -53,6 +53,7 @@ Known WebKit traps the code already guards against (keep the guards):
 - Total canvas memory is capped → release canvases after encoding (`width = height = 0`).
 - `MediaRecorder` records MP4, not WebM → label blobs with `rec.mimeType`.
 - `<video>` needs `playsInline` (and `muted` for camera streams) or it goes full screen.
+- A finger drag on iOS can turn into a page pan and end the Pointer Events gesture with `pointercancel` (mouse-driven WebKit and Chromium never show this) → `PeelSticker` also tracks the finger with its own non-passive Touch Events and `preventDefault()`s `touchmove`; a tap peels too; the turned-away face of a flip card is `visibility: hidden` (`lib/peel-gesture.ts`, `npm run check:peel-touch`). Adding the first catch to the Dex waits only on the save — speech (3 s), the landing animation (12 s) and the save (20 s, then a retry message) all have deadlines (2026-10-03 iPhone report "can't peel / can't add to the Dex").
   Checklist (Safari tab and home-screen app, Wi-Fi and cellular):
 
 1. Take a photo → candidates appear (or the "saved for later" state) within ~20 s; never an endless "analyzing".
