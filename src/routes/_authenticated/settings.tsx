@@ -68,7 +68,8 @@ import { recommendedKind, splitSpec, supportsVision } from "@/lib/ai-provider-mo
 import { getAdConfig, setAdConfig } from "@/lib/monetization.functions";
 import { createCheckoutSession, getBillingStatus } from "@/lib/billing.functions";
 import { billingSurface } from "@/lib/stripe-billing";
-import type { AdConfig } from "@/lib/ad-policy";
+import { normalizePublisherId, normalizeSlotId, type AdConfig } from "@/lib/ad-policy";
+import { adsTxtBody } from "@/lib/adsense";
 import {
   MAX_CUSTOM_TIMES,
   writeLocalReminderPrefs,
@@ -1813,9 +1814,17 @@ function ProPlanCard() {
 /**
  * **広告のオン・オフと出し方（開発者だけ）**（オーナー指示 2026-09-27「広告は開発者の
  * 私はオンオフできるようにして」）。決まりそのものは `lib/ad-policy.ts`。
- * オンにしても、AdMob（広告の部品）を入れるまで実際の広告は出ない（`docs/monetization.md`）。
+ *
+ * **Web 版は Google AdSense**（2026-10-03「アプリ内の広告が動く 機能するようにしたい。」）。
+ * 運営者 ID と広告ユニット ID をここに貼る（`/ads.txt` も ID から自動で出る）。
+ * Web では全画面・ごほうびを出さない（`lib/adsense.ts`）ので、その2つは「アプリ版用」と書く。
+ * アプリ版（Android）は AdMob を入れるまで出ない（`docs/monetization.md`）。
+ *
+ * 確認用ページで中身入りを描けるよう export する（`defaultOpen`）。
  */
-function AdsPanel() {
+type AdIdKey = "adsensePublisherId" | "slotDexInFeed" | "slotDiaryInFeed" | "slotReviewEnd";
+
+export function AdsPanel({ defaultOpen = false }: { defaultOpen?: boolean }) {
   const t = useT();
   const readable = useReadableError();
   const getFn = useServerFn(getAdConfig);
@@ -1823,6 +1832,8 @@ function AdsPanel() {
   const qc = useQueryClient();
   const { data } = useQuery({ queryKey: ["ad-config"], queryFn: () => getFn(), staleTime: 30_000 });
   const [draft, setDraft] = useState<AdConfig | null>(null);
+  /** 打っている途中の ID（形が整うまで保存しない）。 */
+  const [typing, setTyping] = useState<Partial<Record<AdIdKey, string>>>({});
   useEffect(() => {
     if (data) setDraft(data);
   }, [data]);
@@ -1852,8 +1863,41 @@ function AdsPanel() {
       />
     </label>
   );
+  const idField = (k: AdIdKey, label: string, placeholder: string) => {
+    const norm = k === "adsensePublisherId" ? normalizePublisherId : normalizeSlotId;
+    const value = typing[k] ?? draft[k];
+    const bad = value.trim() !== "" && norm(value) === "";
+    const id = `ads-${k}`;
+    return (
+      <div className="space-y-1">
+        <label htmlFor={id} className="block text-footnote">
+          {label}
+        </label>
+        <Input
+          id={id}
+          value={value}
+          placeholder={placeholder}
+          inputMode={k === "adsensePublisherId" ? "text" : "numeric"}
+          autoCapitalize="off"
+          autoCorrect="off"
+          spellCheck={false}
+          aria-invalid={bad}
+          onChange={(e) => setTyping({ ...typing, [k]: e.target.value })}
+          onBlur={() => {
+            if (bad) return;
+            const next = norm(value);
+            setTyping(({ [k]: _done, ...rest }) => rest);
+            if (next !== draft[k]) void save({ ...draft, [k]: next });
+          }}
+          className="h-11 font-mono"
+        />
+        {bad && <p className="text-caption text-destructive">{t("ads.badFormat")}</p>}
+      </div>
+    );
+  };
+  const adsTxt = adsTxtBody(draft);
   return (
-    <details className="rounded-2xl border border-border bg-card p-4">
+    <details className="rounded-2xl border border-border bg-card p-4" open={defaultOpen}>
       <summary className="cursor-pointer list-none text-body font-semibold [&::-webkit-details-marker]:hidden">
         {t("settings.ads")}
       </summary>
@@ -1864,6 +1908,20 @@ function AdsPanel() {
           value={draft.enabled}
           onChange={(v) => void save({ ...draft, enabled: v })}
         />
+        {/* Web 版の広告の番号（AdSense）。ID を貼ると /ads.txt も出る。 */}
+        <div className="space-y-2 rounded-xl bg-secondary/60 p-3">
+          <p className="text-footnote font-semibold">{t("ads.adsenseTitle")}</p>
+          {idField("adsensePublisherId", t("ads.publisherId"), "ca-pub-0000000000000000")}
+          {idField("slotDexInFeed", t("ads.slotDex"), "1234567890")}
+          {idField("slotDiaryInFeed", t("ads.slotDiary"), "1234567890")}
+          {idField("slotReviewEnd", t("ads.slotReviewEnd"), "1234567890")}
+          {adsTxt && (
+            <p className="text-caption text-muted-foreground">
+              {t("ads.adsTxt")}
+              <code className="mt-0.5 block break-all font-mono text-foreground">{adsTxt}</code>
+            </p>
+          )}
+        </div>
         {num("graceDays", t("ads.grace"), 0, 60)}
         {num("batchesPerInterstitial", t("ads.batches"), 1, 20)}
         {num("minGapMin", t("ads.gap"), 0, 240)}
@@ -1887,6 +1945,9 @@ function AdsPanel() {
           value={draft.diaryNativeEnabled}
           onChange={(v) => void save({ ...draft, diaryNativeEnabled: v })}
         />
+        <p className="pt-1 text-caption leading-relaxed text-muted-foreground">
+          {t("ads.webOnlyNote")}
+        </p>
         <ToggleRow
           label={t("ads.rewarded")}
           value={draft.rewardedEnabled}

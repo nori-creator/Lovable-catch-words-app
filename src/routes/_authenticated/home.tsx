@@ -77,6 +77,9 @@ import { localeOf, useT } from "@/lib/i18n";
 import { formatCount } from "@/lib/count";
 import { useUiLang } from "@/lib/i18n";
 import { tStatic } from "@/lib/i18n";
+import { useWebAds, type WebAds } from "@/hooks/use-web-ads";
+import { diarySlots } from "@/lib/ad-policy";
+import { AdCard } from "@/components/ads/AdCard";
 
 export const Route = createFileRoute("/_authenticated/home")({
   head: () => ({
@@ -257,6 +260,7 @@ function HomePage() {
     readHomeSnapshot<Awaited<ReturnType<typeof listMyStickers>>>(),
   );
   const { data: profile } = useQuery({ queryKey: ["profile"], queryFn: () => fetchProfile() });
+  const webAds = useWebAds();
   const {
     data: stickers,
     isLoading,
@@ -375,6 +379,7 @@ function HomePage() {
         albumItems={albumItems}
         today={today}
         surfaceClass={surfaceClass}
+        ads={webAds}
         loading={isLoading}
         failed={
           isError ? (
@@ -478,11 +483,17 @@ export function HomeSurface({
   truncated = false,
   shown,
   total,
+  ads,
   children,
 }: {
   albumItems: StickerWithWord[];
   today: Date;
   surfaceClass: string;
+  /**
+   * Web の広告（`useWebAds`）。渡した時だけ、過去の日の間に札の形の広告を挟む
+   * （`ad-policy` の `diarySlots`）。初回の案内（チュートリアル）では渡さない。
+   */
+  ads?: WebAds;
   loading?: boolean;
   /** 読み込みに失敗したときに出す物（出すなら、誌面の代わりにこれを出す）。 */
   failed?: React.ReactNode;
@@ -601,6 +612,14 @@ export function HomeSurface({
         <PastDays
           surface={surfaceClass}
           days={pastGroups}
+          adAfter={
+            ads?.show && ads.placements.diary ? diarySlots(pastGroups.length, ads.cfg, false) : []
+          }
+          renderAd={
+            ads
+              ? () => <AdCard client={ads.client} slot={ads.cfg.slotDiaryInFeed} minHeight={120} />
+              : undefined
+          }
           onOpen={onOpen}
           onLongPress={onLongPress}
           truncated={truncated}
@@ -739,9 +758,14 @@ export function PastDays({
   total,
   onLongPress,
   surface,
+  adAfter = [],
+  renderAd,
 }: {
   /** 壁の地（`album-bg-*`）。今日の誌面と同じ物。 */
   surface?: string;
+  /** この番号（0始まり）の日の後に広告を挟む（`diarySlots`。一番下には置かない）。 */
+  adAfter?: readonly number[];
+  renderAd?: () => React.ReactNode;
   days: Array<[string, StickerWithWord[]]>;
   onOpen: (id: string, from?: FlightOrigin | null) => void;
   truncated: boolean;
@@ -771,7 +795,7 @@ export function PastDays({
           {t("dex.truncated", { n: formatCount(shown), total: formatCount(total) })}
         </p>
       )}
-      {days.map(([k, items]) => (
+      {days.map(([k, items], i) => (
         <div key={k}>
           {/* k is a local YYYY-MM-DD; append time so it parses as LOCAL
               midnight (bare `new Date("YYYY-MM-DD")` is UTC → off-by-one
@@ -785,6 +809,9 @@ export function PastDays({
             onOpen={onOpen}
             onLongPress={onLongPress}
           />
+          {renderAd && adAfter.includes(i) && (
+            <div className="mt-10 has-[[data-ad-card][hidden]]:hidden">{renderAd()}</div>
+          )}
         </div>
       ))}
     </section>

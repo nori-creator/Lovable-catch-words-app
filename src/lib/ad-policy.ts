@@ -28,6 +28,11 @@
  * | 日記の間（札の形） | オン | 縦に流し読みする所。SNS と同じ置き方 |
  * | ごほうび（本人が押す） | オン | 見る人が自分で選ぶので不満が出にくい |
  * | 捕まえた後（全画面） | **オフ** | いちばん嬉しい瞬間。ここを遮ると「終わりの印象」が広告になる（ピーク・エンド） |
+ *
+ * ## Web 版（Google AdSense。2026-10-03「アプリ内の広告が動く 機能するようにしたい。」）
+ * Web では全画面・ごほうびを出さない（Google の決まりでゲーム専用）。復習の区切りは
+ * 終わりの画面の下の札にし、回数の決まりはこの `decideInterstitial` をそのまま使う。
+ * 読み込む条件と枠の番号は `adsense.ts`。
  */
 export type AdConfig = {
   enabled: boolean;
@@ -57,6 +62,18 @@ export type AdConfig = {
    * オフの間は、Pro を買う入口がどこにも出ない（開発者は自分で試せるよう設定に出る）。
    */
   subscriptionEnabled: boolean;
+  /**
+   * **Google AdSense の運営者 ID**（`ca-pub-` + 数字。2026-10-03「アプリ内の広告が動く
+   * 機能するようにしたい」）。空なら「まだ用意していない」= Web の広告は何も読み込まない。
+   * `/ads.txt` もこの値から作る（`adsense.ts`）。秘密ではない（広告のタグに必ず載る）。
+   */
+  adsensePublisherId: string;
+  /** 図鑑の一覧の広告ユニットの番号（AdSense の `data-ad-slot`。数字だけ。空なら出さない）。 */
+  slotDexInFeed: string;
+  /** 日記（過去の日）の間の広告ユニットの番号。 */
+  slotDiaryInFeed: string;
+  /** 復習の区切り（終わりの画面の下の札）の広告ユニットの番号。 */
+  slotReviewEnd: string;
 };
 
 export const DEFAULT_AD_CONFIG: AdConfig = {
@@ -76,7 +93,33 @@ export const DEFAULT_AD_CONFIG: AdConfig = {
   diaryEvery: 5,
   diaryFirst: 2,
   subscriptionEnabled: false,
+  adsensePublisherId: "",
+  slotDexInFeed: "",
+  slotDiaryInFeed: "",
+  slotReviewEnd: "",
 };
+
+/** AdSense の運営者 ID の形（`ca-pub-` + 数字）。 */
+const PUBLISHER_ID = /^ca-pub-\d{10,20}$/;
+/** 広告ユニットの番号の形（数字だけ）。 */
+const SLOT_ID = /^\d{6,20}$/;
+
+/**
+ * 運営者 ID を揃える。前後の空白を削り、`pub-…`（`ads.txt` の書き方）で貼られても
+ * `ca-pub-…` に直す。形が違えば空（= 未設定）。
+ */
+export function normalizePublisherId(raw: unknown): string {
+  if (typeof raw !== "string") return "";
+  const v = raw.trim();
+  const id = /^pub-\d+$/.test(v) ? `ca-${v}` : v;
+  return PUBLISHER_ID.test(id) ? id : "";
+}
+
+/** 広告ユニットの番号を揃える（数字だけ。違えば空）。 */
+export function normalizeSlotId(raw: unknown): string {
+  const v = typeof raw === "number" ? String(raw) : typeof raw === "string" ? raw.trim() : "";
+  return SLOT_ID.test(v) ? v : "";
+}
 
 /** 保存されている形を今の形に揃える（範囲の外の数は既定に戻す）。 */
 export function normalizeAdConfig(raw: unknown): AdConfig {
@@ -102,6 +145,10 @@ export function normalizeAdConfig(raw: unknown): AdConfig {
     diaryEvery: int("diaryEvery", 2, 60),
     diaryFirst: int("diaryFirst", 0, 60),
     subscriptionEnabled: r.subscriptionEnabled === true,
+    adsensePublisherId: normalizePublisherId(r.adsensePublisherId),
+    slotDexInFeed: normalizeSlotId(r.slotDexInFeed),
+    slotDiaryInFeed: normalizeSlotId(r.slotDiaryInFeed),
+    slotReviewEnd: normalizeSlotId(r.slotReviewEnd),
   };
 }
 

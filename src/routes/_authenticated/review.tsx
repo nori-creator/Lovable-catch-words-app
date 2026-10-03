@@ -83,6 +83,8 @@ import { tStatic } from "@/lib/i18n";
 import { readerMeaning, readerText } from "@/lib/note-language";
 import { pickReviewExplain, quizPromptMeaning } from "@/lib/review-explain";
 import { useReaderMeaningFor } from "@/lib/reader-meanings";
+import { useWebAds } from "@/hooks/use-web-ads";
+import { ReviewEndAd } from "@/components/ads/ReviewEndAd";
 import {
   useReviewReaderExplanations,
   type ReaderReviewView,
@@ -135,6 +137,7 @@ function ReviewPage() {
   const fetchDue = useServerFn(getDueReviews);
   const fetchStats = useServerFn(getOverallMemoryStats);
   const qc = useQueryClient();
+  const webAds = useWebAds();
   // 場所の知らせから来たときは、その1枚を先頭に置いて始める。
   const { sticker: wantedSticker } = Route.useSearch();
   /**
@@ -509,28 +512,32 @@ function ReviewPage() {
       ) : !cards?.length ? (
         <EmptyState />
       ) : done ? (
-        <DoneState
-          answered={tally.answered}
-          correct={tally.correct}
-          batch={cap}
-          onAgain={() => {
-            // **憶えた続きも捨てる。** 新しい束が届くので、古い位置を
-            // 残すと「3枚目から始まる」になる。
-            writeMark(null, EMPTY_MARK);
-            restoredFor.current = null;
-            setIdx(0);
-            setTally({ answered: 0, correct: 0 });
-            // 用意しておいた次の束があれば、**読み直さずに**そのまま出す。
-            const next = nextBatch.current;
-            nextBatch.current = null;
-            if (next?.length) {
-              qc.setQueryData(["reviews-due", null], next);
-              return;
-            }
-            replacing.current = true;
-            void refetch();
-          }}
-        />
+        <>
+          <DoneState
+            answered={tally.answered}
+            correct={tally.correct}
+            batch={cap}
+            onAgain={() => {
+              // **憶えた続きも捨てる。** 新しい束が届くので、古い位置を
+              // 残すと「3枚目から始まる」になる。
+              writeMark(null, EMPTY_MARK);
+              restoredFor.current = null;
+              setIdx(0);
+              setTally({ answered: 0, correct: 0 });
+              // 用意しておいた次の束があれば、**読み直さずに**そのまま出す。
+              const next = nextBatch.current;
+              nextBatch.current = null;
+              if (next?.length) {
+                qc.setQueryData(["reviews-due", null], next);
+                return;
+              }
+              replacing.current = true;
+              void refetch();
+            }}
+          />
+          {/* 区切りの広告は**終わりの画面の下の札**（Web に全画面は無い）。回数は ad-policy。 */}
+          <ReviewEndAd ads={webAds} />
+        </>
       ) : replacing.current && isFetching ? (
         /**
          * **束を「入れ替えている」間だけ待たせる。**

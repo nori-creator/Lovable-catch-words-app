@@ -7,29 +7,14 @@ import { normalizeAdConfig, type AdConfig } from "@/lib/ad-policy";
  *
  * 読むのは全員（広告を出すかを画面が決めるため）。`app_config` は管理者だけが
  * 読める表なので、サーバの管理者の鍵で読み、**広告の設定だけ**を返す。
- * 書けるのは管理者だけ。1分ためておく（画面を開くたびに表を読まない）。
+ * 書けるのは管理者だけ。読むのと1分ためておくのは `ad-config.server.ts`
+ * （`/ads.txt` も同じ所から読む）。
  */
-let cache: { at: number; value: AdConfig } | null = null;
-
 export const getAdConfig = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async (): Promise<AdConfig> => {
-    if (cache && Date.now() - cache.at < 60_000) return cache.value;
-    try {
-      const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data } = await (supabaseAdmin as any)
-        .from("app_config")
-        .select("value")
-        .eq("key", "monetization")
-        .maybeSingle();
-      const value = normalizeAdConfig((data as { value?: { ads?: unknown } } | null)?.value?.ads);
-      cache = { at: Date.now(), value };
-      return value;
-    } catch {
-      // 読めない時は**出さない**側に倒す（広告の出しすぎは配信停止の理由になる）。
-      return normalizeAdConfig(null);
-    }
+    const { loadAdConfig } = await import("@/lib/ad-config.server");
+    return loadAdConfig();
   });
 
 export const setAdConfig = createServerFn({ method: "POST" })
@@ -50,6 +35,7 @@ export const setAdConfig = createServerFn({ method: "POST" })
       updated_by: context.userId,
     });
     if (error) throw new Error(error.message);
-    cache = { at: Date.now(), value: data.ads };
+    const { rememberAdConfig } = await import("@/lib/ad-config.server");
+    rememberAdConfig(data.ads);
     return { ok: true, ads: data.ads };
   });

@@ -60,6 +60,7 @@ import { ScanPickDesignsScene } from "./scenes/scan-pick-designs";
 import { NotifyBarDesignsScene } from "./scenes/notify-bar-designs";
 import { AdminUsersScene } from "./scenes/admin-users";
 import { MonetizationDesignsScene } from "./scenes/monetization-designs";
+import { DexAdsScene, HomeAdsScene, ReviewEndAdsScene, SettingsAdsScene } from "./scenes/ads";
 import { FxLabScene } from "./scenes/fx-lab";
 import { WordDetailDesignsScene } from "./scenes/word-detail-designs";
 import { WordDetailRefineScene } from "./scenes/word-detail-refine";
@@ -185,6 +186,11 @@ const SCENES: Record<string, ((p: { q: URLSearchParams }) => ReactNode) | undefi
   "notify-bar-designs": NotifyBarDesignsScene,
   "admin-users": AdminUsersScene,
   "monetization-designs": MonetizationDesignsScene,
+  // Web 版の広告（AdSense。2026-10-03「アプリ内の広告が動く 機能するようにしたい。」）。
+  "dex-ads": DexAdsScene,
+  "home-ads": HomeAdsScene,
+  "review-end-ads": ReviewEndAdsScene,
+  "settings-ads": SettingsAdsScene,
   "fx-lab": FxLabScene,
   "word-detail-designs": WordDetailDesignsScene,
   "word-detail-refine": WordDetailRefineScene,
@@ -314,7 +320,7 @@ function Frame({ children, immersive = false }: { children: ReactNode; immersive
  * どちらも「別の画面を見ている」なので、場面ごとに決める。
  */
 /** 本番で上の帯を出さない画面（`AppShell immersive`）。 */
-const IMMERSIVE = new Set(["dex-cards", "dex-drag"]);
+const IMMERSIVE = new Set(["dex-cards", "dex-drag", "dex-ads"]);
 
 const BARE = new Set([
   "first-catch",
