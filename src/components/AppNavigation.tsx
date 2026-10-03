@@ -22,6 +22,8 @@ export const APP_NAV_ITEMS: AppNavItem[] = [
   { to: "/settings", labelKey: "nav.settings", icon: Settings },
 ];
 
+const CAMERA_INDEX = APP_NAV_ITEMS.findIndex((i) => i.to === "/capture");
+
 /** The router and the local first-catch controller provide destinations, never markup. */
 export function AppNavigation({
   cursor,
@@ -45,11 +47,26 @@ export function AppNavigation({
   ) => ReactNode;
 }) {
   const t = useT();
+  /**
+   * **カメラの升目には印を乗せない**（オーナー指示 2026-09-15「青いバブルで囲うのではなく、
+   * カメラのアイコンの中の色を変えてほしい」）。決まりはここ1箇所 — 前は `AppShell` だけが
+   * 薄めていて、チュートリアルの殻は「撮っている面」の間しか薄めていなかった。だから撮った後の
+   * 失敗の面（カメラの升目に居る）で、前の画面から滑ってきた印が図鑑とカメラの間に残っていた
+   * （2026-10-03 画面の監査）。
+   *
+   * 出す・消すの2値にしない — 払っている最中はカメラの上を通過するので、2値だと真ん中で
+   * 印がぱっと消えてぱっと戻る。近づくほど薄れ、0.85 升ぶん手前から薄れ始める。
+   */
+  const cameraFade = cursor < 0 ? 0 : Math.min(1, Math.abs(cursor - CAMERA_INDEX) / 0.85);
   return (
-    <TabBar cursor={cursor} indicatorOpacity={indicatorOpacity} onCamera={onCamera}>
+    <TabBar
+      cursor={cursor}
+      indicatorOpacity={Math.min(indicatorOpacity, cameraFade)}
+      onCamera={onCamera}
+    >
       {APP_NAV_ITEMS.map((item, i) => {
         const camera = item.to === "/capture";
-        const current = camera ? onCamera : i === Math.round(cursor);
+        const current = i === Math.round(cursor) || (camera && onCamera);
         const weight = cursor < 0 ? 0 : Math.max(0, 1 - Math.abs(i - cursor));
         return (
           <li key={item.to} className="flex-1">
