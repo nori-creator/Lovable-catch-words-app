@@ -5447,9 +5447,12 @@ describe("スキャンの後の下の段（オーナー指摘 2026-09-22）", ()
         /pb-\[calc\(7\.5rem\+env\(safe-area-inset-bottom\)\)\]/,
       );
     }
+    // 端の近くの印は札を内側へ折り返し（右の4分の1は右端揃え・左の4分の1は左端揃え）、
+    // そのうえで枠の端から 4px より外へは出さない（2026-10-03 画面の監査）。
     expect(scan).toMatch(
-      /clamp\(\$\{4 - dotX\}px, -50%, calc\(\$\{boxWidth - 4 - dotX\}px - 100%\)\) 0/,
+      /clamp\(\$\{4 - dotX\}px, \$\{base\}, calc\(\$\{boxWidth - 4 - dotX\}px - 100%\)\) 0/,
     );
+    expect(scan).toMatch(/side === "end" \? "calc\(-100% \+ 22px\)"/);
     expect(scan).toMatch(/boxWidth=\{boxSize\.w\}/);
   });
 
