@@ -2122,6 +2122,9 @@ describe("独自ドメインへ移れる形になっているか", () => {
     "routes/auth.tsx",
     "routes/terms.tsx",
     "routes/privacy.tsx",
+    // 料金の画面・特定商取引法の表記（2026-10-03）。どちらも canonical を出す。
+    "routes/pro.tsx",
+    "routes/legal.commerce.tsx",
     "routes/sitemap[.]xml.ts",
   ];
 
@@ -4848,20 +4851,17 @@ describe("ホームは今日の誌面", () => {
     );
     // 2026-09-24「過去のものが多すぎで画面で確認できないから、過去のものは全て
     // 削除して」: 帯には**今回の依頼の面だけ**。
-    // 2026-10-03「海邊の字体が台湾華語の正式な文字ではない」と品質検査の修正の回。
-    // 先頭はウェルカム画面（海邊を台湾の標準字形に）。
-    expect(list.slice(0, list.indexOf("},"))).toMatch(/scene: "first-catch"/);
+    // 2026-10-03「Web 版でお金を受け取れるように」の回。先頭は料金の画面（ログイン前）。
+    expect(list.slice(0, list.indexOf("},"))).toMatch(/scene: "pricing&state=signup"/);
     expect(list).not.toMatch(/layout=/);
     expect(list).not.toMatch(/primer=/);
-    // ブラウザの言語でウェルカムを出す。
-    expect(list).toContain('scene: "first-catch&browser=en-US"');
-    expect(list).toContain('scene: "first-catch&browser=zh-TW"');
-    // 品質検査で直した所。
-    expect(list).toContain('scene: "sticker-detail&lang=en"');
-    expect(list).toContain('scene: "place-memory&nophoto=1&lang=en"');
-    expect(list).toContain('scene: "review-memory-list&lang=en"');
-    expect(list).toContain('scene: "capture-object&variant=error&lang=en"');
-    expect(list).toContain('scene: "first-catch&step=pick&lang=ja&target=zh-TW"');
+    expect(list).toContain('scene: "pricing&state=manage"');
+    expect(list).toContain('scene: "commerce"');
+    expect(main).toContain("pricing: PricingScene");
+    expect(main).toContain("commerce: CommerceScene");
+    // 前の回（海邊の字体・ブラウザの言語・品質検査）の面は残さない。
+    expect(list).not.toMatch(/scene: "first-catch/);
+    expect(list).not.toMatch(/scene: "place-memory/);
     // 前の回（表示言語の復習・図鑑、単語の詳細の見出し、学習言語でない見出し）の面は残さない。
     // （`review-choice&lang=en` は品質検査の回でまた並べる。）
     expect(list).not.toMatch(/scene: "dex-cards&lang=/);

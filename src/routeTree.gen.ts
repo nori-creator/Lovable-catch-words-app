@@ -15,6 +15,7 @@ import { Route as AuthRouteImport } from './routes/auth'
 import { Route as McpRouteImport } from './routes/mcp'
 import { Route as NativeAuthRouteImport } from './routes/native-auth'
 import { Route as PrivacyRouteImport } from './routes/privacy'
+import { Route as ProRouteImport } from './routes/pro'
 import { Route as ResetPasswordRouteImport } from './routes/reset-password'
 import { Route as SitemapDotxmlRouteImport } from './routes/sitemap[.]xml'
 import { Route as TermsRouteImport } from './routes/terms'
@@ -33,6 +34,7 @@ import { Route as ApiNativeAiRouteImport } from './routes/api.native-ai'
 import { Route as ApiNativeFnRouteImport } from './routes/api.native-fn'
 import { Route as ApiObject3dModelRouteImport } from './routes/api.object3d-model'
 import { Route as ApiStripeWebhookRouteImport } from './routes/api.stripe-webhook'
+import { Route as LegalCommerceRouteImport } from './routes/legal.commerce'
 import { Route as DotlovableOauthConsentRouteImport } from './routes/[.]lovable.oauth.consent'
 import { Route as Char91DotmcpChar93InvokeToolToolRouteImport } from './routes/[.mcp]/invoke-tool/$tool'
 import { Route as AuthenticatedAdminDictionaryRouteImport } from './routes/_authenticated/admin.dictionary'
@@ -67,6 +69,11 @@ const NativeAuthRoute = NativeAuthRouteImport.update({
 const PrivacyRoute = PrivacyRouteImport.update({
   id: '/privacy',
   path: '/privacy',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ProRoute = ProRouteImport.update({
+  id: '/pro',
+  path: '/pro',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ResetPasswordRoute = ResetPasswordRouteImport.update({
@@ -161,6 +168,11 @@ const ApiStripeWebhookRoute = ApiStripeWebhookRouteImport.update({
   path: '/api/stripe-webhook',
   getParentRoute: () => rootRouteImport,
 } as any)
+const LegalCommerceRoute = LegalCommerceRouteImport.update({
+  id: '/legal/commerce',
+  path: '/legal/commerce',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const DotlovableOauthConsentRoute = DotlovableOauthConsentRouteImport.update({
   id: '/.lovable/oauth/consent',
   path: '/.lovable/oauth/consent',
@@ -202,6 +214,7 @@ export interface FileRoutesByFullPath {
   '/mcp': typeof McpRoute
   '/native-auth': typeof NativeAuthRoute
   '/privacy': typeof PrivacyRoute
+  '/pro': typeof ProRoute
   '/reset-password': typeof ResetPasswordRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/terms': typeof TermsRoute
@@ -220,6 +233,7 @@ export interface FileRoutesByFullPath {
   '/api/native-fn': typeof ApiNativeFnRoute
   '/api/object3d-model': typeof ApiObject3dModelRoute
   '/api/stripe-webhook': typeof ApiStripeWebhookRoute
+  '/legal/commerce': typeof LegalCommerceRoute
   '/.lovable/oauth/consent': typeof DotlovableOauthConsentRoute
   '/.mcp/invoke-tool/$tool': typeof Char91DotmcpChar93InvokeToolToolRoute
   '/admin/dictionary': typeof AuthenticatedAdminDictionaryRoute
@@ -233,6 +247,7 @@ export interface FileRoutesByTo {
   '/mcp': typeof McpRoute
   '/native-auth': typeof NativeAuthRoute
   '/privacy': typeof PrivacyRoute
+  '/pro': typeof ProRoute
   '/reset-password': typeof ResetPasswordRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/terms': typeof TermsRoute
@@ -251,6 +266,7 @@ export interface FileRoutesByTo {
   '/api/native-fn': typeof ApiNativeFnRoute
   '/api/object3d-model': typeof ApiObject3dModelRoute
   '/api/stripe-webhook': typeof ApiStripeWebhookRoute
+  '/legal/commerce': typeof LegalCommerceRoute
   '/.lovable/oauth/consent': typeof DotlovableOauthConsentRoute
   '/.mcp/invoke-tool/$tool': typeof Char91DotmcpChar93InvokeToolToolRoute
   '/admin/dictionary': typeof AuthenticatedAdminDictionaryRoute
@@ -266,6 +282,7 @@ export interface FileRoutesById {
   '/mcp': typeof McpRoute
   '/native-auth': typeof NativeAuthRoute
   '/privacy': typeof PrivacyRoute
+  '/pro': typeof ProRoute
   '/reset-password': typeof ResetPasswordRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/terms': typeof TermsRoute
@@ -284,6 +301,7 @@ export interface FileRoutesById {
   '/api/native-fn': typeof ApiNativeFnRoute
   '/api/object3d-model': typeof ApiObject3dModelRoute
   '/api/stripe-webhook': typeof ApiStripeWebhookRoute
+  '/legal/commerce': typeof LegalCommerceRoute
   '/.lovable/oauth/consent': typeof DotlovableOauthConsentRoute
   '/.mcp/invoke-tool/$tool': typeof Char91DotmcpChar93InvokeToolToolRoute
   '/_authenticated/admin/dictionary': typeof AuthenticatedAdminDictionaryRoute
@@ -299,6 +317,7 @@ export interface FileRouteTypes {
     | '/mcp'
     | '/native-auth'
     | '/privacy'
+    | '/pro'
     | '/reset-password'
     | '/sitemap.xml'
     | '/terms'
@@ -317,6 +336,7 @@ export interface FileRouteTypes {
     | '/api/native-fn'
     | '/api/object3d-model'
     | '/api/stripe-webhook'
+    | '/legal/commerce'
     | '/.lovable/oauth/consent'
     | '/.mcp/invoke-tool/$tool'
     | '/admin/dictionary'
@@ -330,6 +350,7 @@ export interface FileRouteTypes {
     | '/mcp'
     | '/native-auth'
     | '/privacy'
+    | '/pro'
     | '/reset-password'
     | '/sitemap.xml'
     | '/terms'
@@ -348,6 +369,7 @@ export interface FileRouteTypes {
     | '/api/native-fn'
     | '/api/object3d-model'
     | '/api/stripe-webhook'
+    | '/legal/commerce'
     | '/.lovable/oauth/consent'
     | '/.mcp/invoke-tool/$tool'
     | '/admin/dictionary'
@@ -362,6 +384,7 @@ export interface FileRouteTypes {
     | '/mcp'
     | '/native-auth'
     | '/privacy'
+    | '/pro'
     | '/reset-password'
     | '/sitemap.xml'
     | '/terms'
@@ -380,6 +403,7 @@ export interface FileRouteTypes {
     | '/api/native-fn'
     | '/api/object3d-model'
     | '/api/stripe-webhook'
+    | '/legal/commerce'
     | '/.lovable/oauth/consent'
     | '/.mcp/invoke-tool/$tool'
     | '/_authenticated/admin/dictionary'
@@ -395,6 +419,7 @@ export interface RootRouteChildren {
   McpRoute: typeof McpRoute
   NativeAuthRoute: typeof NativeAuthRoute
   PrivacyRoute: typeof PrivacyRoute
+  ProRoute: typeof ProRoute
   ResetPasswordRoute: typeof ResetPasswordRoute
   SitemapDotxmlRoute: typeof SitemapDotxmlRoute
   TermsRoute: typeof TermsRoute
@@ -405,6 +430,7 @@ export interface RootRouteChildren {
   ApiNativeFnRoute: typeof ApiNativeFnRoute
   ApiObject3dModelRoute: typeof ApiObject3dModelRoute
   ApiStripeWebhookRoute: typeof ApiStripeWebhookRoute
+  LegalCommerceRoute: typeof LegalCommerceRoute
   DotlovableOauthConsentRoute: typeof DotlovableOauthConsentRoute
   Char91DotmcpChar93InvokeToolToolRoute: typeof Char91DotmcpChar93InvokeToolToolRoute
 }
@@ -451,6 +477,13 @@ declare module '@tanstack/react-router' {
       path: '/privacy'
       fullPath: '/privacy'
       preLoaderRoute: typeof PrivacyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/pro': {
+      id: '/pro'
+      path: '/pro'
+      fullPath: '/pro'
+      preLoaderRoute: typeof ProRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/reset-password': {
@@ -579,6 +612,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiStripeWebhookRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/legal/commerce': {
+      id: '/legal/commerce'
+      path: '/legal/commerce'
+      fullPath: '/legal/commerce'
+      preLoaderRoute: typeof LegalCommerceRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/.lovable/oauth/consent': {
       id: '/.lovable/oauth/consent'
       path: '/.lovable/oauth/consent'
@@ -673,6 +713,7 @@ const rootRouteChildren: RootRouteChildren = {
   McpRoute: McpRoute,
   NativeAuthRoute: NativeAuthRoute,
   PrivacyRoute: PrivacyRoute,
+  ProRoute: ProRoute,
   ResetPasswordRoute: ResetPasswordRoute,
   SitemapDotxmlRoute: SitemapDotxmlRoute,
   TermsRoute: TermsRoute,
@@ -684,6 +725,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiNativeFnRoute: ApiNativeFnRoute,
   ApiObject3dModelRoute: ApiObject3dModelRoute,
   ApiStripeWebhookRoute: ApiStripeWebhookRoute,
+  LegalCommerceRoute: LegalCommerceRoute,
   DotlovableOauthConsentRoute: DotlovableOauthConsentRoute,
   Char91DotmcpChar93InvokeToolToolRoute: Char91DotmcpChar93InvokeToolToolRoute,
 }

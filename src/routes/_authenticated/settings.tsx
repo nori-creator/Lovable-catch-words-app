@@ -66,8 +66,15 @@ import {
 import { getAiModelConfig, listProviderModels, setAiModelConfig } from "@/lib/admin.functions";
 import { recommendedKind, splitSpec, supportsVision } from "@/lib/ai-provider-models";
 import { getAdConfig, setAdConfig } from "@/lib/monetization.functions";
-import { createCheckoutSession, getBillingStatus } from "@/lib/billing.functions";
+import {
+  createCheckoutSession,
+  createPortalSession,
+  getBillingStatus,
+} from "@/lib/billing.functions";
 import { billingSurface } from "@/lib/stripe-billing";
+import { billingReturnNotice, stripBillingReturn } from "@/lib/pricing";
+import { portalErrorKey } from "@/lib/billing-errors";
+import { LegalLinks } from "@/components/LegalLinks";
 import type { AdConfig } from "@/lib/ad-policy";
 import {
   MAX_CUSTOM_TIMES,
@@ -1763,13 +1770,53 @@ function ProPlanCard() {
   const t = useT();
   const statusFn = useServerFn(getBillingStatus);
   const checkoutFn = useServerFn(createCheckoutSession);
+  const portalFn = useServerFn(createPortalSession);
+  const qc = useQueryClient();
   const { data: s } = useQuery({
     queryKey: ["billing-status"],
     queryFn: () => statusFn(),
     staleTime: 60_000,
   });
-  const [busy, setBusy] = useState<null | "monthly" | "yearly">(null);
-  if (!s || !s.enabled || billingSurface(Capacitor.isNativePlatform()) === "none") return null;
+  const [busy, setBusy] = useState<null | "monthly" | "yearly" | "manage">(null);
+  /**
+   * Stripe の支払い画面から戻った時の知らせ（`?pro=ok` / `?pro=cancel`）。
+   * Pro になるのは Stripe の知らせ（Webhook）が届いた時なので、戻った直後はまだ無料の
+   * ことがある。「反映まで少しかかる」と言い、数秒おきに2回だけ読み直す。
+   * 読んだら住所から `pro` を消す（再読み込みで同じ知らせを出さない）。
+   */
+  useEffect(() => {
+    const notice = billingReturnNotice(window.location.search);
+    if (!notice) return;
+    window.history.replaceState(
+      window.history.state,
+      "",
+      `${window.location.pathname}${stripBillingReturn(window.location.search)}${window.location.hash}`,
+    );
+    if (notice === "cancel") {
+      toast(t("pro.returnCancel"));
+      return;
+    }
+    toast.success(t("pro.returnOk"));
+    const timers = [4_000, 12_000].map((ms) =>
+      window.setTimeout(() => void qc.invalidateQueries({ queryKey: ["billing-status"] }), ms),
+    );
+    return () => timers.forEach((id) => window.clearTimeout(id));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  // 払っている人には、スイッチがオフでも必ず「解約・お支払いの管理」を出す（解約の場所を隠さない）。
+  if (!s || (!s.enabled && !s.paidPro)) return null;
+  const native = billingSurface(Capacitor.isNativePlatform()) === "none";
+  if (native && !s.paidPro) return null;
+  const manage = async () => {
+    setBusy("manage");
+    try {
+      const { url } = await portalFn();
+      window.location.assign(url);
+    } catch (e) {
+      toast.error(t(portalErrorKey(e)));
+      setBusy(null);
+    }
+  };
   const go = async (period: "monthly" | "yearly") => {
     setBusy(period);
     try {
@@ -1782,8 +1829,28 @@ function ProPlanCard() {
   };
   return (
     <SettingsCard title={t("pro.title")}>
-      {s.isPro ? (
-        <p className="text-body font-semibold">{t("pro.active")}</p>
+      {s.paidPro ? (
+        <div className="grid gap-2">
+          <p className="text-body font-semibold">{t("pro.active")}</p>
+          {native ? (
+            <p className="text-footnote text-muted-foreground">{t("pro.manageOnWeb")}</p>
+          ) : (
+            <>
+              <Button
+                variant="outline"
+                onClick={() => void manage()}
+                disabled={busy !== null}
+                className="h-12"
+              >
+                {busy === "manage" ? <Loader2 className="h-4 w-4 animate-spin" /> : t("pro.manage")}
+              </Button>
+              <p className="text-caption text-muted-foreground">{t("pro.manageNote")}</p>
+            </>
+          )}
+        </div>
+      ) : s.isPro ? (
+        // 開発者は払わずに Pro 扱い（`isProUser`）。解約する定期購入は無い。
+        <p className="text-body font-semibold">{t("pro.activeDev")}</p>
       ) : !s.configured ? (
         <p className="text-footnote text-muted-foreground">{t("pro.notConfigured")}</p>
       ) : (
@@ -1806,6 +1873,14 @@ function ProPlanCard() {
         </div>
       )}
       {s.isAdmin && <p className="mt-2 text-caption text-muted-foreground">{t("pro.devOnly")}</p>}
+      <p className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-footnote text-muted-foreground">
+        {!native && (
+          <Link to="/pro" className="inline-block py-3 -my-3 underline">
+            {t("pricing.link")}
+          </Link>
+        )}
+        <LegalLinks />
+      </p>
     </SettingsCard>
   );
 }

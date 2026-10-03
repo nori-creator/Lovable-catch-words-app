@@ -36,8 +36,12 @@ const KNOWN: Record<string, number> = {
   // 設定の開発者欄「文字検索のAI画像」（管理者だけが見る。2026-09-28 main から）。
   "src/routes/_authenticated/settings.tsx": 12,
   // 利用状況の閲覧・決済・広告の条項を足した（2026-09-28。日本語版そのもの）。
-  "src/routes/privacy.tsx": 32,
-  "src/routes/terms.tsx": 16,
+  // 2026-10-03 外部サービスを実際に送っている先の通りに書き直し、有料プラン（自動更新・解約・
+  // 返金・値段の変更）の条を足した（日本語版そのもの。英語版・繁體中文版と並べて持つ）。
+  "src/routes/privacy.tsx": 43,
+  "src/routes/terms.tsx": 32,
+  // 特定商取引法に基づく表記の日本語版そのもの（正本。英語・繁體中文の訳と並べて持つ）。
+  "src/components/CommerceDisclosure.tsx": 17,
 };
 
 function walk(dir: string): string[] {

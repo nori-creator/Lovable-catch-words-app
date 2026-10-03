@@ -778,6 +778,16 @@ export const DICT: Record<string, Record<UiLang, string>> = {
     en: "Terms of Service — CatchWords",
     "zh-TW": "使用條款 — CatchWords",
   },
+  "page.pricing": {
+    ja: "料金 — CatchWords Pro",
+    en: "Pricing — CatchWords Pro",
+    "zh-TW": "價格 — CatchWords Pro",
+  },
+  "page.commerce": {
+    ja: "特定商取引法に基づく表記 — CatchWords",
+    en: "Commerce disclosure — CatchWords",
+    "zh-TW": "特定商業交易法標示 — CatchWords",
+  },
   // --- 復習・単語カード ---
   // --- 日記の足場(要望 #88) ---
   "rv.streakLine": {
@@ -2768,11 +2778,6 @@ export const DICT: Record<string, Record<UiLang, string>> = {
   "diary.fontCasual": { ja: "ゆるい", en: "Casual", "zh-TW": "隨手寫" },
   "diary.fontBrush": { ja: "楷書", en: "Brush", "zh-TW": "楷書" },
   "diary.fontPlain": { ja: "ふつう", en: "Plain", "zh-TW": "一般" },
-  "legal.onlyJaEn": {
-    ja: "この文書は日本語版と英語版のみです。",
-    en: "This document is available in Japanese and English only.",
-    "zh-TW": "本文件目前僅提供日文版與英文版，以下為英文版。",
-  },
   // 待ちの演出の3段。**どの版でも同じ言葉を使う** — 版ごとに直書きしていた
   // せいで、英語にしても日本語のままの版が7つ残っていた(オーナー指摘 2026-08-20)。
   "scan.stageSensing": {
@@ -3370,6 +3375,178 @@ export const DICT: Record<string, Record<UiLang, string>> = {
     ja: "開発者にだけ見えています（サブスクはまだオフ）",
     en: "Visible to developers only (subscription is still off)",
     "zh-TW": "只有開發者看得到（訂閱尚未開啟）",
+  },
+  // 解約・お支払いの管理（Stripe のカスタマーポータル。2026-10-03）。
+  "pro.activeDev": {
+    ja: "開発者として Pro 扱いです（お支払いはありません）",
+    en: "You have Pro as a developer (no payment)",
+    "zh-TW": "你以開發者身分使用 Pro（無需付款）",
+  },
+  "pro.manage": {
+    ja: "お支払いの管理・解約",
+    en: "Manage payments / cancel",
+    "zh-TW": "管理付款與取消訂閱",
+  },
+  "pro.manageNote": {
+    ja: "解約しても、お支払い済みの期間の終わりまで Pro を使えます。カードの変更・領収書もここから",
+    en: "If you cancel, you keep Pro until the end of the period you've paid for. Change your card or get receipts here too",
+    "zh-TW": "取消後，仍可使用 Pro 到已付款期間結束。也可在這裡更換信用卡、取得收據",
+  },
+  "pro.manageOnWeb": {
+    ja: "お支払いの管理・解約は、Web 版（ブラウザ）の設定からできます",
+    en: "You can manage payments or cancel from Settings in the web version (browser)",
+    "zh-TW": "可在網頁版（瀏覽器）的設定中管理付款或取消訂閱",
+  },
+  "pro.manageNoSub": {
+    ja: "お支払いの記録がまだ見つかりません。お支払いの直後は1分ほどお待ちください",
+    en: "We couldn't find your payment yet. If you just paid, please wait about a minute",
+    "zh-TW": "尚未找到付款紀錄。如果剛付款，請稍候約 1 分鐘",
+  },
+  "pro.manageFailed": {
+    ja: "お支払いの管理の画面を開けませんでした。少し待ってからもう一度お試しください",
+    en: "Couldn't open the payment management page. Please try again shortly",
+    "zh-TW": "無法開啟付款管理頁面，請稍後再試",
+  },
+  "pro.returnOk": {
+    ja: "お支払いありがとうございます。Pro になるまで数秒かかることがあります",
+    en: "Thank you for your payment. It may take a few seconds for Pro to turn on",
+    "zh-TW": "感謝你的付款。Pro 生效可能需要幾秒鐘",
+  },
+  "pro.returnCancel": {
+    ja: "お支払いは行われませんでした。いつでもまた始められます",
+    en: "No payment was made. You can start any time",
+    "zh-TW": "沒有進行付款。你隨時可以再開始",
+  },
+  // 料金の画面（/pro）。無料と Pro の違いは、コードが実際に分けている物だけ（PricingView の注）。
+  "pricing.link": { ja: "料金のご案内", en: "Pricing", "zh-TW": "價格說明" },
+  "pricing.title": { ja: "CatchWords Pro", en: "CatchWords Pro", "zh-TW": "CatchWords Pro" },
+  "pricing.lead": {
+    ja: "撮る・覚える・復習するは、無料のままずっと使えます。Pro は、解説をもっと自分に合う形にしたい人のためのプランです。",
+    en: "Catching, learning and reviewing stay free. Pro is for people who want to shape their explanations further.",
+    "zh-TW": "拍照收集、學習、複習都可以一直免費使用。Pro 適合想讓解說更符合自己需求的人。",
+  },
+  "pricing.compare": { ja: "無料と Pro のちがい", en: "Free vs Pro", "zh-TW": "免費與 Pro 的差別" },
+  "pricing.feature": { ja: "機能", en: "Feature", "zh-TW": "功能" },
+  "pricing.free": { ja: "無料", en: "Free", "zh-TW": "免費" },
+  "pricing.included": { ja: "使えます", en: "Included", "zh-TW": "可使用" },
+  "pricing.notIncluded": { ja: "使えません", en: "Not included", "zh-TW": "不可使用" },
+  "pricing.rowCatch": {
+    ja: "写真から単語をキャッチ・図鑑・地図",
+    en: "Catch words from photos, Dex and map",
+    "zh-TW": "從照片收集單字、圖鑑、地圖",
+  },
+  "pricing.rowBasics": {
+    ja: "意味・発音（音声）・例文などの解説",
+    en: "Meaning, pronunciation (audio), examples and other explanations",
+    "zh-TW": "意思、發音（語音）、例句等解說",
+  },
+  "pricing.rowReview": {
+    ja: "復習（いま思い出せる見込みつき）",
+    en: "Review (with your current recall chance)",
+    "zh-TW": "複習（附上目前記得的機率）",
+  },
+  "pricing.rowReport": {
+    ja: "解説の誤りを報告",
+    en: "Report a mistake in an explanation",
+    "zh-TW": "回報解說的錯誤",
+  },
+  "pricing.reportFree": {
+    ja: "記録し、開発者が確かめてから直します",
+    en: "Recorded; fixed after the developer checks it",
+    "zh-TW": "記錄下來，由開發者確認後修正",
+  },
+  "pricing.reportPro": {
+    ja: "その場で AI が確かめて直します",
+    en: "AI checks and fixes it right away",
+    "zh-TW": "由 AI 立即確認並修正",
+  },
+  "pricing.rowRegen": {
+    ja: "解説の項目をその場で作り直す",
+    en: "Regenerate an explanation section on the spot",
+    "zh-TW": "當場重新產生解說項目",
+  },
+  "pricing.rowModel": {
+    ja: "解説を作る AI",
+    en: "AI that writes explanations",
+    "zh-TW": "產生解說的 AI",
+  },
+  "pricing.modelFree": { ja: "標準", en: "Standard", "zh-TW": "標準" },
+  "pricing.modelPro": { ja: "上位のモデル", en: "Higher-tier model", "zh-TW": "更高階的模型" },
+  "pricing.modelNote": {
+    ja: "使う AI のモデルは、品質の改善のために変わることがあります。",
+    en: "The AI models we use may change as we improve quality.",
+    "zh-TW": "為了提升品質，使用的 AI 模型可能會變更。",
+  },
+  "pricing.price": { ja: "料金", en: "Price", "zh-TW": "價格" },
+  "pricing.notOpenYet": {
+    ja: "Pro のお申し込みは、まだ受け付けていません。始まったらこのページでご案内します。",
+    en: "Pro isn't open for sign-up yet. We'll announce it on this page when it starts.",
+    "zh-TW": "Pro 尚未開放申請。開始後會在此頁面通知。",
+  },
+  "pricing.unavailable": {
+    ja: "料金を読み込めませんでした。少し待ってから開き直してください。",
+    en: "Couldn't load the prices. Please reopen this page shortly.",
+    "zh-TW": "無法載入價格，請稍後重新開啟此頁面。",
+  },
+  "pricing.monthly": { ja: "月ごと", en: "Monthly", "zh-TW": "按月" },
+  "pricing.yearly": { ja: "年ごと", en: "Yearly", "zh-TW": "按年" },
+  "pricing.perMonth": { ja: "／月", en: "/ month", "zh-TW": "／月" },
+  "pricing.perYear": { ja: "／年", en: "/ year", "zh-TW": "／年" },
+  "pricing.perMonthEquiv": {
+    ja: "月あたり {price}",
+    en: "{price} per month",
+    "zh-TW": "每月約 {price}",
+  },
+  "pricing.savings": {
+    ja: "月ごとより {pct}% 安い",
+    en: "{pct}% less than monthly",
+    "zh-TW": "比按月便宜 {pct}%",
+  },
+  "pricing.signupFirst": {
+    ja: "アカウントを作って始める",
+    en: "Create an account to start",
+    "zh-TW": "建立帳號後開始",
+  },
+  "pricing.trial": {
+    ja: "最初の {n} 日間は無料です。体験中に解約すれば料金はかかりません。",
+    en: "The first {n} {n|day is|days are} free. Cancel during the trial and you won't be charged.",
+    "zh-TW": "前 {n} 天免費。在試用期間取消就不會收費。",
+  },
+  "pricing.taxIncluded": {
+    ja: "表示の金額がお支払いの総額です（税込）。",
+    en: "The amount shown is the total you pay (tax included).",
+    "zh-TW": "顯示金額即為應付總額（含稅）。",
+  },
+  "pricing.autoRenew": {
+    ja: "解約しない限り、同じ期間で自動的に更新され、更新日にお支払いが発生します。",
+    en: "It renews automatically for the same term unless you cancel, and you're charged on each renewal date.",
+    "zh-TW": "除非取消，會以相同期間自動續訂，並於續訂日扣款。",
+  },
+  "pricing.cancelAnytime": {
+    ja: "設定の「お支払いの管理・解約」からいつでも解約できます。お支払い済みの期間の終わりまで Pro を使えます。",
+    en: "Cancel any time from “Manage payments / cancel” in Settings. You keep Pro until the end of the period you've paid for.",
+    "zh-TW": "可隨時在設定的「管理付款與取消訂閱」取消，並可使用 Pro 到已付款期間結束。",
+  },
+  "pricing.refund": {
+    ja: "お支払い後の返金・日割りの返金は行いません（法令で必要な場合などを除く）。",
+    en: "Payments aren't refunded, including pro-rata refunds (except where required by law, etc.).",
+    "zh-TW": "付款後不予退款，也不按日退款（依法須退款等情形除外）。",
+  },
+  "pricing.sellerMissing": {
+    ja: "開発者へ: 特定商取引法の表記の連絡先（VITE_SELLER_EMAIL）が未設定です。本番で売る前に設定してください（docs/monetization.md §5-1）",
+    en: "Developer: the contact email for the commerce disclosure (VITE_SELLER_EMAIL) is not set. Set it before selling (docs/monetization.md §5-1)",
+    "zh-TW":
+      "給開發者：特定商業交易法標示的聯絡信箱（VITE_SELLER_EMAIL）尚未設定。正式販售前請先設定（docs/monetization.md §5-1）",
+  },
+  "legal.commerceLink": {
+    ja: "特定商取引法に基づく表記",
+    en: "Commerce disclosure (Japan)",
+    "zh-TW": "特定商業交易法標示",
+  },
+  "legal.jaPrevails": {
+    ja: "この文書の正本は日本語版です。",
+    en: "The Japanese version of this document prevails.",
+    "zh-TW": "本文件為日文版的翻譯，內容如有出入，以日文版為準。",
   },
   "ads.note": {
     ja: "オンにしても、AdMob（広告の部品）をアプリに入れるまでは実際の広告は出ません。手順は docs/monetization.md。",
