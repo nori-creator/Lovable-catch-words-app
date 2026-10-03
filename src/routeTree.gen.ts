@@ -33,6 +33,7 @@ import { Route as ApiNativeAiRouteImport } from './routes/api.native-ai'
 import { Route as ApiNativeFnRouteImport } from './routes/api.native-fn'
 import { Route as ApiObject3dModelRouteImport } from './routes/api.object3d-model'
 import { Route as ApiStripeWebhookRouteImport } from './routes/api.stripe-webhook'
+import { Route as LegalTokushohoRouteImport } from './routes/legal.tokushoho'
 import { Route as DotlovableOauthConsentRouteImport } from './routes/[.]lovable.oauth.consent'
 import { Route as Char91DotmcpChar93InvokeToolToolRouteImport } from './routes/[.mcp]/invoke-tool/$tool'
 import { Route as AuthenticatedAdminDictionaryRouteImport } from './routes/_authenticated/admin.dictionary'
@@ -161,6 +162,11 @@ const ApiStripeWebhookRoute = ApiStripeWebhookRouteImport.update({
   path: '/api/stripe-webhook',
   getParentRoute: () => rootRouteImport,
 } as any)
+const LegalTokushohoRoute = LegalTokushohoRouteImport.update({
+  id: '/legal/tokushoho',
+  path: '/legal/tokushoho',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const DotlovableOauthConsentRoute = DotlovableOauthConsentRouteImport.update({
   id: '/.lovable/oauth/consent',
   path: '/.lovable/oauth/consent',
@@ -220,6 +226,7 @@ export interface FileRoutesByFullPath {
   '/api/native-fn': typeof ApiNativeFnRoute
   '/api/object3d-model': typeof ApiObject3dModelRoute
   '/api/stripe-webhook': typeof ApiStripeWebhookRoute
+  '/legal/tokushoho': typeof LegalTokushohoRoute
   '/.lovable/oauth/consent': typeof DotlovableOauthConsentRoute
   '/.mcp/invoke-tool/$tool': typeof Char91DotmcpChar93InvokeToolToolRoute
   '/admin/dictionary': typeof AuthenticatedAdminDictionaryRoute
@@ -251,6 +258,7 @@ export interface FileRoutesByTo {
   '/api/native-fn': typeof ApiNativeFnRoute
   '/api/object3d-model': typeof ApiObject3dModelRoute
   '/api/stripe-webhook': typeof ApiStripeWebhookRoute
+  '/legal/tokushoho': typeof LegalTokushohoRoute
   '/.lovable/oauth/consent': typeof DotlovableOauthConsentRoute
   '/.mcp/invoke-tool/$tool': typeof Char91DotmcpChar93InvokeToolToolRoute
   '/admin/dictionary': typeof AuthenticatedAdminDictionaryRoute
@@ -284,6 +292,7 @@ export interface FileRoutesById {
   '/api/native-fn': typeof ApiNativeFnRoute
   '/api/object3d-model': typeof ApiObject3dModelRoute
   '/api/stripe-webhook': typeof ApiStripeWebhookRoute
+  '/legal/tokushoho': typeof LegalTokushohoRoute
   '/.lovable/oauth/consent': typeof DotlovableOauthConsentRoute
   '/.mcp/invoke-tool/$tool': typeof Char91DotmcpChar93InvokeToolToolRoute
   '/_authenticated/admin/dictionary': typeof AuthenticatedAdminDictionaryRoute
@@ -317,6 +326,7 @@ export interface FileRouteTypes {
     | '/api/native-fn'
     | '/api/object3d-model'
     | '/api/stripe-webhook'
+    | '/legal/tokushoho'
     | '/.lovable/oauth/consent'
     | '/.mcp/invoke-tool/$tool'
     | '/admin/dictionary'
@@ -348,6 +358,7 @@ export interface FileRouteTypes {
     | '/api/native-fn'
     | '/api/object3d-model'
     | '/api/stripe-webhook'
+    | '/legal/tokushoho'
     | '/.lovable/oauth/consent'
     | '/.mcp/invoke-tool/$tool'
     | '/admin/dictionary'
@@ -380,6 +391,7 @@ export interface FileRouteTypes {
     | '/api/native-fn'
     | '/api/object3d-model'
     | '/api/stripe-webhook'
+    | '/legal/tokushoho'
     | '/.lovable/oauth/consent'
     | '/.mcp/invoke-tool/$tool'
     | '/_authenticated/admin/dictionary'
@@ -405,6 +417,7 @@ export interface RootRouteChildren {
   ApiNativeFnRoute: typeof ApiNativeFnRoute
   ApiObject3dModelRoute: typeof ApiObject3dModelRoute
   ApiStripeWebhookRoute: typeof ApiStripeWebhookRoute
+  LegalTokushohoRoute: typeof LegalTokushohoRoute
   DotlovableOauthConsentRoute: typeof DotlovableOauthConsentRoute
   Char91DotmcpChar93InvokeToolToolRoute: typeof Char91DotmcpChar93InvokeToolToolRoute
 }
@@ -579,6 +592,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiStripeWebhookRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/legal/tokushoho': {
+      id: '/legal/tokushoho'
+      path: '/legal/tokushoho'
+      fullPath: '/legal/tokushoho'
+      preLoaderRoute: typeof LegalTokushohoRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/.lovable/oauth/consent': {
       id: '/.lovable/oauth/consent'
       path: '/.lovable/oauth/consent'
@@ -684,6 +704,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiNativeFnRoute: ApiNativeFnRoute,
   ApiObject3dModelRoute: ApiObject3dModelRoute,
   ApiStripeWebhookRoute: ApiStripeWebhookRoute,
+  LegalTokushohoRoute: LegalTokushohoRoute,
   DotlovableOauthConsentRoute: DotlovableOauthConsentRoute,
   Char91DotmcpChar93InvokeToolToolRoute: Char91DotmcpChar93InvokeToolToolRoute,
 }

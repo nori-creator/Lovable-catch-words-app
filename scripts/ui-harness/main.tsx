@@ -74,6 +74,12 @@ import { DexMapScene } from "./scenes/dex-map";
 import { ScanCameraScene, ScanChipScene, ScanDotsScene, ScanNothingScene } from "./scenes/scan";
 import { AuthScene, ResetPasswordScene } from "./scenes/auth";
 import {
+  LegalPrivacyScene,
+  LegalTermsScene,
+  LegalTokushohoScene,
+  ProPlanScene,
+} from "./scenes/legal";
+import {
   HomeAlbumScene,
   HomeMemorialScene,
   HomeEmptyScene,
@@ -145,6 +151,11 @@ const SCENES: Record<string, ((p: { q: URLSearchParams }) => ReactNode) | undefi
   "chunk-designs": ChunkDesignsScene,
   auth: AuthScene,
   "reset-password": ResetPasswordScene,
+  // 法務の頁と Pro の購入口（2026-10-03 課金の準備）。`&legal=missing` で未設定、`&lang=` で言語。
+  "legal-privacy": LegalPrivacyScene,
+  "legal-terms": LegalTermsScene,
+  "legal-tokushoho": LegalTokushohoScene,
+  "pro-plan": ProPlanScene,
   home: HomeScene,
   "home-shelf": HomeShelfScene,
   "install-app": InstallAppScene,
@@ -320,6 +331,10 @@ const BARE = new Set([
   "first-catch",
   "auth",
   "reset-password",
+  // 法務の頁は本番でもアプリの枠の外（ログイン前にも開く）。
+  "legal-privacy",
+  "legal-terms",
+  "legal-tokushoho",
   "sticker-peel",
   "onboarding",
   "sticker-sheet",

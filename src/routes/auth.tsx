@@ -411,6 +411,10 @@ export function AuthView({
             <a href="/terms">{t("auth.terms")}</a>
             <span aria-hidden="true">·</span>
             <a href="/privacy">{t("auth.privacy")}</a>
+            {/* 名前が長いので、いつも2行目に1つで置く（行末に「·」だけ残さない）。 */}
+            <a href="/legal/tokushoho" className="auth-legal__own-line">
+              {t("legal.tokushoho")}
+            </a>
           </p>
         </div>
       </main>

@@ -6960,18 +6960,59 @@ html[data-motion="reduce"] .tabbar__lens--gone {
 }
 .auth-legal {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: center;
   gap: 0.6rem;
+  row-gap: 1.1rem;
   margin-top: 1.25rem;
   font-size: var(--text-caption);
   color: var(--muted-foreground);
+}
+/* 法務文書の本文（components/legal/）。`prose` の部品（typography）は入っていないので、
+   見出し・段落・箇条書きの間と印をここで決める（2026-10-03。前は箇条書きの点も見出しの
+   大きさも無く、条文が1つの塊に見えていた）。 */
+.legal-doc {
+  font-size: var(--text-body);
+  line-height: 1.75;
+  overflow-wrap: anywhere;
+}
+.legal-doc h2 {
+  margin-top: 1.75rem;
+  margin-bottom: 0.25rem;
+  font-size: var(--text-headline);
+  font-weight: 700;
+  line-height: 1.4;
+}
+.legal-doc p,
+.legal-doc ul,
+.legal-doc ol {
+  margin-top: 0.5rem;
+}
+.legal-doc ul {
+  list-style: disc;
+  padding-left: 1.25rem;
+}
+.legal-doc ol {
+  list-style: decimal;
+  padding-left: 1.5rem;
+}
+.legal-doc li + li {
+  margin-top: 0.35rem;
+}
+.legal-doc a {
+  color: var(--primary-ink, inherit);
+  text-decoration: underline;
 }
 .auth-legal a {
   display: inline-block;
   padding: 0.85rem 0.25rem;
   margin: -0.85rem 0;
   text-decoration: underline;
+}
+.auth-legal a.auth-legal__own-line {
+  flex-basis: 100%;
+  text-align: center;
 }
 
 /* Item reveal: expanding image, name and an original radial burst. */

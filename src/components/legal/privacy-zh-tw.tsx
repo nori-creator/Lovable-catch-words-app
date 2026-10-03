@@ -1,0 +1,198 @@
+import { CHINESE_EXPLANATION_LANGUAGE as ZH } from "@/lib/target-lang";
+import type { LegalPublicInfo } from "@/lib/legal-config";
+import { OperatorDetails, operatorName } from "./operator";
+import { PRIVACY_UPDATED } from "./dates";
+
+/**
+ * 隱私權政策 — `privacy-ja.tsx` の繁體中文（台湾の言い方）訳。
+ * 日本語版が正文（本文の頭に明記）。条文を直したら同じ日にここも直す。
+ */
+export function PrivacyZhTw({ info }: { info: LegalPublicInfo }) {
+  const name = operatorName(info, ZH);
+  return (
+    <>
+      <h1 className="mt-4 text-hero font-bold tracking-tight">隱私權政策</h1>
+      <p className="mt-1 text-footnote text-muted-foreground">最後更新：{PRIVACY_UPDATED[ZH]}</p>
+      <section className="legal-doc mt-6">
+        <p>
+          {name}
+          （以下稱「經營者」）依據日本《個人資料保護法》及其他相關法令，按照以下方式處理
+          CatchWords（以下稱「本服務」）使用者的資料。本文為翻譯版本，內容如與日文版有出入，以日文版為準。
+        </p>
+
+        <h2>1. 我們取得的資料</h2>
+        <ul>
+          <li>
+            帳號資料：電子郵件地址、顯示名稱、個人照片（如有設定）。使用 Google 或 Apple
+            登入時，從該服務取得的電子郵件地址等資料
+          </li>
+          <li>
+            照片：你拍攝或選擇的照片、拍攝後的自拍（在設定中開啟「自拍模式」時）、貼在日記中的照片
+          </li>
+          <li>
+            單字與學習紀錄：你收集的單字、含意思／例句／解說的字卡、圖鑑、日記內容、複習的作答與結果、複習排程
+          </li>
+          <li>
+            使用狀況：開啟 App 的時間、使用的畫面、拍攝／掃描／複習的次數與花費的時間、AI
+            的使用次數與失敗紀錄
+          </li>
+          <li>
+            位置資料：拍照時裝置的位置（緯度、經度）。僅在你允許裝置使用位置資料時取得。在設定中開啟「地點提醒」時，會用開啟
+            App 當下的位置與已儲存的地點比對（當下的位置不會儲存）
+          </li>
+          <li>
+            語言與設定：顯示語言、母語與學習語言、瀏覽器的語言設定（用來決定最初的顯示語言）、主題與音效等設定
+          </li>
+          <li>付費方案資料：是否為 Pro。付款由 Stripe 處理，經營者不會取得你的信用卡號碼</li>
+          <li>錯誤回報：你回報單字錯誤時送出的內容</li>
+          <li>技術資料：為了提供服務，IP 位址、瀏覽器類型等資料會在下列業者的伺服器上處理</li>
+        </ul>
+
+        <h2>2. 使用目的</h2>
+        <ul>
+          <li>提供與營運本服務（登入、儲存、跨裝置同步）</li>
+          <li>分析照片中的物品與文字，並以 AI 產生單字卡、解說、例句與測驗</li>
+          <li>產生發音的朗讀語音</li>
+          <li>搜尋或產生與單字相符的圖片</li>
+          <li>顯示地圖與地點名稱，以及地點提醒的通知</li>
+          <li>計算複習排程（包含記憶的預測）</li>
+          <li>提供付費方案，管理付款與取消訂閱</li>
+          <li>
+            防止不當使用、調查問題與改善服務。經營者會檢視與分析每位使用者的使用數據（拍攝與複習次數、使用天數、各畫面的使用等），但不包含電子郵件地址、精確位置（緯度、經度）、照片與日記內容
+          </li>
+          <li>製作整體統計（使用者人數、持續使用的比例等），統計以無法識別個人的形式處理</li>
+          <li>顯示廣告（僅在啟用廣告時，見第 6 條）</li>
+          <li>回覆詢問</li>
+        </ul>
+
+        <h2>3. 提供給第三方</h2>
+        <p>
+          除法令另有規定外，經營者不會在未經本人同意的情況下將個人資料提供給第三方。提供給第 4
+          條所列業者，是為了提供本服務而委託其處理業務。
+        </p>
+
+        <h2>4. 外部業者（依用途）</h2>
+        <p>
+          使用哪些業者，會依功能與經營者的設定而不同。此清單也包含目前未使用、但切換設定時會使用的業者。
+        </p>
+        <ul>
+          <li>
+            <strong>主機、資料庫與登入</strong>：Lovable（App 的發布與執行環境、AI
+            與地圖請求的中繼）、Supabase（資料庫、身分驗證、照片儲存）、Cloudflare（App
+            的執行基礎設施），以及 Google 或
+            Apple（以該帳號登入時的身分驗證）。本服務的所有資料都在此儲存或處理
+          </li>
+          <li>
+            <strong>AI 分析與產生</strong>
+            ：照片、單字、母語與學習語言、日記內容、複習結果，會送到經營者選擇的下列其中之一：Lovable
+            AI Gateway（以及透過它的 Google Gemini、OpenAI
+            等）、Google（Gemini）、OpenAI、Anthropic、DeepSeek、Moonshot
+            AI（Kimi）、OpenRouter（包含其背後的 AI 業者），或提供 OpenAI 相容 API
+            的業者。另外，單字、例句、候選詞與複習結果也會送到 TypeSafe（Jev），用於判斷與記憶的預測
+          </li>
+          <li>
+            <strong>朗讀語音</strong>：只送出要朗讀的文字（單字與例句）：Microsoft（Azure AI
+            Speech）、Google（Gemini 語音、Cloud Text-to-Speech）、ElevenLabs、MiniMax、Lovable AI
+            Gateway 或 OpenAI 相容 API。產生的語音會以與你無關聯的共用語音儲存
+          </li>
+          <li>
+            <strong>圖片</strong>：只送出單字（搜尋字詞）：Unsplash、Wikimedia
+            Commons、Higgsfield、Lovable AI Gateway（產生圖片）。使用將照片轉為 3D
+            的功能時，該照片會送到 3D 產生業者（例如 Tripo3D）
+          </li>
+          <li>
+            <strong>地圖</strong>：Google（Google 地圖）。顯示地圖時，你的裝置會從 Google
+            載入地圖。以拍照地點的緯度、經度查詢地點名稱時，該緯度、經度會透過 Lovable 的中繼送到
+            Google
+          </li>
+          <li>
+            <strong>付款</strong>：Stripe（付款、帳單、訂閱管理頁面）。電子郵件地址、使用者 ID
+            與付款資料會提供給 Stripe
+          </li>
+          <li>
+            <strong>廣告</strong>：Google（AdSense），僅在啟用廣告時（見第 6 條）
+          </li>
+        </ul>
+
+        <h2>5. 提供給日本以外的業者</h2>
+        <p>
+          上述許多業者位於日本以外（包含美國、中國等），你的資料可能會在日本以外的伺服器上處理與儲存。各國的個人資料保護制度，可參考日本個人情報保護委員會公布的調查資料。同意本政策並使用本服務，即表示你同意將資料提供給位於這些國家的業者。
+        </p>
+
+        <h2>6. 廣告</h2>
+        <p>
+          啟用廣告時，本服務的網頁版會顯示 Google AdSense 提供的廣告。Google 可能使用 Cookie
+          與裝置識別碼來顯示廣告，包括依你的興趣顯示的個人化廣告。關於 Google 如何使用資料，請參閱「
+          <a
+            href="https://policies.google.com/technologies/partner-sites"
+            rel="noopener noreferrer"
+            target="_blank"
+          >
+            Google 如何使用採用 Google 服務的網站或應用程式所收集的資訊
+          </a>
+          」。你可以在
+          <a href="https://adssettings.google.com" rel="noopener noreferrer" target="_blank">
+            Google 廣告設定
+          </a>
+          中關閉個人化廣告。位於歐洲經濟區、英國與瑞士的使用者，會透過 Google
+          的同意訊息確認是否同意。Pro 使用者不會看到廣告。
+        </p>
+
+        <h2>7. 保存期間與刪除</h2>
+        <p>
+          在你擁有帳號期間，我們會保存你的資料。你可以隨時在設定的「刪除帳號」中自行刪除。刪除後無法復原。刪除時會清除：個人檔案與登入帳號、照片（拍攝的照片與個人照片）、單字卡／圖鑑／複習紀錄、日記、掃描與使用狀況的紀錄、AI
+          的使用紀錄、錯誤回報。
+        </p>
+        <p>刪除後，下列資料仍會保留：</p>
+        <ul>
+          <li>
+            你加入辭典的單字詞條（詞目、意思等）。這是與其他使用者共用的辭典的一部分，因此會保留，但會解除與你的關聯
+          </li>
+          <li>發音語音的快取。由單字文字產生的共用語音，與你沒有關聯</li>
+          <li>Stripe 保存的付款與帳單紀錄（依法令與 Stripe 的條款）</li>
+          <li>資料庫備份與伺服器紀錄中的副本，會在各業者的保存期間結束後清除</li>
+          <li>已送到外部業者的資料，依各業者的條款處理</li>
+        </ul>
+        <p>
+          <strong>刪除帳號不會自動取消付費方案。</strong>
+          刪除前，請先在設定的「管理訂閱」中取消。
+        </p>
+
+        <h2>8. 查詢、更正與刪除等請求</h2>
+        <p>
+          你可以要求經營者揭露其保有的你的資料，或要求更正、補充、刪除、停止使用、清除，以及停止提供給第三方。顯示名稱、照片與單字可以直接在
+          App 中修改；帳號與相關資料可以在設定的「刪除帳號」中刪除。其他請求請寄至第 12
+          條的聯絡方式。確認為本人後，我們會依法令處理。
+        </p>
+
+        <h2>9. 兒童</h2>
+        <p>
+          本服務不以未滿 13 歲的兒童為對象，未滿 13 歲者不得使用本服務（使用條款第 2
+          條）。若得知取得了未滿 13 歲兒童的資料，我們會將其刪除。
+        </p>
+
+        <h2>10. Cookie 與本機儲存</h2>
+        <p>
+          本服務會使用瀏覽器的本機儲存（localStorage）與
+          IndexedDB，用來維持登入狀態、記住顯示語言等設定、保存離線時等待上傳的資料，以及暫存圖片與語音。本服務本身不使用追蹤或廣告用的
+          Cookie。但啟用廣告時 Google 會使用 Cookie（第 6 條），顯示地圖時 Google、付款頁面上 Stripe
+          也可能使用各自的 Cookie 等技術。
+        </p>
+
+        <h2>11. 安全管理</h2>
+        <p>
+          連線經過加密（HTTPS），資料庫依使用者限制存取，只有你本人能讀寫自己的資料。外部服務的金鑰只存放在伺服器上；經營者檢視使用狀況時，也依第
+          2 條限制檢視範圍。
+        </p>
+
+        <h2>12. 經營者與聯絡方式</h2>
+        <OperatorDetails info={info} lang={ZH} />
+
+        <h2>13. 本政策的變更</h2>
+        <p>
+          變更本政策時，我們會在本服務中公告。若有新增使用目的等重大變更，會在你繼續使用本服務前再次取得你的同意。
+        </p>
+      </section>
+    </>
+  );
+}

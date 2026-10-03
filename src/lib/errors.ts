@@ -47,6 +47,12 @@ const KNOWN_CODES: Array<[string, string]> = [
   ["AI_DAILY_CAP", "err.dailyCap"],
   ["AI_GLOBAL_CAP", "err.aiBusy"],
   ["AI_USAGE_CHECK_FAILED", "err.usageCheck"],
+  // 購入口・定期購入の管理（`stripe-catalog.ts` の `BILLING_ERRORS`）。
+  ["BILLING_PORTAL_NOT_CONFIGURED", "pro.err.portalNotConfigured"],
+  ["BILLING_NO_CUSTOMER", "pro.err.noCustomer"],
+  ["BILLING_LEGAL_NOT_READY", "pro.err.legalNotReady"],
+  ["BILLING_NOT_CONFIGURED", "pro.err.notConfigured"],
+  ["BILLING_DISABLED", "pro.err.disabled"],
 ];
 
 export function readableError(

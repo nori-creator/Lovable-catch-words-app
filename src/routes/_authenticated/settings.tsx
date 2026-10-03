@@ -66,7 +66,13 @@ import {
 import { getAiModelConfig, listProviderModels, setAiModelConfig } from "@/lib/admin.functions";
 import { recommendedKind, splitSpec, supportsVision } from "@/lib/ai-provider-models";
 import { getAdConfig, setAdConfig } from "@/lib/monetization.functions";
-import { createCheckoutSession, getBillingStatus } from "@/lib/billing.functions";
+import {
+  createBillingPortalSession,
+  createCheckoutSession,
+  getBillingStatus,
+} from "@/lib/billing.functions";
+import { ProPlanCardView, type ProPlanBusy } from "@/components/ProPlanCardView";
+import { LegalLinks } from "@/components/legal/LegalShell";
 import { billingSurface } from "@/lib/stripe-billing";
 import type { AdConfig } from "@/lib/ad-policy";
 import {
@@ -901,6 +907,10 @@ function SettingsPage() {
 
         <SafeSection name="pro">
           <ProPlanCard />
+        </SafeSection>
+
+        <SafeSection name="legal">
+          <LegalLinksCard />
         </SafeSection>
 
         <SafeSection name="admin">
@@ -1761,51 +1771,60 @@ function ImageGenTestPanel() {
  */
 function ProPlanCard() {
   const t = useT();
+  const readable = useReadableError();
   const statusFn = useServerFn(getBillingStatus);
   const checkoutFn = useServerFn(createCheckoutSession);
+  const portalFn = useServerFn(createBillingPortalSession);
   const { data: s } = useQuery({
     queryKey: ["billing-status"],
     queryFn: () => statusFn(),
     staleTime: 60_000,
   });
-  const [busy, setBusy] = useState<null | "monthly" | "yearly">(null);
-  if (!s || !s.enabled || billingSurface(Capacitor.isNativePlatform()) === "none") return null;
+  const [busy, setBusy] = useState<ProPlanBusy>(null);
+  if (!s || billingSurface(Capacitor.isNativePlatform()) === "none") return null;
+  // スイッチがオフでも、**実際に払っている人には解約の口を出す**（請求だけ続く、を作らない）。
+  if (!s.enabled && !s.paidPro) return null;
   const go = async (period: "monthly" | "yearly") => {
     setBusy(period);
     try {
       const { url } = await checkoutFn({ data: { period } });
       window.location.assign(url);
-    } catch {
-      toast.error(t("pro.failed"));
+    } catch (e) {
+      toast.error(readable(e, t("pro.failed")));
+      setBusy(null);
+    }
+  };
+  const manage = async () => {
+    setBusy("manage");
+    try {
+      const { url } = await portalFn();
+      window.location.assign(url);
+    } catch (e) {
+      toast.error(readable(e, t("pro.manageFailed")));
       setBusy(null);
     }
   };
   return (
     <SettingsCard title={t("pro.title")}>
-      {s.isPro ? (
-        <p className="text-body font-semibold">{t("pro.active")}</p>
-      ) : !s.configured ? (
-        <p className="text-footnote text-muted-foreground">{t("pro.notConfigured")}</p>
-      ) : (
-        <div className="grid gap-2">
-          {s.prices.monthly && (
-            <Button onClick={() => void go("monthly")} disabled={busy !== null} className="h-12">
-              {busy === "monthly" ? <Loader2 className="h-4 w-4 animate-spin" /> : t("pro.monthly")}
-            </Button>
-          )}
-          {s.prices.yearly && (
-            <Button
-              variant="outline"
-              onClick={() => void go("yearly")}
-              disabled={busy !== null}
-              className="h-12"
-            >
-              {busy === "yearly" ? <Loader2 className="h-4 w-4 animate-spin" /> : t("pro.yearly")}
-            </Button>
-          )}
-        </div>
-      )}
-      {s.isAdmin && <p className="mt-2 text-caption text-muted-foreground">{t("pro.devOnly")}</p>}
+      <ProPlanCardView
+        status={s}
+        busy={busy}
+        onBuy={(p) => void go(p)}
+        onManage={() => void manage()}
+      />
+    </SettingsCard>
+  );
+}
+
+/**
+ * **規約・プライバシー・特商法の表記へのリンク**（ログインの画面と同じ3つ）。
+ * アプリの中からも、いつでも条件を読み返せるようにする。
+ */
+export function LegalLinksCard() {
+  const t = useT();
+  return (
+    <SettingsCard title={t("legal.sectionTitle")}>
+      <LegalLinks className="text-footnote" />
     </SettingsCard>
   );
 }
