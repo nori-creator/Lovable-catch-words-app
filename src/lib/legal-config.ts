@@ -74,9 +74,17 @@ const clean = (v: string | undefined): string | null => {
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-/** `STRIPE_TRIAL_DAYS` を日数に（数でない・負・大きすぎる値は 0）。 */
+/**
+ * **無料体験の日数**（オーナー決定 2026-10-03「7日間無料にする」「メールで知らせる」）。
+ * `STRIPE_TRIAL_DAYS` が未設定・空なら既定の 7 日。`0` で体験なし。数でない・負・大きすぎる値は 0。
+ * 体験が終わる前の知らせは Stripe の「無料トライアル終了前のリマインダーメール」で送る
+ * （`docs/monetization.md`）。1人1回だけにするのは `billing.functions.ts`（`hadSubscriptionBefore`）。
+ */
+export const DEFAULT_TRIAL_DAYS = 7;
 export function trialDaysFrom(raw: string | undefined): number {
-  const n = Number((raw ?? "").trim() || 0);
+  const s = (raw ?? "").trim();
+  if (!s) return DEFAULT_TRIAL_DAYS;
+  const n = Number(s);
   if (!Number.isFinite(n) || n <= 0 || n > 730) return 0;
   return Math.floor(n);
 }

@@ -228,6 +228,29 @@ function pickCustomer(rows: Array<Record<string, unknown>>, from: "sub" | "custo
 }
 
 /**
+ * **無料体験は1人1回だけ**（2026-10-03）。その人の定期購入が Stripe に1つでも在れば
+ * （解約済み・体験だけで終わった物も含む）true。検索できない時は false（初めての人から
+ * 体験を取り上げない。Stripe の検索の失敗はまれ）。
+ */
+export async function hadSubscriptionBefore(
+  userId: string,
+  secretKey: string,
+  fetchImpl: StripeFetch = fetch,
+): Promise<boolean> {
+  try {
+    const q = encodeURIComponent(`metadata['user_id']:'${quote(userId)}'`);
+    const subs = await stripeGetJson(
+      `/v1/subscriptions/search?query=${q}&limit=1`,
+      secretKey,
+      fetchImpl,
+    );
+    return (subs?.data ?? []).length > 0;
+  } catch {
+    return false;
+  }
+}
+
+/**
  * その人の Stripe の顧客 ID を探す。見つからなければ null。
  * 定期購入の検索が失敗しても、メールの検索は試す（どちらも駄目なら null）。
  */

@@ -3407,9 +3407,9 @@ export const DICT: Record<string, Record<UiLang, string>> = {
     "zh-TW": "比按月省 {n}%",
   },
   "pro.trial": {
-    ja: "最初の {n} 日間は無料です。終わるまでに解約しなければ、その後は自動で料金がかかります。",
-    en: "The first {n} {n|day is|days are} free. Unless you cancel before then, you'll be charged automatically afterwards.",
-    "zh-TW": "前 {n} 天免費。若在結束前未取消，之後會自動收費。",
+    ja: "初めての方は最初の {n} 日間無料です。終わる前にメールでお知らせします。終わるまでに解約しなければ、その後は自動で料金がかかります。",
+    en: "New subscribers get the first {n} {n|day|days} free. We'll email you before it ends. Unless you cancel before then, you'll be charged automatically afterwards.",
+    "zh-TW": "首次訂閱者前 {n} 天免費。結束前會以電子郵件通知。若在結束前未取消，之後會自動收費。",
   },
   "pro.autoRenew": {
     ja: "解約しない限り、同じ周期で自動的に更新され、料金がかかります。",
