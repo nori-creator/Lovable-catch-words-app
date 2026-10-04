@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { lovable } from "@/integrations/lovable/index";
+import { waitForAppleTokenCapture } from "@/lib/apple-token-capture";
 import { tStatic, useT } from "@/lib/i18n";
 import {
   clearLocalSupabaseSession,
@@ -63,6 +64,18 @@ function NativeAuthPage() {
     }) => {
       if (handed.current || cancelled) return;
       handed.current = true;
+      void handOffAfterCapture(session);
+    };
+    const handOffAfterCapture = async (session: {
+      access_token: string;
+      refresh_token: string;
+      expires_at?: number;
+      expires_in?: number;
+    }) => {
+      // Apple でサインインした時の token をサーバに預け終わるのを待ってから戻る
+      // （戻るとこのページは閉じる。退会の時の取り消し用。`apple-token-capture.ts`）。最大 3 秒。
+      await waitForAppleTokenCapture(3000);
+      if (cancelled) return;
       const url = nativeCallbackUrl(session, state);
       clearLocalSupabaseSession(window.localStorage);
       setAppUrl(url);

@@ -12,7 +12,6 @@
 |---|---|---|
 | Azure AI Speech（Microsoft） | 使える。台湾華語専用の声あり | `AZURE_SPEECH_KEY` と `AZURE_SPEECH_REGION` |
 | ElevenLabs | 使える | `ELEVENLABS_API_KEY` |
-| MiniMax | 使える | `MINIMAX_API_KEY` |
 | VoAI / ATEN | **未接続**（公式の API 仕様を入手できていない） | — |
 
 何も選ばなければ「これまでの声（既定）」で鳴ります。

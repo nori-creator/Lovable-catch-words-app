@@ -3,7 +3,6 @@
  * - 絵の生成は枠を確保してから（`searchImagesWith`、H3）
  * - その人の回数は1回で数えて入れる（`reserveUsageRow`、M1）
  * - 外から取る画像の大きさの上限（`readCappedBytes`、L6）
- * - 3D の中継は開発者だけ（`authorizeModelRequest`、L6）
  * - チュートリアルの上限の失敗を画面のコードに直す（`firstCatchCapError`、H4/M8）
  */
 import fs from "node:fs";
@@ -23,7 +22,6 @@ import { searchImagesWith } from "./images.functions";
 import { dailyCapMessage, GLOBAL_CAP_MESSAGE } from "./ai-cap";
 import { isMissingRpc, reserveUsageRow, type UsageReserveDb } from "./usage-reserve";
 import { MAX_PROXY_IMAGE_BYTES, TOO_LARGE_MESSAGE, readCappedBytes } from "./byte-cap";
-import { authorizeModelRequest } from "./object3d-auth.server";
 import { firstCatchCapError } from "./first-catch-ai.server";
 
 const fetchMock = vi.fn();
@@ -194,34 +192,6 @@ describe("readCappedBytes — 外から取る中身の上限（L6）", () => {
     });
     await expect(readCappedBytes(new Response(body), 10)).rejects.toThrow(TOO_LARGE_MESSAGE);
     expect(pulled).toBeLessThan(10);
-  });
-});
-
-describe("authorizeModelRequest — 3D の中継は開発者だけ（L6）", () => {
-  const req = (auth?: string) =>
-    new Request("https://x.test/api/object3d-model?url=a", {
-      headers: auth ? { authorization: auth } : {},
-    });
-  const deps = (userId: string | null, admin: boolean) => ({
-    verify: async () => userId,
-    isAdmin: async () => admin,
-  });
-
-  it("トークンが無ければ 401", async () => {
-    expect((await authorizeModelRequest(req(), deps("u1", true)))?.status).toBe(401);
-    expect((await authorizeModelRequest(req("Basic x"), deps("u1", true)))?.status).toBe(401);
-  });
-
-  it("確かめられないトークンは 401", async () => {
-    expect((await authorizeModelRequest(req("Bearer bad"), deps(null, true)))?.status).toBe(401);
-  });
-
-  it("管理者でなければ 403", async () => {
-    expect((await authorizeModelRequest(req("Bearer ok"), deps("u1", false)))?.status).toBe(403);
-  });
-
-  it("管理者なら通す", async () => {
-    expect(await authorizeModelRequest(req("Bearer ok"), deps("u1", true))).toBeNull();
   });
 });
 

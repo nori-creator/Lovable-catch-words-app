@@ -12,16 +12,19 @@ export function TermsEn({ info }: { info: LegalPublicInfo }) {
       <section className="legal-doc mt-6">
         <h2>1. Scope</h2>
         <p>
-          These terms set out the conditions for using CatchWords (“the Service”), provided by{" "}
-          {name} (“the operator”). By using the Service you are deemed to have agreed to these
-          terms. This is a translation; if it differs from the Japanese version, the Japanese
-          version prevails.
+          These terms set out the conditions for using CatchWords (the iPhone app and the web
+          version; “the Service”), provided by {name} (“the operator”). By using the Service you are
+          deemed to have agreed to these terms. This is a translation; if it differs from the
+          Japanese version, the Japanese version prevails.
         </p>
 
         <h2>2. Accounts</h2>
         <p>
           You are responsible for creating your account with accurate information and for keeping
-          your credentials secure. The Service is not available to anyone under 13 years of age.
+          your credentials secure. The Service is not available to anyone under 13 years of age. If
+          you are under 18, get your parent's or guardian's consent before using the Service or
+          buying the paid plan. You can delete your account and leave at any time from “Delete
+          account” in Settings.
         </p>
 
         <h2>3. Your content</h2>
@@ -32,15 +35,32 @@ export function TermsEn({ info }: { info: LegalPublicInfo }) {
 
         <h2>4. Prohibited conduct</h2>
         <ul>
-          <li>Infringing others' rights (portrait rights, copyright and so on)</li>
+          <li>
+            Infringing others' rights (portrait rights, copyright and so on), including
+            photographing or adding people without their permission
+          </li>
+          <li>
+            Adding obscene, violent or discriminatory content, or content sexualising children
+          </li>
           <li>Misusing location data, including stalking</li>
           <li>
             Interfering with the operation of the Service, including unauthorised access and
             automated mass use
           </li>
+          <li>
+            Getting around usage limits, instructing the AI to behave in unintended ways, or
+            selling, redistributing or using the Service or its AI-generated content to develop
+            other AI services without permission
+          </li>
+          <li>Impersonating others</li>
           <li>Fraudulent use of payments</li>
           <li>Anything illegal or contrary to public order and morals</li>
         </ul>
+        <p>
+          If you break these terms, the operator may remove your content, suspend your use of the
+          Service or delete your account. Except in an emergency, the operator will tell you in
+          advance where possible.
+        </p>
 
         <h2>5. AI-generated content</h2>
         <p>
@@ -49,6 +69,16 @@ export function TermsEn({ info }: { info: LegalPublicInfo }) {
           errors, and the operator does not warrant its accuracy or completeness. Use it as a study
           aid, and check anything important against a dictionary or a qualified person. If you find
           an error, you can report it with “Report an error in this entry” on that word.
+        </p>
+        <p>
+          Do not rely on the Service to decide whether food, plants, mushrooms, medicines and the
+          like are safe, or for medical, health or allergy decisions.
+        </p>
+        <p>
+          When you use AI features, photos and text are sent to the external providers listed in the
+          Privacy Policy. The iPhone app asks for your consent to this before you first use an AI
+          feature. If you do not consent, AI features are unavailable, but the rest of the Service
+          still works.
         </p>
 
         <h2>6. Paid plan (subscription)</h2>
@@ -91,7 +121,11 @@ export function TermsEn({ info }: { info: LegalPublicInfo }) {
               are charged.
             </li>
           )}
-          <li>The paid plan cannot be purchased inside the iPhone or Android app.</li>
+          <li>
+            The paid plan cannot be purchased inside the iPhone or Android app. Before purchases in
+            the iPhone app (Apple in-app purchase) start, this section and the Legal notice will be
+            revised and announced in the Service.
+          </li>
           <li>
             For the full conditions of sale, see the{" "}
             <a href="/legal/tokushoho">Legal notice (Specified Commercial Transactions Act)</a>.
@@ -143,10 +177,58 @@ export function TermsEn({ info }: { info: LegalPublicInfo }) {
           These terms are governed by the laws of Japan.{" "}
           {info.jurisdictionCourt
             ? `Any dispute relating to the Service shall be subject to the exclusive jurisdiction of the ${info.jurisdictionCourt} as the court of first instance.`
-            : "Any dispute relating to the Service shall be brought before the court that has jurisdiction under Japan's Code of Civil Procedure."}
+            : "Any dispute relating to the Service shall be brought before the court that has jurisdiction under Japan's Code of Civil Procedure."}{" "}
+          This does not take away the protection that mandatory consumer protection laws of your
+          country of residence give you as a consumer.
         </p>
 
-        <h2>12. Contact</h2>
+        <h2>12. The iPhone app obtained from the App Store</h2>
+        <p>
+          For the iPhone app obtained from the App Store (“the App”), the following applies in
+          addition to the rest of these terms. If they conflict, this section prevails for the App.
+        </p>
+        <ol>
+          <li>
+            These terms are an agreement between you and the operator, not with Apple Inc.
+            (“Apple”). The operator, not Apple, is responsible for the App and its content.
+          </li>
+          <li>
+            The operator grants you a non-transferable right to use the App on Apple-branded
+            products that you own or control, as permitted by the Usage Rules in the Apple Media
+            Services Terms and Conditions.
+          </li>
+          <li>
+            The operator alone is responsible for maintenance and support of the App; Apple has no
+            obligation to provide any.
+          </li>
+          <li>
+            If the App fails to conform to any applicable warranty, you may notify Apple, and Apple
+            will refund the purchase price of the App (if any). To the maximum extent permitted by
+            law, Apple has no other warranty obligation with respect to the App.
+          </li>
+          <li>
+            The operator, not Apple, is responsible for addressing any claims relating to the App
+            (including product liability, failure to conform to legal or regulatory requirements,
+            and claims under consumer protection, privacy or similar laws) and any claim that the
+            App infringes a third party's intellectual property rights.
+          </li>
+          <li>
+            You represent and warrant that you are not located in a country subject to a U.S.
+            Government embargo or designated as a “terrorist supporting” country, and that you are
+            not listed on any U.S. Government list of prohibited or restricted parties.
+          </li>
+          <li>
+            You must comply with applicable third-party terms (such as your mobile carrier's) when
+            using the App.
+          </li>
+          <li>
+            Apple and its subsidiaries are third-party beneficiaries of these terms, and upon your
+            acceptance Apple has the right to enforce them against you.
+          </li>
+          <li>Send questions, complaints or claims about the App to the contact in section 13.</li>
+        </ol>
+
+        <h2>13. Contact</h2>
         <OperatorDetails info={info} lang="en" />
       </section>
     </>

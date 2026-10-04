@@ -38,6 +38,8 @@ export const BILLING_ERRORS = {
   noCustomer: "BILLING_NO_CUSTOMER",
   portalNotConfigured: "BILLING_PORTAL_NOT_CONFIGURED",
   portalFailed: "BILLING_PORTAL_FAILED",
+  /** 最終確認で見せた値段・無料期間が、今の物と違う（確認を出し直す）。 */
+  termsChanged: "BILLING_TERMS_CHANGED",
 } as const;
 
 const API = "https://api.stripe.com";

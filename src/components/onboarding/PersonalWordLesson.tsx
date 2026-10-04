@@ -1,4 +1,6 @@
 import { useEffect, useRef, useState } from "react";
+import { AI_CONSENT_VERSION } from "@/lib/ai-consent";
+import { localConsentGranted } from "@/lib/ai-consent-client";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { Loader2, Sparkles } from "lucide-react";
@@ -96,13 +98,17 @@ export function PersonalWordLesson({
         targetLanguage: normalizeTargetLanguage(language),
         uiLanguage,
         preferences: source!.preferences,
+        // 外部の AI へ送る同意（登録した人は、この端末に写したサーバの同意。`ai-consent.ts`）。
+        ...(context ? {} : { aiConsentVersion: AI_CONSENT_VERSION }),
       };
       const response = context?.request ? await context.request(data) : await call({ data });
       return PersonalLessonSchema.parse(response);
     },
     enabled:
       !!source &&
-      !!(context || source.preferences.goals.length || source.preferences.interests.length),
+      !!(context || source.preferences.goals.length || source.preferences.interests.length) &&
+      // 同意していない人の分は頼まない（何も送らない）。チュートリアルは渡された口が聞く。
+      (!!context || localConsentGranted(`user:${source.id}`)),
     initialData: context?.initial,
     staleTime: 24 * 60 * 60 * 1000,
     retry: false,

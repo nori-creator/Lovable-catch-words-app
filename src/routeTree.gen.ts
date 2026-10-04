@@ -18,7 +18,9 @@ import { Route as NativeAuthRouteImport } from './routes/native-auth'
 import { Route as PrivacyRouteImport } from './routes/privacy'
 import { Route as ResetPasswordRouteImport } from './routes/reset-password'
 import { Route as SitemapDotxmlRouteImport } from './routes/sitemap[.]xml'
+import { Route as SupportRouteImport } from './routes/support'
 import { Route as TermsRouteImport } from './routes/terms'
+import { Route as TokushohoRouteImport } from './routes/tokushoho'
 import { Route as WelcomeRouteImport } from './routes/welcome'
 import { Route as Char91DotmcpChar93ListToolsRouteImport } from './routes/[.mcp]/list-tools'
 import { Route as Char91DotwellKnownChar93OauthProtectedResourceRouteImport } from './routes/[.well-known]/oauth-protected-resource'
@@ -32,7 +34,6 @@ import { Route as AuthenticatedScanRouteImport } from './routes/_authenticated/s
 import { Route as AuthenticatedSettingsRouteImport } from './routes/_authenticated/settings'
 import { Route as ApiNativeAiRouteImport } from './routes/api.native-ai'
 import { Route as ApiNativeFnRouteImport } from './routes/api.native-fn'
-import { Route as ApiObject3dModelRouteImport } from './routes/api.object3d-model'
 import { Route as ApiStripeWebhookRouteImport } from './routes/api.stripe-webhook'
 import { Route as LegalTokushohoRouteImport } from './routes/legal.tokushoho'
 import { Route as DotlovableOauthConsentRouteImport } from './routes/[.]lovable.oauth.consent'
@@ -87,9 +88,19 @@ const SitemapDotxmlRoute = SitemapDotxmlRouteImport.update({
   path: '/sitemap.xml',
   getParentRoute: () => rootRouteImport,
 } as any)
+const SupportRoute = SupportRouteImport.update({
+  id: '/support',
+  path: '/support',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const TermsRoute = TermsRouteImport.update({
   id: '/terms',
   path: '/terms',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const TokushohoRoute = TokushohoRouteImport.update({
+  id: '/tokushoho',
+  path: '/tokushoho',
   getParentRoute: () => rootRouteImport,
 } as any)
 const WelcomeRoute = WelcomeRouteImport.update({
@@ -159,11 +170,6 @@ const ApiNativeFnRoute = ApiNativeFnRouteImport.update({
   path: '/api/native-fn',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ApiObject3dModelRoute = ApiObject3dModelRouteImport.update({
-  id: '/api/object3d-model',
-  path: '/api/object3d-model',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const ApiStripeWebhookRoute = ApiStripeWebhookRouteImport.update({
   id: '/api/stripe-webhook',
   path: '/api/stripe-webhook',
@@ -223,7 +229,9 @@ export interface FileRoutesByFullPath {
   '/privacy': typeof PrivacyRoute
   '/reset-password': typeof ResetPasswordRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
+  '/support': typeof SupportRoute
   '/terms': typeof TermsRoute
+  '/tokushoho': typeof TokushohoRoute
   '/welcome': typeof WelcomeRoute
   '/.mcp/list-tools': typeof Char91DotmcpChar93ListToolsRoute
   '/.well-known/oauth-protected-resource': typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
@@ -237,7 +245,6 @@ export interface FileRoutesByFullPath {
   '/settings': typeof AuthenticatedSettingsRoute
   '/api/native-ai': typeof ApiNativeAiRoute
   '/api/native-fn': typeof ApiNativeFnRoute
-  '/api/object3d-model': typeof ApiObject3dModelRoute
   '/api/stripe-webhook': typeof ApiStripeWebhookRoute
   '/legal/tokushoho': typeof LegalTokushohoRoute
   '/.lovable/oauth/consent': typeof DotlovableOauthConsentRoute
@@ -257,7 +264,9 @@ export interface FileRoutesByTo {
   '/privacy': typeof PrivacyRoute
   '/reset-password': typeof ResetPasswordRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
+  '/support': typeof SupportRoute
   '/terms': typeof TermsRoute
+  '/tokushoho': typeof TokushohoRoute
   '/welcome': typeof WelcomeRoute
   '/.mcp/list-tools': typeof Char91DotmcpChar93ListToolsRoute
   '/.well-known/oauth-protected-resource': typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
@@ -271,7 +280,6 @@ export interface FileRoutesByTo {
   '/settings': typeof AuthenticatedSettingsRoute
   '/api/native-ai': typeof ApiNativeAiRoute
   '/api/native-fn': typeof ApiNativeFnRoute
-  '/api/object3d-model': typeof ApiObject3dModelRoute
   '/api/stripe-webhook': typeof ApiStripeWebhookRoute
   '/legal/tokushoho': typeof LegalTokushohoRoute
   '/.lovable/oauth/consent': typeof DotlovableOauthConsentRoute
@@ -293,7 +301,9 @@ export interface FileRoutesById {
   '/privacy': typeof PrivacyRoute
   '/reset-password': typeof ResetPasswordRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
+  '/support': typeof SupportRoute
   '/terms': typeof TermsRoute
+  '/tokushoho': typeof TokushohoRoute
   '/welcome': typeof WelcomeRoute
   '/.mcp/list-tools': typeof Char91DotmcpChar93ListToolsRoute
   '/.well-known/oauth-protected-resource': typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
@@ -307,7 +317,6 @@ export interface FileRoutesById {
   '/_authenticated/settings': typeof AuthenticatedSettingsRoute
   '/api/native-ai': typeof ApiNativeAiRoute
   '/api/native-fn': typeof ApiNativeFnRoute
-  '/api/object3d-model': typeof ApiObject3dModelRoute
   '/api/stripe-webhook': typeof ApiStripeWebhookRoute
   '/legal/tokushoho': typeof LegalTokushohoRoute
   '/.lovable/oauth/consent': typeof DotlovableOauthConsentRoute
@@ -329,7 +338,9 @@ export interface FileRouteTypes {
     | '/privacy'
     | '/reset-password'
     | '/sitemap.xml'
+    | '/support'
     | '/terms'
+    | '/tokushoho'
     | '/welcome'
     | '/.mcp/list-tools'
     | '/.well-known/oauth-protected-resource'
@@ -343,7 +354,6 @@ export interface FileRouteTypes {
     | '/settings'
     | '/api/native-ai'
     | '/api/native-fn'
-    | '/api/object3d-model'
     | '/api/stripe-webhook'
     | '/legal/tokushoho'
     | '/.lovable/oauth/consent'
@@ -363,7 +373,9 @@ export interface FileRouteTypes {
     | '/privacy'
     | '/reset-password'
     | '/sitemap.xml'
+    | '/support'
     | '/terms'
+    | '/tokushoho'
     | '/welcome'
     | '/.mcp/list-tools'
     | '/.well-known/oauth-protected-resource'
@@ -377,7 +389,6 @@ export interface FileRouteTypes {
     | '/settings'
     | '/api/native-ai'
     | '/api/native-fn'
-    | '/api/object3d-model'
     | '/api/stripe-webhook'
     | '/legal/tokushoho'
     | '/.lovable/oauth/consent'
@@ -398,7 +409,9 @@ export interface FileRouteTypes {
     | '/privacy'
     | '/reset-password'
     | '/sitemap.xml'
+    | '/support'
     | '/terms'
+    | '/tokushoho'
     | '/welcome'
     | '/.mcp/list-tools'
     | '/.well-known/oauth-protected-resource'
@@ -412,7 +425,6 @@ export interface FileRouteTypes {
     | '/_authenticated/settings'
     | '/api/native-ai'
     | '/api/native-fn'
-    | '/api/object3d-model'
     | '/api/stripe-webhook'
     | '/legal/tokushoho'
     | '/.lovable/oauth/consent'
@@ -434,13 +446,14 @@ export interface RootRouteChildren {
   PrivacyRoute: typeof PrivacyRoute
   ResetPasswordRoute: typeof ResetPasswordRoute
   SitemapDotxmlRoute: typeof SitemapDotxmlRoute
+  SupportRoute: typeof SupportRoute
   TermsRoute: typeof TermsRoute
+  TokushohoRoute: typeof TokushohoRoute
   WelcomeRoute: typeof WelcomeRoute
   Char91DotmcpChar93ListToolsRoute: typeof Char91DotmcpChar93ListToolsRoute
   Char91DotwellKnownChar93OauthProtectedResourceRoute: typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
   ApiNativeAiRoute: typeof ApiNativeAiRoute
   ApiNativeFnRoute: typeof ApiNativeFnRoute
-  ApiObject3dModelRoute: typeof ApiObject3dModelRoute
   ApiStripeWebhookRoute: typeof ApiStripeWebhookRoute
   LegalTokushohoRoute: typeof LegalTokushohoRoute
   DotlovableOauthConsentRoute: typeof DotlovableOauthConsentRoute
@@ -512,11 +525,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SitemapDotxmlRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/support': {
+      id: '/support'
+      path: '/support'
+      fullPath: '/support'
+      preLoaderRoute: typeof SupportRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/terms': {
       id: '/terms'
       path: '/terms'
       fullPath: '/terms'
       preLoaderRoute: typeof TermsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/tokushoho': {
+      id: '/tokushoho'
+      path: '/tokushoho'
+      fullPath: '/tokushoho'
+      preLoaderRoute: typeof TokushohoRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/welcome': {
@@ -608,13 +635,6 @@ declare module '@tanstack/react-router' {
       path: '/api/native-fn'
       fullPath: '/api/native-fn'
       preLoaderRoute: typeof ApiNativeFnRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/object3d-model': {
-      id: '/api/object3d-model'
-      path: '/api/object3d-model'
-      fullPath: '/api/object3d-model'
-      preLoaderRoute: typeof ApiObject3dModelRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/stripe-webhook': {
@@ -737,14 +757,15 @@ const rootRouteChildren: RootRouteChildren = {
   PrivacyRoute: PrivacyRoute,
   ResetPasswordRoute: ResetPasswordRoute,
   SitemapDotxmlRoute: SitemapDotxmlRoute,
+  SupportRoute: SupportRoute,
   TermsRoute: TermsRoute,
+  TokushohoRoute: TokushohoRoute,
   WelcomeRoute: WelcomeRoute,
   Char91DotmcpChar93ListToolsRoute: Char91DotmcpChar93ListToolsRoute,
   Char91DotwellKnownChar93OauthProtectedResourceRoute:
     Char91DotwellKnownChar93OauthProtectedResourceRoute,
   ApiNativeAiRoute: ApiNativeAiRoute,
   ApiNativeFnRoute: ApiNativeFnRoute,
-  ApiObject3dModelRoute: ApiObject3dModelRoute,
   ApiStripeWebhookRoute: ApiStripeWebhookRoute,
   LegalTokushohoRoute: LegalTokushohoRoute,
   DotlovableOauthConsentRoute: DotlovableOauthConsentRoute,

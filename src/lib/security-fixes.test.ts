@@ -2,7 +2,6 @@
  * 監査 2026-10-03 の残りの直しを、動かして確かめる。
  * - 復習の「今日」は台湾の日付（`startOfAppDay`）
  * - 発音の共有の置き場は辞書の文だけ（`isShareableTtsText`）
- * - 3D の中継の大きさの上限（`capByteStream` / `declaredTooLarge`）
  * - 退会の写真の掃除は下の階層まで（`removeAllUnder`）
  * - 札を消すときの写真の置き場所は自分の物だけ（`stickerStoragePaths`）
  * - /api/native-ai は既定で閉じる（`nativeAiEnabled`）
@@ -14,7 +13,6 @@ vi.mock("@/integrations/supabase/client.server", () => ({ supabaseAdmin: {} }));
 
 import { startOfAppDay, taipeiDay } from "./taipei-day";
 import { isShareableTtsText, type TtsShareDb } from "./tts-share";
-import { MAX_MODEL_BYTES, capByteStream, declaredTooLarge } from "./object3d";
 import { removeAllUnder, type StorageBucket, type StorageEntry } from "./storage-cleanup";
 import { stickerStoragePaths } from "./stickers.functions";
 import { nativeAiEnabled } from "./native-ai";
@@ -107,40 +105,6 @@ describe("isShareableTtsText（全員の音の置き場に貯めてよい文）"
 
   it("調べられないときは貯めない側に倒す", async () => {
     expect(await isShareableTtsText(db(tables, true).client, "zh-TW", "腳踏車")).toBe(false);
-  });
-});
-
-describe("3D の形の中継の大きさの上限", () => {
-  const stream = (chunks: number[]) =>
-    new ReadableStream<Uint8Array>({
-      start(c) {
-        for (const n of chunks) c.enqueue(new Uint8Array(n));
-        c.close();
-      },
-    });
-  const drain = async (s: ReadableStream<Uint8Array>) => {
-    let total = 0;
-    const reader = s.getReader();
-    for (;;) {
-      const { done, value } = await reader.read();
-      if (done) return total;
-      total += value.byteLength;
-    }
-  };
-
-  it("上限以内はそのまま流す", async () => {
-    expect(await drain(capByteStream(stream([10, 20, 30]), 60))).toBe(60);
-  });
-
-  it("上限を超えたら止める（content-length を付けない配信先でも）", async () => {
-    await expect(drain(capByteStream(stream([40, 40]), 60))).rejects.toThrow("too large");
-  });
-
-  it("content-length が上限を超えていれば先に断る", () => {
-    expect(declaredTooLarge(String(MAX_MODEL_BYTES + 1))).toBe(true);
-    expect(declaredTooLarge(String(MAX_MODEL_BYTES))).toBe(false);
-    expect(declaredTooLarge(null)).toBe(false);
-    expect(declaredTooLarge("abc")).toBe(false);
   });
 });
 

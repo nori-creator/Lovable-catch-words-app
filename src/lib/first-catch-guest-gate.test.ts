@@ -70,6 +70,8 @@ const input = {
   targetLanguage: "zh-TW",
   uiLanguage: "ja",
   preferences: { dailyMinutes: 5, goals: [], interests: [] },
+  // この端末で「外部の AI へ送る」同意をした版（`ai-consent.ts`）。
+  aiConsentVersion: 1,
 };
 const request = (headers: Record<string, string>) =>
   new Request("https://app.example/_serverFn/x", { method: "POST", headers });
@@ -88,6 +90,19 @@ afterEach(() => {
 });
 
 describe("executeGuestFirstCatch", () => {
+  it("この端末で同意していなければ、枠も AI も使わずに断る", async () => {
+    const { aiConsentVersion: _omit, ...noConsent } = input;
+    void _omit;
+    await expect(
+      executeGuestFirstCatch(
+        noConsent,
+        request({ origin: "https://app.example", "x-forwarded-for": "1.2.3.4" }),
+      ),
+    ).rejects.toThrow("AI_CONSENT_REQUIRED");
+    expect(state.rows).toEqual([]);
+    expect(generateFirstCatchAI).not.toHaveBeenCalled();
+  });
+
   it("refuses a call without Origin before spending anything", async () => {
     await expect(
       executeGuestFirstCatch(input, request({ "x-forwarded-for": "1.2.3.4" })),

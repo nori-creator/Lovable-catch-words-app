@@ -126,6 +126,8 @@ export const correctMyJournal = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) => CorrectInput.parse(input))
   .handler(async ({ context, data }) => {
+    // 外部の AI へ送る前の同意（`ai-consent.ts`）。無ければ何も送らずに断る。
+    await (await import("./ai-consent.server")).assertAiConsent(context.userId);
     const { supabase, userId } = context;
     await assertWithinDailyCap(userId, "correction");
     const { today, stickers } = await getTodaysCaptures(supabase, userId);
@@ -326,6 +328,15 @@ export type JournalScaffold = {
 export const getJournalPrompts = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }): Promise<JournalScaffold | null> => {
+    // 外部の AI へ送る前の同意（`ai-consent.ts`）。書き出しの質問はおまけなので、同意が
+    // 無ければ何も送らずに「質問なし」で返す（日記の画面は止めない）。
+    try {
+      await (await import("./ai-consent.server")).assertAiConsent(context.userId);
+    } catch (e) {
+      const { isAiConsentError } = await import("./ai-consent");
+      if (isAiConsentError(e)) return null;
+      throw e;
+    }
     const { supabase, userId } = context;
     const { stickers } = await getTodaysCaptures(supabase, userId);
     // **今日の材料が無ければ何も出さない。** 上限も使わない(AIを呼ばない)。

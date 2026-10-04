@@ -38,12 +38,16 @@ const KNOWN: Record<string, number> = {
   // 法務文書の**日本語版そのもの**（2026-10-03 に route から components/legal/ へ移し、
   // 繁體中文版を足した。英語・繁體中文の版は別のファイルで、ここには数えられない）。
   // 外部事業者・広告・保存期間・有料プランの条項を書き直したので行数が増えた。
-  "src/components/legal/privacy-ja.tsx": 92,
-  "src/components/legal/terms-ja.tsx": 48,
+  // 2026-10-03 iPhone アプリの扱い（声で調べる・AI への送信の同意・端末の中の保存）、外国の
+  // 事業者の国と制度、安全管理の措置、地域ごとの追加事項、App Store の条項を足した。
+  "src/components/legal/privacy-ja.tsx": 148,
+  "src/components/legal/terms-ja.tsx": 79,
   // 特商法の表記の日本語の見出しと固定の文（3言語の表の ja の列。ja: の鍵の形でないので数える）。
   "src/components/legal/TokushohoDocument.tsx": 20,
   // 運営者の欄の日本語の見出し（同上、3言語の表の ja の列）。
   "src/components/legal/operator.tsx": 4,
+  // サポートの頁の日本語の見出しと案内（3言語の表の ja の列。2026-10-03）。
+  "src/components/legal/SupportDocument.tsx": 12,
 };
 
 function walk(dir: string): string[] {

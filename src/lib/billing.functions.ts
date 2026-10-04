@@ -2,6 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { siteUrlFor } from "@/lib/site-url";
+import { UI_LANGS } from "@/lib/i18n";
 import { checkoutForm } from "@/lib/stripe-billing";
 import { checkoutAllowedByLegal, readLegalConfig } from "@/lib/legal-config";
 import {
@@ -78,8 +79,13 @@ export type BillingStatus = {
   legalReady: boolean;
   /** 購入ボタンを押してよいか（表記がそろう、またはテスト用の鍵で開発者）。 */
   checkoutAllowed: boolean;
-  /** 無料体験の日数（0 は無し）。 */
+  /** 無料体験の日数（0 は無し）。設定の値（特商法の頁・規約と同じ）。 */
   trialDays: number;
+  /**
+   * **この人が今申し込んだら付く**無料体験の日数（前に定期購入がある人は 0）。申込みの最終確認
+   * （`ProCheckoutConfirm`）はこれを出し、購入口（`createCheckoutSession`）も同じ値を確かめる。
+   */
+  trialEligibleDays: number;
   /** 開発者にだけ返す: 足りない設定の名前。 */
   adminIssues: string[];
 };
@@ -112,21 +118,36 @@ export const getBillingStatus = createServerFn({ method: "GET" })
       if (prices.error) adminIssues.push("STRIPE_PRICE_* (Stripe price not readable)");
       adminIssues.push(...legal.missing);
     }
+    const checkoutAllowed = checkoutAllowedByLegal({
+      legalReady: legal.ready,
+      isAdmin: Boolean(isAdmin),
+      secretKey: env.STRIPE_SECRET_KEY,
+    });
+    const isPro = await isProUser(context.userId);
+    // 無料体験は1人1回だけ。買える人に出す時だけ Stripe に聞く（購入口と同じ決め方）。
+    const trialEligibleDays =
+      legal.trialDays > 0 &&
+      configured &&
+      enabled &&
+      checkoutAllowed &&
+      !isPro &&
+      env.STRIPE_SECRET_KEY
+        ? (await hadSubscriptionBefore(context.userId, env.STRIPE_SECRET_KEY))
+          ? 0
+          : legal.trialDays
+        : 0;
     return {
       enabled,
       configured,
-      isPro: await isProUser(context.userId),
+      isPro,
       paidPro,
       isAdmin: Boolean(isAdmin),
       prices: { monthly: prices.monthly, yearly: prices.yearly },
       priceError: prices.error,
       legalReady: legal.ready,
-      checkoutAllowed: checkoutAllowedByLegal({
-        legalReady: legal.ready,
-        isAdmin: Boolean(isAdmin),
-        secretKey: env.STRIPE_SECRET_KEY,
-      }),
+      checkoutAllowed,
       trialDays: legal.trialDays,
+      trialEligibleDays,
       adminIssues,
     };
   });
@@ -134,7 +155,21 @@ export const getBillingStatus = createServerFn({ method: "GET" })
 export const createCheckoutSession = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) =>
-    z.object({ period: z.enum(["monthly", "yearly"]) }).parse(input),
+    z
+      .object({
+        period: z.enum(["monthly", "yearly"]),
+        /**
+         * 申込みの最終確認（特商法 12 条の6、`ProCheckoutConfirm`）で見せて、押してもらった中身。
+         * 確認を通らない呼び出し（古い画面）は受けない。見せた値段・無料期間が今の物と違えば
+         * `BILLING_TERMS_CHANGED` で断り、確認を出し直す。
+         */
+        confirmed: z.literal(true),
+        shownUnitAmount: z.number().int().min(0),
+        shownCurrency: z.string().min(3).max(3),
+        shownTrialDays: z.number().int().min(0).max(365),
+        lang: z.enum(UI_LANGS).optional(),
+      })
+      .parse(input),
   )
   .handler(async ({ context, data }) => {
     const key = process.env.STRIPE_SECRET_KEY;
@@ -162,6 +197,16 @@ export const createCheckoutSession = createServerFn({ method: "POST" })
       legal.trialDays > 0 && (await hadSubscriptionBefore(context.userId, key))
         ? 0
         : legal.trialDays;
+    // 最終確認で見せた値段・無料期間と、今から実際に使う物が同じか（違えば確認を出し直す）。
+    const prices = await readPlanPrices(process.env);
+    const actual = data.period === "yearly" ? prices.yearly : prices.monthly;
+    if (
+      !actual ||
+      actual.unitAmount !== data.shownUnitAmount ||
+      actual.currency.toLowerCase() !== data.shownCurrency.toLowerCase() ||
+      trialDays !== data.shownTrialDays
+    )
+      throw new Error(BILLING_ERRORS.termsChanged);
     const form = checkoutForm({
       priceId: price,
       userId: context.userId,
@@ -169,6 +214,8 @@ export const createCheckoutSession = createServerFn({ method: "POST" })
       successUrl: siteUrlFor("/settings?pro=ok"),
       cancelUrl: siteUrlFor("/settings?pro=cancel"),
       trialDays,
+      lang: data.lang ?? null,
+      interval: actual.interval,
     });
     const res = await fetch("https://api.stripe.com/v1/checkout/sessions", {
       method: "POST",

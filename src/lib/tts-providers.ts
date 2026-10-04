@@ -1,7 +1,10 @@
 /**
  * **発音の声を出す会社を、開発者が選べるようにする。**（オーナー指示 2026-09-23
  * 「台湾華語の発音が機械音で気に入らないから、Azure、VoAI 絕好聲創、ATEN 優聲學、
- *  MiniMax Speech 2.8、ElevenLabs v3など、開発者の私だけ、apiを設定できるようにして」）
+ *  ElevenLabs v3など、開発者の私だけ、apiを設定できるようにして」）
+ * （2026-10-03 オーナー決定で、ある1社の読み上げは外した。保存済みの設定に
+ *  その会社が残っていても、表に無い会社は `choiceFor`/`cleanTtsConfig` が捨てて
+ *  既定の声に戻る。）
  *
  * ここは**表と純粋な関数だけ**（試験から触れるように）。実際に外へ頼むのは
  * `tts-provider.server.ts`。
@@ -9,7 +12,7 @@
  * ## OpenRouter を通さない
  * 発音は押してから鳴るまでの速さが命。間に1社挟むと往復が1つ増える。
  * さらに（2026-09 時点）OpenRouter の読み上げは GPT-4o mini TTS・Gemini TTS・
- * Voxtral など自社の一覧の物だけで、Azure・ElevenLabs・MiniMax・VoAI・ATEN は
+ * Voxtral など自社の一覧の物だけで、Azure・ElevenLabs・VoAI・ATEN は
  * 選べない。各社へ直に頼む。
  *
  * ## 鍵は DB に置かない
@@ -26,7 +29,7 @@
 import { TTS_VOICE_DEFAULT } from "./tts-cache";
 import { DEFAULT_TARGET_LANGUAGE, TARGET_LANGUAGES } from "./target-lang";
 
-export type TtsProviderId = "azure" | "gemini" | "elevenlabs" | "minimax" | "voai" | "aten";
+export type TtsProviderId = "azure" | "gemini" | "elevenlabs" | "voai" | "aten";
 
 export type TtsProviderInfo = {
   id: TtsProviderId;
@@ -82,15 +85,6 @@ export const TTS_PROVIDERS: TtsProviderInfo[] = [
     models: ["eleven_flash_v2_5", "eleven_turbo_v2_5", "eleven_multilingual_v2", "eleven_v3"],
     voices: {},
     note: "声の ID は ElevenLabs の Voice Library からコピーして入れる。",
-  },
-  {
-    id: "minimax",
-    label: "MiniMax Speech 2.8",
-    keyEnvs: ["MINIMAX_API_KEY"],
-    implemented: true,
-    models: ["speech-2.8-turbo", "speech-2.8-hd"],
-    voices: {},
-    note: "声の ID は MiniMax の管理画面から入れる。台湾の発音かどうかは声しだい。",
   },
   {
     id: "voai",
@@ -316,32 +310,6 @@ export function elevenLabsBody(text: string, model: string, speed: number, langu
     ...(enforce ? { language_code: providerLanguage(language, "zh", "en", "ja") } : {}),
     voice_settings: { speed: Math.min(1.2, Math.max(0.7, speed)) },
   };
-}
-
-export function minimaxBody(
-  text: string,
-  model: string,
-  voice: string,
-  speed: number,
-  language: string,
-) {
-  return {
-    model,
-    text,
-    stream: false,
-    language_boost: providerLanguage(language, "Chinese", "English", "Japanese"),
-    voice_setting: { voice_id: voice, speed, vol: 1, pitch: 0 },
-    audio_setting: { sample_rate: 32000, bitrate: 128000, format: "mp3", channel: 1 },
-    output_format: "hex",
-  };
-}
-
-export function hexToBytes(hex: string): Uint8Array {
-  const clean = hex.trim();
-  if (clean.length % 2 !== 0 || /[^0-9a-fA-F]/.test(clean)) throw new Error("bad hex audio");
-  const out = new Uint8Array(clean.length / 2);
-  for (let i = 0; i < out.length; i++) out[i] = parseInt(clean.slice(i * 2, i * 2 + 2), 16);
-  return out;
 }
 
 // ---- Gemini（3.8 TTS） ---------------------------------------------------------

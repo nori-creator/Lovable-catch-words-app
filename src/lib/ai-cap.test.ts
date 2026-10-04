@@ -132,7 +132,7 @@ describe("reserveAiCall — その人の上限", () => {
   it("確保した行の番号を返す（返事が無かった回に返せるように）", async () => {
     const { d } = deps();
     await expect(reserveAiCall(d, "u1", "card")).resolves.toEqual({ usageId: 1 });
-    await expect(reserveAiCall(d, "u1", "object3d")).resolves.toEqual({ usageId: null });
+    await expect(reserveAiCall(d, "u1", "uncapped_kind")).resolves.toEqual({ usageId: null });
   });
 
   it("**同時に送っても**その人の上限より多くは通らない（数えると入れるが1回）", async () => {
@@ -147,7 +147,7 @@ describe("reserveAiCall — その人の上限", () => {
 
   it("上限の無い種類は何もしない", async () => {
     const { d, u, b } = deps();
-    await reserveAiCall(d, "u1", "object3d");
+    await reserveAiCall(d, "u1", "uncapped_kind");
     expect(u.rows).toEqual([]);
     expect(b.keys.size).toBe(0);
   });
@@ -266,7 +266,7 @@ describe("匿名の人・無料の人の枠（監査 2026-10-03 H4）", () => {
     }
     expect(dailyCapFor("card", "free")).toBe(DAILY_CAPS.card);
     expect(dailyCapFor("card", "pro")).toBe(DAILY_CAPS.card);
-    expect(dailyCapFor("object3d", "anonymous")).toBeUndefined();
+    expect(dailyCapFor("uncapped_kind", "anonymous")).toBeUndefined();
   });
 
   it("匿名の人は小さい上限で止まる", async () => {

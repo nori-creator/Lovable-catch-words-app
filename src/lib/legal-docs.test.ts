@@ -24,11 +24,9 @@ const PROCESSORS = [
   "TypeSafe",
   "Azure",
   "ElevenLabs",
-  "MiniMax",
   "Unsplash",
   "Wikimedia",
   "Higgsfield",
-  "Tripo3D",
   "Google",
   "Stripe",
   "AdSense",
@@ -39,6 +37,9 @@ describe("プライバシーポリシー", () => {
     const doc = read(`components/legal/privacy-${lang}.tsx`);
     it(`${lang}: 送り先を全部書いている`, () => {
       expect(PROCESSORS.filter((p) => !doc.includes(p))).toEqual([]);
+    });
+    it(`${lang}: 外した事業者（2026-10-03 オーナー決定）を書かない`, () => {
+      expect(doc).not.toMatch(/MiniMax|Tripo/i);
     });
     it(`${lang}: 広告の説明に Google の2つのリンクがある`, () => {
       expect(doc).toContain("https://policies.google.com/technologies/partner-sites");
@@ -87,5 +88,38 @@ describe("購入口は運営者の表記を確かめる", () => {
   });
   it("管理画面（Billing Portal）の口がある", () => {
     expect(billing).toContain("export const createBillingPortalSession");
+  });
+});
+
+describe("iPhone アプリの扱い（2026-10-03。iOS の docs/legal が全文）", () => {
+  const SPEECH = { ja: "音声認識", en: "speech recognition", "zh-tw": "語音辨識" } as const;
+  for (const lang of LANGS) {
+    const doc = read(`components/legal/privacy-${lang}.tsx`);
+    it(`${lang}: 声で調べる・AI への送信の同意・広告の識別子・地域ごとの追加事項`, () => {
+      expect(doc).toContain(SPEECH[lang]);
+      expect(doc).toContain("IDFA");
+      expect(doc).toContain("GDPR");
+      expect(doc).toContain("CCPA");
+      expect(doc).toContain("<h2>14.");
+    });
+    it(`${lang}: 利用規約に App Store の条項と、連絡先（第13条）がある`, () => {
+      const terms = read(`components/legal/terms-${lang}.tsx`);
+      expect(terms).toContain("App Store");
+      expect(terms).toContain("<h2>13.");
+      expect(terms).toContain("<OperatorDetails");
+    });
+  }
+});
+
+describe("サポートの頁（iPhone アプリと App Store Connect のサポート URL）", () => {
+  it("連絡先は設定から（直書きしない）。法務のリンクの列にも出る", () => {
+    const doc = read("components/legal/SupportDocument.tsx");
+    expect(doc).toContain("<OperatorDetails");
+    expect(doc).not.toMatch(/mailto:/);
+    expect(read("components/legal/LegalShell.tsx")).toContain('href: "/support"');
+    expect(read("routes/support.tsx")).toContain('createFileRoute("/support")');
+  });
+  it("古い /tokushoho は /legal/tokushoho へ送る", () => {
+    expect(read("routes/tokushoho.tsx")).toContain('redirect({ to: "/legal/tokushoho"');
   });
 });

@@ -114,7 +114,7 @@ describe("辞書が3言語ぶんそろっている", () => {
   const keys = Object.keys(DICT);
 
   it("表示文言の登録数を把握する", () => {
-    expect(keys.length).toBe(1276);
+    expect(keys.length).toBe(1330);
   });
 
   /**

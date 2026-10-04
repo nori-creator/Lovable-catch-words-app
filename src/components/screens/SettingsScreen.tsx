@@ -53,7 +53,11 @@ import { useReadingPref, setReadingPref, readingChoices } from "@/lib/phonetic";
 import { targetProfile } from "@/lib/target-profile";
 import { levelOptions, restoreLevel } from "@/lib/level-scale";
 import { UI_LANGS, UI_LANG_LABEL_KEYS, TARGET_LANG_LABEL_KEYS, normalizeUiLang } from "@/lib/i18n";
-import { useT, setUiLang, storedUiLang } from "@/lib/i18n";
+import { useT, setUiLang, storedUiLang, useUiLang, localeOf } from "@/lib/i18n";
+import { AI_CONSENT_VERSION, PRIVACY_AI_SECTION_URL } from "@/lib/ai-consent";
+import { askAiConsent, writeLocalConsent } from "@/lib/ai-consent-client";
+import { recordAiConsent } from "@/lib/ai-consent.functions";
+import { useAiConsentStatus } from "@/components/AiConsentHost";
 import { useFunnelEvent } from "@/lib/use-funnel-event";
 import { reconcileLanguage } from "@/lib/language-sync";
 import { storedLevels, setStoredLevels } from "@/lib/level-pref";
@@ -82,6 +86,7 @@ import {
   getBillingStatus,
 } from "@/lib/billing.functions";
 import { ProPlanCardView, type ProPlanBusy } from "@/components/ProPlanCardView";
+import { ProCheckoutConfirm } from "@/components/ProCheckoutConfirm";
 import { LegalLinks } from "@/components/legal/LegalShell";
 import { billingSurface } from "@/lib/stripe-billing";
 import { normalizePublisherId, normalizeSlotId, type AdConfig } from "@/lib/ad-policy";
@@ -1009,6 +1014,10 @@ export function SettingsPage() {
           <ProPlanCard />
         </SafeSection>
 
+        <SafeSection name="ai-consent">
+          <AiConsentSettingsCard />
+        </SafeSection>
+
         <SafeSection name="legal">
           <LegalLinksCard />
         </SafeSection>
@@ -1932,12 +1941,16 @@ function ProPlanCard() {
   const statusFn = useServerFn(getBillingStatus);
   const checkoutFn = useServerFn(createCheckoutSession);
   const portalFn = useServerFn(createBillingPortalSession);
+  const qc = useQueryClient();
   const { data: s } = useQuery({
     queryKey: ["billing-status"],
     queryFn: () => statusFn(),
     staleTime: 60_000,
   });
   const [busy, setBusy] = useState<ProPlanBusy>(null);
+  /** 申込みの最終確認を出している周期（特商法 12 条の6、`ProCheckoutConfirm`）。 */
+  const [confirming, setConfirming] = useState<"monthly" | "yearly" | null>(null);
+  const lang = useUiLang();
   // ベータの計測（2026-10-03）: 買える状態の案内を見た・支払いへ進んだ。種類と時刻だけ。
   const track = useFunnelEvent();
   const offered =
@@ -1952,15 +1965,32 @@ function ProPlanCard() {
   if (!s || billingSurface(Capacitor.isNativePlatform()) === "none") return null;
   // スイッチがオフでも、**実際に払っている人には解約の口を出す**（請求だけ続く、を作らない）。
   if (!s.enabled && !s.paidPro) return null;
+  // 最終確認で見せた値段・無料期間をそのまま送る（サーバが今の物と同じか確かめ直す）。
   const go = async (period: "monthly" | "yearly") => {
+    const price = period === "yearly" ? s.prices.yearly : s.prices.monthly;
+    if (!price) return;
     setBusy(period);
     track("checkout_started");
     try {
-      const { url } = await checkoutFn({ data: { period } });
+      const { url } = await checkoutFn({
+        data: {
+          period,
+          confirmed: true,
+          shownUnitAmount: price.unitAmount,
+          shownCurrency: price.currency,
+          shownTrialDays: s.trialEligibleDays,
+          lang,
+        },
+      });
       window.location.assign(url);
     } catch (e) {
       toast.error(readable(e, t("pro.failed")));
       setBusy(null);
+      // 値段・無料期間が変わっていたら、新しい中身で確認を出し直す。
+      if (e instanceof Error && e.message.includes("BILLING_TERMS_CHANGED")) {
+        setConfirming(null);
+        void qc.invalidateQueries({ queryKey: ["billing-status"] });
+      }
     }
   };
   const manage = async () => {
@@ -1975,12 +2005,104 @@ function ProPlanCard() {
   };
   return (
     <SettingsCard title={t("pro.title")}>
-      <ProPlanCardView
-        status={s}
-        busy={busy}
-        onBuy={(p) => void go(p)}
-        onManage={() => void manage()}
-      />
+      {confirming && !s.isPro ? (
+        <ProCheckoutConfirm
+          status={s}
+          period={confirming}
+          busy={busy !== null}
+          onConfirm={() => void go(confirming)}
+          onBack={() => setConfirming(null)}
+        />
+      ) : (
+        <ProPlanCardView
+          status={s}
+          busy={busy}
+          onBuy={(p) => setConfirming(p)}
+          onManage={() => void manage()}
+        />
+      )}
+    </SettingsCard>
+  );
+}
+
+/**
+ * **外部の AI へ送る同意を見る・取り消す**（iOS の 設定 > プライバシー と同じ。`ai-consent.ts`）。
+ * 同意していなければ確認の画面を開ける。取り消すと、AI を使う機能はサーバで止まる。
+ */
+export function AiConsentSettingsCard() {
+  const t = useT();
+  const lang = useUiLang();
+  const qc = useQueryClient();
+  const record = useServerFn(recordAiConsent);
+  const { data: status, isLoading } = useAiConsentStatus();
+  const [confirming, setConfirming] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const agreed = !!status?.agreed;
+  const withdraw = async () => {
+    setBusy(true);
+    try {
+      await record({ data: { version: AI_CONSENT_VERSION, agreed: false } });
+      const { data } = await supabase.auth.getSession();
+      const uid = data.session?.user.id;
+      if (uid) writeLocalConsent(`user:${uid}`, "declined");
+      await qc.invalidateQueries({ queryKey: ["ai-consent"] });
+      toast.success(t("aiConsent.withdrawn"));
+      setConfirming(false);
+    } catch {
+      toast.error(t("aiConsent.saveFailed"));
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <SettingsCard title={t("aiConsent.settingsTitle")}>
+      <div className="space-y-3" data-testid="ai-consent-settings">
+        <p className="text-body">
+          {isLoading
+            ? t("common.loading")
+            : agreed && status?.agreedAt
+              ? t("aiConsent.statusAgreed", {
+                  date: new Date(status.agreedAt).toLocaleDateString(localeOf(lang)),
+                })
+              : t("aiConsent.statusNone")}
+        </p>
+        <p className="text-caption text-muted-foreground">{t("aiConsent.settingsHint")}</p>
+        {!agreed && !isLoading && (
+          <Button className="w-full" onClick={() => void askAiConsent("account")}>
+            {t("aiConsent.review")}
+          </Button>
+        )}
+        {agreed && !confirming && (
+          <Button variant="outline" className="w-full" onClick={() => setConfirming(true)}>
+            {t("aiConsent.withdraw")}
+          </Button>
+        )}
+        {agreed && confirming && (
+          <div className="space-y-2 rounded-xl border border-destructive/30 p-3">
+            <p className="text-footnote">{t("aiConsent.withdrawConfirm")}</p>
+            <div className="flex gap-2">
+              <Button
+                variant="destructive"
+                className="flex-1"
+                disabled={busy}
+                onClick={() => void withdraw()}
+              >
+                {busy && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                {t("aiConsent.withdrawYes")}
+              </Button>
+              <Button variant="outline" className="flex-1" onClick={() => setConfirming(false)}>
+                {t("common.cancel")}
+              </Button>
+            </div>
+          </div>
+        )}
+        <a
+          href={PRIVACY_AI_SECTION_URL}
+          className="block text-footnote font-semibold text-primary underline underline-offset-2"
+        >
+          {t("aiConsent.detailsLink")}
+        </a>
+      </div>
     </SettingsCard>
   );
 }

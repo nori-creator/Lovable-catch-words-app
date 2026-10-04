@@ -44,7 +44,7 @@ import { mnemonicRule } from "./mnemonic-rule";
 import { worldExampleRule } from "./example-sources";
 import { cleanWordbookEntries } from "./wordbook";
 import { ttsVoiceFor } from "./tts-voice";
-import { elevenLabsBody, minimaxBody } from "./tts-providers";
+import { elevenLabsBody } from "./tts-providers";
 import { isGenericChunk } from "./generic-chunks";
 
 /**
@@ -478,9 +478,6 @@ describe("日本語の読み上げ", () => {
     expect(elevenLabsBody("傘", "eleven_flash_v2_5", 1, "ja").language_code).toBe("ja");
     expect(elevenLabsBody("雨傘", "eleven_flash_v2_5", 1, "zh-TW").language_code).toBe("zh");
     expect(elevenLabsBody("umbrella", "eleven_flash_v2_5", 1, "en").language_code).toBe("en");
-    expect(minimaxBody("傘", "m", "v", 1, "ja").language_boost).toBe("Japanese");
-    expect(minimaxBody("雨傘", "m", "v", 1, "zh-TW").language_boost).toBe("Chinese");
-    expect(minimaxBody("umbrella", "m", "v", 1, "en").language_boost).toBe("English");
   });
 });
 

@@ -1,14 +1,15 @@
 import type { ReactNode } from "react";
 import { useT } from "@/lib/i18n";
 
-/** 法務の3つの頁（同じ順で、どこからでも行き来できる）。 */
+/** 法務の頁とサポート（同じ順で、どこからでも行き来できる）。 */
 export const LEGAL_LINKS = [
   { href: "/terms", key: "auth.terms" },
   { href: "/privacy", key: "auth.privacy" },
   { href: "/legal/tokushoho", key: "legal.tokushoho" },
+  { href: "/support", key: "legal.support" },
 ] as const;
 
-/** 3つへのリンクの列（設定・ログインの画面・法務の頁の下で使う）。`current` は外す。 */
+/** 法務の頁とサポートへのリンクの列（設定・ログインの画面・法務の頁の下で使う）。`current` は外す。 */
 export function LegalLinks({ current, className }: { current?: string; className?: string }) {
   const t = useT();
   return (

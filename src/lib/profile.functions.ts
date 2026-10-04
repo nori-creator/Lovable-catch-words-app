@@ -351,7 +351,16 @@ export const deleteMyAccount = createServerFn({ method: "POST" })
       }
     }
 
-    // 4) The auth user itself — after this the session token is dead.
+    // 4) Sign in with Apple: revoke the Apple grant (Apple's account-deletion rule, TN3194)
+    //    with the refresh token kept at sign-in (`apple_tokens`). **Never blocks the
+    //    deletion** — no token (signed up before this change / not Apple), missing
+    //    secrets or an Apple error are logged and the deletion continues.
+    {
+      const { revokeAppleForUser } = await import("./apple-revoke.server");
+      await revokeAppleForUser(userId);
+    }
+
+    // 5) The auth user itself — after this the session token is dead.
     const { error: authErr } = await supabaseAdmin.auth.admin.deleteUser(userId);
     if (authErr) throw new Error(`アカウントの削除に失敗しました: ${authErr.message}`);
 
