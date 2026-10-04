@@ -13,10 +13,10 @@ export function PrivacyEn({ info }: { info: LegalPublicInfo }) {
       <p className="mt-1 text-footnote text-muted-foreground">Last updated: {PRIVACY_UPDATED.en}</p>
       <section className="legal-doc mt-6">
         <p>
-          {name} (“the operator”) handles information about users of CatchWords (“the Service”) as
-          described below, in accordance with Japan's Act on the Protection of Personal Information
-          and other applicable laws. This is a translation; if it differs from the Japanese version,
-          the Japanese version prevails.
+          {name} (“the operator”) handles information about users of CatchWords (the iPhone app and
+          the web version; “the Service”) as described below, in accordance with Japan's Act on the
+          Protection of Personal Information and other applicable laws. This is a translation; if it
+          differs from the Japanese version, the Japanese version prevails.
         </p>
 
         <h2>1. Information we collect</h2>
@@ -28,7 +28,17 @@ export function PrivacyEn({ info }: { info: LegalPublicInfo }) {
           </li>
           <li>
             Photos: photos you take or choose, the selfie after a capture (if you turn on “Selfie
-            mode” in Settings) and photos you add to your diary
+            mode” in Settings) and photos you add to your diary. The iPhone app reads only the
+            images you pick from the Photos app. If you turn on “Save to Camera Roll” in Settings,
+            photos are added to the Photos app on your device (the app does not read your library)
+          </li>
+          <li>
+            Voice (“Search by voice” in the iPhone app): the microphone and Apple's speech
+            recognition turn what you say into text. Languages that can be recognised on the device
+            are handled on the device; others are processed on Apple's servers (Apple's privacy
+            policy applies). The operator never receives or stores the audio itself; the Service
+            uses only the resulting text. The microphone and speech recognition are used only if you
+            allow them on your device
           </li>
           <li>
             Words and study records: the words you catch, cards with meanings, examples and
@@ -43,7 +53,9 @@ export function PrivacyEn({ info }: { info: LegalPublicInfo }) {
             Location: your device's location (latitude and longitude) when you take a photo, only if
             you allow location access on your device. If you turn on “Location reminders” in
             Settings, your current location when you open the app is compared with saved places
-            (that current location is not stored)
+            (that current location is not stored). In the iPhone app, “Location reminders” are
+            triggered by the device (iOS) when you come near a saved place; your current location is
+            not sent to the operator
           </li>
           <li>
             Language and settings: display language, native and study languages, your browser's
@@ -51,7 +63,9 @@ export function PrivacyEn({ info }: { info: LegalPublicInfo }) {
           </li>
           <li>
             Paid plan information: whether you are on Pro. Payments are processed by Stripe; the
-            operator never receives your card number
+            operator never receives your card number. If in-app purchases start in the iPhone app,
+            we receive the purchase record (product, period and transaction identifiers) from Apple
+            to check that it is valid (not your payment details)
           </li>
           <li>Error reports: what you send when you report an error in a word</li>
           <li>
@@ -68,6 +82,7 @@ export function PrivacyEn({ info }: { info: LegalPublicInfo }) {
             examples and quizzes with AI
           </li>
           <li>To generate pronunciation audio</li>
+          <li>To turn words you say into text and look them up (iPhone app)</li>
           <li>To find or generate images that match a word</li>
           <li>To show maps and place names, and to send location reminders</li>
           <li>To schedule reviews (including memory predictions)</li>
@@ -90,8 +105,12 @@ export function PrivacyEn({ info }: { info: LegalPublicInfo }) {
         <h2>3. Sharing with third parties</h2>
         <p>
           The operator does not provide your personal information to third parties without your
-          consent, except where required by law. Providing information to the providers in section 4
-          is done to entrust them with work needed to run the Service.
+          consent, except where required by law. This includes cases where it is needed to protect a
+          person's life, body or property and your consent is hard to obtain, and cooperating with
+          government bodies performing duties set by law. If the Service is taken over through a
+          merger or business transfer, your information will be handled to the same standard as this
+          policy. Providing information to the providers in section 4 is done to entrust them with
+          work needed to run the Service. The operator does not sell your information.
         </p>
 
         <h2>4. Service providers, by purpose</h2>
@@ -129,9 +148,16 @@ export function PrivacyEn({ info }: { info: LegalPublicInfo }) {
             Tripo3D)
           </li>
           <li>
-            <strong>Maps</strong>: Google (Google Maps). When a map is shown, your device loads it
-            from Google. To look up a place name from where a photo was taken, its coordinates are
-            sent to Google through Lovable's relay
+            <strong>Maps</strong>: Google (Google Maps). When a map is shown on the web version,
+            your device loads it from Google. To look up a place name on the web version, the
+            photo's coordinates are sent to Google through Lovable's relay. In the iPhone app, place
+            names are looked up by sending the coordinates from your device to Apple's geocoding
+            service (not through the operator's servers)
+          </li>
+          <li>
+            <strong>Apple (iPhone app)</strong>: sign-in with Apple, speech recognition for search
+            by voice (audio, when it cannot be recognised on the device), place-name lookup
+            (coordinates), and in-app purchases (the purchase record, once they start)
           </li>
           <li>
             <strong>Payments</strong>: Stripe (payments, invoices, and the subscription management
@@ -142,15 +168,51 @@ export function PrivacyEn({ info }: { info: LegalPublicInfo }) {
             section 6)
           </li>
         </ul>
+        <p>
+          <strong>Consent to sending data to AI</strong>: before you use an AI feature for the first
+          time, the iPhone app shows a screen explaining what is sent (photos, images picked from
+          Photos, scan frames, words, text you enter, words you said as text, and settings such as
+          your study language), where it goes and what it is used for, and asks for your consent. If
+          you do not consent, AI features (the camera, scanning, card creation, diary correction and
+          so on) are unavailable and nothing is sent; browsing your words and reviews still work.
+          You can withdraw consent at any time in Settings → Privacy → “Consent to send data to AI”.
+          Your email address and name are never sent to AI providers. The operator itself does not
+          use your photos or diary to train AI.
+        </p>
 
         <h2>5. Transfers outside Japan</h2>
         <p>
-          Many of these providers are located outside Japan (including the United States and China),
-          and your information may be processed and stored on servers outside Japan. You can find
-          information about other countries' personal information protection systems in the survey
-          published by Japan's Personal Information Protection Commission. By agreeing to this
-          policy and using the Service, you consent to your information being provided to providers
-          in these countries.
+          Many of these providers are located outside Japan, and your information may be processed
+          and stored on servers outside Japan. The main countries of the providers that receive
+          personal information are:
+        </p>
+        <ul>
+          <li>
+            United States: Supabase, Cloudflare, Google, Apple, OpenAI, Anthropic, OpenRouter,
+            Microsoft, ElevenLabs, Stripe
+          </li>
+          <li>Sweden (EU) and the United States: Lovable</li>
+          <li>China: DeepSeek, Moonshot AI, MiniMax, Tripo3D (only if the settings use them)</li>
+        </ul>
+        <p>
+          Their systems: the United States has no comprehensive federal privacy law, but has
+          sector-specific federal laws and state laws such as the California Consumer Privacy Act
+          (CCPA). The EU has the General Data Protection Regulation (GDPR), and Japan's Personal
+          Information Protection Commission recognises the EU as providing an equivalent level of
+          protection. China has a Personal Information Protection Law, but also laws that broadly
+          allow government access to data (such as the National Intelligence Law). For details, see
+          the survey of foreign systems published by Japan's Personal Information Protection
+          Commission.
+        </p>
+        <p>
+          The operator uses each provider after confirming that, through its terms or data
+          processing agreements, it takes measures equivalent to those required by Japan's Act on
+          the Protection of Personal Information (such as security measures and no use beyond the
+          purpose). Providers that receive only the text of a word (such as image search) receive
+          nothing that identifies you. For the country of a provider not listed above, or for more
+          about the measures providers take, contact us (section 12) and we will tell you without
+          delay. By agreeing to this policy and using the Service, you consent to your information
+          being provided to providers in these countries.
         </p>
 
         <h2>6. Advertising</h2>
@@ -170,7 +232,8 @@ export function PrivacyEn({ info }: { info: LegalPublicInfo }) {
             Google's ad settings
           </a>
           . Users in the European Economic Area, the UK and Switzerland are asked for consent
-          through Google's consent message. Pro users do not see ads.
+          through Google's consent message. Pro users do not see ads. The iPhone app shows no ads
+          and does not use the advertising identifier (IDFA).
         </p>
 
         <h2>7. Retention and deletion</h2>
@@ -198,8 +261,14 @@ export function PrivacyEn({ info }: { info: LegalPublicInfo }) {
           <li>Information already sent to providers, which they handle under their own terms</li>
         </ul>
         <p>
+          When you delete your account in the iPhone app, the app also erases the information stored
+          on your device (section 10). Deleting the app also removes it from your device.
+        </p>
+        <p>
           <strong>Deleting your account does not cancel a paid plan automatically.</strong> Before
-          deleting, cancel it from “Manage subscription” in Settings.
+          deleting, cancel it from “Manage subscription” in Settings. If you bought it with an
+          in-app purchase on iPhone, cancel it in the iPhone Settings app → your name →
+          Subscriptions.
         </p>
 
         <h2>8. Your rights</h2>
@@ -208,18 +277,21 @@ export function PrivacyEn({ info }: { info: LegalPublicInfo }) {
           correction, addition or deletion, for its use to stop or for it to be erased, and for its
           provision to third parties to stop. You can edit your display name, photos and words in
           the app, and delete your account and its data from “Delete account” in Settings. For other
-          requests, use the contact in section 12. We will respond in accordance with the law after
-          confirming your identity.
+          requests (including notice of the purposes of use and disclosure of records of provision
+          to third parties), use the contact in section 12. We will respond without delay in
+          accordance with the law after confirming that you (or your agent) are making the request.
+          There is no fee. If the law does not allow us to comply, we will tell you why.
         </p>
 
         <h2>9. Children</h2>
         <p>
           The Service is not directed at children under 13, and children under 13 may not use it
-          (Terms of Service, section 2). If we learn that we have collected information from a child
-          under 13, we will delete it.
+          (Terms of Service, section 2). If you are under 18, please get your parent's or guardian's
+          consent before using the Service (including buying a paid plan). If we learn that we have
+          collected information from a child under 13, we will delete it.
         </p>
 
-        <h2>10. Cookies and local storage</h2>
+        <h2>10. Cookies and storage on your device</h2>
         <p>
           The Service uses your browser's local storage and IndexedDB to keep you signed in, to
           remember settings such as the display language, to hold data waiting to be saved while
@@ -228,16 +300,58 @@ export function PrivacyEn({ info }: { info: LegalPublicInfo }) {
           6), and Google (when a map is shown) and Stripe (on the payment page) may use their own
           cookies and similar technologies.
         </p>
+        <p>
+          The iPhone app stores the following on your device: what keeps you signed in (the
+          Keychain), display and sound settings, the state of your consent to sending data to AI
+          (date and version), the words, small photo thumbnails and review count shown in home
+          screen widgets (a storage area shared by the app and its widgets), scheduled notifications
+          (review reminders and location reminders), photos waiting to be sent while offline (“Photo
+          waiting to be analyzed”) and unsaved diary drafts, and cached images and audio. None of
+          this is sent to the operator's servers, except photos and diary entries that are sent once
+          you are back online.
+        </p>
 
         <h2>11. Security</h2>
         <p>
-          Connections are encrypted (HTTPS), and the database restricts access per user so that only
-          you can read and write your own information. Keys for external services are held only on
-          the server, and when the operator looks at usage, the scope is limited as described in
-          section 2.
+          The operator takes the following measures to prevent leaks, loss or damage of personal
+          information.
         </p>
+        <ul>
+          <li>Basic policy: we set out this policy and follow the relevant laws and guidelines</li>
+          <li>
+            Handling rules: for each stage (collection, use, storage, provision and deletion) we set
+            how information is handled and who is responsible
+          </li>
+          <li>
+            Organisational measures: a responsible person is appointed, with procedures for
+            reporting and responding to handling that breaks the law or this policy, or to signs of
+            a leak
+          </li>
+          <li>
+            Personnel measures: anyone handling personal information is required to keep it
+            confidential and handle it properly
+          </li>
+          <li>
+            Physical measures: devices that handle personal information are protected against theft
+            and loss, with screen locks and encrypted storage
+          </li>
+          <li>
+            Technical measures: connections are encrypted (HTTPS), and the database restricts access
+            per user so that only you can read and write your own information. Keys for external
+            services are held only on the server, never in the app, and when the operator looks at
+            usage, the scope is limited as described in section 2
+          </li>
+          <li>
+            Understanding the external environment: before using providers in other countries, we
+            check those countries' systems (section 5) and take security measures accordingly
+          </li>
+        </ul>
 
         <h2>12. Operator and contact</h2>
+        <p>
+          Questions about this policy or how we handle personal information, requests for disclosure
+          and similar, and complaints are received at the operator's contact below.
+        </p>
         <OperatorDetails info={info} lang="en" />
 
         <h2>13. Changes to this policy</h2>
@@ -245,6 +359,45 @@ export function PrivacyEn({ info }: { info: LegalPublicInfo }) {
           We will announce changes to this policy in the Service. For significant changes that add
           new purposes of use, we will ask for your consent again before you continue using the
           Service.
+        </p>
+
+        <h2>14. Additional information by region</h2>
+        <h3 className="mt-4 font-semibold">Users in Taiwan</h3>
+        <p>
+          Under Article 8 of Taiwan's Personal Data Protection Act: the collector is the operator
+          (section 12). The purposes are those in section 2, mainly falling under Taiwan's
+          categories of performance of contractual relationships, consumer and customer management
+          and services, education and learning services, information (communication) services and
+          e-commerce services. The types of personal data are listed in section 1. The period of use
+          is as in section 7; the regions are Japan and the countries in section 5; the users are
+          the operator and the providers in section 4; the method is electronic storage, processing
+          and transmission. You may request to inquire into and review your data, receive copies,
+          supplement or correct it, stop its collection, processing or use, and delete it (section
+          8). Without required information such as an email address you cannot create an account,
+          and without photos, location or voice the related features cannot be used.
+        </p>
+        <h3 className="mt-4 font-semibold">
+          Users in the European Economic Area, the UK and Switzerland
+        </h3>
+        <p>
+          Where the GDPR or the UK GDPR applies, the operator processes personal data on these legal
+          bases: performance of a contract (providing the Service, accounts and the paid plan);
+          consent (location, microphone and photo access, sending data to AI providers, and
+          personalised ads; you can withdraw consent at any time); legitimate interests (preventing
+          abuse, security, improving the Service and statistics); and legal obligations (such as
+          keeping transaction records). You have the rights of access, rectification, erasure,
+          restriction of processing, data portability and objection, and may complain to the
+          supervisory authority in your country. Transfers outside the EEA and the UK rely on
+          appropriate safeguards such as the European Commission's standard contractual clauses.
+        </p>
+        <h3 className="mt-4 font-semibold">Users in California, United States</h3>
+        <p>
+          The operator does not sell personal information for money. When advertising is enabled on
+          the web version, Google may collect information with cookies and similar technologies and
+          use it for interest-based ads (section 6), which may count as “sharing” under state law.
+          You can turn this off in Google's ad settings, or ask us at the contact in section 12. You
+          have the rights to know, to delete, to correct and to opt out of sale or sharing, and you
+          will not be treated unfavourably for using them.
         </p>
       </section>
     </>

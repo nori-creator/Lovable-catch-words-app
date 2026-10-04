@@ -18,7 +18,9 @@ import { Route as NativeAuthRouteImport } from './routes/native-auth'
 import { Route as PrivacyRouteImport } from './routes/privacy'
 import { Route as ResetPasswordRouteImport } from './routes/reset-password'
 import { Route as SitemapDotxmlRouteImport } from './routes/sitemap[.]xml'
+import { Route as SupportRouteImport } from './routes/support'
 import { Route as TermsRouteImport } from './routes/terms'
+import { Route as TokushohoRouteImport } from './routes/tokushoho'
 import { Route as WelcomeRouteImport } from './routes/welcome'
 import { Route as Char91DotmcpChar93ListToolsRouteImport } from './routes/[.mcp]/list-tools'
 import { Route as Char91DotwellKnownChar93OauthProtectedResourceRouteImport } from './routes/[.well-known]/oauth-protected-resource'
@@ -87,9 +89,19 @@ const SitemapDotxmlRoute = SitemapDotxmlRouteImport.update({
   path: '/sitemap.xml',
   getParentRoute: () => rootRouteImport,
 } as any)
+const SupportRoute = SupportRouteImport.update({
+  id: '/support',
+  path: '/support',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const TermsRoute = TermsRouteImport.update({
   id: '/terms',
   path: '/terms',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const TokushohoRoute = TokushohoRouteImport.update({
+  id: '/tokushoho',
+  path: '/tokushoho',
   getParentRoute: () => rootRouteImport,
 } as any)
 const WelcomeRoute = WelcomeRouteImport.update({
@@ -223,7 +235,9 @@ export interface FileRoutesByFullPath {
   '/privacy': typeof PrivacyRoute
   '/reset-password': typeof ResetPasswordRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
+  '/support': typeof SupportRoute
   '/terms': typeof TermsRoute
+  '/tokushoho': typeof TokushohoRoute
   '/welcome': typeof WelcomeRoute
   '/.mcp/list-tools': typeof Char91DotmcpChar93ListToolsRoute
   '/.well-known/oauth-protected-resource': typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
@@ -257,7 +271,9 @@ export interface FileRoutesByTo {
   '/privacy': typeof PrivacyRoute
   '/reset-password': typeof ResetPasswordRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
+  '/support': typeof SupportRoute
   '/terms': typeof TermsRoute
+  '/tokushoho': typeof TokushohoRoute
   '/welcome': typeof WelcomeRoute
   '/.mcp/list-tools': typeof Char91DotmcpChar93ListToolsRoute
   '/.well-known/oauth-protected-resource': typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
@@ -293,7 +309,9 @@ export interface FileRoutesById {
   '/privacy': typeof PrivacyRoute
   '/reset-password': typeof ResetPasswordRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
+  '/support': typeof SupportRoute
   '/terms': typeof TermsRoute
+  '/tokushoho': typeof TokushohoRoute
   '/welcome': typeof WelcomeRoute
   '/.mcp/list-tools': typeof Char91DotmcpChar93ListToolsRoute
   '/.well-known/oauth-protected-resource': typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
@@ -329,7 +347,9 @@ export interface FileRouteTypes {
     | '/privacy'
     | '/reset-password'
     | '/sitemap.xml'
+    | '/support'
     | '/terms'
+    | '/tokushoho'
     | '/welcome'
     | '/.mcp/list-tools'
     | '/.well-known/oauth-protected-resource'
@@ -363,7 +383,9 @@ export interface FileRouteTypes {
     | '/privacy'
     | '/reset-password'
     | '/sitemap.xml'
+    | '/support'
     | '/terms'
+    | '/tokushoho'
     | '/welcome'
     | '/.mcp/list-tools'
     | '/.well-known/oauth-protected-resource'
@@ -398,7 +420,9 @@ export interface FileRouteTypes {
     | '/privacy'
     | '/reset-password'
     | '/sitemap.xml'
+    | '/support'
     | '/terms'
+    | '/tokushoho'
     | '/welcome'
     | '/.mcp/list-tools'
     | '/.well-known/oauth-protected-resource'
@@ -434,7 +458,9 @@ export interface RootRouteChildren {
   PrivacyRoute: typeof PrivacyRoute
   ResetPasswordRoute: typeof ResetPasswordRoute
   SitemapDotxmlRoute: typeof SitemapDotxmlRoute
+  SupportRoute: typeof SupportRoute
   TermsRoute: typeof TermsRoute
+  TokushohoRoute: typeof TokushohoRoute
   WelcomeRoute: typeof WelcomeRoute
   Char91DotmcpChar93ListToolsRoute: typeof Char91DotmcpChar93ListToolsRoute
   Char91DotwellKnownChar93OauthProtectedResourceRoute: typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
@@ -512,11 +538,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SitemapDotxmlRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/support': {
+      id: '/support'
+      path: '/support'
+      fullPath: '/support'
+      preLoaderRoute: typeof SupportRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/terms': {
       id: '/terms'
       path: '/terms'
       fullPath: '/terms'
       preLoaderRoute: typeof TermsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/tokushoho': {
+      id: '/tokushoho'
+      path: '/tokushoho'
+      fullPath: '/tokushoho'
+      preLoaderRoute: typeof TokushohoRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/welcome': {
@@ -737,7 +777,9 @@ const rootRouteChildren: RootRouteChildren = {
   PrivacyRoute: PrivacyRoute,
   ResetPasswordRoute: ResetPasswordRoute,
   SitemapDotxmlRoute: SitemapDotxmlRoute,
+  SupportRoute: SupportRoute,
   TermsRoute: TermsRoute,
+  TokushohoRoute: TokushohoRoute,
   WelcomeRoute: WelcomeRoute,
   Char91DotmcpChar93ListToolsRoute: Char91DotmcpChar93ListToolsRoute,
   Char91DotwellKnownChar93OauthProtectedResourceRoute:

@@ -793,6 +793,11 @@ export const DICT: Record<string, Record<UiLang, string>> = {
     en: "Legal notice — CatchWords",
     "zh-TW": "特定商業交易法標示 — CatchWords",
   },
+  "page.support": {
+    ja: "お問い合わせ・サポート — CatchWords",
+    en: "Contact & Support — CatchWords",
+    "zh-TW": "聯絡與支援 — CatchWords",
+  },
   // --- 復習・単語カード ---
   // --- 日記の足場(要望 #88) ---
   "rv.streakLine": {
@@ -2830,6 +2835,7 @@ export const DICT: Record<string, Record<UiLang, string>> = {
     en: "Legal notice (Specified Commercial Transactions Act)",
     "zh-TW": "特定商業交易法標示",
   },
+  "legal.support": { ja: "お問い合わせ・サポート", en: "Contact & Support", "zh-TW": "聯絡與支援" },
   "legal.linksAria": { ja: "規約と表記", en: "Legal documents", "zh-TW": "條款與標示" },
   "legal.sectionTitle": { ja: "規約と表記", en: "Legal", "zh-TW": "條款與標示" },
   // 待ちの演出の3段。**どの版でも同じ言葉を使う** — 版ごとに直書きしていた
