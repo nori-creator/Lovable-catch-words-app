@@ -22,6 +22,20 @@
       "when": 1790089155649,
       "tag": "0002_tighten_words_insert_and_profiles_select",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1791086681241,
+      "tag": "0003_20261003140000_ai_consents",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1791086697071,
+      "tag": "0004_20261003150000_apple_tokens",
+      "breakpoints": true
     }
   ]
 }
