@@ -14,6 +14,36 @@ export type Database = {
   }
   public: {
     Tables: {
+      ai_consents: {
+        Row: {
+          agreed_at: string
+          created_at: string
+          id: string
+          revoked_at: string | null
+          source: string
+          user_id: string
+          version: number
+        }
+        Insert: {
+          agreed_at?: string
+          created_at?: string
+          id?: string
+          revoked_at?: string | null
+          source?: string
+          user_id: string
+          version: number
+        }
+        Update: {
+          agreed_at?: string
+          created_at?: string
+          id?: string
+          revoked_at?: string | null
+          source?: string
+          user_id?: string
+          version?: number
+        }
+        Relationships: []
+      }
       ai_runs: {
         Row: {
           accepted: number
@@ -68,6 +98,30 @@ export type Database = {
           updated_at?: string
           updated_by?: string | null
           value?: Json
+        }
+        Relationships: []
+      }
+      apple_tokens: {
+        Row: {
+          created_at: string
+          token: string
+          token_type: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          token: string
+          token_type?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          token?: string
+          token_type?: string
+          updated_at?: string
+          user_id?: string
         }
         Relationships: []
       }
