@@ -53,7 +53,11 @@ import { useReadingPref, setReadingPref, readingChoices } from "@/lib/phonetic";
 import { targetProfile } from "@/lib/target-profile";
 import { levelOptions, restoreLevel } from "@/lib/level-scale";
 import { UI_LANGS, UI_LANG_LABEL_KEYS, TARGET_LANG_LABEL_KEYS, normalizeUiLang } from "@/lib/i18n";
-import { useT, setUiLang, storedUiLang } from "@/lib/i18n";
+import { useT, setUiLang, storedUiLang, useUiLang, localeOf } from "@/lib/i18n";
+import { AI_CONSENT_VERSION, PRIVACY_AI_SECTION_URL } from "@/lib/ai-consent";
+import { askAiConsent, writeLocalConsent } from "@/lib/ai-consent-client";
+import { recordAiConsent } from "@/lib/ai-consent.functions";
+import { useAiConsentStatus } from "@/components/AiConsentHost";
 import { useFunnelEvent } from "@/lib/use-funnel-event";
 import { reconcileLanguage } from "@/lib/language-sync";
 import { storedLevels, setStoredLevels } from "@/lib/level-pref";
@@ -1007,6 +1011,10 @@ export function SettingsPage() {
 
         <SafeSection name="pro">
           <ProPlanCard />
+        </SafeSection>
+
+        <SafeSection name="ai-consent">
+          <AiConsentSettingsCard />
         </SafeSection>
 
         <SafeSection name="legal">
@@ -1981,6 +1989,88 @@ function ProPlanCard() {
         onBuy={(p) => void go(p)}
         onManage={() => void manage()}
       />
+    </SettingsCard>
+  );
+}
+
+/**
+ * **外部の AI へ送る同意を見る・取り消す**（iOS の 設定 > プライバシー と同じ。`ai-consent.ts`）。
+ * 同意していなければ確認の画面を開ける。取り消すと、AI を使う機能はサーバで止まる。
+ */
+export function AiConsentSettingsCard() {
+  const t = useT();
+  const lang = useUiLang();
+  const qc = useQueryClient();
+  const record = useServerFn(recordAiConsent);
+  const { data: status, isLoading } = useAiConsentStatus();
+  const [confirming, setConfirming] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const agreed = !!status?.agreed;
+  const withdraw = async () => {
+    setBusy(true);
+    try {
+      await record({ data: { version: AI_CONSENT_VERSION, agreed: false } });
+      const { data } = await supabase.auth.getSession();
+      const uid = data.session?.user.id;
+      if (uid) writeLocalConsent(`user:${uid}`, "declined");
+      await qc.invalidateQueries({ queryKey: ["ai-consent"] });
+      toast.success(t("aiConsent.withdrawn"));
+      setConfirming(false);
+    } catch {
+      toast.error(t("aiConsent.saveFailed"));
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <SettingsCard title={t("aiConsent.settingsTitle")}>
+      <div className="space-y-3" data-testid="ai-consent-settings">
+        <p className="text-body">
+          {isLoading
+            ? t("common.loading")
+            : agreed && status?.agreedAt
+              ? t("aiConsent.statusAgreed", {
+                  date: new Date(status.agreedAt).toLocaleDateString(localeOf(lang)),
+                })
+              : t("aiConsent.statusNone")}
+        </p>
+        <p className="text-caption text-muted-foreground">{t("aiConsent.settingsHint")}</p>
+        {!agreed && !isLoading && (
+          <Button className="w-full" onClick={() => void askAiConsent("account")}>
+            {t("aiConsent.review")}
+          </Button>
+        )}
+        {agreed && !confirming && (
+          <Button variant="outline" className="w-full" onClick={() => setConfirming(true)}>
+            {t("aiConsent.withdraw")}
+          </Button>
+        )}
+        {agreed && confirming && (
+          <div className="space-y-2 rounded-xl border border-destructive/30 p-3">
+            <p className="text-footnote">{t("aiConsent.withdrawConfirm")}</p>
+            <div className="flex gap-2">
+              <Button
+                variant="destructive"
+                className="flex-1"
+                disabled={busy}
+                onClick={() => void withdraw()}
+              >
+                {busy && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                {t("aiConsent.withdrawYes")}
+              </Button>
+              <Button variant="outline" className="flex-1" onClick={() => setConfirming(false)}>
+                {t("common.cancel")}
+              </Button>
+            </div>
+          </div>
+        )}
+        <a
+          href={PRIVACY_AI_SECTION_URL}
+          className="block text-footnote font-semibold text-primary underline underline-offset-2"
+        >
+          {t("aiConsent.detailsLink")}
+        </a>
+      </div>
     </SettingsCard>
   );
 }

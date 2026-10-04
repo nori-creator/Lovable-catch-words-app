@@ -47,6 +47,11 @@ const common = {
   uiLanguage: z.enum(UI_LANGS),
   targetLanguage: z.enum(TARGET_LANGUAGES),
   preferences: LearningPreferencesSchema,
+  /**
+   * この端末で同意した「外部の AI へ送る」同意の版（`ai-consent.ts`）。登録前は記録する
+   * 相手が居ないので、画面がこれを付ける。無い・古い版ならサーバは何も送らずに断る。
+   */
+  aiConsentVersion: z.number().int().min(0).max(1000).optional(),
 };
 export const FirstCatchAIInput = z.discriminatedUnion("action", [
   z.object({

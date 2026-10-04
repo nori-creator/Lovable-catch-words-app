@@ -14,6 +14,7 @@ import { getDueReviews } from "@/lib/reviews.functions";
 import { packBatch, readBatch, REVIEW_CACHE_KEY, REVIEW_CACHE_USER_KEY } from "@/lib/review-cache";
 import { warmCachedImages } from "@/lib/image-cache";
 import { stickerPhotoUrl } from "@/lib/sticker-photo";
+import { AiConsentAccountGate } from "@/components/AiConsentHost";
 
 /**
  * 登録前に捕まえた1枚を預け直す画面。**登録した直後の1回しか出ない**ので後から読む
@@ -76,6 +77,8 @@ function AuthenticatedLayout() {
   const [state, setState] = useState<"checking" | "ready" | "failed">("checking");
   const [attempt, setAttempt] = useState(0);
   const [pending, setPending] = useState<{ draft: FirstCatch; userId: string } | null>(null);
+  /** 入っている人（外部の AI へ送る同意を聞くため。`AiConsentAccountGate`）。 */
+  const [userId, setUserId] = useState<string | null>(null);
 
   const retry = useCallback(() => {
     setState("checking");
@@ -104,6 +107,7 @@ function AuthenticatedLayout() {
             navigate({ to: "/auth", replace: true, search: { next: "" } });
           else navigate({ to: "/welcome", replace: true });
         } else {
+          setUserId(session.user.id);
           // Complete the photographed word's transfer before entering the app.
           const draft = await readFirstCatch().catch(() => null);
           if (!active) return;
@@ -227,5 +231,10 @@ function AuthenticatedLayout() {
         <FirstCatchTransfer {...pending} onDone={() => setPending(null)} />
       </Suspense>
     );
-  return <Outlet />;
+  return (
+    <>
+      {userId && <AiConsentAccountGate userId={userId} />}
+      <Outlet />
+    </>
+  );
 }

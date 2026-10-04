@@ -120,6 +120,9 @@ export function isSameOriginRequest(request: Request): boolean {
 
 export async function executeGuestFirstCatch(raw: unknown, request: Request) {
   const data = FirstCatchAIInput.parse(raw);
+  // 外部の AI へ送る前の同意（登録前なので、この端末での同意の版を確かめる）。
+  const { assertAttestedConsent } = await import("./ai-consent");
+  assertAttestedConsent(data.aiConsentVersion);
   const reserved: string[] = [];
   let db: SupabaseClient<Database> | null = null;
   let chain: Promise<AiTarget[]> | undefined;

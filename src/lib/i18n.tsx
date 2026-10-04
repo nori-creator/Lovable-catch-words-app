@@ -1743,6 +1743,109 @@ export const DICT: Record<string, Record<UiLang, string>> = {
     en: "We couldn't check your usage just now. Please try again in a moment.",
     "zh-TW": "目前無法確認使用次數，請稍候再試一次。",
   },
+  "err.aiConsent": {
+    ja: "AIを使う機能は、AIへのデータ送信に同意すると使えます。",
+    en: "AI features work once you agree to send data to AI services.",
+    "zh-TW": "同意將資料傳送給 AI 服務後，才能使用 AI 功能。",
+  },
+  // 外部の AI へ送る前の確認（iOS の AIConsentView と同じ中身。2026-10-03）。
+  "aiConsent.title": {
+    ja: "AIへのデータ送信について",
+    en: "About sending data to AI",
+    "zh-TW": "關於將資料傳送給 AI",
+  },
+  "aiConsent.lead": {
+    ja: "CatchWords は、写真から単語を見つけたり、単語カードを作ったり、日記を添削したりするために、外部のAIサービスを使います。使い始める前に、送る内容を確かめて、同意するかを選んでください。",
+    en: "CatchWords uses external AI services to find words in your photos, make word cards and correct your diary. Before you start, please check what is sent and choose whether you agree.",
+    "zh-TW":
+      "CatchWords 會使用外部 AI 服務，從照片中找出單字、製作單字卡、批改日記。開始使用前，請確認傳送的內容，並選擇是否同意。",
+  },
+  "aiConsent.whatTitle": { ja: "送るもの", en: "What is sent", "zh-TW": "傳送的內容" },
+  "aiConsent.whatBody": {
+    ja: "撮った写真、端末から選んだ画像、スキャンの画面、調べた単語、入力した文章（日記・報告のメモ）、声で調べた言葉（文字にしたもの。音声そのものは送りません）、学ぶ言語やレベルなどの設定。メールアドレスや名前は送りません。",
+    en: "Photos you take, images you choose from your device, scan frames, words you look up, text you type (diary entries, notes in reports), words you look up by voice (as text; the audio itself is not sent), and settings such as your learning language and level. Your email address and name are not sent.",
+    "zh-TW":
+      "你拍的照片、從裝置選擇的圖片、掃描畫面、查詢的單字、輸入的文字（日記、回報的備註）、用語音查詢的詞語（轉成的文字，不會傳送語音本身），以及學習語言、程度等設定。不會傳送電子郵件地址與姓名。",
+  },
+  "aiConsent.whoTitle": { ja: "送り先", en: "Who receives it", "zh-TW": "傳送對象" },
+  "aiConsent.whoBody": {
+    ja: "当社のサーバを通して、外部のAIサービス（Google など）に送ります。送り先の会社と国は、プライバシーポリシーに書いてあります。",
+    en: "It is sent through our server to external AI services (such as Google). The companies and countries that receive it are listed in the Privacy Policy.",
+    "zh-TW":
+      "經由本公司的伺服器傳送給外部 AI 服務（例如 Google）。接收的公司與所在國家記載於隱私權政策。",
+  },
+  "aiConsent.whyTitle": { ja: "使い道", en: "Why", "zh-TW": "用途" },
+  "aiConsent.whyBody": {
+    ja: "写っている物の判定、単語カード・解説・例文の作成、日記の添削のためだけに使います。当社が写真や日記を AI の学習に使うことはありません。",
+    en: "Only to recognize what is in the photo, to make word cards, explanations and example sentences, and to correct your diary. We never use your photos or diary to train AI.",
+    "zh-TW":
+      "僅用於辨識照片中的物品、製作單字卡、解說與例句，以及批改日記。本公司不會將你的照片或日記用於訓練 AI。",
+  },
+  "aiConsent.declineTitle": {
+    ja: "同意しない場合",
+    en: "If you don't agree",
+    "zh-TW": "不同意的話",
+  },
+  "aiConsent.declineBody": {
+    ja: "カメラ・スキャン・単語カードの作成・日記の添削など、AI を使う機能は使えません（何も送りません）。集めた単語を見ることや復習は、そのまま使えます。あとから「設定」で同意することも、取り消すこともできます。",
+    en: "Features that use AI, such as the camera, scanning, making word cards and diary correction, will not work (nothing is sent). You can still view the words you collected and review them. You can agree or withdraw later in Settings.",
+    "zh-TW":
+      "相機、掃描、製作單字卡、批改日記等使用 AI 的功能將無法使用（不會傳送任何資料）。瀏覽已收集的單字與複習仍可照常使用。之後也可以在「設定」中同意或撤回。",
+  },
+  "aiConsent.detailsLink": {
+    ja: "詳しくはプライバシーポリシー（第4条・第5条）をご覧ください",
+    en: "See the Privacy Policy (sections 4 and 5) for details",
+    "zh-TW": "詳情請參閱隱私權政策（第 4 條、第 5 條）",
+  },
+  "aiConsent.accept": { ja: "同意して始める", en: "Agree and start", "zh-TW": "同意並開始" },
+  "aiConsent.decline": { ja: "同意しない", en: "Don't agree", "zh-TW": "不同意" },
+  "aiConsent.agreedToast": {
+    ja: "AIへのデータ送信に同意しました",
+    en: "You agreed to send data to AI",
+    "zh-TW": "已同意將資料傳送給 AI",
+  },
+  "aiConsent.saveFailed": {
+    ja: "保存できませんでした。もう一度お試しください。",
+    en: "Couldn't save. Please try again.",
+    "zh-TW": "無法儲存，請再試一次。",
+  },
+  "aiConsent.settingsTitle": {
+    ja: "AIへのデータ送信",
+    en: "Sending data to AI",
+    "zh-TW": "將資料傳送給 AI",
+  },
+  "aiConsent.statusAgreed": {
+    ja: "同意しています（{date}）",
+    en: "You agreed ({date})",
+    "zh-TW": "已同意（{date}）",
+  },
+  "aiConsent.statusNone": {
+    ja: "同意していません。AI を使う機能は止まっています。",
+    en: "You haven't agreed. Features that use AI are turned off.",
+    "zh-TW": "尚未同意。使用 AI 的功能目前已停用。",
+  },
+  "aiConsent.settingsHint": {
+    ja: "写真・調べた単語・入力した文章を、外部のAIサービス（Google など）に送ってよいかの設定です。",
+    en: "Whether your photos, the words you look up and the text you type may be sent to external AI services (such as Google).",
+    "zh-TW": "是否允許將照片、查詢的單字與輸入的文字傳送給外部 AI 服務（例如 Google）。",
+  },
+  "aiConsent.review": {
+    ja: "内容を確認して同意する",
+    en: "Review and agree",
+    "zh-TW": "確認內容並同意",
+  },
+  "aiConsent.withdraw": { ja: "同意を取り消す", en: "Withdraw consent", "zh-TW": "撤回同意" },
+  "aiConsent.withdrawConfirm": {
+    ja: "取り消すと、カメラ・スキャン・単語カードの作成・日記の添削など、AI を使う機能が使えなくなります。取り消しますか？",
+    en: "If you withdraw, features that use AI, such as the camera, scanning, making word cards and diary correction, will stop working. Withdraw?",
+    "zh-TW": "撤回後，相機、掃描、製作單字卡、批改日記等使用 AI 的功能將無法使用。確定要撤回嗎？",
+  },
+  "aiConsent.withdrawYes": { ja: "取り消す", en: "Withdraw", "zh-TW": "撤回" },
+  "aiConsent.withdrawn": {
+    ja: "同意を取り消しました",
+    en: "Consent withdrawn",
+    "zh-TW": "已撤回同意",
+  },
   "err.proOnly": {
     ja: "Pro 限定の機能です",
     en: "This is a Pro feature",

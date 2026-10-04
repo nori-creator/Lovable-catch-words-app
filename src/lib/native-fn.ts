@@ -31,6 +31,7 @@ const stats = () => import("./stats.functions");
 const jev = () => import("./jev.functions");
 const wordbook = () => import("./wordbook.functions");
 const images = () => import("./images.functions");
+const consent = () => import("./ai-consent.functions");
 
 function from<M>(mod: () => Promise<M>, name: keyof M & string): Loader {
   return async () => (await mod())[name] as unknown as ServerFn;
@@ -106,6 +107,9 @@ export const NATIVE_FNS: Record<string, Loader> = {
   deleteMyAccount: from(profile, "deleteMyAccount"),
   getWordExplanation: from(explanation, "getWordExplanation"),
   getReaderMeanings: from(explanation, "getReaderMeanings"),
+  // 外部の AI へ送る同意（`docs/ios-spec/23-ai-consent.md`）
+  getAiConsent: from(consent, "getAiConsent"),
+  recordAiConsent: from(consent, "recordAiConsent"),
 };
 
 /** 失敗の中身から、iOS に返す状態コードを決める。 */
@@ -113,6 +117,9 @@ export function statusForError(e: unknown): number {
   const name = (e as { name?: string })?.name ?? "";
   const msg = e instanceof Error ? e.message : String(e ?? "");
   if (msg.startsWith("Unauthorized")) return 401;
+  // 外部の AI へ送る同意が無い（`ai-consent.ts`）。iOS は同意の画面を出す。
+  if (msg.includes("AI_CONSENT_REQUIRED")) return 403;
+  if (msg.includes("AI_CONSENT_CHECK_FAILED")) return 503;
   if (
     msg.includes("1日の利用上限") ||
     msg.includes("AI_DAILY_CAP") ||

@@ -16,6 +16,7 @@ import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 import { supabase } from "@/integrations/supabase/client";
 import { Toaster } from "@/components/ui/sonner";
+import { AiConsentHost } from "@/components/AiConsentHost";
 import { ThemeProvider, DEFAULT_THEME, THEME_STORAGE_KEY } from "@/components/theme-provider";
 import { DEFAULT_MOTION, MOTION_ATTR, MOTION_STORAGE_KEY } from "@/lib/motion-pref";
 import { MotionProvider } from "@/components/motion-provider";
@@ -336,6 +337,8 @@ function RootComponent() {
         <MotionProvider>
           <Outlet />
           <Toaster position="top-center" richColors />
+          {/* 外部の AI へ送る前の確認の画面（どの画面からでも開く。`ai-consent-client.ts`）。 */}
+          <AiConsentHost />
         </MotionProvider>
       </ThemeProvider>
     </QueryClientProvider>

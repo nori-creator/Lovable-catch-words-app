@@ -19,6 +19,7 @@
  */
 import { useCallback } from "react";
 import { useT, useUiLang, type UiLang } from "./i18n";
+import { noticeAiConsentError } from "./ai-consent-client";
 
 /** サーバーの日本語の文 → 辞書の鍵。上から順に見る。 */
 const KNOWN: Array<[RegExp, string]> = [
@@ -47,6 +48,9 @@ const KNOWN_CODES: Array<[string, string]> = [
   ["AI_DAILY_CAP", "err.dailyCap"],
   ["AI_GLOBAL_CAP", "err.aiBusy"],
   ["AI_USAGE_CHECK_FAILED", "err.usageCheck"],
+  // 外部の AI へ送る同意が無い（`ai-consent.ts`）。文を出し、確認の画面も開く。
+  ["AI_CONSENT_REQUIRED", "err.aiConsent"],
+  ["AI_CONSENT_CHECK_FAILED", "err.usageCheck"],
   // 購入口・定期購入の管理（`stripe-catalog.ts` の `BILLING_ERRORS`）。
   ["BILLING_PORTAL_NOT_CONFIGURED", "pro.err.portalNotConfigured"],
   ["BILLING_NO_CUSTOMER", "pro.err.noCustomer"],
@@ -63,6 +67,8 @@ export function readableError(
 ): string {
   const msg = e instanceof Error ? e.message : "";
   if (!msg) return fallback;
+  // 同意が無くて断られた時は、確認の画面を開く（設定から探させない）。
+  noticeAiConsentError(e);
   // **サーバが印で投げた理由**（文ではない）。どの表示言語でもその言語の文に直す。
   if (t) {
     for (const [code, key] of KNOWN_CODES) if (msg.includes(code)) return t(key);

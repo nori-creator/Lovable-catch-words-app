@@ -93,6 +93,8 @@ export const extractWordbook = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) => ExtractInput.parse(input))
   .handler(async ({ context, data }): Promise<WordbookDraft> => {
+    // 外部の AI へ送る前の同意（`ai-consent.ts`）。無ければ何も送らずに断る。
+    await (await import("./ai-consent.server")).assertAiConsent(context.userId);
     const { supabase, userId } = context;
     await assertWithinDailyCap(userId, "wordbook");
     const ai = await getAiFor("scan");

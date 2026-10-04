@@ -140,6 +140,8 @@ export const detectScan = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) => DetectInput.parse(input))
   .handler(async ({ data, context }) => {
+    // 外部の AI へ送る前の同意（`ai-consent.ts`）。無ければ何も送らずに断る。
+    await (await import("./ai-consent.server")).assertAiConsent(context.userId);
     const ai = await getAiFor("scan");
     const { supabase, userId } = context;
     await assertWithinDailyCap(userId, "scan_detect");
@@ -309,6 +311,8 @@ export const detectParts = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) => DetectPartsInput.parse(input))
   .handler(async ({ data, context }) => {
+    // 外部の AI へ送る前の同意（`ai-consent.ts`）。無ければ何も送らずに断る。
+    await (await import("./ai-consent.server")).assertAiConsent(context.userId);
     const ai = await getAiFor("scan");
     await assertWithinDailyCap(context.userId, "scan_parts");
     const imageInput = data.imageBase64.startsWith("data:")

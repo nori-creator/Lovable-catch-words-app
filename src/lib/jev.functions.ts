@@ -36,6 +36,15 @@ export const rankScanCandidates = createServerFn({ method: "POST" })
   )
   .handler(async ({ data, context }) => {
     if (!jevAvailable()) return { order: null, probs: null, doubtful: [] as number[] };
+    // 外部の AI へ送る前の同意（`ai-consent.ts`）。並べ替えはおまけなので、同意が無ければ
+    // 送らずに**並べ替えないまま**返す（スキャンの画面は止めない）。
+    try {
+      await (await import("./ai-consent.server")).assertAiConsent(context.userId);
+    } catch (e) {
+      const { isAiConsentError } = await import("./ai-consent");
+      if (!isAiConsentError(e)) throw e;
+      return { order: null, probs: null, doubtful: [] as number[] };
+    }
     /**
      * **上限を掛ける**（監査 2026-10-03 M7）。前は外の AI（Jev）を何回でも呼べた。
      * その人の 24 時間の上限（`jev_rank`、`ai-cap.ts`）に数える。並べ替えはおまけなので、

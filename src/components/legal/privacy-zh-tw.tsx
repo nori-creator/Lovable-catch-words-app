@@ -87,7 +87,7 @@ export function PrivacyZhTw({ info }: { info: LegalPublicInfo }) {
           4 條所列業者，是為了提供本服務而委託其處理業務。經營者不會販售你的資料。
         </p>
 
-        <h2>4. 外部業者（依用途）</h2>
+        <h2 id="external-services">4. 外部業者（依用途）</h2>
         <p>
           使用哪些業者，會依功能與經營者的設定而不同。此清單也包含目前未使用、但切換設定時會使用的業者。
         </p>

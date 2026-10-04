@@ -15,6 +15,9 @@ import { FirstCatchIntro, FirstCatchNotifications, FirstCatchReady } from "./Fir
 import { getTargetLang } from "@/lib/target-lang-pref";
 import type { suggestWords } from "@/lib/ai.functions";
 import { firstCatchAI, firstCatchMemberAI } from "@/lib/first-catch-ai.functions";
+import { getAiConsent } from "@/lib/ai-consent.functions";
+import { AI_CONSENT_REQUIRED, AI_CONSENT_VERSION } from "@/lib/ai-consent";
+import { askAiConsent, localConsentGranted, writeLocalConsent } from "@/lib/ai-consent-client";
 import { createFirstCatchServices } from "@/lib/first-catch-ai-client";
 import { reportBackgroundFailure } from "@/lib/background-failure";
 import type { TutorialStep } from "@/lib/funnel-events";
@@ -75,12 +78,37 @@ export type FirstCatchServices = {
 export function FirstCatchEntry() {
   const guestAI = useServerFn(firstCatchAI);
   const memberAI = useServerFn(firstCatchMemberAI);
+  const consentFn = useServerFn(getAiConsent);
   const navigate = useNavigate();
+  /**
+   * **写真・語を外部の AI へ送る前に、はっきり同意をもらう**（`ai-consent.ts`）。
+   * 登録前（ゲスト・端末だけの匿名アカウント）は端末に覚え、登録した後にもう一度聞いて
+   * サーバに記録する。登録した人はサーバの記録を見て、無ければ聞いて記録する。
+   * 同意しなければ何も送らない（画面は「もう一度」で確認をまた開ける）。
+   */
+  async function ensureConsent(user: { id: string; is_anonymous?: boolean } | null) {
+    if (user && !user.is_anonymous) {
+      if (localConsentGranted(`user:${user.id}`)) return;
+      const status = await consentFn().catch(() => null);
+      if (status?.agreed) {
+        writeLocalConsent(`user:${user.id}`, "granted");
+        return;
+      }
+      if (await askAiConsent("account")) return;
+    } else {
+      if (localConsentGranted("guest")) return;
+      if (await askAiConsent("guest")) return;
+    }
+    throw new Error(AI_CONSENT_REQUIRED);
+  }
   return (
     <FirstCatchFlow
       services={createFirstCatchServices(
-        async (data) => {
+        async (request) => {
           const started = Date.now();
+          const data = { ...request, aiConsentVersion: AI_CONSENT_VERSION };
+          // 送る前の同意（同意済みなら端末の記録で即座に通る）。断られたら何も送らない。
+          await ensureConsent((await supabase.auth.getUser()).data.user);
           try {
             // 端末に残るログインを読むだけ（`getUser` は毎回 Auth に問い合わせ、AI の前に
             // 1往復を足していた。本人かどうかはサーバが確かめる）。
@@ -109,7 +137,10 @@ export function FirstCatchEntry() {
             throw failed;
           }
         },
-        async () => {},
+        // 写真を解析する前（解析の待ち時間を数え始める前）に同意を聞く。
+        async () => {
+          await ensureConsent((await supabase.auth.getUser()).data.user);
+        },
         // AI に送る写真は本物の撮影と同じ大きさ（長い辺 768px）。端末に残す写真はそのまま。
         // 1024px の約半分の大きさで、送る時間と AI が読む量（タイル数）が減る。
         (photo) => downscaleDataUrl(photo, 768, 0.8),
@@ -529,6 +560,8 @@ function FirstCatchFlowInner({
       FIRST_CATCH_STORAGE_TIMEOUT: "first.storage",
       FIRST_CATCH_NETWORK: "first.network",
     };
+    // 外部の AI へ送る同意が無い（確認の画面で「同意しない」）。「もう一度」で確認の画面がまた開く。
+    if (code.startsWith("AI_CONSENT_REQUIRED")) return t("err.aiConsent");
     const key = known[code];
     if (key) return t(key);
     return /^FIRST_CATCH_[A-Z_]+$/.test(code)

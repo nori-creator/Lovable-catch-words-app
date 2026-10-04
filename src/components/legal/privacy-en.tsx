@@ -113,7 +113,7 @@ export function PrivacyEn({ info }: { info: LegalPublicInfo }) {
           work needed to run the Service. The operator does not sell your information.
         </p>
 
-        <h2>4. Service providers, by purpose</h2>
+        <h2 id="external-services">4. Service providers, by purpose</h2>
         <p>
           Which providers are used depends on the feature and on the operator's settings. This list
           also includes providers that are not in use now but would be used if the settings were

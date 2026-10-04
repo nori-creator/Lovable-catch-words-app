@@ -231,6 +231,8 @@ export const suggestWords = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) => SuggestInput.parse(input))
   .handler(async ({ data, context }) => {
+    // 外部の AI へ送る前の同意（`ai-consent.ts`）。無ければ何も送らずに断る。
+    await (await import("./ai-consent.server")).assertAiConsent(context.userId);
     const startedAt = Date.now();
     // AI の前の読み出し（使う AI・枠の確保・級・解説の言語）は**並べて**待つ（実物確認
     // 2026-10-03: シャッターから候補まで 4.5〜42 秒。前はここで4〜5往復を1つずつ待っていた）。
@@ -488,6 +490,8 @@ export const suggestWordCandidates = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) => WordCandidatesInput.parse(input))
   .handler(async ({ data, context }) => {
+    // 外部の AI へ送る前の同意（`ai-consent.ts`）。無ければ何も送らずに断る。
+    await (await import("./ai-consent.server")).assertAiConsent(context.userId);
     const ai = await getAiFor("scan");
     await assertWithinDailyCap(context.userId, "suggest");
     const levelRule = await levelInstruction(context.userId);
@@ -584,6 +588,8 @@ export const generateCard = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) => CardInput.parse(input))
   .handler(async ({ data, context }) => {
+    // 外部の AI へ送る前の同意（`ai-consent.ts`）。無ければ何も送らずに断る。
+    await (await import("./ai-consent.server")).assertAiConsent(context.userId);
     const ai = await getAiFor("card");
     await assertWithinDailyCap(context.userId, "card");
     const levelGoal = await getUserLevelGoal(context.userId);
@@ -1067,6 +1073,8 @@ export const generatePhraseCard = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) => PhraseInput.parse(input))
   .handler(async ({ data, context }): Promise<GeneratedPhraseCard> => {
+    // 外部の AI へ送る前の同意（`ai-consent.ts`）。無ければ何も送らずに断る。
+    await (await import("./ai-consent.server")).assertAiConsent(context.userId);
     const ai = await getAiFor("card");
     await assertWithinDailyCap(context.userId, "phrase_card");
     // Plain text + tolerant parse (see generateCard) — avoid json_schema output
@@ -1773,6 +1781,8 @@ export const regenerateCardSection = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) => RegenInput.parse(input))
   .handler(async ({ context, data }) => {
+    // 外部の AI へ送る前の同意（`ai-consent.ts`）。無ければ何も送らずに断る。
+    await (await import("./ai-consent.server")).assertAiConsent(context.userId);
     const r = await runSectionRegen(context, data, "write");
     // 作り直しの回数（開発者の利用者ごとの画面。新しく作った解説と分けて数える）。
     if (!data.only_if_empty) await logUsage(context.supabase, context.userId, "card_regen");
@@ -1830,6 +1840,8 @@ export const reportAndFixSection = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) => ReportFixInput.parse(input))
   .handler(async ({ context, data }): Promise<ReportFixResult> => {
+    // 外部の AI へ送る前の同意（`ai-consent.ts`）。無ければ何も送らずに断る。
+    await (await import("./ai-consent.server")).assertAiConsent(context.userId);
     const { supabase, userId } = context;
     // 所有チェック: この語のステッカーを持つ人だけが直せる。
     const { data: owned } = await supabase
