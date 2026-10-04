@@ -3036,33 +3036,6 @@ export const DICT: Record<string, Record<UiLang, string>> = {
     en: "Same layout as the home album. “Done” updates the book too.",
     "zh-TW": "和首頁相簿同一種排法。按「完成」後書裡也會更新。",
   },
-  "object3d.open": { ja: "3Dにする", en: "Make it 3D", "zh-TW": "變成 3D" },
-  "object3d.close": { ja: "写真に戻る", en: "Back to the photo", "zh-TW": "回到照片" },
-  "object3d.making": {
-    ja: "3Dを作っています",
-    en: "Building the 3D model",
-    "zh-TW": "正在製作 3D",
-  },
-  "object3d.unavailable": {
-    ja: "3Dの準備中です（開発者の設定待ち）",
-    en: "3D isn't set up yet",
-    "zh-TW": "3D 功能尚未設定",
-  },
-  "object3d.noCredit": {
-    ja: "Tripo のクレジットが足りません。Tripo の管理画面でクレジットを追加してください",
-    en: "Not enough Tripo credits. Add credits in the Tripo dashboard",
-    "zh-TW": "Tripo 點數不足，請到 Tripo 管理頁面加值",
-  },
-  "object3d.proOnly": {
-    ja: "3DはProの機能です",
-    en: "3D is a Pro feature",
-    "zh-TW": "3D 是 Pro 功能",
-  },
-  "object3d.failed": {
-    ja: "3Dを作れませんでした。もう一度お試しください",
-    en: "Couldn't build the 3D model. Please try again.",
-    "zh-TW": "無法製作 3D，請再試一次",
-  },
 
   "shelf.home.pencilSkip": {
     ja: "タップで書き終える",

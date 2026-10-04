@@ -43,7 +43,7 @@ Guest progress survives registration. The first photo and word are durably added
 
 ## Pronunciation / TTS
 Current mechanical-sounding Google-first speech is not the target quality.
-Build a provider-agnostic speech router. Candidate providers/models may include high-quality services such as MiniMax, ElevenLabs and future compatible providers, but model selection must be based on language-specific quality testing rather than brand name.
+Build a provider-agnostic speech router. Candidate providers/models may include high-quality services such as ElevenLabs and future compatible providers, but model selection must be based on language-specific quality testing rather than brand name.
 Use hybrid caching:
 1. pre-generate common/high-value vocabulary when economical;
 2. reuse shared cached audio for identical safe canonical entries;

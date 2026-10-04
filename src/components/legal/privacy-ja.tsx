@@ -7,7 +7,7 @@ import { PRIVACY_UPDATED } from "./dates";
  *
  * 外部事業者の一覧は、コードが実際に送る先を確かめて書いた（2026-10-03）:
  * `ai-provider.server.ts`（AI の口の一覧）、`tts-providers.ts` / `tts-synth.ts`（読み上げ）、
- * `images.functions.ts` / `higgsfield.server.ts`（画像）、`object3d.ts`（3D）、`jev.server.ts`
+ * `images.functions.ts` / `higgsfield.server.ts`（画像）、`jev.server.ts`
  * （TypeSafe Jev）、`geocode.functions.ts` / `DexDayMap.tsx`（地図）、`billing.functions.ts`
  * （Stripe）。退会で消える物は `profile.functions.ts` の `deleteMyAccount`。
  * 送り先を足したら、ここと英語版・繁體中文版を同じ日に直す。
@@ -124,13 +124,12 @@ export function PrivacyJa({ info }: { info: LegalPublicInfo }) {
           <li>
             <strong>読み上げ音声</strong>:
             読み上げる文字（単語・例文）だけを送ります。Microsoft（Azure AI Speech）、Google（Gemini
-            の読み上げ、Cloud Text-to-Speech）、ElevenLabs、MiniMax、Lovable AI Gateway または
-            OpenAI 互換の API。作った音声は、利用者と結びつかない共有の音声として保存します
+            の読み上げ、Cloud Text-to-Speech）、ElevenLabs、Lovable AI Gateway または OpenAI 互換の
+            API。作った音声は、利用者と結びつかない共有の音声として保存します
           </li>
           <li>
             <strong>画像</strong>: 単語（検索の言葉）だけを送ります。Unsplash、Wikimedia
-            Commons、Higgsfield、Lovable AI Gateway（画像の生成）。写真から 3D
-            を作る機能を使った場合は、その写真を 3D 生成の事業者（Tripo3D など）へ送ります
+            Commons、Higgsfield、Lovable AI Gateway（画像の生成）
           </li>
           <li>
             <strong>地図</strong>: Google（Google マップ）。Web 版で地図を表示するとき、端末は
@@ -169,7 +168,7 @@ export function PrivacyJa({ info }: { info: LegalPublicInfo }) {
             Supabase、Cloudflare、Google、Apple、OpenAI、Anthropic、OpenRouter、Microsoft、ElevenLabs、Stripe
           </li>
           <li>スウェーデン（EU）と米国: Lovable</li>
-          <li>中国: DeepSeek、Moonshot AI、MiniMax、Tripo3D（設定でこれらを使う場合だけ）</li>
+          <li>中国: DeepSeek、Moonshot AI（設定でこれらを使う場合だけ）</li>
         </ul>
         <p>
           各国の制度:

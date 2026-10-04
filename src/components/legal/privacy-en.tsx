@@ -138,14 +138,12 @@ export function PrivacyEn({ info }: { info: LegalPublicInfo }) {
           <li>
             <strong>Pronunciation audio</strong>: only the text to be read aloud (words and example
             sentences) is sent: Microsoft (Azure AI Speech), Google (Gemini speech, Cloud
-            Text-to-Speech), ElevenLabs, MiniMax, Lovable AI Gateway or an OpenAI-compatible API.
-            The audio is stored as shared audio that is not linked to you
+            Text-to-Speech), ElevenLabs, Lovable AI Gateway or an OpenAI-compatible API. The audio
+            is stored as shared audio that is not linked to you
           </li>
           <li>
             <strong>Images</strong>: only the word (search term) is sent: Unsplash, Wikimedia
-            Commons, Higgsfield and Lovable AI Gateway (image generation). If you use the feature
-            that turns a photo into 3D, that photo is sent to a 3D generation provider (such as
-            Tripo3D)
+            Commons, Higgsfield and Lovable AI Gateway (image generation)
           </li>
           <li>
             <strong>Maps</strong>: Google (Google Maps). When a map is shown on the web version,
@@ -192,7 +190,7 @@ export function PrivacyEn({ info }: { info: LegalPublicInfo }) {
             Microsoft, ElevenLabs, Stripe
           </li>
           <li>Sweden (EU) and the United States: Lovable</li>
-          <li>China: DeepSeek, Moonshot AI, MiniMax, Tripo3D (only if the settings use them)</li>
+          <li>China: DeepSeek, Moonshot AI (only if the settings use them)</li>
         </ul>
         <p>
           Their systems: the United States has no comprehensive federal privacy law, but has

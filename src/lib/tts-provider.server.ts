@@ -18,9 +18,7 @@ import {
 import {
   choiceFor,
   elevenLabsBody,
-  hexToBytes,
   isVoiceLocked,
-  minimaxBody,
   providerInfo,
   voiceTag,
   type GeminiDiagnosis,
@@ -172,34 +170,6 @@ async function synthesizeMp3Provider(
       },
     );
     return new Uint8Array(await res.arrayBuffer());
-  }
-
-  if (choice.provider === "minimax") {
-    const model = choice.model || info.models[0];
-    const host = (process.env.MINIMAX_API_HOST || "https://api.minimax.io").replace(/\/$/, "");
-    const group = process.env.MINIMAX_GROUP_ID;
-    const res = await post(
-      `${host}/v1/t2a_v2${group ? `?GroupId=${encodeURIComponent(group)}` : ""}`,
-      {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${process.env.MINIMAX_API_KEY!}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(minimaxBody(text, model, choice.voice, speed, language)),
-      },
-    );
-    const json = (await res.json()) as {
-      data?: { audio?: string };
-      base_resp?: { status_code?: number; status_msg?: string };
-    };
-    if (json.base_resp?.status_code) {
-      throw new Error(
-        `TTS minimax ${json.base_resp.status_code} ${json.base_resp.status_msg ?? ""}`,
-      );
-    }
-    if (!json.data?.audio) throw new Error("TTS minimax empty audio");
-    return hexToBytes(json.data.audio);
   }
 
   throw new Error(`TTS provider not connected: ${choice.provider}`);

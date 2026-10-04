@@ -34,7 +34,6 @@ import { Route as AuthenticatedScanRouteImport } from './routes/_authenticated/s
 import { Route as AuthenticatedSettingsRouteImport } from './routes/_authenticated/settings'
 import { Route as ApiNativeAiRouteImport } from './routes/api.native-ai'
 import { Route as ApiNativeFnRouteImport } from './routes/api.native-fn'
-import { Route as ApiObject3dModelRouteImport } from './routes/api.object3d-model'
 import { Route as ApiStripeWebhookRouteImport } from './routes/api.stripe-webhook'
 import { Route as LegalTokushohoRouteImport } from './routes/legal.tokushoho'
 import { Route as DotlovableOauthConsentRouteImport } from './routes/[.]lovable.oauth.consent'
@@ -171,11 +170,6 @@ const ApiNativeFnRoute = ApiNativeFnRouteImport.update({
   path: '/api/native-fn',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ApiObject3dModelRoute = ApiObject3dModelRouteImport.update({
-  id: '/api/object3d-model',
-  path: '/api/object3d-model',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const ApiStripeWebhookRoute = ApiStripeWebhookRouteImport.update({
   id: '/api/stripe-webhook',
   path: '/api/stripe-webhook',
@@ -251,7 +245,6 @@ export interface FileRoutesByFullPath {
   '/settings': typeof AuthenticatedSettingsRoute
   '/api/native-ai': typeof ApiNativeAiRoute
   '/api/native-fn': typeof ApiNativeFnRoute
-  '/api/object3d-model': typeof ApiObject3dModelRoute
   '/api/stripe-webhook': typeof ApiStripeWebhookRoute
   '/legal/tokushoho': typeof LegalTokushohoRoute
   '/.lovable/oauth/consent': typeof DotlovableOauthConsentRoute
@@ -287,7 +280,6 @@ export interface FileRoutesByTo {
   '/settings': typeof AuthenticatedSettingsRoute
   '/api/native-ai': typeof ApiNativeAiRoute
   '/api/native-fn': typeof ApiNativeFnRoute
-  '/api/object3d-model': typeof ApiObject3dModelRoute
   '/api/stripe-webhook': typeof ApiStripeWebhookRoute
   '/legal/tokushoho': typeof LegalTokushohoRoute
   '/.lovable/oauth/consent': typeof DotlovableOauthConsentRoute
@@ -325,7 +317,6 @@ export interface FileRoutesById {
   '/_authenticated/settings': typeof AuthenticatedSettingsRoute
   '/api/native-ai': typeof ApiNativeAiRoute
   '/api/native-fn': typeof ApiNativeFnRoute
-  '/api/object3d-model': typeof ApiObject3dModelRoute
   '/api/stripe-webhook': typeof ApiStripeWebhookRoute
   '/legal/tokushoho': typeof LegalTokushohoRoute
   '/.lovable/oauth/consent': typeof DotlovableOauthConsentRoute
@@ -363,7 +354,6 @@ export interface FileRouteTypes {
     | '/settings'
     | '/api/native-ai'
     | '/api/native-fn'
-    | '/api/object3d-model'
     | '/api/stripe-webhook'
     | '/legal/tokushoho'
     | '/.lovable/oauth/consent'
@@ -399,7 +389,6 @@ export interface FileRouteTypes {
     | '/settings'
     | '/api/native-ai'
     | '/api/native-fn'
-    | '/api/object3d-model'
     | '/api/stripe-webhook'
     | '/legal/tokushoho'
     | '/.lovable/oauth/consent'
@@ -436,7 +425,6 @@ export interface FileRouteTypes {
     | '/_authenticated/settings'
     | '/api/native-ai'
     | '/api/native-fn'
-    | '/api/object3d-model'
     | '/api/stripe-webhook'
     | '/legal/tokushoho'
     | '/.lovable/oauth/consent'
@@ -466,7 +454,6 @@ export interface RootRouteChildren {
   Char91DotwellKnownChar93OauthProtectedResourceRoute: typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
   ApiNativeAiRoute: typeof ApiNativeAiRoute
   ApiNativeFnRoute: typeof ApiNativeFnRoute
-  ApiObject3dModelRoute: typeof ApiObject3dModelRoute
   ApiStripeWebhookRoute: typeof ApiStripeWebhookRoute
   LegalTokushohoRoute: typeof LegalTokushohoRoute
   DotlovableOauthConsentRoute: typeof DotlovableOauthConsentRoute
@@ -650,13 +637,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiNativeFnRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/api/object3d-model': {
-      id: '/api/object3d-model'
-      path: '/api/object3d-model'
-      fullPath: '/api/object3d-model'
-      preLoaderRoute: typeof ApiObject3dModelRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/api/stripe-webhook': {
       id: '/api/stripe-webhook'
       path: '/api/stripe-webhook'
@@ -786,7 +766,6 @@ const rootRouteChildren: RootRouteChildren = {
     Char91DotwellKnownChar93OauthProtectedResourceRoute,
   ApiNativeAiRoute: ApiNativeAiRoute,
   ApiNativeFnRoute: ApiNativeFnRoute,
-  ApiObject3dModelRoute: ApiObject3dModelRoute,
   ApiStripeWebhookRoute: ApiStripeWebhookRoute,
   LegalTokushohoRoute: LegalTokushohoRoute,
   DotlovableOauthConsentRoute: DotlovableOauthConsentRoute,

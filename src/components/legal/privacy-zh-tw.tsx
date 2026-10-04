@@ -108,13 +108,12 @@ export function PrivacyZhTw({ info }: { info: LegalPublicInfo }) {
           </li>
           <li>
             <strong>朗讀語音</strong>：只送出要朗讀的文字（單字與例句）：Microsoft（Azure AI
-            Speech）、Google（Gemini 語音、Cloud Text-to-Speech）、ElevenLabs、MiniMax、Lovable AI
-            Gateway 或 OpenAI 相容 API。產生的語音會以與你無關聯的共用語音儲存
+            Speech）、Google（Gemini 語音、Cloud Text-to-Speech）、ElevenLabs、Lovable AI Gateway 或
+            OpenAI 相容 API。產生的語音會以與你無關聯的共用語音儲存
           </li>
           <li>
             <strong>圖片</strong>：只送出單字（搜尋字詞）：Unsplash、Wikimedia
-            Commons、Higgsfield、Lovable AI Gateway（產生圖片）。使用將照片轉為 3D
-            的功能時，該照片會送到 3D 產生業者（例如 Tripo3D）
+            Commons、Higgsfield、Lovable AI Gateway（產生圖片）
           </li>
           <li>
             <strong>地圖</strong>：Google（Google 地圖）。在網頁版顯示地圖時，你的裝置會從 Google
@@ -154,7 +153,7 @@ export function PrivacyZhTw({ info }: { info: LegalPublicInfo }) {
             美國：Supabase、Cloudflare、Google、Apple、OpenAI、Anthropic、OpenRouter、Microsoft、ElevenLabs、Stripe
           </li>
           <li>瑞典（歐盟）與美國：Lovable</li>
-          <li>中國：DeepSeek、Moonshot AI、MiniMax、Tripo3D（僅在設定使用這些業者時）</li>
+          <li>中國：DeepSeek、Moonshot AI（僅在設定使用這些業者時）</li>
         </ul>
         <p>
           各國制度：美國沒有聯邦層級的綜合性個人資料保護法，而有各領域的聯邦法與《加州消費者隱私法》（CCPA）等州法。歐盟有《一般資料保護規則》（GDPR），日本個人情報保護委員會認定歐盟具有與日本同等的保護水準。中國有《個人信息保護法》，但也有廣泛允許政府取得資料的法律（如《國家情報法》）。詳情可參考日本個人情報保護委員會公布的外國制度調查資料。

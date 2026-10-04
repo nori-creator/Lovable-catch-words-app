@@ -6220,23 +6220,18 @@ describe("同じ人の SIGNED_IN で全部を読み直さない（R17 4択の差
   });
 });
 
-describe("Pro: 単語の詳細の写真を 3D にする（R17）", () => {
-  it("開発者にだけボタンを出し、作った形は端末に置いて作り直さない", () => {
+describe("3D 化（Tripo3D）は機能ごと外した（2026-10-03 オーナー決定）", () => {
+  it("単語の詳細に 3D の釦が無く、3D 生成のファイルも残っていない", () => {
     const sheet = codeOnly(read("components/StickerSheet.tsx"));
-    // 2026-09-29 オーナー指示「私以外は 3D モデル機能使えないようにして」。Pro では出さない。
-    expect(sheet).toMatch(/const canMake3d = adm\?\.isAdmin === true;/);
-    expect(sheet).toMatch(/\{canMake3d && !flipped && !show3d && \(/);
-    expect(sheet).toMatch(/\{canMake3d && show3d && object3dSource && \(/);
-    const hero = codeOnly(read("components/Object3DHero.tsx"));
-    expect(hero).toMatch(/const cached = await readCached\(stickerId\);/);
-    expect(hero).toMatch(/await c\.put\(/);
-    // サーバ側でも開発者か確かめる（画面の条件だけに頼らない）。作る2つの入口と、
-    // 進み具合を聞く入口（2026-10-03 監査で追加）の3つで。
-    const fns = codeOnly(read("lib/object3d.functions.ts"));
-    expect(fns.match(/if \(!object3dAllowed\(\{ isAdmin: Boolean\(isAdmin\) \}\)\)/g)?.length).toBe(
-      3,
-    );
-    expect(fns).not.toMatch(/isProUser/);
+    expect(sheet).not.toMatch(/Object3D|canMake3d|show3d/);
+    for (const f of [
+      "components/Object3DHero.tsx",
+      "lib/object3d.ts",
+      "lib/object3d.functions.ts",
+      "lib/object3d-auth.server.ts",
+      "routes/api.object3d-model.ts",
+    ])
+      expect([f, fs.existsSync(path.join(root, f))]).toEqual([f, false]);
   });
 });
 
@@ -6316,22 +6311,12 @@ describe("R22（2026-09-29 オーナー報告: 設定で止まる・演出・3D�
   });
 });
 
-describe("R23（2026-09-29: 復習の写真が開いた瞬間に伸び縮み・3D のクレジット）", () => {
+describe("R23（2026-09-29: 復習の写真が開いた瞬間に伸び縮み）", () => {
   it("記憶の帯と続いた日数は、読み込み中も場所を取っておく（写真は残りの高さをもらうため）", () => {
     const review = codeOnly(read("components/screens/ReviewScreen.tsx"));
     expect(review).toMatch(/memPending && !memOverview && \(/);
     expect(review).toMatch(/<MemoryLevelSummary words=\{\[\]\} expanded=\{false\} \/>/);
     expect(review).toMatch(/if \(streakPending\) streakReserved\.current = true;/);
-  });
-
-  it("Tripo へは1件だけ頼み、足りなければ色なしで作り直し、それでも足りなければそう伝える", () => {
-    const fns = codeOnly(read("lib/object3d.functions.ts"));
-    expect(fns).not.toMatch(/Promise\.all\(\[task\("preview"\), task\("final"\)\]\)/);
-    expect(fns).toMatch(/let made = await task\("final"\);/);
-    expect(fns).toMatch(/made\.code === TRIPO_NO_CREDIT\) made = await task\("preview"\)/);
-    expect(fns).toMatch(/status: "no_credit" as const/);
-    const hero = codeOnly(read("components/Object3DHero.tsx"));
-    expect(hero).toMatch(/t\("object3d\.noCredit"\)/);
   });
 });
 

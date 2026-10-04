@@ -50,7 +50,6 @@ import { AnalyzingDesignsScene } from "./scenes/analyzing-designs";
 import { Shelf3DScene } from "./scenes/shelf-3d";
 import { BookAlbumEditScene, BookPageScene, HomeVsBookScene } from "./scenes/book-page";
 import { ThreeFxScene } from "./scenes/three-fx";
-import { Object3DScene } from "./scenes/object-3d";
 import { DiaryPencilScene } from "./scenes/diary-pencil";
 import { MotionCompareScene } from "./scenes/motion-compare";
 import { LaunchIntroScene } from "./scenes/launch-intro";
@@ -192,7 +191,6 @@ const SCENES: Record<string, ((p: { q: URLSearchParams }) => ReactNode) | undefi
   "home-vs-book": HomeVsBookScene,
   "book-album-edit": BookAlbumEditScene,
   "three-fx": ThreeFxScene,
-  "object-3d": Object3DScene,
   "diary-pencil": DiaryPencilScene,
   "motion-compare": MotionCompareScene,
   "launch-intro": LaunchIntroScene,

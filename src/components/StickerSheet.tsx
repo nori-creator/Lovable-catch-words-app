@@ -3,11 +3,10 @@ import { StickerCategoryChip } from "@/components/StickerCategoryChip";
 import type { Dispatch, RefObject, SetStateAction } from "react";
 import { useReadableError } from "@/lib/errors";
 import { cardSectionsNow } from "@/lib/card-prefs";
-import { hasOwnPhoto, pickStickerPhoto, stickerPhotoUrl } from "@/lib/sticker-photo";
+import { hasOwnPhoto, pickStickerPhoto } from "@/lib/sticker-photo";
 import { useEffect, useMemo, useReducer, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { checkIsAdmin } from "@/lib/admin.functions";
 import {
   X,
   MapPin,
@@ -62,7 +61,6 @@ import { CachedImg, putCachedImage } from "@/lib/image-cache";
 import { SEED_UPDATED_AT, seedStickerFromList } from "@/lib/sticker-seed";
 import { useHeroReveal, type HeroOrigin } from "@/components/use-hero-reveal";
 import { HeroPhotoPicker } from "@/components/HeroPhotoPicker";
-import { Object3DButton, Object3DLayer } from "@/components/Object3DHero";
 import { usePhotoAttach } from "@/lib/use-photo-attach";
 import { usePlaceName } from "@/lib/use-place-name";
 import { Term } from "@/components/Term";
@@ -244,18 +242,6 @@ export function StickerSheet({ stickerId, onClose, openPhotoPicker, from, local 
   /** 表に出す1枚。役も見るので URL だけでなく組で持つ。 */
   const hero = pickStickerPhoto(s);
   const isPro = (profile as { plan?: string } | null | undefined)?.plan === "pro";
-  /**
-   * **3D は開発者だけ**（オーナー指示 2026-09-29「私以外は 3D モデル機能使えないようにして」）。
-   * Pro かどうかでは出さない。サーバ側（`object3dAllowed`）でも開発者か確かめる。
-   */
-  const adminFn = useServerFn(checkIsAdmin);
-  const { data: adm } = useQuery({
-    queryKey: ["is-admin"],
-    queryFn: () => adminFn(),
-    staleTime: 300_000,
-    enabled: !local,
-  });
-  const canMake3d = adm?.isAdmin === true;
   // 母語。発音のコツと語順の説明はこれで中身が変わるので、
   // 変えたら解説を作り直す(下の useEffect)。
   //
@@ -858,7 +844,6 @@ export function StickerSheet({ stickerId, onClose, openPhotoPicker, from, local 
             // なるべく表示して」）。
             explanationPending={!local && explanation === undefined}
             isPro={isPro}
-            canMake3d={canMake3d}
             flipped={flipped}
             setFlipped={setFlipped}
             hasSelfie={hasSelfie}
@@ -942,7 +927,6 @@ export function StickerSheetBody({
   explanation,
   explanationPending = false,
   isPro,
-  canMake3d,
   flipped,
   setFlipped,
   hasSelfie,
@@ -981,8 +965,6 @@ export function StickerSheetBody({
   /** その人向けの解説の返事を待っている間（古い解説を出さない）。 */
   explanationPending?: boolean;
   isPro: boolean;
-  /** 3D の釦を出すか（開発者だけ）。 */
-  canMake3d: boolean;
   /** 写真の裏(自撮り)を見ているか。 */
   flipped: boolean;
   setFlipped: Dispatch<SetStateAction<boolean>>;
@@ -1037,11 +1019,8 @@ export function StickerSheetBody({
    * 札の指定がいちばん細かい話なので、いちばん強い。
    */
   const photoPref = usePhotoPref();
-  const [show3d, setShow3d] = useState(false);
   /** 報告ボタンを描く箱（一番下の削除の横）。`WordCard` がここへ描く。 */
   const [reportSlot, setReportSlot] = useState<HTMLSpanElement | null>(null);
-  /** 3D にする絵（切り抜きがあればそれ。背景が無い方が形がきれいに出る）。 */
-  const object3dSource = stickerPhotoUrl(s, { prefer: "cutout" });
   const hero = pickStickerPhoto(s, {
     // 詳細の選択は `hero_role`(サーバ)に在る。**知らない値は無視する** —
     // 古い行や、他所で書き込まれた値でこの画面を落とさない。
@@ -1225,23 +1204,6 @@ export function StickerSheetBody({
             )}
           </div>
         </div>
-        {/* **Pro: 写真を 3D にする**（R17「課金ユーザーは単語の詳細に３Dモデル化する専用の
-            ボタンを表示し、タップしたら単語の詳細の画像が3Dモデル化する」）。表の面を見ている
-            時だけ。押すと写真の枠の中で 3D が組み上がり、指で回せる。 */}
-        {canMake3d && !flipped && !show3d && (
-          <Object3DButton
-            stickerId={s.id}
-            imageUrl={object3dSource}
-            onOpen={() => setShow3d(true)}
-          />
-        )}
-        {canMake3d && show3d && object3dSource && (
-          <Object3DLayer
-            stickerId={s.id}
-            imageUrl={object3dSource}
-            onClose={() => setShow3d(false)}
-          />
-        )}
       </div>
 
       {/* ネット画像の候補: 自動で入った画像が気に入らなければタップで変更。

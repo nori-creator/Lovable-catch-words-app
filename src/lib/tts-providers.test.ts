@@ -11,23 +11,27 @@ import {
   TAIWAN_AZURE_VOICES,
   taiwanChoice,
   elevenLabsBody,
-  hexToBytes,
-  minimaxBody,
   TTS_PROVIDERS,
   voiceTag,
 } from "./tts-providers";
 
 describe("発音の声の会社（開発者だけが選ぶ。オーナー指示 2026-09-23）", () => {
-  it("6社を並べる。仕様書を取れなかった VoAI と ATEN は未接続（推測で繋がない）", () => {
+  it("5社を並べる。仕様書を取れなかった VoAI と ATEN は未接続（推測で繋がない）", () => {
     expect(TTS_PROVIDERS.map((p) => p.id)).toEqual([
       "azure",
       "gemini",
       "elevenlabs",
-      "minimax",
       "voai",
       "aten",
     ]);
     expect(TTS_PROVIDERS.filter((p) => !p.implemented).map((p) => p.id)).toEqual(["voai", "aten"]);
+  });
+
+  it("外した会社（2026-10-03 オーナー決定）が保存済みの設定に残っていても選ばれない", () => {
+    const stale = { languages: { "zh-TW": { provider: "minimax", voice: "v1" } } } as never;
+    expect(cleanTtsConfig(stale)).toEqual({});
+    // 掃除前の古い設定を直接渡しても、表に無い会社は既定の声（null）に戻る。
+    expect(choiceFor(stale, "zh-TW")).toBeNull();
   });
 
   it("保存の前に掃除する: 未接続・知らない会社・空の声・変な字は捨てる", () => {
@@ -73,15 +77,6 @@ describe("発音の声の会社（開発者だけが選ぶ。オーナー指示 
     expect(elevenLabsBody("你好", "eleven_flash_v2_5", 0.95, "zh-TW").language_code).toBe("zh");
     expect("language_code" in elevenLabsBody("你好", "eleven_v3", 0.95, "zh-TW")).toBe(false);
     expect(elevenLabsBody("x", "eleven_v3", 2, "en").voice_settings.speed).toBe(1.2);
-  });
-
-  it("MiniMax: 中国語を後押しし、MP3 を hex で受け取る", () => {
-    const b = minimaxBody("你好", "speech-2.8-turbo", "v1", 0.95, "zh-TW");
-    expect(b.language_boost).toBe("Chinese");
-    expect(b.audio_setting.format).toBe("mp3");
-    expect(b.output_format).toBe("hex");
-    expect([...hexToBytes("49443303")]).toEqual([0x49, 0x44, 0x33, 0x03]);
-    expect(() => hexToBytes("zz")).toThrow();
   });
 });
 

@@ -24,11 +24,9 @@ const PROCESSORS = [
   "TypeSafe",
   "Azure",
   "ElevenLabs",
-  "MiniMax",
   "Unsplash",
   "Wikimedia",
   "Higgsfield",
-  "Tripo3D",
   "Google",
   "Stripe",
   "AdSense",
@@ -39,6 +37,9 @@ describe("プライバシーポリシー", () => {
     const doc = read(`components/legal/privacy-${lang}.tsx`);
     it(`${lang}: 送り先を全部書いている`, () => {
       expect(PROCESSORS.filter((p) => !doc.includes(p))).toEqual([]);
+    });
+    it(`${lang}: 外した事業者（2026-10-03 オーナー決定）を書かない`, () => {
+      expect(doc).not.toMatch(/MiniMax|Tripo/i);
     });
     it(`${lang}: 広告の説明に Google の2つのリンクがある`, () => {
       expect(doc).toContain("https://policies.google.com/technologies/partner-sites");
