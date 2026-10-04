@@ -17,6 +17,7 @@
  * **Apple の課金と並べて出すことが条件**（Apple の発表）。なので、Stripe の購入口は
  * **Web 版でだけ**出す（`billingSurface`）。アプリ版は、ストアの課金を入れてから開く。
  */
+import { UI_LANGS, type UiLang } from "./i18n";
 
 export type Plan = "pro" | "free";
 
@@ -207,6 +208,10 @@ export function checkoutForm(p: {
   cancelUrl: string;
   email?: string | null;
   trialDays?: number;
+  /** 支払いの画面（Stripe Checkout）の言語と、申込みボタンの上に出す注意書きの言語。 */
+  lang?: string | null;
+  /** 更新の周期（注意書きに使う）。 */
+  interval?: "day" | "week" | "month" | "year";
 }): URLSearchParams {
   const f = new URLSearchParams();
   f.set("mode", "subscription");
@@ -221,7 +226,54 @@ export function checkoutForm(p: {
   if (p.email) f.set("customer_email", p.email);
   if (p.trialDays && p.trialDays > 0)
     f.set("subscription_data[trial_period_days]", String(Math.floor(p.trialDays)));
+  // 支払いの画面でも、申込みボタンのすぐ上に「定期購入・自動更新・解約の方法」を出す
+  // （特商法 12 条の6。こちらの最終確認の画面で全部を見せた上で、念のため）。
+  const lang = checkoutLang(p.lang);
+  f.set("locale", STRIPE_LOCALE[lang]);
+  f.set(
+    "custom_text[submit][message]",
+    submitMessage(lang, p.interval ?? "month", p.trialDays ?? 0),
+  );
   return f;
+}
+
+type CheckoutLang = UiLang;
+type Interval = "day" | "week" | "month" | "year";
+
+/** 支払いの画面の言語（Stripe の `locale`）。表示言語の鍵と同じ綴り。 */
+const STRIPE_LOCALE: Record<CheckoutLang, string> = {
+  ja: "ja",
+  en: "en",
+  "zh-TW": "zh-TW",
+};
+
+function checkoutLang(lang: string | null | undefined): CheckoutLang {
+  return (UI_LANGS as readonly string[]).includes(lang ?? "") ? (lang as CheckoutLang) : "ja";
+}
+
+/**
+ * 支払いの画面の申込みボタンの上の注意書き（Stripe の `custom_text.submit`、1200 字まで）。
+ * サーバで組み立てるので、ここに3言語で持つ。
+ */
+const SUBMIT_MESSAGES: Record<CheckoutLang, (unit: string, trialDays: number) => string> = {
+  ja: (unit, trialDays) =>
+    `有料の定期購入です。${trialDays > 0 ? `${trialDays}日間の無料期間の後、` : ""}解約しない限り${unit}自動で料金がかかります。` +
+    "解約は CatchWords の「設定 › CatchWords Pro › サブスクリプションを管理」からいつでもできます。法令で必要な場合を除き返金はありません。",
+  en: (unit, trialDays) =>
+    `This is a paid subscription. ${trialDays > 0 ? `After the ${trialDays}-day free trial, you` : "You"} will be charged automatically ${unit} until you cancel. ` +
+    "Cancel any time in CatchWords: Settings › CatchWords Pro › Manage subscription. Payments are not refunded except where required by law.",
+  "zh-TW": (unit, trialDays) =>
+    `這是付費的定期訂閱。${trialDays > 0 ? `${trialDays} 天免費期結束後，` : ""}除非取消，將${unit}自動收費。` +
+    "可隨時在 CatchWords 的「設定 › CatchWords Pro › 管理訂閱」取消。除法令另有規定外，已支付的費用不予退還。",
+};
+const SUBMIT_UNITS: Record<CheckoutLang, Record<Interval, string>> = {
+  ja: { day: "毎日", week: "毎週", month: "毎月", year: "毎年" },
+  en: { day: "every day", week: "every week", month: "every month", year: "every year" },
+  "zh-TW": { day: "每天", week: "每週", month: "每月", year: "每年" },
+};
+
+export function submitMessage(lang: CheckoutLang, interval: Interval, trialDays: number): string {
+  return SUBMIT_MESSAGES[lang](SUBMIT_UNITS[lang][interval], trialDays);
 }
 
 /** 購入口を出せる所。アプリ版は、ストアの課金が入るまで出さない（上の注）。 */

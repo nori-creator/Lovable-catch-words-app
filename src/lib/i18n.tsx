@@ -3624,6 +3624,124 @@ export const DICT: Record<string, Record<UiLang, string>> = {
     en: "Payments aren't set up yet",
     "zh-TW": "付款尚未設定",
   },
+  "pro.err.termsChanged": {
+    ja: "料金または無料期間が変わりました。新しい内容をご確認ください。",
+    en: "The price or free trial has changed. Please review the new details.",
+    "zh-TW": "價格或免費期已變更，請確認新的內容。",
+  },
+  // 申込みの最終確認（特定商取引法 12 条の6。`checkout-terms.ts`・`ProCheckoutConfirm`）。
+  "checkout.title": { ja: "お申込み内容の確認", en: "Review your order", "zh-TW": "確認申請內容" },
+  "checkout.lead": {
+    ja: "有料の定期購入のお申込みです。内容をご確認のうえ、下のボタンで支払いの画面へ進んでください。",
+    en: "This is an order for a paid subscription. Please review the details, then continue to payment with the button below.",
+    "zh-TW": "這是付費定期訂閱的申請。請確認內容後，按下方按鈕前往付款頁面。",
+  },
+  "checkout.item": {
+    ja: "商品（サービスの内容・数量）",
+    en: "Service and quantity",
+    "zh-TW": "商品（服務內容與數量）",
+  },
+  "checkout.itemValue": {
+    ja: "{plan}：CatchWords Pro（有料プラン）の利用権 1件（このアカウント1つ分）。{cycle}ごとの定期購入です。",
+    en: "{plan}: one CatchWords Pro (paid plan) subscription for this account. Billed every {cycle}.",
+    "zh-TW": "{plan}：CatchWords Pro（付費方案）使用權 1 份（限本帳號）。每 {cycle} 的定期訂閱。",
+  },
+  "checkout.planMonthly": { ja: "月ごとプラン", en: "Monthly plan", "zh-TW": "按月方案" },
+  "checkout.planYearly": { ja: "年ごとプラン", en: "Yearly plan", "zh-TW": "按年方案" },
+  "checkout.cycleMonth": { ja: "1か月", en: "month", "zh-TW": "1 個月" },
+  "checkout.cycleYear": { ja: "1年", en: "year", "zh-TW": "1 年" },
+  "checkout.price": { ja: "価格", en: "Price", "zh-TW": "價格" },
+  "checkout.priceValue": {
+    ja: "{price}（2回目以降も同じ金額）",
+    en: "{price} (the same amount for every renewal)",
+    "zh-TW": "{price}（第 2 次起金額相同）",
+  },
+  "checkout.priceExclNote": {
+    ja: "（税別。税を含む合計は次の支払いの画面に表示されます）",
+    en: "(excl. tax; the total including tax is shown on the next payment screen)",
+    "zh-TW": "（未稅；含稅總額會顯示在下一個付款頁面）",
+  },
+  "checkout.trial": { ja: "無料期間", en: "Free trial", "zh-TW": "免費期" },
+  "checkout.trialValue": {
+    ja: "最初の{n}日間は無料です。{date}に初回の料金 {price} がかかります（それまでに解約すれば料金はかかりません）。",
+    en: "The first {n} {n|day|days} are free. The first charge of {price} is on {date} (cancel before then and you pay nothing).",
+    "zh-TW": "前 {n} 天免費。{date} 將收取首次費用 {price}（在此之前取消則不收費）。",
+  },
+  "checkout.payment": { ja: "支払いの時期", en: "When you pay", "zh-TW": "付款時間" },
+  "checkout.paymentTrial": {
+    ja: "初回は {date}（無料期間の終わり）。以後 {cycle}ごとに自動で請求されます。",
+    en: "First charge on {date} (end of the free trial), then automatically every {cycle}.",
+    "zh-TW": "首次於 {date}（免費期結束時），之後每 {cycle} 自動收費。",
+  },
+  "checkout.paymentNow": {
+    ja: "初回はお申込みの時。以後 {cycle}ごとに自動で請求されます。",
+    en: "First charge when you subscribe, then automatically every {cycle}.",
+    "zh-TW": "首次於申請時，之後每 {cycle} 自動收費。",
+  },
+  "checkout.method": { ja: "支払い方法", en: "Payment method", "zh-TW": "付款方式" },
+  "checkout.methodValue": {
+    ja: "クレジットカードなど、次の支払いの画面（Stripe）で選べる方法。",
+    en: "Credit card or another method offered on the next payment screen (Stripe).",
+    "zh-TW": "信用卡等，可在下一個付款頁面（Stripe）選擇的方式。",
+  },
+  "checkout.start": { ja: "利用開始", en: "When it starts", "zh-TW": "開始使用" },
+  "checkout.startValue": {
+    ja: "お申込みの手続きが終わり次第、すぐに使えます。",
+    en: "Immediately after the order is completed.",
+    "zh-TW": "申請手續完成後即可使用。",
+  },
+  "checkout.renew": {
+    ja: "契約期間・自動更新",
+    en: "Term and auto-renewal",
+    "zh-TW": "合約期間與自動續訂",
+  },
+  "checkout.renewValue": {
+    ja: "{cycle}ごとに自動で更新されます。解約しない限り続きます。",
+    en: "Renews automatically every {cycle} until you cancel.",
+    "zh-TW": "每 {cycle} 自動續訂，除非取消將持續。",
+  },
+  "checkout.applyPeriod": { ja: "申込みの期間", en: "Order period", "zh-TW": "申請期間" },
+  "checkout.applyPeriodValue": {
+    ja: "期間の定めはありません（いつでも申し込めます）。",
+    en: "No limited order period (you can subscribe at any time).",
+    "zh-TW": "沒有期間限制（隨時可申請）。",
+  },
+  "checkout.cancel": { ja: "解約", en: "Cancelling", "zh-TW": "取消訂閱" },
+  "checkout.cancelValue": {
+    ja: "いつでも 設定 › CatchWords Pro ›「サブスクリプションを管理」から解約できます。次の更新日より前に解約すれば、それ以降の請求はありません。解約しても、支払い済みの期間の終わりまで使えます。",
+    en: "Cancel any time in Settings › CatchWords Pro › “Manage subscription”. Cancel before the next renewal date and you won't be charged again. You keep Pro until the end of the period you paid for.",
+    "zh-TW":
+      "可隨時在「設定 › CatchWords Pro ›『管理訂閱』」取消。在下一個續訂日前取消，之後不再收費。取消後仍可使用到已付款期間結束。",
+  },
+  "checkout.cancelValueTrial": {
+    ja: "いつでも 設定 › CatchWords Pro ›「サブスクリプションを管理」から解約できます。無料期間中に解約すれば、料金は一切かかりません。その後も、次の更新日より前に解約すれば以後の請求はありません。",
+    en: "Cancel any time in Settings › CatchWords Pro › “Manage subscription”. Cancel during the free trial and you pay nothing. After that, cancel before the next renewal date and you won't be charged again.",
+    "zh-TW":
+      "可隨時在「設定 › CatchWords Pro ›『管理訂閱』」取消。在免費期內取消則完全不收費。之後在下一個續訂日前取消，就不會再收費。",
+  },
+  "checkout.refund": {
+    ja: "申込みの撤回・返金",
+    en: "Withdrawal and refunds",
+    "zh-TW": "撤回申請與退款",
+  },
+  "checkout.refundValue": {
+    ja: "通信販売にはクーリング・オフはありません。デジタルサービスのため、お申込み後の撤回・支払い済みの料金の返金はできません（法令で必要な場合を除く）。",
+    en: "There is no cooling-off period for online purchases. Because this is a digital service, orders cannot be withdrawn and payments are not refunded after you subscribe, except where required by law.",
+    "zh-TW":
+      "網路購物沒有冷靜期（日本法）。由於是數位服務，申請後無法撤回，已支付的費用亦不退還（法令另有規定者除外）。",
+  },
+  "checkout.readTerms": { ja: "詳しい条件:", en: "Full terms:", "zh-TW": "詳細條件：" },
+  "checkout.submit": {
+    ja: "規約に同意して購入する（定期購入）",
+    en: "Agree to the Terms and buy (subscription)",
+    "zh-TW": "同意條款並購買（定期訂閱）",
+  },
+  "checkout.nextStep": {
+    ja: "次の支払いの画面（Stripe）でお支払い情報を入れて、お申込みが確定します。",
+    en: "Enter your payment details on the next screen (Stripe) to complete the order.",
+    "zh-TW": "在下一個付款頁面（Stripe）輸入付款資訊後，申請即完成。",
+  },
+  "checkout.back": { ja: "戻る", en: "Back", "zh-TW": "返回" },
   "pro.err.disabled": {
     ja: "いまは Pro を購入できません",
     en: "Pro can't be purchased right now",

@@ -57,6 +57,7 @@ const KNOWN_CODES: Array<[string, string]> = [
   ["BILLING_LEGAL_NOT_READY", "pro.err.legalNotReady"],
   ["BILLING_NOT_CONFIGURED", "pro.err.notConfigured"],
   ["BILLING_DISABLED", "pro.err.disabled"],
+  ["BILLING_TERMS_CHANGED", "pro.err.termsChanged"],
 ];
 
 export function readableError(

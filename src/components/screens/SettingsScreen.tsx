@@ -86,6 +86,7 @@ import {
   getBillingStatus,
 } from "@/lib/billing.functions";
 import { ProPlanCardView, type ProPlanBusy } from "@/components/ProPlanCardView";
+import { ProCheckoutConfirm } from "@/components/ProCheckoutConfirm";
 import { LegalLinks } from "@/components/legal/LegalShell";
 import { billingSurface } from "@/lib/stripe-billing";
 import { normalizePublisherId, normalizeSlotId, type AdConfig } from "@/lib/ad-policy";
@@ -1940,12 +1941,16 @@ function ProPlanCard() {
   const statusFn = useServerFn(getBillingStatus);
   const checkoutFn = useServerFn(createCheckoutSession);
   const portalFn = useServerFn(createBillingPortalSession);
+  const qc = useQueryClient();
   const { data: s } = useQuery({
     queryKey: ["billing-status"],
     queryFn: () => statusFn(),
     staleTime: 60_000,
   });
   const [busy, setBusy] = useState<ProPlanBusy>(null);
+  /** 申込みの最終確認を出している周期（特商法 12 条の6、`ProCheckoutConfirm`）。 */
+  const [confirming, setConfirming] = useState<"monthly" | "yearly" | null>(null);
+  const lang = useUiLang();
   // ベータの計測（2026-10-03）: 買える状態の案内を見た・支払いへ進んだ。種類と時刻だけ。
   const track = useFunnelEvent();
   const offered =
@@ -1960,15 +1965,32 @@ function ProPlanCard() {
   if (!s || billingSurface(Capacitor.isNativePlatform()) === "none") return null;
   // スイッチがオフでも、**実際に払っている人には解約の口を出す**（請求だけ続く、を作らない）。
   if (!s.enabled && !s.paidPro) return null;
+  // 最終確認で見せた値段・無料期間をそのまま送る（サーバが今の物と同じか確かめ直す）。
   const go = async (period: "monthly" | "yearly") => {
+    const price = period === "yearly" ? s.prices.yearly : s.prices.monthly;
+    if (!price) return;
     setBusy(period);
     track("checkout_started");
     try {
-      const { url } = await checkoutFn({ data: { period } });
+      const { url } = await checkoutFn({
+        data: {
+          period,
+          confirmed: true,
+          shownUnitAmount: price.unitAmount,
+          shownCurrency: price.currency,
+          shownTrialDays: s.trialEligibleDays,
+          lang,
+        },
+      });
       window.location.assign(url);
     } catch (e) {
       toast.error(readable(e, t("pro.failed")));
       setBusy(null);
+      // 値段・無料期間が変わっていたら、新しい中身で確認を出し直す。
+      if (e instanceof Error && e.message.includes("BILLING_TERMS_CHANGED")) {
+        setConfirming(null);
+        void qc.invalidateQueries({ queryKey: ["billing-status"] });
+      }
     }
   };
   const manage = async () => {
@@ -1983,12 +2005,22 @@ function ProPlanCard() {
   };
   return (
     <SettingsCard title={t("pro.title")}>
-      <ProPlanCardView
-        status={s}
-        busy={busy}
-        onBuy={(p) => void go(p)}
-        onManage={() => void manage()}
-      />
+      {confirming && !s.isPro ? (
+        <ProCheckoutConfirm
+          status={s}
+          period={confirming}
+          busy={busy !== null}
+          onConfirm={() => void go(confirming)}
+          onBack={() => setConfirming(null)}
+        />
+      ) : (
+        <ProPlanCardView
+          status={s}
+          busy={busy}
+          onBuy={(p) => setConfirming(p)}
+          onManage={() => void manage()}
+        />
+      )}
     </SettingsCard>
   );
 }
