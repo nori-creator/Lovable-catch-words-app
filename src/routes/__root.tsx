@@ -17,6 +17,10 @@ import { reportLovableError } from "../lib/lovable-error-reporting";
 import { supabase } from "@/integrations/supabase/client";
 import { Toaster } from "@/components/ui/sonner";
 import { AiConsentHost } from "@/components/AiConsentHost";
+import { installAppleTokenCapture } from "@/lib/apple-token-capture";
+
+// Apple でサインインした直後の token は1回しか届かないので、読み込みの最初から聞く（退会の取り消し用）。
+installAppleTokenCapture();
 import { ThemeProvider, DEFAULT_THEME, THEME_STORAGE_KEY } from "@/components/theme-provider";
 import { DEFAULT_MOTION, MOTION_ATTR, MOTION_STORAGE_KEY } from "@/lib/motion-pref";
 import { MotionProvider } from "@/components/motion-provider";
