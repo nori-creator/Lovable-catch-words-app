@@ -1,3 +1,4 @@
+-- Lovable が drizzle/migrations/0004_20261003150000_apple_tokens.sql にも同じ内容で書いている。
 -- 「Apple でサインイン」の token の置き場所（2026-10-03）。
 --
 -- Apple の決まり（退会できるアプリは、退会のときに Apple の許可を取り消す。TN3194）のため、
