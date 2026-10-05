@@ -32,6 +32,7 @@ const jev = () => import("./jev.functions");
 const wordbook = () => import("./wordbook.functions");
 const images = () => import("./images.functions");
 const consent = () => import("./ai-consent.functions");
+const appleToken = () => import("./apple-token.functions");
 
 function from<M>(mod: () => Promise<M>, name: keyof M & string): Loader {
   return async () => (await mod())[name] as unknown as ServerFn;
@@ -110,6 +111,8 @@ export const NATIVE_FNS: Record<string, Loader> = {
   // 外部の AI へ送る同意（`docs/ios-spec/23-ai-consent.md`）
   getAiConsent: from(consent, "getAiConsent"),
   recordAiConsent: from(consent, "recordAiConsent"),
+  // 「Apple でサインイン」の code を預ける（退会で Apple の許可を取り消すため。Guideline 5.1.1(v)）
+  storeAppleAuthCode: from(appleToken, "storeAppleAuthCode"),
 };
 
 /** 失敗の中身から、iOS に返す状態コードを決める。 */
