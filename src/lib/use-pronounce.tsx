@@ -1,5 +1,5 @@
 import { reportBackgroundFailure } from "@/lib/background-failure";
-import { useCallback, useEffect, useMemo, useRef, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useMemo, useSyncExternalStore } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { getTtsVoiceTags, synthesizeSpeech } from "@/lib/tts.functions";
 import {
@@ -9,7 +9,14 @@ import {
   voiceTagFor,
 } from "@/lib/tts-voice-tag";
 import { speak } from "@/lib/speak";
-import { claimAudio, primeAudio, stopOtherAudio } from "@/lib/audio";
+import {
+  claimAudio,
+  installAudioUnlock,
+  primeAudio,
+  primeSpeechSynthesis,
+  sharedSpeechElement,
+  stopOtherAudio,
+} from "@/lib/audio";
 import { decodeSpeech, playSpeechBuffer, unlockSpeechOutput } from "@/lib/speech-buffer";
 import { DEFAULT_TARGET_LANGUAGE } from "@/lib/target-lang";
 import { speechIdentity, type SpeechIdentityInput } from "@/lib/tts-cache";
@@ -194,7 +201,10 @@ export function usePronounce(language: string = DEFAULT_TARGET_LANGUAGE): Pronou
   useEffect(() => {
     void refreshVoiceTagsOnce(() => tagsFn());
   }, [tagsFn]);
-  const elRef = useRef<HTMLAudioElement | null>(null);
+  // 最初に画面に触れた時に音の出口を開ける（発音ボタン以外のタップでも。`audio.ts`）。
+  useEffect(() => {
+    installAudioUnlock();
+  }, []);
   const fetcherFor = useCallback(
     (ident: SpeechIdentityInput | null | undefined): Fetcher =>
       async (text) => {
@@ -246,9 +256,12 @@ export function usePronounce(language: string = DEFAULT_TARGET_LANGUAGE): Pronou
         : Promise.resolve(speak(word, language));
     };
     // iOS: 再生解禁はタップ内で同期的に行う必要がある(await より前)。
-    if (!elRef.current) elRef.current = new Audio();
-    primeAudio(elRef.current);
+    // `<audio>` は**アプリ全体で1つ**（`sharedSpeechElement`）— どこかで1回解禁すれば、
+    // 以後どの画面の発音・自動再生も鳴る。端末の声（控え）も同じ打鍵の中で解禁しておく。
+    const el = sharedSpeechElement();
+    if (el) primeAudio(el);
     unlockSpeechOutput();
+    primeSpeechSynthesis();
     // **鍵に言語を混ぜる。** 同じ綴りが両方の言語に在り得る("a" / "in")。
     // 混ぜないと、先に鳴らしたほうの声が残る。
     const key = speechKey(language, word, ident);
@@ -276,6 +289,11 @@ export function usePronounce(language: string = DEFAULT_TARGET_LANGUAGE): Pronou
      * 駄目だと分かっている語は**その場で端末の声**にして、
      * 取り直しは裏で1回だけ試す(次に押すときは鳴るかもしれない)。
      */
+    // `<audio>` を作れない環境（サーバで描く・古い端末）は端末の声だけ。
+    if (!el) {
+      await deviceVoice();
+      return;
+    }
     if (speechState(key) === "failed") {
       void ensureAudio(key, word, fetcher);
       await deviceVoice();
@@ -294,9 +312,9 @@ export function usePronounce(language: string = DEFAULT_TARGET_LANGUAGE): Pronou
       if (url) {
         // 音声の被り対策: このフックは画面ごとに別インスタンスなので、各自が
         // 自前の Audio を持つと重なって鳴る。再生前にグローバルで排他を取る。
-        claimAudio(elRef.current);
-        elRef.current.src = url;
-        const audio = elRef.current;
+        claimAudio(el);
+        el.src = url;
+        const audio = el;
         if (waitUntilEnded) {
           await new Promise<void>((resolve, reject) => {
             const cleanup = () => {
@@ -334,8 +352,10 @@ export function usePronounce(language: string = DEFAULT_TARGET_LANGUAGE): Pronou
   } as Pronounce;
 
   pronounce.prepare = () => {
-    if (!elRef.current) elRef.current = new Audio();
-    primeAudio(elRef.current);
+    const el = sharedSpeechElement();
+    if (el) primeAudio(el);
+    unlockSpeechOutput();
+    primeSpeechSynthesis();
   };
   pronounce.prefetch = (text: string, ident?: SpeechIdentityInput | null) => {
     const word = text.trim();

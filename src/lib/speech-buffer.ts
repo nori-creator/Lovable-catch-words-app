@@ -43,6 +43,51 @@ function getCtx(): Ctx | null {
   return ctx;
 }
 
+/** iPhone / iPad（iPadOS はデスクトップの UA を名乗るので、指で触れる Mac として見分ける）。 */
+export function isAppleTouchDevice(nav: {
+  userAgent?: string;
+  platform?: string;
+  maxTouchPoints?: number;
+}): boolean {
+  const ua = nav.userAgent ?? "";
+  if (/iP(hone|ad|od)/.test(ua)) return true;
+  return /Macintosh/.test(ua) && (nav.maxTouchPoints ?? 0) > 1;
+}
+
+/**
+ * **読み解き済みの波形（Web Audio）で鳴らしてよいか。**（2026-10-05 オーナー報告
+ * 「iPhone/iPad の Safari で発音ボタンを押しても音が出ない」）
+ *
+ * - 音の出口が**いま動いている**（`running`）時だけ。iPhone は背面に回ると `suspended`／
+ *   `interrupted` に落とし、`resume()` は非同期なので、押した瞬間に再開を頼んでもその打鍵の
+ *   音は流れない。前はそのまま `start()` して「鳴らした」ことにしていた（実際は無音）。
+ * - iPhone / iPad で Audio Session API（Safari 17+）が無い時は使わない。Web Audio は消音
+ *   スイッチで黙るが、`<audio>` は鳴る。
+ *
+ * 使えない時は `<audio>` の道で鳴らす（端末に音が在れば、押した手の中でそのまま鳴る）。
+ */
+export function canPlayDecodedSpeech(opts: {
+  state: string | undefined;
+  appleTouch: boolean;
+  audioSession: boolean;
+}): boolean {
+  if (opts.state !== "running") return false;
+  if (opts.appleTouch && !opts.audioSession) return false;
+  return true;
+}
+
+function decodedSpeechAllowed(c: Ctx): boolean {
+  const nav =
+    typeof navigator === "undefined"
+      ? {}
+      : (navigator as Navigator & { audioSession?: { type: string } });
+  return canPlayDecodedSpeech({
+    state: c.state,
+    appleTouch: isAppleTouchDevice(nav),
+    audioSession: "audioSession" in nav && !!(nav as { audioSession?: unknown }).audioSession,
+  });
+}
+
 /** 読み解き済みか。 */
 export function hasSpeechBuffer(key: string): boolean {
   return buffers.has(key);
@@ -115,6 +160,7 @@ export function playSpeechBuffer(key: string): Promise<void> | null {
   const buf = buffers.get(key);
   const c = getCtx();
   if (!buf || !c) return null;
+  if (!decodedSpeechAllowed(c)) return null;
   stopSpeechBuffer();
   try {
     const src = c.createBufferSource();
