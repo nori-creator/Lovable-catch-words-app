@@ -4868,9 +4868,9 @@ describe("ホームは今日の誌面", () => {
     );
     // 2026-09-24「過去のものが多すぎで画面で確認できないから、過去のものは全て
     // 削除して」: 帯には**今回の依頼の面だけ**。
-    // 2026-10-03 仕様の穴（キャッチの演出・保存しました・昔の1枚）の回。先頭はキャッチの演出。
+    // 2026-10-05: 先頭は今回変更したウェルカムのログイン導線。
     // その前の回（広告・ベータの計測）の面も、まだ見てもらう途中なので後ろに残す。
-    expect(list.slice(0, list.indexOf("},"))).toMatch(/scene: "catch-animation&plan=short"/);
+    expect(list.slice(0, list.indexOf("},"))).toMatch(/scene: "first-catch&lang=ja"/);
     for (const sc of ["settings-saved", "home-resurface", "catch-animation&plan=full"]) {
       expect(list).toContain(`scene: "${sc}"`);
     }
@@ -6467,7 +6467,7 @@ describe("R25（2026-09-30: ベータテストの指摘・最初の画面の4枚
     expect(body).not.toMatch(/dot|first-dots/);
     // 「ログイン」だけが押せる青い文字。押せる高さは .first-secondary（44px）。
     expect(body).toMatch(
-      /\{t\("first\.signinPrompt"\)\}\s*<a className="first-secondary" href="\/auth">/,
+      /\{t\("first\.signinPrompt"\)\}\s*<a className="first-secondary" href="\/auth\?mode=signin">/,
     );
     expect(fs.existsSync(path.join(root, "../public/first-catch-hand.webp"))).toBe(true);
     const dict = read("lib/i18n.tsx");

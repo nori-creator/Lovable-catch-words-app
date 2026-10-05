@@ -20,6 +20,11 @@
 
 type AnyFn = (...args: never[]) => unknown;
 
+/** Isomorphic helpers use their browser implementation in the UI preview. */
+export function createIsomorphicFn() {
+  return { server: (_fn: AnyFn) => ({ client: <T extends AnyFn>(fn: T) => fn }) };
+}
+
 /** サーバー関数の定義。ハーネスでは呼ばれない印だけを持つ。 */
 export function createServerFn() {
   const chain = {

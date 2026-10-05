@@ -383,6 +383,7 @@ const q = new URLSearchParams(location.search);
  * 「これを見てください」と差し出すことになる。
  */
 const REVIEW_SCENES: Array<{ scene: string; label: string }> = [
+  { scene: "first-catch&lang=ja", label: "ウェルカム → 既存アカウントのログイン" },
   // 2026-10-03 仕様の穴（PRODUCT・ROADMAP Phase 4 / 7 / 8、ARCHITECTURE「Preferences」）。
   // キャッチの演出は帯の A/B/C で見比べる（普段は B 短く、節目は A しっかり、C は発音だけ）。
   { scene: "catch-animation&plan=short", label: "キャッチの演出: 短く（普段・既定）" },

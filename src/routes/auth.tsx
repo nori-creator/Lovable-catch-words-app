@@ -11,8 +11,9 @@ import { AuthPage } from "@/components/screens/AuthScreen";
 export const Route = createFileRoute("/auth")({
   // Preserve a same-origin `next` path so OAuth consent (or any protected
   // deep-link) can round-trip through sign-in and return to the original URL.
-  validateSearch: (s: Record<string, unknown>) => ({
+  validateSearch: (s: Record<string, unknown>): { next: string; mode?: "signin" | "signup" } => ({
     next: typeof s.next === "string" ? s.next : "",
+    mode: s.mode === "signin" || s.mode === "signup" ? s.mode : undefined,
   }),
   head: () => ({
     meta: [
