@@ -69,6 +69,15 @@ jobs:
           OUT: e2e-report
         run: node e2e/real-app/run.mjs
 
+      # ログイン画面の Google・Apple のボタンが押せて窓口へ進むか（2026-10-05 の報告）。
+      - name: ログイン画面のボタンを押してみる
+        if: always()
+        env:
+          BASE_URL: ${{ inputs.base_url || 'https://catchwords.lovable.app' }}
+          BROWSERS: ${{ inputs.browsers || 'chromium,webkit' }}
+          OUT: e2e-report
+        run: node e2e/real-app/oauth-buttons.mjs
+
       - name: 記録をダウンロードできるようにする
         if: always()
         uses: actions/upload-artifact@v4
