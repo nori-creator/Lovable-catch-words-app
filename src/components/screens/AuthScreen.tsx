@@ -6,7 +6,7 @@ import { readFirstCatch, canRequestAccount, type FirstCatch } from "@/lib/first-
 import { trackTutorialStep } from "@/lib/tutorial-funnel-client";
 import "@/components/onboarding/first-catch.css";
 import { useNavigate, getRouteApi } from "@tanstack/react-router";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { lovable } from "@/integrations/lovable/index";
 import { Button } from "@/components/ui/button";
@@ -17,6 +17,7 @@ import { Mail } from "lucide-react";
 import { useT } from "@/lib/i18n";
 import { authErrorText } from "@/lib/errors";
 import { inAppBrowser } from "@/lib/camera-access";
+import { rememberReturningSignin } from "@/lib/returning-signin";
 
 /** この画面の検索条件・パラメータ（`Route` は route のファイルにだけ置く）。 */
 const routeApi = getRouteApi("/auth");
@@ -34,7 +35,9 @@ export function AuthPage() {
   const navigate = useNavigate();
   const search = routeApi.useSearch();
   const nextPath = sanitizeNext(search.next);
-  const [mode, setMode] = useState<"signin" | "signup">("signin");
+  const [mode, setMode] = useState<"signin" | "signup">(search.mode ?? "signin");
+  const modeRef = useRef(mode);
+  modeRef.current = mode;
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -45,13 +48,13 @@ export function AuthPage() {
       .then((saved) => {
         if (saved && canRequestAccount(saved)) {
           setDraft(saved);
-          setMode("signup");
+          if (!search.mode) setMode("signup");
           // チュートリアルから来た人が登録の画面を見た（人を特定しない日ごとの数）。
           trackTutorialStep("signup_view");
         }
       })
       .catch(() => {});
-  }, []);
+  }, [search.mode]);
   async function leaveAnonymousSession() {
     const { data, error } = await supabase.auth.getSession();
     if (error) throw error;
@@ -61,7 +64,8 @@ export function AuthPage() {
     }
   }
 
-  function goPostAuth() {
+  function goPostAuth(userId: string) {
+    if (search.mode === "signin") rememberReturningSignin(userId);
     if (nextPath) {
       // Full page navigation so consent/loader/beforeLoad re-run cleanly.
       window.location.replace(nextPath);
@@ -72,14 +76,18 @@ export function AuthPage() {
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => {
-      if (data.user && !data.user.is_anonymous) goPostAuth();
+      if (data.user && !data.user.is_anonymous) goPostAuth(data.user.id);
     });
     const { data } = supabase.auth.onAuthStateChange((_e, session) => {
-      if (session && !session.user.is_anonymous) goPostAuth();
+      if (session && !session.user.is_anonymous) {
+        if (_e === "SIGNED_IN" && modeRef.current === "signin")
+          rememberReturningSignin(session.user.id);
+        goPostAuth(session.user.id);
+      }
     });
     return () => data.subscription.unsubscribe();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [nextPath]);
+  }, [nextPath, search.mode]);
 
   async function handleEmail(e: React.FormEvent) {
     e.preventDefault();
@@ -112,8 +120,12 @@ export function AuthPage() {
         // learner answer the questions now; their draft survives confirmation.
         if (!draft && !nextPath) void navigate({ to: "/welcome", replace: true });
       } else {
-        const { error } = await supabase.auth.signInWithPassword({ email, password });
+        const { data, error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
+        if (data.user) {
+          rememberReturningSignin(data.user.id);
+          goPostAuth(data.user.id);
+        }
       }
     } catch (err) {
       toast.error(authErrorText(err, t("auth.failed"), t));
@@ -129,9 +141,7 @@ export function AuthPage() {
       // redirect_uri MUST be a full same-origin URL. Append the sanitized
       // `next` as a query param on /auth so this same route consumes it after
       // the provider round-trip and forwards to the consent URL.
-      const redirectUri = nextPath
-        ? `${window.location.origin}/auth?next=${encodeURIComponent(nextPath)}`
-        : window.location.origin;
+      const redirectUri = `${window.location.origin}/auth?mode=${mode}${nextPath ? `&next=${encodeURIComponent(nextPath)}` : ""}`;
       const res = await lovable.auth.signInWithOAuth("google", {
         redirect_uri: redirectUri,
       });
@@ -149,9 +159,7 @@ export function AuthPage() {
     setLoading(true);
     try {
       await leaveAnonymousSession();
-      const redirectUri = nextPath
-        ? `${window.location.origin}/auth?next=${encodeURIComponent(nextPath)}`
-        : window.location.origin;
+      const redirectUri = `${window.location.origin}/auth?mode=${mode}${nextPath ? `&next=${encodeURIComponent(nextPath)}` : ""}`;
       const res = await lovable.auth.signInWithOAuth("apple", {
         redirect_uri: redirectUri,
       });

@@ -153,3 +153,9 @@ With words collected in Japanese, switch the display language to English and the
 - Open a word whose explanation already exists in your display language: nothing visibly changes after the background fill (shown items are never replaced).
 - Regenerate an example section (↻): the new example never quotes your note, place or diary.
 - Rearrange a home album day with many photos, and from the diary book: the order saves in one go; reload shows the same layout.
+
+## Existing-account entry (2026-10-05)
+
+- Welcome: 「アカウントをお持ちの方はこちらからログイン」 opens `/auth?mode=signin`, even with an existing session. A completed local tutorial must not switch this explicit entry to signup.
+- Existing email/Google/Apple sign-in enters Home even when an older profile has `onboarded=false`; new signup still enters the first-run flow. Local photographed catches still transfer before Home. The returning-entry hint is session-local and user-scoped; authentication and authorization checks still run.
+- Preview opens Welcome by default; tap Login to review the production sign-in view with fixture handlers. Verify real authentication separately on a backend-enabled deployment.

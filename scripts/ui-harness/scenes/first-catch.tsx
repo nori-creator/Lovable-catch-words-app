@@ -232,7 +232,15 @@ export function FirstCatchScene({ q }: { q: URLSearchParams }) {
   const [confirmed, setConfirmed] = useState(false);
   const services = createFirstCatchServices(previewRequest, preparePreview);
   return (
-    <>
+    <div
+      onClickCapture={(event) => {
+        const link = (event.target as HTMLElement).closest('a[href="/auth?mode=signin"]');
+        if (!link) return;
+        event.preventDefault();
+        setMode("signin");
+        setAccount(true);
+      }}
+    >
       {account ? (
         <AuthView
           draft={draft}
@@ -271,7 +279,7 @@ export function FirstCatchScene({ q }: { q: URLSearchParams }) {
         />
       )}
       {q.get("tour") === "1" && <TourChapters q={q} />}
-    </>
+    </div>
   );
 }
 

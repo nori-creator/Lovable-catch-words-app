@@ -15,6 +15,7 @@ import { packBatch, readBatch, REVIEW_CACHE_KEY, REVIEW_CACHE_USER_KEY } from "@
 import { warmCachedImages } from "@/lib/image-cache";
 import { stickerPhotoUrl } from "@/lib/sticker-photo";
 import { AiConsentAccountGate } from "@/components/AiConsentHost";
+import { hasReturningSignin } from "@/lib/returning-signin";
 
 /**
  * 登録前に捕まえた1枚を預け直す画面。**登録した直後の1回しか出ない**ので後から読む
@@ -126,7 +127,8 @@ function AuthenticatedLayout() {
           // 問い合わせ（サーバの往復）が終わるまで何も描かず、失敗すると「読み込みに失敗
           // しました」で止まっていた。一度でも初回の体験を終えた人は、この端末に覚えておいて
           // **すぐ画面を出し**、確認は裏で続ける（終えていなかった時だけ案内へ移す）。
-          const known = readOnboarded(session.user.id);
+          const returning = hasReturningSignin(session.user.id);
+          const known = returning || readOnboarded(session.user.id);
           if (known) setState("ready");
           const profile = await fetchProfile().catch(() => undefined);
           if (!active) return;
@@ -137,7 +139,7 @@ function AuthenticatedLayout() {
           }
           if (!profile?.onboarded) {
             writeOnboarded(session.user.id, false);
-            void navigate({ to: "/welcome", replace: true });
+            if (!returning) void navigate({ to: "/welcome", replace: true });
             return;
           }
           writeOnboarded(session.user.id, true);

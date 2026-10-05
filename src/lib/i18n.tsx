@@ -556,7 +556,7 @@ export const DICT: Record<string, Record<UiLang, string>> = {
   },
   // 最初の画面の下の1行。「ログイン」だけを青い文字（押せる所）にする（2026-10-03）。
   "first.signinPrompt": {
-    ja: "アカウントをお持ちの方は",
+    ja: "アカウントをお持ちの方はこちらから",
     en: "Already have an account?",
     "zh-TW": "已有帳號？",
   },
