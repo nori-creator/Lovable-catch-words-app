@@ -1,3 +1,4 @@
+import { createIsomorphicFn } from "@tanstack/react-start";
 import { withDeadline } from "./deadline";
 
 /**
@@ -38,15 +39,21 @@ export function waitUntilFrom(req: unknown): WaitUntil | null {
   return null;
 }
 
-/** いまの要求の `waitUntil`（server fn の外・試験では null）。 */
-async function currentWaitUntil(): Promise<WaitUntil | null> {
-  try {
-    const { getRequest } = await import("@tanstack/react-start/server");
-    return waitUntilFrom(getRequest());
-  } catch {
-    return null;
-  }
-}
+/**
+ * いまの要求の `waitUntil`（server fn の外・試験では null）。
+ * ブラウザ側の部品からも読まれるファイルなので、サーバ専用の読み込みは
+ * `.server()` の中だけに置く（ブラウザでは常に null）。
+ */
+const currentWaitUntil = createIsomorphicFn()
+  .server(async (): Promise<WaitUntil | null> => {
+    try {
+      const { getRequest } = await import("@tanstack/react-start/server");
+      return waitUntilFrom(getRequest());
+    } catch {
+      return null;
+    }
+  })
+  .client(async (): Promise<WaitUntil | null> => null);
 
 /**
  * `task` を返事の後まで生かす。戻り値は「預けた / 待ち終えた」だけで、`task` の結果は返さない。
