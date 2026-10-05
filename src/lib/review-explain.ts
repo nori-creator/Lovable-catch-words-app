@@ -112,7 +112,9 @@ export function quizPromptMeaning(opts: {
   lang: UiLang;
 }): string {
   const shared = (opts.shared ?? "").trim();
-  if (shared && readerMeaning(shared, opts.lang).trim()) return shared;
+  // 共有の意味も**語の長さに**（2026-10-05 オーナー報告: 説明文の意味が4択の問いに2行で出た）。
+  // 短い意味は1字も変わらない。
+  if (shared && readerMeaning(shared, opts.lang).trim()) return shortMeaning(shared);
   const head = (opts.headword ?? "").trim();
   for (const m of [opts.explanation, opts.cached]) {
     const fit = shortMeaning(readerMeaning((m ?? "").trim(), opts.lang));

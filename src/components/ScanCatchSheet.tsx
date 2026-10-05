@@ -1,4 +1,5 @@
 import { PeelSticker } from "@/components/PeelSticker";
+import { shortMeaning } from "@/lib/meaning-rule";
 import { ZhuyinWord, useZhuyinUnits } from "@/components/ZhuyinWord";
 import { useReadableError } from "@/lib/errors";
 import { useEffect, useRef, useState } from "react";
@@ -599,7 +600,9 @@ export function ScanCatchSheet({
               className="mt-0.5 block text-footnote text-muted-foreground"
             />
           )}
-          <p className="mt-2 text-body font-medium">{dict?.meaning_ja || item.meaning_ja}</p>
+          <p className="mt-2 text-body font-medium">
+            {shortMeaning(dict?.meaning_ja || item.meaning_ja)}
+          </p>
 
           <div className="mt-4 space-y-3 border-t border-border pt-3">
             <div>

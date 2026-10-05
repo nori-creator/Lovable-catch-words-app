@@ -1,5 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
-import { meaningRule, distinctionRule, shortMeaning } from "@/lib/meaning-rule";
+import { meaningRule, distinctionRule, shortMeaning, withShortMeaning } from "@/lib/meaning-rule";
 import { mnemonicRule } from "@/lib/mnemonic-rule";
 import { DEFAULT_TARGET_LANGUAGE } from "./target-lang";
 import {
@@ -876,7 +876,8 @@ ${data.hintCategory ? `カテゴリのヒント: ${data.hintCategory}` : ""}`;
       });
     }
     // 意味は語の長さに（R17。説明文で返った回を保存前に縮める）。
-    card = { ...card, meaning_ja: shortMeaning(card.meaning_ja) };
+    // 削れた説明は空の「使う場面」へ移す（捨てない、`withShortMeaning`）。
+    card = withShortMeaning(card);
     if (extrasLookEmpty(card)) {
       // 1回だけ、空を明確に禁止して作り直す。
       try {

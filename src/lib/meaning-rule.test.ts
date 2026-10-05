@@ -65,3 +65,54 @@ describe("shortMeaning（意味は語の長さに）", () => {
     expect(shortMeaning("")).toBe("");
   });
 });
+
+import { withShortMeaning, MEANING_LENGTH_RULE_EN } from "./meaning-rule";
+import { quizPromptMeaning } from "./review-explain";
+
+describe("長すぎる意味（オーナー報告 2026-10-05 の復習の4択）", () => {
+  const LONG =
+    "ゴキブリ駆除用の毒餌（ベイト剤）。ゴキブリが好む成分と殺虫剤を混ぜ、食べさせて巣ごと駆除するための薬剤。";
+
+  it("最初の区切りまでに縮める", () => {
+    expect(shortMeaning(LONG)).toBe("ゴキブリ駆除用の毒餌");
+  });
+
+  it("区切りが無い長い意味は上限で切って「…」を付ける", () => {
+    const s = shortMeaning("あ".repeat(40));
+    expect(Array.from(s).length).toBeLessThanOrEqual(20);
+    expect(s.endsWith("…")).toBe(true);
+    const en = shortMeaning(
+      "an extremely long english gloss that never uses any punctuation at all whatsoever",
+    );
+    expect(en.length).toBeLessThanOrEqual(40);
+    expect(en.endsWith("…")).toBe(true);
+  });
+
+  it("区切りの手前がまだ長い時も上限に収める", () => {
+    const s = shortMeaning(`${"い".repeat(30)}。説明`);
+    expect(Array.from(s).length).toBeLessThanOrEqual(20);
+  });
+
+  it("4択の問いの「」には縮めた意味が入る", () => {
+    expect(quizPromptMeaning({ shared: LONG, headword: "蟑螂藥", lang: "ja" })).toBe(
+      "ゴキブリ駆除用の毒餌",
+    );
+    // 短い意味は1字も変えない
+    expect(quizPromptMeaning({ shared: "傘", headword: "雨傘", lang: "ja" })).toBe("傘");
+  });
+
+  it("保存前に縮め、削れた説明は空の使い方の欄へ移す（元の文を捨てない）", () => {
+    const card = withShortMeaning({ meaning_ja: LONG, extras: { usage_context: "" } });
+    expect(card.meaning_ja).toBe("ゴキブリ駆除用の毒餌");
+    expect(card.extras.usage_context).toBe(LONG);
+    const kept = withShortMeaning({ meaning_ja: LONG, extras: { usage_context: "台所で" } });
+    expect(kept.extras.usage_context).toBe("台所で");
+    const same = { meaning_ja: "傘", extras: { usage_context: "" } };
+    expect(withShortMeaning(same)).toBe(same);
+  });
+
+  it("チュートリアルの AI への指示にも長さの上限がある", () => {
+    expect(MEANING_LENGTH_RULE_EN).toMatch(/15 characters/);
+    expect(MEANING_LENGTH_RULE_EN).toMatch(/4 words/);
+  });
+});

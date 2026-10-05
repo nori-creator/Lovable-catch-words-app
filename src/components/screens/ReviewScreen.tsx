@@ -85,6 +85,7 @@ import { useReaderMeaningFor } from "@/lib/reader-meanings";
 import { useFunnelEvent } from "@/lib/use-funnel-event";
 import { useWebAds } from "@/hooks/use-web-ads";
 import { ReviewEndAd } from "@/components/ads/ReviewEndAd";
+import { shortMeaning } from "@/lib/meaning-rule";
 import {
   useReviewReaderExplanations,
   type ReaderReviewView,
@@ -1272,7 +1273,7 @@ export function LightModeCard({
    * 写真も読む人の言語の意味も無い札は、写真で問うこともできない（文字で入れた語）。
    * そのときだけ共有の意味をそのまま出す — 問題として成り立たないよりはまし。
    */
-  const promptText = promptMeaning || (heroUrl ? "" : card.meaning_ja);
+  const promptText = promptMeaning || (heroUrl ? "" : shortMeaning(card.meaning_ja));
   const [picked, setPicked] = useState<string | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
   const startedAt = useRef<number>(Date.now());

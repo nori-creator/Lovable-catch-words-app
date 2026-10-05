@@ -1,4 +1,5 @@
 import { selfieCaptureEnabled } from "@/lib/product-features";
+import { shortMeaning } from "@/lib/meaning-rule";
 import { ZhuyinWord, useZhuyinUnits } from "@/components/ZhuyinWord";
 import { useReadableError } from "@/lib/errors";
 import { cardSectionsNow } from "@/lib/card-prefs";
@@ -1770,7 +1771,7 @@ export function ReencounterPanel({
               />
             </>
           )}
-          <p className="text-title font-medium">{reenc.meaning_ja}</p>
+          <p className="text-title font-medium">{shortMeaning(reenc.meaning_ja)}</p>
           <p className="text-footnote text-muted-foreground">
             {new Date(reenc.taken_at).toLocaleDateString(dateLocale)}
             {reenc.location_name ? ` · ${reenc.location_name}` : ""}

@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { shortMeaning } from "@/lib/meaning-rule";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { PronounceButton } from "@/components/PronounceButton";
 import { Term } from "@/components/Term";
@@ -203,7 +204,7 @@ function HeroWord({
           )}
           {c.meaning_ja && (
             <span className="mt-1 line-clamp-2 block break-words text-body text-muted-foreground">
-              {c.meaning_ja}
+              {shortMeaning(c.meaning_ja)}
             </span>
           )}
           {c.distinction && (
@@ -284,7 +285,7 @@ function WordLine({
       {/* 表示言語の意味が無い時は空（別の言語の意味は出さない）。空の行は描かない。 */}
       {c.meaning_ja && (
         <span className="line-clamp-2 block break-words text-footnote text-muted-foreground">
-          {c.meaning_ja}
+          {shortMeaning(c.meaning_ja)}
         </span>
       )}
       {note && c.distinction && (

@@ -54,25 +54,70 @@ export function meaningRule(targetName: string, explanationLanguageName: string)
 /** 意味として出してよい長さ（これを超えた物は、最初の区切りまでに縮める）。 */
 const MAX_CJK = 18;
 const MAX_LATIN = 32;
+/**
+ * 区切りまで縮めても、まだ長すぎる時の**最後の上限**（字数。末尾に「…」を付ける）。
+ * 「ゴキブリ駆除用の毒餌（ベイト剤）。ゴキブリが好む成分と…」のように説明文で返り、
+ * しかも区切りの手前がまだ長い回がある（オーナー報告 2026-10-05、iPhone の復習の4択）。
+ */
+const CAP_CJK = 20;
+const CAP_LATIN = 40;
+
+/** 英語の指示文に入れる長さの上限（`meaningRule` と同じ数）。チュートリアルの AI が使う。 */
+export const MEANING_LENGTH_RULE_EN =
+  "meaning_ja is a short gloss, not a definition: at most 15 characters in Japanese or Chinese, or at most 4 words in English. No sentences, no commas or 。 chaining, no parenthetical notes.";
+
+function isLatinText(s: string): boolean {
+  // ASCII 全域（制御文字を含む）と Latin-1 拡張だけでできた文か。制御文字を含めるのは意図。
+  // eslint-disable-next-line no-control-regex
+  return /^[\x00-\x7F\u00C0-\u024F\s]+$/.test(s);
+}
+
+/** 字数（サロゲートペアを1字と数える）で上限に収め、切った時だけ「…」を付ける。 */
+function capLength(s: string, max: number): string {
+  const chars = Array.from(s);
+  if (chars.length <= max) return s;
+  return `${chars
+    .slice(0, max - 1)
+    .join("")
+    .trim()}…`;
+}
 
 /**
  * **意味を「語」の長さに縮める**（R17「湯咖哩の英語の単語の候補や単語の意味が長すぎる」）。
  *
  * 指示でも頼んでいるが、説明文（「Soup curry, a Japanese-style curry dish served in…」）で
  * 返る回が実際にある。長い時だけ、最初の区切り（、，,；;。(（:）の手前までにする。
- * 区切りが無ければ触らない — 文の途中で切ると意味が壊れる。
+ * 区切りの手前でもまだ長い・区切りが無い時は、上限で切って「…」を付ける
+ * （2026-10-05: 前は区切りが無ければ触らず、4択の問いに2行の説明文がそのまま出ていた）。
+ * 保存してある元の文は変えない — 画面に出す時・保存前に作り直すだけ。
  */
 export function shortMeaning(text: string | null | undefined): string {
   const s = (text ?? "").trim();
   if (!s) return "";
-  // ASCII 全域（制御文字を含む）と Latin-1 拡張だけでできた文か。制御文字を含めるのは意図。
-  // eslint-disable-next-line no-control-regex
-  const latin = /^[\x00-\x7F\u00C0-\u024F\s]+$/.test(s);
+  const latin = isLatinText(s);
+  const cap = latin ? CAP_LATIN : CAP_CJK;
   if (s.length <= (latin ? MAX_LATIN : MAX_CJK)) return s;
   const cut = s.search(/[、，,；;。．(（:：—–]|\.\s/);
-  if (cut <= 0) return s;
-  const head = s.slice(0, cut).trim();
-  return head.length >= (latin ? 2 : 1) ? head : s;
+  const head = cut > 0 ? s.slice(0, cut).trim() : "";
+  if (head.length >= (latin ? 2 : 1)) return capLength(head, cap);
+  return capLength(s, cap);
+}
+
+/**
+ * カードの意味を縮める（保存の前）。縮めて削れた説明は、**使い方の欄が空の時だけ**そこへ移す
+ * （説明そのものは捨てない。単語の詳細の「使う場面」に出る）。
+ */
+export function withShortMeaning<
+  T extends { meaning_ja: string; extras?: { usage_context?: string } | null },
+>(card: T): T {
+  const full = (card.meaning_ja ?? "").trim();
+  const short = shortMeaning(full);
+  if (short === full) return card;
+  const extras = card.extras;
+  if (extras && !(extras.usage_context ?? "").trim()) {
+    return { ...card, meaning_ja: short, extras: { ...extras, usage_context: full } };
+  }
+  return { ...card, meaning_ja: short };
 }
 
 /**
