@@ -5,7 +5,9 @@ import {
   canRequestAccount,
   firstCatchSticker,
   hasAddedCatch,
+  isStaleTutorialWrite,
   readFirstCatch,
+  resumeFirstCatch,
   writeFirstCatch,
   type FirstCatch,
 } from "./first-catch";
@@ -217,5 +219,71 @@ describe("ブラウザを開き直した時の引き継ぎ", () => {
     expect(back?.stage).toBe("camera");
     expect(decodeFirstCatchHandoff("こわれた")).toBeNull();
     expect(decodeFirstCatchHandoff(null)).toBeNull();
+  });
+});
+
+describe("終えたチュートリアルは途中の段へ戻らない（2026-10-05 オーナー報告）", () => {
+  const finished: FirstCatch = { ...draft, stage: "complete", reviewCompleted: true };
+
+  it("先に頼んだ書き込みの接続が遅れて開いても、最後に頼んだ下書きが残る", async () => {
+    // 単語の詳細で解説が届いた控え（段は explore）→ その後に「完了」。iPhone の Safari では
+    // 1つ目の IndexedDB の接続が遅れて開くことがある。前は後から頼んだ「完了」の後に
+    // explore が書かれ、開き直すと単語の詳細へ戻っていた。
+    const realOpen = indexedDB.open.bind(indexedDB);
+    const spy = vi.spyOn(indexedDB, "open").mockImplementationOnce((name, version) => {
+      const proxy = {} as IDBOpenDBRequest & Record<string, unknown>;
+      setTimeout(() => {
+        const req = realOpen(name, version);
+        req.onupgradeneeded = (e) => proxy.onupgradeneeded?.call(req, e as IDBVersionChangeEvent);
+        req.onerror = (e) => proxy.onerror?.call(req, e);
+        req.onsuccess = (e) => {
+          Object.defineProperty(proxy, "result", { value: req.result, configurable: true });
+          proxy.onsuccess?.call(req, e);
+        };
+      }, 30);
+      return proxy;
+    });
+    const stale = writeFirstCatch({ ...draft, stage: "explore" });
+    const done = writeFirstCatch(finished);
+    await Promise.all([stale, done]);
+    spy.mockRestore();
+    expect((await readFirstCatch())?.stage).toBe("complete");
+  });
+
+  it.each(["home", "dex", "review", "camera", "card", "added", "explore"] as const)(
+    "完了・登録の案内の後に %s を被せる書き込みは古い控えとして捨てる",
+    (stage) => {
+      expect(isStaleTutorialWrite(finished, { ...finished, stage })).toBe(true);
+      expect(isStaleTutorialWrite({ ...finished, stage: "account" }, { ...finished, stage })).toBe(
+        true,
+      );
+    },
+  );
+
+  it("先へ進む・やり直す書き込みは通す", () => {
+    expect(isStaleTutorialWrite(finished, { ...finished, stage: "account" })).toBe(false);
+    expect(isStaleTutorialWrite(finished, { ...finished, stage: "done" })).toBe(false);
+    // 最初から・言語を変えた時は reviewCompleted を外す
+    expect(
+      isStaleTutorialWrite(finished, { ...finished, stage: "home", reviewCompleted: false }),
+    ).toBe(false);
+    expect(isStaleTutorialWrite(finished, { ...finished, stage: "questions" })).toBe(false);
+    // 終える前は、途中の段どうしの行き来（撮り直し・戻る）を止めない
+    expect(
+      isStaleTutorialWrite({ ...draft, stage: "explore" }, { ...draft, stage: "review" }),
+    ).toBe(false);
+    expect(isStaleTutorialWrite({ ...draft, stage: "card" }, { ...draft, stage: "camera" })).toBe(
+      false,
+    );
+  });
+
+  it("開き直した時、復習を終えた下書きは完了の画面から続ける", () => {
+    expect(resumeFirstCatch({ ...finished, stage: "explore" }).stage).toBe("complete");
+    expect(resumeFirstCatch({ ...finished, stage: "review" }).stage).toBe("complete");
+    expect(resumeFirstCatch(finished).stage).toBe("complete");
+    expect(resumeFirstCatch({ ...finished, stage: "account" }).stage).toBe("account");
+    // 終えていない下書きは今まで通り、その段から
+    expect(resumeFirstCatch({ ...draft, stage: "explore" }).stage).toBe("explore");
+    expect(resumeFirstCatch({ ...draft, stage: "questions" }).stage).toBe("questions");
   });
 });
