@@ -32,3 +32,5 @@ grant all on public.apple_tokens to service_role;
 comment on table public.apple_tokens is
   'Apple でサインインの token（退会のときに Apple の許可を取り消すため）。service_role だけが触る。'
   'src/lib/apple-revoke.server.ts。';
+
+-- drizzle 側の写し（同じ内容）: drizzle/migrations/0004_20261003150000_apple_tokens.sql
