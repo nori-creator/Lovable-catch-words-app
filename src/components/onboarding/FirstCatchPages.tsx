@@ -2,7 +2,8 @@ import { ArrowLeft, ArrowRight, Bell, BellOff, Sparkles } from "lucide-react";
 import { useT } from "@/lib/i18n";
 import type { FirstCatch } from "@/lib/first-catch";
 import { normalizeReminderPrefs, type ReminderMode } from "@/lib/review-reminder";
-import type { ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
+import { supabase } from "@/integrations/supabase/client";
 import { sampleStickers } from "./first-catch-samples";
 import { AlbumPrint } from "@/components/AlbumPrint";
 import "./first-catch.css";
@@ -128,6 +129,19 @@ export function FirstCatchIntro({
   onStart: () => void;
 }) {
   const t = useT();
+  const [signedIn, setSignedIn] = useState(false);
+  useEffect(() => {
+    let on = true;
+    void supabase.auth
+      .getSession()
+      .then(({ data }) => {
+        if (on) setSignedIn(!!data.session && !data.session.user.is_anonymous);
+      })
+      .catch(() => {});
+    return () => {
+      on = false;
+    };
+  }, []);
   const en = draft.targetLanguage === "en";
   // 学ぶ言語の字で、細いペンで書いたように。台湾華語は台湾の標準の字形の芫荽、英語は Caveat。
   const hand = en ? "handwritten" : "first-welcome-pen";
@@ -195,13 +209,18 @@ export function FirstCatchIntro({
             {t("first.introStart")}
           </PrimaryAction>
           {/* 再訪した人（期限切れ・別端末）は最初の画面からログインへ行ける。
-              見本どおり「ログイン」だけを青い文字にし、押せる高さ（44px）は保つ。 */}
-          <p className="first-welcome-signin">
-            {t("first.signinPrompt")}
-            <a className="first-secondary" href="/auth">
-              {t("first.signinLink")}
-            </a>
-          </p>
+              見本どおり「ログイン」だけを青い文字にし、押せる高さ（44px）は保つ。
+              既にログイン済みの人には出さない（押してもこの画面へ戻る輪になっていた）。 */}
+          {signedIn ? (
+            <p className="first-welcome-signin">{t("first.signedInNote")}</p>
+          ) : (
+            <p className="first-welcome-signin">
+              {t("first.signinPrompt")}
+              <a className="first-secondary" href="/auth">
+                {t("first.signinLink")}
+              </a>
+            </p>
+          )}
         </footer>
       </div>
     </div>

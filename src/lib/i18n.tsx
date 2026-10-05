@@ -561,6 +561,12 @@ export const DICT: Record<string, Record<UiLang, string>> = {
     "zh-TW": "已有帳號？",
   },
   "first.signinLink": { ja: "ログイン", en: "Sign in", "zh-TW": "登入" },
+  // ログイン済みでまだ初回の案内を終えていない人向け（ログインを押しても同じ画面に戻る輪を断つ）。
+  "first.signedInNote": {
+    ja: "ログインしました。「はじめる」から続けてください",
+    en: "You're signed in. Tap Start to continue.",
+    "zh-TW": "已登入，請點「開始」繼續",
+  },
   "first.homeTitle": {
     ja: "今日のアルバム",
     en: "Today's album",
