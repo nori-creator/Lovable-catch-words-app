@@ -1,4 +1,5 @@
 -- 「Apple でサインイン」の token の置き場所（2026-10-03）。
+-- Lovable が同じ内容を drizzle/migrations/0004_20261003150000_apple_tokens.sql にも書いた（中身は同じ）。
 --
 -- Apple の決まり（退会できるアプリは、退会のときに Apple の許可を取り消す。TN3194）のため、
 -- Apple でサインインした直後に Supabase が1回だけ渡す provider_refresh_token をサーバに預け、
