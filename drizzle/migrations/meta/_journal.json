@@ -36,6 +36,13 @@
       "when": 1791086697071,
       "tag": "0004_20261003150000_apple_tokens",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1791359198043,
+      "tag": "0005_apple_tokens_client_id",
+      "breakpoints": true
     }
   ]
 }

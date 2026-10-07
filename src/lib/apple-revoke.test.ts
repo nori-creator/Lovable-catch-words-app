@@ -5,8 +5,12 @@ import { describe, expect, it, vi } from "vitest";
 vi.mock("@/integrations/supabase/client.server", () => ({ supabaseAdmin: {} }));
 
 import {
+  APPLE_IOS_BUNDLE_ID,
   APPLE_REVOKE_URL,
+  APPLE_TOKEN_URL,
   CLIENT_SECRET_MAX_TTL_S,
+  appleSubFromIdToken,
+  exchangeAppleAuthCode,
   makeAppleClientSecret,
   readAppleConfig,
   revokeAppleToken,
@@ -14,6 +18,7 @@ import {
 } from "./apple-revoke";
 import {
   revokeAppleForUser,
+  storeAppleAuthCodeForUser,
   storeAppleToken,
   type AppleTokenDb,
   type AppleTokenRow,
@@ -62,6 +67,7 @@ function fakeDb(
         state.row = {
           token: String(r.token),
           token_type: r.token_type as AppleTokenRow["token_type"],
+          client_id: (r.client_id as string | null | undefined) ?? null,
         };
         return { data: null, error: null };
       },
@@ -302,5 +308,228 @@ describe("退会の順番", () => {
     expect(sql).toMatch(/enable row level security/);
     expect(sql).toMatch(/revoke all on public\.apple_tokens from public, anon, authenticated/);
     expect(sql).not.toMatch(/create policy/);
+  });
+});
+
+/** Apple の /auth/token の返事に載る id_token（署名は見ないので中身だけ）。 */
+const idTokenFor = (sub: string) =>
+  `e30.${Buffer.from(JSON.stringify({ sub })).toString("base64url")}.sig`;
+
+describe("iOS の authorizationCode（bundle id で引き換え・取り消し）", () => {
+  const quiet = () => undefined;
+  const iosEnv = (c: AppleConfig) => {
+    const e: Record<string, string | undefined> = envFrom(c);
+    delete e.APPLE_SERVICES_ID;
+    return e;
+  };
+
+  it("client_secret の sub は渡した client_id", async () => {
+    const { cfg } = await config();
+    const jwt = await makeAppleClientSecret(cfg, 1_700_000_000, undefined, APPLE_IOS_BUNDLE_ID);
+    expect(JSON.parse(b64urlDecode(jwt.split(".")[1]).toString()).sub).toBe("com.nori.catchwords");
+  });
+
+  it("code を bundle id で /auth/token に送る（grant_type=authorization_code）", async () => {
+    const { cfg } = await config();
+    const fetchMock = vi.fn(async () =>
+      Response.json({
+        refresh_token: "r.ios",
+        access_token: "a",
+        id_token: idTokenFor("000.apple"),
+      }),
+    );
+    const res = await exchangeAppleAuthCode(
+      { code: "c.abcdefghij", config: cfg, clientId: APPLE_IOS_BUNDLE_ID },
+      { fetch: fetchMock as unknown as typeof fetch },
+    );
+    expect(res).toEqual({ ok: true, refreshToken: "r.ios", appleSub: "000.apple" });
+    const [url, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
+    expect(url).toBe(APPLE_TOKEN_URL);
+    const body = new URLSearchParams(String(init.body));
+    expect(body.get("client_id")).toBe("com.nori.catchwords");
+    expect(body.get("grant_type")).toBe("authorization_code");
+    expect(body.get("code")).toBe("c.abcdefghij");
+    const secret = body.get("client_secret")!;
+    expect(JSON.parse(b64urlDecode(secret.split(".")[1]).toString()).sub).toBe(
+      "com.nori.catchwords",
+    );
+  });
+
+  it("Apple の断りは投げずに返す", async () => {
+    const { cfg } = await config();
+    const bad = vi.fn(async () => Response.json({ error: "invalid_grant" }, { status: 400 }));
+    await expect(
+      exchangeAppleAuthCode(
+        { code: "c", config: cfg, clientId: APPLE_IOS_BUNDLE_ID },
+        { fetch: bad as unknown as typeof fetch },
+      ),
+    ).resolves.toEqual({ ok: false, status: 400, error: "invalid_grant" });
+  });
+
+  it("id_token の sub だけを読む（壊れていれば null）", () => {
+    expect(appleSubFromIdToken(idTokenFor("x.y"))).toBe("x.y");
+    expect(appleSubFromIdToken("nope")).toBeNull();
+    expect(appleSubFromIdToken(undefined)).toBeNull();
+  });
+
+  it("設定が無ければ Apple を呼ばずに ok:false", async () => {
+    const { db, state } = fakeDb(null);
+    const fetchMock = vi.fn();
+    const r = await storeAppleAuthCodeForUser("u1", "c.abcdefghij", {
+      db,
+      env: {},
+      fetch: fetchMock as unknown as typeof fetch,
+      log: quiet,
+    });
+    expect(r).toEqual({ ok: false, reason: "not_configured" });
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(state.upserts).toHaveLength(0);
+  });
+
+  it("引き換えた refresh token を bundle id つきで置く（Services ID は要らない・token は記録に出さない）", async () => {
+    const { cfg } = await config();
+    const { db, state } = fakeDb(null);
+    const logs: string[] = [];
+    const fetchMock = vi.fn(async () =>
+      Response.json({ refresh_token: "r.secret", id_token: idTokenFor("000.apple") }),
+    );
+    const r = await storeAppleAuthCodeForUser("u1", "c.abcdefghij", {
+      appleSubs: ["000.apple"],
+      db,
+      env: iosEnv(cfg),
+      fetch: fetchMock as unknown as typeof fetch,
+      log: (m) => logs.push(m),
+    });
+    expect(r).toEqual({ ok: true });
+    expect(state.row).toEqual({
+      token: "r.secret",
+      token_type: "refresh_token",
+      client_id: "com.nori.catchwords",
+    });
+    expect(logs.join("\n")).not.toContain("r.secret");
+  });
+
+  it("別の Apple ID の code は置かない", async () => {
+    const { cfg } = await config();
+    const { db, state } = fakeDb(null);
+    const fetchMock = vi.fn(async () =>
+      Response.json({ refresh_token: "r", id_token: idTokenFor("someone.else") }),
+    );
+    const r = await storeAppleAuthCodeForUser("u1", "c.abcdefghij", {
+      appleSubs: ["000.apple"],
+      db,
+      env: iosEnv(cfg),
+      fetch: fetchMock as unknown as typeof fetch,
+      log: quiet,
+    });
+    expect(r).toEqual({ ok: false, reason: "account_mismatch" });
+    expect(state.upserts).toHaveLength(0);
+  });
+
+  it("Apple が断れば ok:false（投げない）", async () => {
+    const { cfg } = await config();
+    const { db } = fakeDb(null);
+    const down = vi.fn(async () => {
+      throw new TypeError("fetch failed");
+    });
+    await expect(
+      storeAppleAuthCodeForUser("u1", "c.abcdefghij", {
+        db,
+        env: iosEnv(cfg),
+        fetch: down as unknown as typeof fetch,
+        log: quiet,
+      }),
+    ).resolves.toEqual({ ok: false, reason: "exchange_failed" });
+  });
+
+  it("退会: iOS の行は bundle id で取り消す（Services ID が無くても）", async () => {
+    const { cfg } = await config();
+    const { db } = fakeDb({
+      token: "r.ios",
+      token_type: "refresh_token",
+      client_id: "com.nori.catchwords",
+    });
+    const fetchMock = vi.fn(async () => new Response(null, { status: 200 }));
+    const r = await revokeAppleForUser("u1", {
+      db,
+      env: iosEnv(cfg),
+      fetch: fetchMock as unknown as typeof fetch,
+      log: quiet,
+    });
+    expect(r).toEqual({ status: "revoked" });
+    const [, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
+    const body = new URLSearchParams(String(init.body));
+    expect(body.get("client_id")).toBe("com.nori.catchwords");
+    expect(JSON.parse(b64urlDecode(body.get("client_secret")!.split(".")[1]).toString()).sub).toBe(
+      "com.nori.catchwords",
+    );
+  });
+
+  it("退会: Web の行（client_id が null）はこれまでどおり Services ID", async () => {
+    const { cfg } = await config();
+    const { db } = fakeDb({ token: "r.web", token_type: "refresh_token", client_id: null });
+    const fetchMock = vi.fn(async () => new Response(null, { status: 200 }));
+    await revokeAppleForUser("u1", {
+      db,
+      env: envFrom(cfg),
+      fetch: fetchMock as unknown as typeof fetch,
+      log: quiet,
+    });
+    const [, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
+    expect(new URLSearchParams(String(init.body)).get("client_id")).toBe("app.catchwords.web");
+  });
+
+  it("client_id の列がまだ無くても（移行の前）Web の分は置け、読める", async () => {
+    const missingCol = { code: "PGRST204", message: "Could not find the 'client_id' column" };
+    const upserts: Record<string, unknown>[] = [];
+    let selects = 0;
+    const db: AppleTokenDb = {
+      from: () => ({
+        select: (cols: string) => ({
+          eq: () => ({
+            maybeSingle: async () => {
+              selects++;
+              return cols.includes("client_id")
+                ? {
+                    data: null,
+                    error: {
+                      code: "42703",
+                      message: "column apple_tokens.client_id does not exist",
+                    },
+                  }
+                : { data: { token: "r", token_type: "refresh_token" as const }, error: null };
+            },
+          }),
+        }),
+        upsert: async (r) => {
+          upserts.push(r);
+          return { data: null, error: "client_id" in r ? missingCol : null };
+        },
+        delete: () => ({ eq: async () => ({ data: null, error: null }) }),
+      }),
+    };
+    expect(await storeAppleToken("u1", { token: "r2", kind: "refresh_token" }, db)).toEqual({
+      stored: true,
+    });
+    expect(upserts).toHaveLength(2);
+    expect("client_id" in upserts[1]).toBe(false);
+    // iOS の分（bundle id を覚えられない）は置かない
+    await expect(
+      storeAppleToken(
+        "u1",
+        { token: "r3", kind: "refresh_token", clientId: "com.nori.catchwords" },
+        db,
+      ),
+    ).rejects.toThrow();
+    const { cfg } = await config();
+    const fetchMock = vi.fn(async () => new Response(null, { status: 200 }));
+    const r = await revokeAppleForUser("u1", {
+      db,
+      env: envFrom(cfg),
+      fetch: fetchMock as unknown as typeof fetch,
+      log: quiet,
+    });
+    expect(r).toEqual({ status: "revoked" });
+    expect(selects).toBe(2);
   });
 });

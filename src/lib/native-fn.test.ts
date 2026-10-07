@@ -24,6 +24,7 @@ describe("native-fn allowlist", () => {
       "getReaderMeanings",
       "searchImageCandidates",
       "setStickerPlaceholder",
+      "storeAppleAuthCode",
     ]) {
       expect(NATIVE_FNS[name]).toBeTypeOf("function");
     }
