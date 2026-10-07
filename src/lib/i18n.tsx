@@ -2041,10 +2041,38 @@ export const DICT: Record<string, Record<UiLang, string>> = {
     en: "How do you say \u201c{meaning}\u201d in {lang}?",
     "zh-TW": "「{meaning}」用{lang}怎麼說？",
   },
+  // **撮った語の通知の題とホームの札**（オーナー指示 2026-10-07「〇〇前に撮ったのこの単語
+  // 覚えてる？に通知の名前を変えて」）。言い方は `resurface.ts` の `caughtAgoLabel`。
+  "remind.caughtToday": {
+    ja: "今日撮ったこの単語、覚えてる？",
+    en: "A word you caught today — remember it?",
+    "zh-TW": "今天拍的這個單字，還記得嗎？",
+  },
+  "remind.caughtDays": {
+    ja: "{n}日前に撮ったこの単語、覚えてる？",
+    en: "A word you caught {n} {n|day|days} ago — remember it?",
+    "zh-TW": "{n} 天前拍的這個單字，還記得嗎？",
+  },
+  "remind.caughtWeeks": {
+    ja: "{n}週間前に撮ったこの単語、覚えてる？",
+    en: "A word you caught {n} {n|week|weeks} ago — remember it?",
+    "zh-TW": "{n} 週前拍的這個單字，還記得嗎？",
+  },
+  "remind.caughtMonths": {
+    ja: "{n}か月前に撮ったこの単語、覚えてる？",
+    en: "A word you caught {n} {n|month|months} ago — remember it?",
+    "zh-TW": "{n} 個月前拍的這個單字，還記得嗎？",
+  },
+  "remind.caughtYears": {
+    ja: "{n}年前に撮ったこの単語、覚えてる？",
+    en: "A word you caught {n} {n|year|years} ago — remember it?",
+    "zh-TW": "{n} 年前拍的這個單字，還記得嗎？",
+  },
+  // 押すとその語から復習が始まる（1問で終わらず、続けて今日の復習へ）。
   "remind.quizBody": {
-    ja: "押すと1問だけ出ます",
-    en: "Tap for one quick question",
-    "zh-TW": "點一下，只考一題",
+    ja: "押すと、この単語から復習が始まります",
+    en: "Tap to start your review with this word",
+    "zh-TW": "點一下，從這個單字開始複習",
   },
   // **残りの数を出さない**（PRODUCT.md「Never present review backlog as debt」、オーナー決定
   // 2026-10-02「数字を出すと…やる気がなくなる」）。1分だけ、続けるかは本人が決める。
@@ -2275,21 +2303,13 @@ export const DICT: Record<string, Record<UiLang, string>> = {
   },
   // 設定の自動保存の小さな札（`components/SaveStatus.tsx`）。
   "settings.savedInline": { ja: "保存しました", en: "Saved", "zh-TW": "已儲存" },
-  // ホームの「〇か月前のこの言葉」（`components/ResurfaceCard.tsx`、`lib/resurface.ts`）。
-  "home.resurface.months": {
-    ja: "{n}か月前のこの言葉、まだ言える？",
-    en: "From {n} {n|month|months} ago — can you still say it?",
-    "zh-TW": "{n} 個月前的這個詞，還說得出來嗎？",
-  },
-  "home.resurface.years": {
-    ja: "{n}年前のこの言葉、まだ言える？",
-    en: "From {n} {n|year|years} ago — can you still say it?",
-    "zh-TW": "{n} 年前的這個詞，還說得出來嗎？",
-  },
+  // ホームの「〇か月前に撮ったこの単語、覚えてる？」（`components/ResurfaceCard.tsx`、
+  // `lib/resurface.ts`）。題は通知と同じ `remind.caught*`。押すとその語から復習が始まる。
+  // 押す前に語を読み上げない（答えが分かってしまう）。
   "home.resurface.open": {
-    ja: "{word} を開く",
-    en: "Open {word}",
-    "zh-TW": "打開 {word}",
+    ja: "この単語から復習を始める",
+    en: "Start a review with this word",
+    "zh-TW": "從這個單字開始複習",
   },
   "home.resurface.close": { ja: "今日は閉じる", en: "Hide for today", "zh-TW": "今天先關閉" },
   // **なぜ消えているのかが分かる言葉にする。** 端末の設定で消えている人は、

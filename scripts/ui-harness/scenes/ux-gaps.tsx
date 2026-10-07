@@ -3,7 +3,7 @@
  *
  * 1. キャッチの演出（しっかり・短く・オフ）— `?scene=catch-animation&plan=short|full|off`
  * 2. 設定の「保存しました」— `?scene=settings-saved`
- * 3. ホームの「〇か月前のこの言葉、まだ言える？」— `?scene=home-resurface`
+ * 3. ホームの「〇か月前に撮ったこの単語、覚えてる？」— `?scene=home-resurface`
  *
  * どれも本物の部品を描く（`CatchLanding` / `SettingsScreen` / `ResurfaceCard`）。
  */
@@ -235,7 +235,7 @@ export function SettingsSavedScene({ q }: { q: URLSearchParams }) {
   );
 }
 
-/** ホームの今日の誌面の上に出る「〇か月前のこの言葉、まだ言える？」。`&days=400` で「1年前」。 */
+/** ホームの今日の誌面の上に出る「〇か月前に撮ったこの単語、覚えてる？」。`&days=400` で「1年前」。 */
 export function HomeResurfaceScene({ q }: { q: URLSearchParams }) {
   const days = Number(q.get("days") ?? 91) || 91;
   const [hidden, setHidden] = useState(false);
@@ -249,13 +249,13 @@ export function HomeResurfaceScene({ q }: { q: URLSearchParams }) {
         <ResurfaceCardView
           sticker={old}
           pick={{ id: old.id, ageDays: days, ...resurfaceAgeLabel(days) }}
-          onOpen={() => setOpened(true)}
+          onStart={() => setOpened(true)}
           onDismiss={() => setHidden(true)}
         />
       )}
       {opened && (
         <p className="mb-3 text-center text-caption text-muted-foreground">
-          （本番では「{old.word.headword}」の詳細が開き、発音が鳴ります）
+          （本番では「{old.word.headword}」から復習が始まります）
         </p>
       )}
       <DayCollage

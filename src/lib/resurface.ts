@@ -91,6 +91,45 @@ export function resurfaceAgeLabel(ageDays: number): { unit: "months" | "years"; 
   return { unit: "months", n: Math.min(11, Math.max(2, Math.round(ageDays / MONTH_DAYS))) };
 }
 
+/**
+ * **「〇〇前に撮ったこの単語、覚えてる？」の「〇〇前」**（オーナー指示 2026-10-07「〇〇前に
+ * 撮ったのこの単語覚えてる？に通知の名前を変えて」）。
+ *
+ * ホームの札は 60 日以上前の語だけ（「〇か月前」「〇年前」）だが、通知の語は撮って間もない
+ * 語もあるので、短い方も言えるようにする:
+ *   1 日未満 → 「今日撮った」、7 日未満 → 「〇日前」、30 日未満 → 「〇週間前」、
+ *   1 年未満 → 「〇か月前」（`resurfaceAgeLabel` と同じ丸め。上は 11 か月）、それより前 → 「〇年前」。
+ */
+export type CaughtAgoUnit = "today" | "days" | "weeks" | "months" | "years";
+export function caughtAgoLabel(ageDays: number): { unit: CaughtAgoUnit; n: number } {
+  if (!Number.isFinite(ageDays) || ageDays < 1) return { unit: "today", n: 0 };
+  const d = Math.floor(ageDays);
+  if (d < 7) return { unit: "days", n: d };
+  if (d < 30) return { unit: "weeks", n: Math.floor(d / 7) };
+  if (d < 365) return { unit: "months", n: Math.min(11, Math.max(1, Math.round(d / MONTH_DAYS))) };
+  return { unit: "years", n: Math.floor(d / 365) };
+}
+
+/** 撮った時刻と「いつの時点で言うか」から、その言い方。読めない時刻は `null`。 */
+export function caughtAgoAt(
+  caughtAt: string | null | undefined,
+  atMs: number,
+): { unit: CaughtAgoUnit; n: number } | null {
+  if (!caughtAt) return null;
+  const t = Date.parse(caughtAt);
+  if (!Number.isFinite(t)) return null;
+  return caughtAgoLabel(Math.max(0, atMs - t) / DAY_MS);
+}
+
+/** 言い方 → 辞書の鍵（`i18n.tsx` の `remind.caught*`。ホームの札と通知で同じ文言）。 */
+export const CAUGHT_AGO_KEY: Record<CaughtAgoUnit, string> = {
+  today: "remind.caughtToday",
+  days: "remind.caughtDays",
+  weeks: "remind.caughtWeeks",
+  months: "remind.caughtMonths",
+  years: "remind.caughtYears",
+};
+
 /** 文字列から決まる小さな数（同じ日なら同じ札を選ぶため）。 */
 function hash(s: string): number {
   let h = 2166136261;

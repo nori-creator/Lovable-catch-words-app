@@ -3,7 +3,15 @@ import { REVIEW_PRACTICE_ENABLED } from "@/lib/product-features";
 import { Link, useNavigate, getRouteApi } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { batchKey, readMark, writeMark, EMPTY_MARK } from "@/lib/review-session";
-import { packBatch, readBatch, REVIEW_CACHE_KEY, REVIEW_CACHE_USER_KEY } from "@/lib/review-cache";
+import {
+  composeWantedBatch,
+  packBatch,
+  readBatch,
+  REVIEW_CACHE_KEY,
+  REVIEW_CACHE_USER_KEY,
+  REVIEW_TARGET_CACHE_KEY,
+} from "@/lib/review-cache";
+import { dropTargetedReview } from "@/lib/review-prepare";
 import { useServerFn } from "@tanstack/react-start";
 import { Suspense, useEffect, useId, useMemo, useRef, useState } from "react";
 import { lazyWithRetry } from "@/lib/chunk-reload";
@@ -131,12 +139,35 @@ export function ReviewPage() {
   const [cachedBatch] = useState(() => {
     if (typeof window === "undefined") return null;
     try {
-      const batch = readBatch<DueReviewCard>(
+      const uid = localStorage.getItem(REVIEW_CACHE_USER_KEY) ?? "";
+      const now = Date.now();
+      const normal = readBatch<DueReviewCard>(
         localStorage.getItem(REVIEW_CACHE_KEY),
-        localStorage.getItem(REVIEW_CACHE_USER_KEY) ?? "",
-        wantedSticker ?? null,
-        Date.now(),
+        uid,
+        null,
+        now,
       );
+      /**
+       * **名指しの1枚（`?sticker=`）で来た時も、待たせない**（オーナー指示 2026-10-07
+       * 「通知をタップしたらすぐに問題出るようにして。今日の問題を準備中と言う待ち時間
+       * 無しで」）。前は名指しの束を書き留めていなかったので、通知を押すと必ず
+       * 「準備中…」が出ていた。
+       *
+       * 名指しの束（通知を予約した時・ホームの札を出した時に用意。`review-prepare.ts`）か、
+       * 普通の束にその語が居れば、それを先頭にして続きを並べる（`composeWantedBatch`）。
+       */
+      const batch = wantedSticker
+        ? composeWantedBatch(
+            wantedSticker,
+            readBatch<DueReviewCard>(
+              localStorage.getItem(REVIEW_TARGET_CACHE_KEY),
+              uid,
+              wantedSticker,
+              now,
+            ),
+            normal,
+          )
+        : normal;
       /**
        * **別の学習言語で作った束は出さない**（オーナー報告 2026-09-30
        * 「学習言語台湾華語なのに英語の4択が表示されてる」）。束は最大20時間
@@ -441,6 +472,14 @@ export function ReviewPage() {
       window.clearTimeout(timer);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [done, wantedSticker]);
+
+  /**
+   * 名指しの束（通知・ホームの札から来た回）を出し切ったら捨てる。残すと、同じ通知を
+   * もう一度押した時に**答え終えた並びがそのまま**出て、同じ札を二重に採点する。
+   */
+  useEffect(() => {
+    if (done && wantedSticker) dropTargetedReview(wantedSticker);
   }, [done, wantedSticker]);
 
   /**
