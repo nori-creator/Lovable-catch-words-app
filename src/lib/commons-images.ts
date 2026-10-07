@@ -90,10 +90,14 @@ export function commonsCandidates(json: CommonsResponse, limit = 6): CommonsCand
     const license = metaValue(page, "LicenseShortName");
     if (!artist) continue;
     seen.add(url);
+    // **保存に使うのも縮小版**（オーナー報告 2026-10-07「画像の変更に失敗」）。
+    // 原寸は数十 MB の写真もあり、サーバの大きさの上限（`byte-cap.ts`）で断られる。
+    // 縮小版が無い（原寸が小さい）時だけ原寸を使う。
+    const full = info?.thumburl || url;
     out.push({
-      url,
-      // 縮小版が無ければ原寸で我慢する（無いより出るほうがいい）。
-      thumb: info?.thumburl || url,
+      url: full,
+      // 一覧の小さな絵は、決まった幅の小さい縮小版にする（無ければ同じ物）。
+      thumb: smallerThumb(full),
       credit: {
         name: license ? `${artist} / ${license}` : artist,
         link: info?.descriptionurl || url,
@@ -102,6 +106,19 @@ export function commonsCandidates(json: CommonsResponse, limit = 6): CommonsCand
     if (out.length >= limit) break;
   }
   return out;
+}
+
+/**
+ * 縮小版を頼む幅。**Wikimedia が決めている幅だけ**を使う（決まった幅以外は
+ * その場で作らせることになり、断られたり遅くなったりする）。
+ * https://www.mediawiki.org/wiki/Common_thumbnail_sizes
+ */
+export const COMMONS_IMAGE_WIDTH = 960;
+export const COMMONS_THUMB_WIDTH = 500;
+
+/** `.../960px-名前.jpg` を一覧用の幅に置き換える。形が違えばそのまま。 */
+function smallerThumb(url: string): string {
+  return url.replace(`/${COMMONS_IMAGE_WIDTH}px-`, `/${COMMONS_THUMB_WIDTH}px-`);
 }
 
 /**
@@ -120,6 +137,6 @@ export function commonsSearchUrl(query: string, limit = 6): string {
   u.searchParams.set("gsrlimit", String(limit));
   u.searchParams.set("prop", "imageinfo");
   u.searchParams.set("iiprop", "url|extmetadata");
-  u.searchParams.set("iiurlwidth", "480");
+  u.searchParams.set("iiurlwidth", String(COMMONS_IMAGE_WIDTH));
   return u.toString();
 }

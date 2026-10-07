@@ -391,8 +391,12 @@ const REVIEW_SCENES: Array<{ scene: string; label: string }> = [
   { scene: "catch-animation&plan=off", label: "キャッチの演出: オフ（発音だけ）" },
   { scene: "settings-saved", label: "設定: 保存しました・キャッチの演出の選択" },
   { scene: "settings-saved&state=live", label: "設定: 触って保存を確かめる" },
-  { scene: "home-resurface", label: "ホーム: 3か月前のこの言葉、まだ言える？" },
-  { scene: "home-resurface&days=400", label: "ホーム: 1年前のこの言葉" },
+  { scene: "home-resurface", label: "ホーム: 3か月前に撮ったこの単語、覚えてる？" },
+  { scene: "home-resurface&days=400", label: "ホーム: 1年前に撮ったこの単語" },
+  // 2026-10-07 Pro の「AIで絵を作る」（絵の無い札）。図鑑の詳細にも同じ列が出る。
+  { scene: "sticker-sheet&variant=pro-ai", label: "単語の詳細: Pro の「AIで絵を作る」" },
+  { scene: "sticker-sheet&variant=pro-ai-generating", label: "単語の詳細: AIで絵を作っている間" },
+  { scene: "sticker-sheet&variant=image-failed", label: "単語の詳細: 画像を見つけられなかった" },
   // 2026-10-03「アプリ内の広告が動く 機能するようにしたい」— Google AdSense のウェブ広告。
   // 見本は本物の広告の代わりに「広告」の箱を出す。`&fill=unfilled` で広告が来ない時（枠が閉じる）。
   { scene: "dex-ads", label: "広告: 図鑑の一覧の途中" },

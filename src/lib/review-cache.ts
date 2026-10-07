@@ -37,6 +37,31 @@
 export const REVIEW_CACHE_KEY = "review-batch-v1";
 
 /**
+ * **名指しの1枚から始める束**（通知・ホームの「〇か月前に撮ったこの単語、覚えてる？」を
+ * 押した時の行き先 `/review?sticker=…`）を置く鍵。
+ *
+ * オーナー指示 2026-10-07「通知をタップしたらすぐに問題出るようにして。今日の問題を準備中と
+ * 言う待ち時間無しで。通知を出すときは復習の画面を用意してからにして」。
+ *
+ * 普通の束（`REVIEW_CACHE_KEY`）とは**鍵を分ける** — 混ぜると、普通に開いた時に名指しの
+ * 並びが出てきて話が合わない（`wanted` でも弾くが、そもそも上書きし合わないように）。
+ * 名指しの1枚は1つだけ置く（新しく用意したら前の物は消える）。
+ */
+export const REVIEW_TARGET_CACHE_KEY = "review-batch-sticker-v1";
+
+/**
+ * 名指しの束を**最長どこまで**使うか（書いた時刻から）。
+ *
+ * 端末の予約通知は**鳴る時に何もできない**（中身は予約した時に決まる）。だから
+ * 「通知を出す前に用意する」＝「予約する時に用意する」で、鳴った後に押されるまで束が
+ * 生きていないといけない。予約は先 24 時間ぶん・静かな時間で朝へ回すと最大 34 時間ほど
+ * 先になるので、`until`（最後の通知の時刻＋押すまでの猶予）まで延ばせるようにし、
+ * その上限をここで切る。写真は用意した時に端末へ落とす（`warmCachedImages`）ので、
+ * 署名URLが切れても出る。
+ */
+export const REVIEW_TARGET_MAX_AGE_MS = 48 * 60 * 60_000;
+
+/**
  * **いま入っている人の id を置いておく鍵。**
  *
  * 束を出すかどうかは**最初の描画で**決めないといけない（後から決めると、
@@ -67,6 +92,11 @@ export type CachedBatch<T> = {
   wanted: string | null;
   /** 書き留めた時刻。 */
   at: number;
+  /**
+   * ここまでは使ってよい（通知の束だけ。鳴る時刻より後まで生かすため）。
+   * 無ければ `at` から `maxAgeMs`。あっても `REVIEW_TARGET_MAX_AGE_MS` で切る。
+   */
+  until?: number;
   cards: T[];
 };
 
@@ -76,9 +106,12 @@ export function packBatch<T>(
   user: string,
   wanted: string | null,
   now: number,
+  until?: number,
 ): CachedBatch<T> | null {
   if (!cards || cards.length === 0) return null;
-  return { user, wanted, at: now, cards: [...cards] };
+  const packed: CachedBatch<T> = { user, wanted, at: now, cards: [...cards] };
+  if (typeof until === "number" && Number.isFinite(until) && until > now) packed.until = until;
+  return packed;
 }
 
 /**
@@ -111,7 +144,76 @@ export function readBatch<T>(
   if (typeof b.at !== "number" || !Number.isFinite(b.at)) return null;
   // 先の時刻が入っていたら信じない（端末の時計が動いた後など）。
   if (b.at > now) return null;
-  if (now - b.at > maxAgeMs) return null;
+  const until =
+    typeof b.until === "number" && Number.isFinite(b.until)
+      ? Math.min(b.until, b.at + REVIEW_TARGET_MAX_AGE_MS)
+      : -Infinity;
+  if (now - b.at > maxAgeMs && now > until) return null;
   if (!Array.isArray(b.cards) || b.cards.length === 0) return null;
-  return { user, wanted, at: b.at, cards: b.cards as T[] };
+  const out: CachedBatch<T> = { user, wanted, at: b.at, cards: b.cards as T[] };
+  if (Number.isFinite(until)) out.until = b.until;
+  return out;
+}
+
+/**
+ * **名指しの1枚から始める束を、端末にある物から組む**（`/review?sticker=…` を開いた時の
+ * 最初の描画。待ち時間 0 にするため）。
+ *
+ * - 先頭: 名指しの1枚。名指しの束（通知を予約した時・ホームの札を出した時に用意）か、
+ *   普通の束に居ればそこから。両方に居れば新しい方。
+ * - 続き: 2つのうち**新しい方の束**から、名指しの1枚を除いた物（予約してから普通に
+ *   復習していたら、その後の束の方が今に近い）。
+ *
+ * 名指しの1枚がどちらにも居なければ `null`（いつもどおり読み込みから）。
+ * 年齢（`at`）は使った束のうち古い方 — 新しく見せると React Query が読み直さない。
+ */
+export function composeWantedBatch<T extends { sticker_id: string }>(
+  wanted: string,
+  targeted: CachedBatch<T> | null,
+  normal: CachedBatch<T> | null,
+): CachedBatch<T> | null {
+  const sources = [targeted, normal]
+    .filter((b): b is CachedBatch<T> => !!b)
+    .sort((a, b) => b.at - a.at);
+  if (sources.length === 0) return null;
+  let front: T | undefined;
+  let frontFrom: CachedBatch<T> | undefined;
+  for (const b of sources) {
+    front = b.cards.find((c) => c.sticker_id === wanted);
+    if (front) {
+      frontFrom = b;
+      break;
+    }
+  }
+  if (!front || !frontFrom) return null;
+  const base = sources[0];
+  const rest = base.cards.filter((c) => c.sticker_id !== wanted);
+  return {
+    user: base.user,
+    wanted,
+    at: Math.min(frontFrom.at, base.at),
+    cards: [front, ...rest],
+  };
+}
+
+/**
+ * **名指しの束の続きを、サーバの新しい束で差し替える**（Codex 指摘 2026-10-07）。
+ *
+ * 名指しの束は最長 48 時間前に用意した物なので、続きの札が**もう期限でない・1日の上限を
+ * 越えている**ことがある。最初の1枚は端末の物ですぐ出し（待たせない）、裏で読み直した
+ * 束が届いたら、**いま出している札より後ろだけ**を入れ替える。
+ *
+ * - `current` の `idx` 枚目まで（答えた札・いま出ている札）はそのまま残す（問題が目の前で
+ *   入れ替わらない・答えた位置がずれない）。
+ * - 後ろは `fresh` から、残した札と同じ語を除いた物（同じ札を二重に採点しない）。
+ *   サーバが何も返さなければ（期限の札が無い・上限）後ろは無くなる。
+ */
+export function replaceContinuation<T extends { sticker_id: string }>(
+  current: readonly T[],
+  idx: number,
+  fresh: readonly T[],
+): T[] {
+  const keep = current.slice(0, Math.max(0, idx) + 1);
+  const seen = new Set(keep.map((c) => c.sticker_id));
+  return [...keep, ...fresh.filter((c) => !seen.has(c.sticker_id))];
 }

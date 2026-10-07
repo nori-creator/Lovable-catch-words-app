@@ -28,10 +28,12 @@ import { SEED_UPDATED_AT, seedStickerFromList } from "@/lib/sticker-seed";
 import { getStickerMemoryHistory } from "@/lib/reviews.functions";
 import { listStickerPhotos } from "@/lib/encounters.functions";
 import { StickerPhotoHistory } from "@/components/StickerPhotoHistory";
-import { Suspense, useRef, useState } from "react";
+import { Suspense, useRef, useState, type ComponentProps } from "react";
 import { lazyWithRetry } from "@/lib/chunk-reload";
 import { ArrowLeft, MapPin, Brain, ChevronDown, Clock } from "lucide-react";
 import { useAutoHero } from "@/hooks/use-auto-hero";
+import { HeroImageChoices } from "@/components/HeroImageChoices";
+import { getMyProfile } from "@/lib/profile.functions";
 import { localeOf, useT } from "@/lib/i18n";
 import { useUiLang } from "@/lib/i18n";
 import { posDisplay } from "@/lib/pos";
@@ -78,7 +80,19 @@ export function StickerDetailPage() {
    * この画面には無かったので、図鑑から開いた文字キャッチの語は
    * いつまでも見出しが空(語の字だけ)のままだった。
    */
-  useAutoHero(s);
+  const autoHero = useAutoHero(s);
+  /**
+   * **「別の画像」の列と Pro の「AIで絵を作る」もここに出す**（Codex 指摘 2026-10-07。
+   * 前は `useAutoHero` の候補と AI の絵を捨てていて、札のシートでしか選べなかった）。
+   * Pro かどうかは札のシートと同じ鍵で読む（作る時はサーバが確かめ直す）。
+   */
+  const fetchProfile = useServerFn(getMyProfile);
+  const { data: profile } = useQuery({
+    queryKey: ["profile"],
+    queryFn: () => fetchProfile(),
+    staleTime: 60_000,
+  });
+  const isPro = (profile as { plan?: string } | null | undefined)?.plan === "pro";
 
   return (
     <AppShell title={t("card.title")}>
@@ -116,6 +130,14 @@ export function StickerDetailPage() {
           memory={mem}
           photos={photoData?.photos}
           dateLocale={dateLocale}
+          imageChoices={{
+            candidates: autoHero.candidates,
+            swapping: autoHero.swapping,
+            onSwap: (c) => void autoHero.swap(c),
+            isPro,
+            onGenerateAi: () => void autoHero.generateAi(),
+            generatingAi: autoHero.generatingAi,
+          }}
         />
       )}
     </AppShell>
@@ -158,11 +180,14 @@ export function StickerDetailBody({
   memory,
   photos,
   dateLocale,
+  imageChoices,
 }: {
   sticker: NonNullable<Awaited<ReturnType<typeof getSticker>>>;
   memory?: Awaited<ReturnType<typeof getStickerMemoryHistory>>;
   photos?: Awaited<ReturnType<typeof listStickerPhotos>>["photos"];
   dateLocale: string;
+  /** 見出しの絵の候補と Pro の「AIで絵を作る」（`useAutoHero`。札のシートと同じ物）。 */
+  imageChoices?: Omit<ComponentProps<typeof HeroImageChoices>, "ownPhoto" | "hasHero">;
 }) {
   const t = useT();
   const photoPref = usePhotoPref();
@@ -171,6 +196,14 @@ export function StickerDetailBody({
   return (
     <>
       <StickerDetailHero sticker={s} dateLocale={dateLocale} />
+
+      {imageChoices && (
+        <HeroImageChoices
+          ownPhoto={!!s.object_url || !!s.cutout_url}
+          hasHero={!!(s.object_url || s.cutout_url || s.placeholder_url)}
+          {...imageChoices}
+        />
+      )}
 
       {/* 同じものに何度も出会った記録。再会が無ければ何も出ない。 */}
       <StickerPhotoHistory photos={photoData?.photos ?? []} dateLocale={dateLocale} />

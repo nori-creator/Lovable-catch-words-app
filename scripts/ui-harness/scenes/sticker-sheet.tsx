@@ -72,14 +72,35 @@ const CANDIDATES = [
 ];
 
 /**
+ * **絵の無い札**（文字から作った語・自動のネット画像がまだ入っていない札）。
+ * 「別の画像」の列と Pro の「AIで絵を作る」が出るのは、自分で撮った写真が無い札だけ
+ * （`HeroImageChoices`）。
+ *
+ * - `?variant=pro-ai` … Pro の人。候補の列と「AIで絵を作る」
+ * - `?variant=pro-ai-generating` … 「AIで絵を作っています…」（回る印・ほかの候補は押せない）
+ * - `?variant=image-failed` … 自動の1枚を入れられなかった（「画像を見つけられませんでした」）
+ */
+const IMAGELESS = {
+  ...(STICKER as object),
+  object_url: null,
+  cutout_url: null,
+  selfie_url: null,
+  placeholder_url: null,
+  placeholder_credit: null,
+} as never;
+const IMAGELESS_VARIANTS = new Set(["pro-ai", "pro-ai-generating", "image-failed"]);
+
+/**
  * 覆いの面。実物と同じ `fixed inset-0` の箱に入れる —
  * 箱が無いと、中身が画面の高さを超えたときの巻き上がり方が別物になる。
  */
 export function StickerSheetScene({ q }: { q: URLSearchParams }) {
   const variant = q.get("variant");
   // `?lang=en` で英語の語（見出し・品詞・発音ボタンの並びと、一番下の報告を見る）。
-  const sticker =
-    q.get("word") === "en" ? ({ ...(STICKER as object), word: FULL_EN } as never) : STICKER;
+  const imageless = IMAGELESS_VARIANTS.has(variant ?? "");
+  const base = imageless ? IMAGELESS : STICKER;
+  const sticker = q.get("word") === "en" ? ({ ...(base as object), word: FULL_EN } as never) : base;
+  const generating = variant === "pro-ai-generating";
   const [flipped, setFlipped] = useState(variant === "selfie");
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const longPressFired = useRef(false);
@@ -116,11 +137,11 @@ export function StickerSheetScene({ q }: { q: URLSearchParams }) {
                 }
               : null
           }
-          isPro={variant === "pro"}
+          isPro={variant === "pro" || variant === "pro-ai" || generating}
           flipped={flipped}
           setFlipped={setFlipped}
-          hasSelfie
-          hasPhoto
+          hasSelfie={!imageless}
+          hasPhoto={!imageless}
           // **削除は2段。** 2段目(「本当に削除?」)は押さないと出ないので、
           // 取り消せない操作の**武装した側**を必ず撮る。
           busy={variant === "deleting" ? "delete" : null}
@@ -138,9 +159,13 @@ export function StickerSheetScene({ q }: { q: URLSearchParams }) {
           setEnrichError={() => {}}
           onEnrichRetry={() => {}}
           // ネット画像の候補は、自分の写真が無いときだけ出る。
-          webCandidates={variant === "candidates" ? CANDIDATES : []}
-          swapping={null}
+          webCandidates={variant === "candidates" || imageless ? CANDIDATES : []}
+          // AI の絵を作っている間は `swapping` に印が入る（`useAutoHero` の `AI_IMAGE_KEY`）。
+          swapping={generating ? "ai:generating" : null}
           swapWebImage={() => {}}
+          heroFailed={variant === "image-failed"}
+          onGenerateAi={variant === "pro-ai" || generating ? () => {} : undefined}
+          generatingAi={generating}
           applyWebImage={() => {}}
           // 再会の写真。図鑑からこの面を開いた人が辿り着けるようになった所
           // (2026-08-19)。1枚しか無い場面では区画ごと出ない。

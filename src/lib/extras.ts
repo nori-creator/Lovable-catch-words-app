@@ -48,6 +48,18 @@ export const UsageChunkSchema = z.object({
 });
 export type UsageChunk = z.infer<typeof UsageChunkSchema>;
 
+/**
+ * **項目の作り直し（`runSectionRegen`）で受ける「かたまり」の形。**
+ * 部品は `ChunkPartSchema` をそのまま使う — 前は `{text,pos,slot}` だけを書き出して
+ * いたので、zod が `ja` と `alts` を**黙って落とし**、作り直した後は入れ替えの候補
+ * （跟+男朋友+吵架 → 女朋友・朋友…）が消えていた（2026-10-07）。
+ */
+export const RegenUsageChunksSchema = z.object({
+  usage_chunks: z
+    .array(z.object({ parts: z.array(ChunkPartSchema), ja: z.string().catch("") }))
+    .min(1),
+});
+
 export const RelatedWordSchema = z.object({
   word: z.string(),
   kind: z.enum(["syn", "ant", "rel"]).catch("rel"),

@@ -1,13 +1,16 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { X } from "lucide-react";
+import { useNavigate } from "@tanstack/react-router";
+import { useServerFn } from "@tanstack/react-start";
 import { localeOf, useT, useUiLang } from "@/lib/i18n";
 import { CachedImg } from "@/lib/image-cache";
 import { stickerPhotoUrl } from "@/lib/sticker-photo";
-import { usePronounce } from "@/lib/use-pronounce";
 import { taipeiDay } from "@/lib/taipei-day";
 import type { StickerWithWord } from "@/lib/stickers.functions";
-import type { HeroOrigin as FlightOrigin } from "@/components/use-hero-reveal";
+import { getDueReviews } from "@/lib/reviews.functions";
+import { prepareTargetedReview } from "@/lib/review-prepare";
 import {
+  CAUGHT_AGO_KEY,
   dismissResurface,
   parseResurfaceState,
   pickResurface,
@@ -16,23 +19,30 @@ import {
   type ResurfaceState,
 } from "@/lib/resurface";
 
+/** 押した時に、用意の途中の束を待つ上限（これより遅ければ用意を待たずに開く）。 */
+const TAP_WAIT_MS = 1500;
+
 /**
- * **ホームの「〇か月前のこの言葉、まだ言える？」**（`lib/resurface.ts`）。
+ * **ホームの「〇か月前に撮ったこの単語、覚えてる？」**（`lib/resurface.ts`）。
  *
- * 写真だけを見せて、語は**伏せておく** — 見て思い出すのがこの札の仕事。押すと語が開き、
- * 同時に発音が鳴る（答え合わせは耳で）。閉じれば今日はもう出ない。
- * 借りの言い方（「〇件たまっています」）はしない。言えそうな語だけを選んである。
+ * 写真だけを見せて、語は**伏せておく** — 見て思い出すのがこの札の仕事。閉じれば今日は
+ * もう出ない。借りの言い方（「〇件たまっています」）はしない。言えそうな語だけを選んである。
+ *
+ * **押すとその語から復習が始まる**（オーナー指示 2026-10-07「その通知をタップしたら復習の
+ * 問題が始まるようにして」。前は語の詳細が開き、発音が鳴っていた）。`/review?sticker=…`
+ * でその語が1問目、続けて今日の復習。発音は鳴らさない — 鳴らすと4択の答えが先に分かる。
+ * 札を出した時に裏でその束を用意しておく（`review-prepare.ts`）ので、押すとすぐ問題が出る。
  */
 export function ResurfaceCard({
   items,
   recall,
-  onOpen,
 }: {
   items: readonly StickerWithWord[];
   /** 札の id → いま思い出せる確率（0〜100）。 */
   recall: ReadonlyMap<string, number>;
-  onOpen: (id: string, from?: FlightOrigin | null) => void;
 }) {
+  const navigate = useNavigate();
+  const fetchReview = useServerFn(getDueReviews);
   const [pick, setPick] = useState<ResurfacePick | null>(null);
   const stateRef = useRef<ResurfaceState>({});
   const decided = useRef(false);
@@ -73,13 +83,38 @@ export function ResurfaceCard({
     setPick(chosen);
   }, [candidates, recall]);
 
+  /**
+   * 札を出したら**すぐ**、その語から始まる復習を裏で用意する（押した瞬間に問題を出すため）。
+   * 前は描画と取り合わないよう 2.5 秒待っていたが、その間に押すと用意の無いまま開いて
+   * 「準備中…」になっていた（Codex 指摘 2026-10-07）。1時間以内に用意した物があれば
+   * 読み直さない（`PREPARED_REUSE_MS`）ので、開くたびに重い問い合わせは走らない。
+   */
+  const pickedId = pick?.id ?? null;
+  const preparing = useRef<{ id: string; done: Promise<unknown> } | null>(null);
+  useEffect(() => {
+    if (!pickedId) return;
+    preparing.current = {
+      id: pickedId,
+      done: prepareTargetedReview(fetchReview, pickedId).catch(() => false),
+    };
+  }, [pickedId, fetchReview]);
+
+  /** 押した時。用意の途中なら**少しだけ**（`TAP_WAIT_MS` まで）待ってから開く。 */
+  const start = async (id: string) => {
+    const p = preparing.current;
+    if (p?.id === id) {
+      await Promise.race([p.done, new Promise((r) => window.setTimeout(r, TAP_WAIT_MS))]);
+    }
+    void navigate({ to: "/review", search: { sticker: id } });
+  };
+
   const sticker = pick ? items.find((s) => s.id === pick.id) : undefined;
   if (!pick || !sticker) return null;
   return (
     <ResurfaceCardView
       sticker={sticker}
       pick={pick}
-      onOpen={onOpen}
+      onStart={(id) => void start(id)}
       onDismiss={() => {
         const next = dismissResurface(stateRef.current, taipeiDay());
         stateRef.current = next;
@@ -98,18 +133,17 @@ export function ResurfaceCard({
 export function ResurfaceCardView({
   sticker,
   pick,
-  onOpen,
+  onStart,
   onDismiss,
 }: {
   sticker: StickerWithWord;
   pick: ResurfacePick;
-  onOpen: (id: string, from?: FlightOrigin | null) => void;
+  /** 押した時。その語から復習を始める。 */
+  onStart: (id: string) => void;
   onDismiss: () => void;
 }) {
   const t = useT();
   const ui = useUiLang();
-  const pronounce = usePronounce(sticker.word.language ?? undefined);
-  const photoRef = useRef<HTMLSpanElement>(null);
   const url = stickerPhotoUrl(sticker, { prefer: sticker.hero_role ?? undefined, thumb: true });
   const when = new Date(sticker.taken_at || sticker.created_at);
   const dateLabel = Number.isFinite(when.getTime())
@@ -120,20 +154,11 @@ export function ResurfaceCardView({
     <div className="resurface-card relative mb-4 flex items-center gap-3 rounded-3xl border border-border bg-card p-3 shadow-sm">
       <button
         type="button"
-        onClick={() => {
-          // 押した指の中で鳴らす（iOS は操作の外の再生を止める）。
-          void pronounce(sticker.word.headword);
-          const r = photoRef.current?.getBoundingClientRect();
-          onOpen(
-            sticker.id,
-            r && url ? { x: r.left, y: r.top, w: r.width, h: r.height, url, radius: 10 } : null,
-          );
-        }}
-        aria-label={t("home.resurface.open", { word: sticker.word.headword })}
+        onClick={() => onStart(sticker.id)}
+        aria-label={t("home.resurface.open")}
         className="press-in flex min-w-0 flex-1 items-center gap-3 text-left"
       >
         <span
-          ref={photoRef}
           className="h-16 w-16 shrink-0 overflow-hidden rounded-xl bg-white p-0.5 shadow"
           aria-hidden
         >
@@ -141,9 +166,7 @@ export function ResurfaceCardView({
         </span>
         <span className="min-w-0">
           <span className="block text-headline font-bold leading-tight">
-            {t(pick.unit === "years" ? "home.resurface.years" : "home.resurface.months", {
-              n: pick.n,
-            })}
+            {t(CAUGHT_AGO_KEY[pick.unit], { n: pick.n })}
           </span>
           {sub && (
             <span className="mt-0.5 block truncate text-caption text-muted-foreground">{sub}</span>

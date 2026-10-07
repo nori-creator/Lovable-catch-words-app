@@ -2,7 +2,8 @@ import { useCallback, useEffect } from "react";
 import { Capacitor } from "@capacitor/core";
 import { useServerFn } from "@tanstack/react-start";
 import { supabase } from "@/integrations/supabase/client";
-import { getUpcomingDueTimes, type ReminderQuiz } from "@/lib/reviews.functions";
+import { getDueReviews, getUpcomingDueTimes, type ReminderQuiz } from "@/lib/reviews.functions";
+import { prepareTargetedReview } from "@/lib/review-prepare";
 import {
   normalizeReminderPrefs,
   planReminders,
@@ -39,8 +40,12 @@ export async function loadReminderPrefs(): Promise<ReminderPrefs> {
  */
 let lastRun = 0;
 
+/** 通知が鳴ってから押されるまでの猶予（この間は用意した束をそのまま出す）。 */
+export const TAP_GRACE_MS = 12 * 60 * 60_000;
+
 export function ReviewReminderWatcher() {
   const fetchDue = useServerFn(getUpcomingDueTimes);
+  const fetchReview = useServerFn(getDueReviews);
   const refresh = useCallback(
     async (force = false) => {
       if (!force && Date.now() - lastRun < 60_000) return;
@@ -59,9 +64,32 @@ export function ReviewReminderWatcher() {
         }
       }
       const plan = planReminders(prefs, { dueTimes, opens: readAppOpens() }, new Date());
+      /**
+       * **通知を出す前に、その語から始まる復習を用意する**（オーナー指示 2026-10-07
+       * 「通知を出すときは復習の画面を用意してからにして」「通知をタップしたらすぐに
+       * 問題出るようにして。今日の問題を準備中と言う待ち時間無しで」）。
+       *
+       * 端末の予約通知は**鳴る時にこちらのコードが動かない**（題も行き先も予約した時に
+       * 決まる）。だから「出す前に用意」＝「予約する前に用意」。束（その語が先頭・続きは
+       * 普通の復習）を読み、写真を端末へ落とし、書き留めてから予約する。束は1つなので、
+       * その語を名指しするのは**いちばん早い通知だけ**（残りはいつもの文で `/review` へ）。
+       * 束はその通知の時刻＋`TAP_GRACE_MS` まで使えるようにする（`review-cache.ts` の `until`。上限 48 時間）。
+       *
+       * 用意できなかった（通信できない・その語の記録が無い）時は、その語を名指しせず
+       * いつもの「復習の時間です」で `/review` へ（押しても待たせる約束をしない）。
+       */
+      if (quiz && plan.length) {
+        // 名指しするのはいちばん早い1件だけ（`applyReminderSchedule`）。束はその通知が
+        // 鳴ってから押されるまで生かす。
+        const first = Math.min(...plan.map((p) => p.at.getTime()));
+        const ready = await prepareTargetedReview(fetchReview, quiz.sticker_id, {
+          until: first + TAP_GRACE_MS,
+        });
+        if (!ready) quiz = null;
+      }
       await applyReminderSchedule(plan, dueTimes, quiz);
     },
-    [fetchDue],
+    [fetchDue, fetchReview],
   );
 
   useEffect(() => {

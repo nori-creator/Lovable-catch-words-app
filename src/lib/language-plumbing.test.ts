@@ -4882,7 +4882,11 @@ describe("ホームは今日の誌面", () => {
     // 前の回（表示言語の復習・図鑑、単語の詳細の見出し、学習言語でない見出し）の面は残さない。
     // （`review-choice&lang=en` は品質検査の回でまた並べる。）
     expect(list).not.toMatch(/scene: "dex-cards&lang=/);
-    expect(list).not.toMatch(/scene: "sticker-sheet/);
+    // 単語の詳細は、2026-10-07 の Pro の「AIで絵を作る」（作っている間・見つけられなかった）だけ。
+    expect(list).not.toMatch(/scene: "sticker-sheet(?!&variant=(pro-ai|image-failed))/);
+    for (const v of ["pro-ai", "pro-ai-generating", "image-failed"]) {
+      expect(list).toContain(`scene: "sticker-sheet&variant=${v}"`);
+    }
     expect(list).not.toMatch(/scene: "capture-card&variant=not-target/);
     // それより前の回（記憶のグラフ・アルバム・管理画面・パスワードの再設定）の面も残さない。
     expect(list).not.toMatch(/scene: "review-header/);

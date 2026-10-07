@@ -87,3 +87,31 @@ function firstSense(raw: string): string {
   const first = noBrackets.split(SENSE_SEPARATORS)[0] ?? "";
   return first.replace(PLACEHOLDERS, " ").replace(/\s+/g, " ").trim();
 }
+
+/**
+ * **自動の1枚を入れる手順**（`useAutoHero`）。人が「別の画像」を選んだ・AI で絵を作り始めた
+ * 後は、遅れて届いた自動の1枚で**上書きしない**（Codex 指摘 2026-10-07: 自動の検索・保存が
+ * 遅いと、先に入った AI の絵を自動の絵が塗り替えていた）。
+ *
+ * - 写す前に人の操作が始まっていたら、何もしない（写しもしない）。
+ * - 写した後に始まっていたら、写した物を消して仮画像にはしない（置き去りの画像を残さない）。
+ */
+export async function placeAutoHeroWith(deps: {
+  /** 人が差し替え・AI の絵を始めたか。 */
+  superseded: () => boolean;
+  /** 自分のフォルダへ写す。返すのは保存した path。 */
+  upload: () => Promise<string>;
+  /** 写した物を札の仮画像にする。 */
+  save: (path: string) => Promise<void>;
+  /** 使わなかった写しを消す（失敗しても構わない）。 */
+  discard: (path: string) => Promise<void>;
+}): Promise<"saved" | "superseded"> {
+  if (deps.superseded()) return "superseded";
+  const path = await deps.upload();
+  if (deps.superseded()) {
+    await deps.discard(path).catch(() => undefined);
+    return "superseded";
+  }
+  await deps.save(path);
+  return "saved";
+}

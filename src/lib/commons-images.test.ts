@@ -13,7 +13,7 @@ const page = (over: Record<string, unknown> = {}) => ({
   imageinfo: [
     {
       url: "https://upload.wikimedia.org/x/Map_of_Taipei.jpg",
-      thumburl: "https://upload.wikimedia.org/x/480px-Map_of_Taipei.jpg",
+      thumburl: "https://upload.wikimedia.org/thumb/x/Map_of_Taipei.jpg/960px-Map_of_Taipei.jpg",
       descriptionurl: "https://commons.wikimedia.org/wiki/File:Map_of_Taipei.jpg",
       extmetadata: {
         Artist: { value: '<a href="/wiki/User:Someone">Someone</a>' },
@@ -54,6 +54,17 @@ describe("commonsCandidates", () => {
     expect(c.thumb).toBe(c.url);
   });
 
+  it("**保存に使う URL も縮小版**(原寸は大きさの上限で断られる。2026-10-07)", () => {
+    const [c] = commonsCandidates({ query: { pages: [page()] } });
+    expect(c.url).toBe(
+      "https://upload.wikimedia.org/thumb/x/Map_of_Taipei.jpg/960px-Map_of_Taipei.jpg",
+    );
+    // 一覧の絵は決まった幅の小さい方。
+    expect(c.thumb).toBe(
+      "https://upload.wikimedia.org/thumb/x/Map_of_Taipei.jpg/500px-Map_of_Taipei.jpg",
+    );
+  });
+
   it("同じ URL は1度だけ", () => {
     expect(commonsCandidates({ query: { pages: [page(), page()] } })).toHaveLength(1);
   });
@@ -82,7 +93,7 @@ describe("commonsSearchUrl", () => {
     const u = new URL(commonsSearchUrl("map"));
     expect(u.searchParams.get("gsrnamespace")).toBe("6");
     expect(u.searchParams.get("gsrsearch")).toContain("filetype:bitmap");
-    expect(u.searchParams.get("iiurlwidth")).toBe("480");
+    expect(u.searchParams.get("iiurlwidth")).toBe("960");
   });
 
   it("検索語をそのまま繋がない(記号で URL が壊れない)", () => {

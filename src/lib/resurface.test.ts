@@ -3,6 +3,9 @@
  */
 import { describe, expect, it } from "vitest";
 import {
+  CAUGHT_AGO_KEY,
+  caughtAgoAt,
+  caughtAgoLabel,
   dayDiff,
   dismissResurface,
   parseResurfaceState,
@@ -164,5 +167,56 @@ describe("言い方と記録", () => {
 
   it("日の差", () => {
     expect(dayDiff("2026-09-30", "2026-10-03")).toBe(3);
+  });
+});
+
+/**
+ * 「〇〇前に撮ったこの単語、覚えてる？」の「〇〇前」（オーナー指示 2026-10-07）。
+ * 通知の語は撮って間もない語もあるので、今日・日・週も言える。
+ */
+describe("撮ってからの言い方", () => {
+  it("今日 → 日 → 週 → か月 → 年", () => {
+    expect(caughtAgoLabel(0)).toEqual({ unit: "today", n: 0 });
+    expect(caughtAgoLabel(0.9)).toEqual({ unit: "today", n: 0 });
+    expect(caughtAgoLabel(1)).toEqual({ unit: "days", n: 1 });
+    expect(caughtAgoLabel(6.9)).toEqual({ unit: "days", n: 6 });
+    expect(caughtAgoLabel(7)).toEqual({ unit: "weeks", n: 1 });
+    expect(caughtAgoLabel(29)).toEqual({ unit: "weeks", n: 4 });
+    expect(caughtAgoLabel(30)).toEqual({ unit: "months", n: 1 });
+    // ホームの札と同じ丸め（91 日は3か月）。
+    expect(caughtAgoLabel(91)).toEqual(resurfaceAgeLabel(91));
+    expect(caughtAgoLabel(364)).toEqual({ unit: "months", n: 11 });
+    expect(caughtAgoLabel(400)).toEqual({ unit: "years", n: 1 });
+  });
+
+  it("読めない時刻は `null`、先の時刻は「今日」", () => {
+    expect(caughtAgoAt(null, 0)).toBeNull();
+    expect(caughtAgoAt("きのう", 0)).toBeNull();
+    expect(caughtAgoAt("2026-10-08T00:00:00Z", Date.parse("2026-10-07T00:00:00Z"))).toEqual({
+      unit: "today",
+      n: 0,
+    });
+  });
+
+  it("日数は経過時間ではなく台湾の暦の日付で数える", () => {
+    // きのう 23:00（台湾）に撮って、けさ 8:00（台湾）の通知 → 「1日前」（「今日」ではない）。
+    expect(
+      caughtAgoAt("2026-10-06T23:00:00+08:00", Date.parse("2026-10-07T08:00:00+08:00")),
+    ).toEqual({ unit: "days", n: 1 });
+    // 同じ日の朝に撮って夜に言う → 「今日」。
+    expect(
+      caughtAgoAt("2026-10-07T00:30:00+08:00", Date.parse("2026-10-07T23:30:00+08:00")),
+    ).toEqual({ unit: "today", n: 0 });
+    // UTC では同じ日でも、台湾では日をまたいでいる（UTC 15:59 → 16:01 = 台湾 23:59 → 0:01）。
+    expect(caughtAgoAt("2026-10-06T15:59:00Z", Date.parse("2026-10-06T16:01:00Z"))).toEqual({
+      unit: "days",
+      n: 1,
+    });
+  });
+
+  it("どの言い方にも辞書の鍵がある（ホームの札と通知で同じ文言）", () => {
+    expect(Object.keys(CAUGHT_AGO_KEY).sort()).toEqual(
+      ["days", "months", "today", "weeks", "years"].sort(),
+    );
   });
 });

@@ -3,6 +3,7 @@ import { getUiLang, tStatic } from "@/lib/i18n";
 import { fitsReaderLanguage } from "@/lib/meaning-language";
 import { learningLanguageName } from "@/lib/place-reminder";
 import type { PlannedReminder } from "@/lib/review-reminder";
+import { CAUGHT_AGO_KEY, caughtAgoAt } from "@/lib/resurface";
 import type { ReminderQuiz } from "@/lib/reviews.functions";
 
 /**
@@ -26,11 +27,16 @@ export function dueCountAt(at: Date, dueTimes: Date[]): number {
  * 通知の文面。**写真つきの1問**（オーナー指示 2026-09-28「通知は写真付きで1問だけの
  * タイプにする」）。
  *
- * - 写真のある語: 題「これ、台湾華語で言える？」＋写真（写真そのものが問い）。
+ * - 撮った語: 題「〇〇前に撮ったこの単語、覚えてる？」＋写真（オーナー指示 2026-10-07
+ *   「〇〇前に撮ったのこの単語覚えてる？に通知の名前を変えて」）。「〇〇前」は**鳴る時刻**
+ *   から数える（`caughtAgoAt(quiz.caught_at, p.at)`）— 予約は先 24 時間ぶんなので、
+ *   今から数えると鳴った時に1日ずれる。撮った時刻が読めなければ「これ、台湾華語で言える？」。
  * - 写真の無い語（文字から作った語）: 題「『意味』、台湾華語で言える？」。意味が
  *   表示言語と合わない時は問いを作れないので、語数の文に戻る。
- * - 本文は「押すと1問だけ出ます」。押すとその語から復習が始まる（`sticker_id`）。
- * - 1問の語が無い（時が来る語が無い）時は、前と同じ語数の文。
+ * - 本文は「押すと、この単語から復習が始まります」。押すとその語が1問目に出て、続けて
+ *   今日の復習へ（`sticker_id` → `/review?sticker=…`）。束は予約する前に用意してある
+ *   （`ReviewReminderWatcher` → `review-prepare.ts`）ので「準備中…」は出ない。
+ * - 1問の語が無い（時が来る語が無い・用意できなかった）時は、前と同じ語数の文。
  */
 export function reminderMessage(
   p: PlannedReminder,
@@ -41,8 +47,11 @@ export function reminderMessage(
     const lang = learningLanguageName(quiz.headword);
     const meaning = (quiz.meaning_ja ?? "").trim();
     if (quiz.image_url) {
+      const ago = caughtAgoAt(quiz.caught_at, p.at.getTime());
       return {
-        title: tStatic("remind.quizPhoto", { lang }),
+        title: ago
+          ? tStatic(CAUGHT_AGO_KEY[ago.unit], { n: ago.n })
+          : tStatic("remind.quizPhoto", { lang }),
         body: tStatic("remind.quizBody"),
         image: quiz.image_url,
         stickerId: quiz.sticker_id,
@@ -72,10 +81,16 @@ export async function applyReminderSchedule(
   dueTimes: Date[],
   quiz: ReminderQuiz | null = null,
 ): Promise<void> {
+  /**
+   * **その語を名指しするのは、いちばん早い1件だけ**（Codex 指摘 2026-10-07）。用意して
+   * ある名指しの束は1つで、その語から1回復習すれば捨てる（`dropTargetedReview`）。全部の
+   * 通知に同じ語を付けると、2件目以降は束の無い・もう答えた語を約束してしまう。残りは
+   * いつもの文で `/review` へ。
+   */
   const items = plan.slice(0, ID_COUNT).map((p, i) => ({
     id: ID_BASE + i,
     at: p.at,
-    ...reminderMessage(p, dueCountAt(p.at, dueTimes), quiz),
+    ...reminderMessage(p, dueCountAt(p.at, dueTimes), i === 0 ? quiz : null),
   }));
   if (Capacitor.isNativePlatform()) {
     try {

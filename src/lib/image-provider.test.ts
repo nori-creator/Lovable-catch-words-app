@@ -2,6 +2,11 @@ import { describe, expect, it } from "vitest";
 import {
   DEFAULT_HIGGSFIELD_IMAGE_MODEL,
   DEFAULT_OPENROUTER_IMAGE_MODEL,
+  HIGGSFIELD_USER_AGENT,
+  explainHiggsfieldHttp,
+  higgsfieldErrorDetail,
+  higgsfieldHeaders,
+  higgsfieldImageInput,
   pickHiggsfieldResult,
   pickOpenRouterImage,
   readHiggsfieldCredentials,
@@ -132,5 +137,50 @@ describe("Higgsfield", () => {
       url: null,
     });
     expect(pickHiggsfieldResult(null).status).toBe("unknown");
+  });
+
+  /**
+   * 「画像生成のテスト」が「型番が見つかりません（404）」だけを出し、本当の理由が
+   * 読めなかった（オーナー報告 2026-10-07）。送る形を公式 SDK に合わせ、返事は添える。
+   */
+  it("見出しは SDK と同じ（Key 鍵ID:秘密 と User-Agent）", () => {
+    expect(higgsfieldHeaders("id:sec")).toEqual({
+      Authorization: "Key id:sec",
+      "Content-Type": "application/json",
+      Accept: "application/json",
+      "User-Agent": HIGGSFIELD_USER_AGENT,
+    });
+    expect(HIGGSFIELD_USER_AGENT).toBe("higgsfield-server-js/2.0");
+  });
+
+  it("入力は包まずに送る。Seedream には大きさを添える", () => {
+    expect(higgsfieldImageInput(DEFAULT_HIGGSFIELD_IMAGE_MODEL, "p")).toEqual({
+      prompt: "p",
+      aspect_ratio: "1:1",
+      resolution: "2K",
+    });
+    expect(higgsfieldImageInput("higgsfield-ai/soul/standard", "p")).toEqual({
+      prompt: "p",
+      aspect_ratio: "1:1",
+    });
+  });
+
+  it("**404 でも向こうの返事を理由に添える**", () => {
+    const detail = higgsfieldErrorDetail(JSON.stringify({ detail: "Model not found: x" }));
+    expect(detail).toBe("Model not found: x");
+    const why = explainHiggsfieldHttp(404, detail);
+    expect(why).toContain("（404）");
+    expect(why).toContain("Model not found: x");
+    // 返事が無ければ今までどおりの文だけ。
+    expect(explainHiggsfieldHttp(404, "")).not.toContain(": ");
+  });
+
+  it("返事が JSON でなくても読める（HTML の札は落とし、長さを切る）", () => {
+    expect(higgsfieldErrorDetail("<html><body><h1>Not Found</h1></body></html>")).toBe("Not Found");
+    expect(higgsfieldErrorDetail(JSON.stringify({ detail: [{ msg: "bad" }] }))).toBe(
+      '[{"msg":"bad"}]',
+    );
+    expect(higgsfieldErrorDetail("x".repeat(500))).toHaveLength(200);
+    expect(higgsfieldErrorDetail("")).toBe("");
   });
 });

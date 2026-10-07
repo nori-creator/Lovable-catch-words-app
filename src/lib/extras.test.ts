@@ -10,7 +10,10 @@ import {
   refineUsageChunks,
   chunkMentionsHeadword,
   MAX_CHUNKS,
+  RegenUsageChunksSchema,
 } from "./extras";
+import fs from "node:fs";
+import path from "node:path";
 
 /**
  * 単語カードの「中身」(用例・関連語・台湾での言い方…)の正規化と合流。
@@ -392,5 +395,50 @@ describe("chunkMentionsHeadword / refineUsageChunks drops chunks without the wor
     expect(chunkMentionsHeadword("ご飯を食べた", "食べる", "ja")).toBe(true);
     expect(chunkMentionsHeadword("高くない", "高い", "ja")).toBe(true);
     expect(chunkMentionsHeadword("とても甘い", "マンゴー", "ja")).toBe(false);
+  });
+});
+
+/**
+ * 項目の作り直しで、入れ替える所の候補（`alts`）と意味（`ja`）が消えた（2026-10-07）。
+ * `runSectionRegen` の形が `{text,pos,slot}` だけを書き出していたので、zod が黙って落とした。
+ */
+describe("RegenUsageChunksSchema — 作り直しでも入れ替えの候補を落とさない", () => {
+  it("部品の ja と alts が残る", () => {
+    const out = RegenUsageChunksSchema.parse({
+      usage_chunks: [
+        {
+          parts: [
+            { text: "跟", pos: "Ptc" },
+            {
+              text: "男朋友",
+              pos: "O",
+              slot: true,
+              ja: "彼氏",
+              alts: [
+                { text: "女朋友", ja: "彼女" },
+                { text: "朋友", ja: "友だち" },
+              ],
+            },
+            { text: "吵架", pos: "V" },
+          ],
+          ja: "彼氏とけんかする",
+        },
+      ],
+    });
+    const slot = out.usage_chunks[0].parts[1];
+    expect(slot.ja).toBe("彼氏");
+    expect(slot.alts).toEqual([
+      { text: "女朋友", ja: "彼女" },
+      { text: "朋友", ja: "友だち" },
+    ]);
+  });
+
+  it("空の答えは今までどおり断る（作り直しを失敗として扱う）", () => {
+    expect(RegenUsageChunksSchema.safeParse({ usage_chunks: [] }).success).toBe(false);
+  });
+
+  it("`runSectionRegen` はこの形を使う（部品の形を書き出さない）", () => {
+    const src = fs.readFileSync(path.join(__dirname, "ai.functions.ts"), "utf8");
+    expect(src).toMatch(/schema: RegenUsageChunksSchema/);
   });
 });
