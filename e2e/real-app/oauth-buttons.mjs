@@ -18,7 +18,13 @@ import { chromium, webkit, devices } from "playwright";
 const here = path.dirname(fileURLToPath(import.meta.url));
 const BASE_URL = (process.env.BASE_URL || "https://catchwords.lovable.app").replace(/\/$/, "");
 const BROWSERS = (process.env.BROWSERS || "chromium,webkit").split(",").map((s) => s.trim());
-const OUT = path.resolve(process.env.OUT || "e2e-report", "oauth-buttons");
+const REPORT = path.resolve(process.env.OUT || "e2e-report");
+const OUT = path.join(REPORT, "oauth-buttons");
+/**
+ * Google の窓口の URL に `prompt=select_account` が無ければ失敗にする。PR の上では公開中の
+ * （まだこの変更が入っていない）版を相手にするので、`EXPECT_SELECT_ACCOUNT=0` で記録だけにする。
+ */
+const EXPECT_SELECT_ACCOUNT = process.env.EXPECT_SELECT_ACCOUNT !== "0";
 fs.mkdirSync(OUT, { recursive: true });
 
 /** お試しの匿名のログインを作る（チュートリアルを終えた人と同じ状態）。公開の鍵だけを使う。 */
@@ -72,9 +78,12 @@ for (const browserName of BROWSERS) {
         const { defaultBrowserType: _d, ...options } = device;
         if (browserName !== "chromium" && browserName !== "webkit") continue;
         const context = await browser.newContext({ ...options, locale: "ja-JP" });
+        let fixtureMissing = false;
         if (state === "anonymous") {
           const session = await anonymousSession();
-          if (session)
+          // 作れなければ「匿名」の行は試していない（初めての人と同じ道を2回通るだけ）ので失敗にする。
+          if (!session) fixtureMissing = true;
+          else
             await context.addInitScript(
               ([k, v]) => {
                 if (!localStorage.getItem(k)) localStorage.setItem(k, v);
@@ -94,6 +103,7 @@ for (const browserName of BROWSERS) {
         let result = "ok";
         let detail = "";
         try {
+          if (fixtureMissing) throw new Error("お試しの匿名のログインを作れなかった");
           await page.goto(`${BASE_URL}/auth?mode=signin`, { waitUntil: "load", timeout: 45_000 });
           const button = page.locator(selector).first();
           await button.waitFor({ state: "visible", timeout: 20_000 });
@@ -118,11 +128,13 @@ for (const browserName of BROWSERS) {
             .waitForURL(/\/~oauth\/initiate/, { timeout: 10_000 })
             .then(() => true)
             .catch(() => false);
-          // Google は毎回アカウントを選ぶ画面を出す（2026-10-07 の報告）。公開前の版では無いので記録だけ。
-          if (moved && provider === "google")
-            detail += /[?&]prompt=select_account/.test(page.url())
-              ? " select_account=yes"
-              : " select_account=NO";
+          // Google は毎回アカウントを選ぶ画面を出す（2026-10-07 の報告）。
+          if (moved && provider === "google") {
+            const chooser = /[?&]prompt=select_account/.test(page.url());
+            detail += chooser ? " select_account=yes" : " select_account=NO";
+            if (!chooser && EXPECT_SELECT_ACCOUNT)
+              result = "Google のアカウントを選ぶ画面を出さない（prompt=select_account が無い）";
+          }
           if (!moved) {
             result = "押しても窓口へ進まない";
             const toast = await page
@@ -154,6 +166,19 @@ for (const browserName of BROWSERS) {
   await browser.close();
 }
 fs.writeFileSync(path.join(OUT, "result.txt"), rows.join("\n") + "\n");
+// 記録（index.html）にも載せる。run.mjs が先に作った記録の最後に足す（無ければこれだけで作る）。
+const esc = (t) => t.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+const section = `<section id="oauth-buttons"><h2>ログイン画面の Google・Apple のボタン</h2><ul>${rows
+  .map((r) => `<li>${esc(r)}</li>`)
+  .join("")}</ul></section>`;
+const indexPath = path.join(REPORT, "index.html");
+const index = fs.existsSync(indexPath) ? fs.readFileSync(indexPath, "utf8") : "";
+fs.writeFileSync(
+  indexPath,
+  index.includes("</body>")
+    ? index.replace("</body>", `${section}</body>`)
+    : `<!doctype html><meta charset="utf-8"><title>実物確認</title><body>${section}</body>`,
+);
 if (process.env.GITHUB_STEP_SUMMARY)
   fs.appendFileSync(
     process.env.GITHUB_STEP_SUMMARY,
