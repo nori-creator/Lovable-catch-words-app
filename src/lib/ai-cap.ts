@@ -71,6 +71,9 @@ export const DAILY_CAPS: Readonly<Record<string, number>> = {
   jev_rank: 300,
   // チュートリアルの AI（`first-catch-ai.server.ts`。候補・カード・解説）。
   first_catch_ai: 24,
+  // Pro の「AIで絵を作る」（`generateProWordImage`。押した時だけ1枚。1枚ごとに料金がかかる）。
+  // 自動の控えの1枚（`image_gen`）とは別に数える — 自動の分で押せなくならないように。
+  pro_image: 30,
 };
 
 /**
@@ -94,6 +97,7 @@ export const ANONYMOUS_DAILY_CAPS: Readonly<Record<string, number>> = {
   image_gen: 2,
   jev_rank: 10,
   first_catch_ai: DAILY_CAPS.first_catch_ai,
+  pro_image: 0, // Pro だけの機能
 };
 
 /** 呼ぶ人の種類。枠の大きさが変わる。 */

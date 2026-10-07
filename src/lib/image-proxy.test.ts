@@ -101,7 +101,7 @@ describe("見出しが「探しています…」のまま止まらない（2026
   it("自動の1枚に失敗したら `failed` を返し、詳細はそれを見て文を変える", () => {
     const hook = read("hooks/use-auto-hero.ts");
     expect(hook).toMatch(/setFailedId\(s\.id\)/);
-    expect(hook).toMatch(/return \{ candidates, swapping, swap, failed/);
+    expect(hook).toMatch(/\n\s+failed,\n/);
     const sheet = read("components/StickerSheet.tsx");
     expect(sheet).toMatch(/heroFailed \?/);
     expect(sheet).toMatch(/t\("card\.imageNotFound"\)/);

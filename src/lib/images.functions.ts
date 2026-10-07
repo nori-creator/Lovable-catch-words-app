@@ -13,6 +13,7 @@ import {
 } from "./image-provider";
 import { MAX_PROXY_IMAGE_BYTES, readCappedBytes } from "./byte-cap";
 import { isAiCapError } from "./ai-cap";
+import { heroSearchQuery } from "./hero-image";
 import { ALLOWED_IMAGE_MIME, IMAGE_FETCH_USER_AGENT, fetchAllowedImage } from "./image-proxy";
 
 export type ImageCandidate = {
@@ -428,6 +429,107 @@ async function generateWithLovable(
     console.warn("AI image fallback failed", e);
     return null;
   }
+}
+
+/**
+ * **Pro の人が、語の絵を AI で1枚作る**（オーナー指示 2026-10-07「Pro なら AI で
+ * 単語の画像を作れるように」）。
+ *
+ * 写真の無い語の詳細の「別の画像」の列にボタンを出す（`StickerSheet`）。ここでは
+ *  1. **サーバで** `profiles.plan = pro` を確かめる（画面の判定は信じない）
+ *  2. その人の枠を確保する（`pro_image`。`ai-cap.ts`。全体の枠にも数える）
+ *  3. いつもの絵の道で作る（`generateOneAiImage` — Higgsfield が駄目なら Lovable）
+ *  4. **data URL で返す** — 保存は差し替えと同じ道（`useAutoHero` → 仮画像）
+ *
+ * 判断の本体は `generateProImageWith`（試験から差し替えて呼べるように分けてある）。
+ */
+const ProImageInput = z.object({ sticker_id: z.string().uuid() });
+
+export const PRO_ONLY_IMAGE_MESSAGE = "AI で絵を作るのは Pro 限定です";
+
+export const generateProWordImage = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) => ProImageInput.parse(input))
+  .handler(async ({ context, data }) => {
+    const { supabase, userId } = context;
+    return generateProImageWith({
+      isPaidPro: async () => {
+        // 開発者の「Pro 扱い」ではなく、**払っている人**だけ（`profiles.plan`）。
+        const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+        const { data: row, error } = await supabaseAdmin
+          .from("profiles")
+          .select("plan")
+          .eq("id", userId)
+          .maybeSingle();
+        // 読めない時は Pro と見なさない（課金の判定は開かない側に倒す）。
+        if (error) return false;
+        return (row as { plan?: string } | null)?.plan === "pro";
+      },
+      readWord: async () => {
+        // 自分の札だけ（他人の札の語で作らせない）。
+        const { data: row } = await supabase
+          .from("stickers")
+          .select("words!inner(headword, meaning_ja)")
+          .eq("id", data.sticker_id)
+          .eq("user_id", userId)
+          .maybeSingle();
+        const w = (row as { words?: { headword?: string; meaning_ja?: string | null } } | null)
+          ?.words;
+        return w?.headword ? { headword: w.headword, meaning: w.meaning_ja ?? null } : null;
+      },
+      reserve: async () => {
+        const { assertWithinDailyCap } = await import("./ai-provider.server");
+        await assertWithinDailyCap(userId, "pro_image");
+      },
+      generate: generateOneAiImage,
+      toDataUrl: generatedImageAsDataUrl,
+    });
+  });
+
+export type ProImageDeps = {
+  isPaidPro: () => Promise<boolean>;
+  readWord: () => Promise<{ headword: string; meaning: string | null } | null>;
+  reserve: () => Promise<void>;
+  generate: (query: string, reserve: () => Promise<void>) => Promise<ImageCandidate | null>;
+  toDataUrl: (url: string) => Promise<string>;
+};
+
+export async function generateProImageWith(
+  deps: ProImageDeps,
+): Promise<{ url: string; source: "ai" }> {
+  // 確かめる順番が大事: Pro でない人は**枠も数えない・作らない**。
+  if (!(await deps.isPaidPro())) throw new Error(PRO_ONLY_IMAGE_MESSAGE);
+  const word = await deps.readWord();
+  if (!word) throw new Error("単語が見つかりません");
+  const query = proImageQuery(word);
+  const made = await deps.generate(query, deps.reserve);
+  if (!made) throw new Error("絵を生成できませんでした。もう一度お試しください");
+  const url = made.url.startsWith("data:") ? made.url : await deps.toDataUrl(made.url);
+  return { url, source: "ai" };
+}
+
+/**
+ * 絵の指示に渡す言葉。語そのものと、その意味の最初の1つ（`hero-image.ts` と同じ削り方）。
+ * 語だけだと、読めない字の「形」を描かれることがある。
+ */
+export function proImageQuery(word: { headword: string; meaning: string | null }): string {
+  const head = word.headword.trim();
+  const sense = heroSearchQuery({ headword: head, meaning: word.meaning });
+  return sense && sense !== head ? `${head} (${sense})` : head;
+}
+
+/**
+ * 作った絵が URL で返ってきた時（Lovable・OpenRouter）、サーバで取りに行って
+ * data URL にする。行き先は絵を作った相手が返した物で、利用者が渡した物ではない。
+ * 大きさの上限と画像の種類は確かめる。
+ */
+async function generatedImageAsDataUrl(url: string): Promise<string> {
+  if (!url.startsWith("https://")) throw new Error("絵を受け取れませんでした");
+  const res = await fetch(url, { signal: AbortSignal.timeout(20_000) });
+  const ct = (res.headers.get("content-type") ?? "").split(";")[0].trim();
+  if (!res.ok || !ALLOWED_IMAGE_MIME.test(ct)) throw new Error("絵を受け取れませんでした");
+  const b64 = Buffer.from(await readCappedBytes(res, MAX_PROXY_IMAGE_BYTES)).toString("base64");
+  return `data:${ct};base64,${b64}`;
 }
 
 /**

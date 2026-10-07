@@ -3071,6 +3071,23 @@ export const DICT: Record<string, Record<UiLang, string>> = {
     en: "Couldn't find an image. Pick one below or take a photo",
     "zh-TW": "找不到圖片。請從下面選一張，或拍一張照片",
   },
+  // Pro の「AIで絵を作る」（オーナー指示 2026-10-07）。
+  "card.aiImage": { ja: "AIで絵を作る", en: "Make a picture with AI", "zh-TW": "用 AI 畫一張圖" },
+  "card.aiImageMaking": {
+    ja: "AIで絵を作っています…",
+    en: "Making a picture with AI…",
+    "zh-TW": "正在用 AI 畫圖…",
+  },
+  "card.aiImageDone": {
+    ja: "AIで作った絵にしました",
+    en: "Now using the AI picture",
+    "zh-TW": "已換成 AI 畫的圖",
+  },
+  "card.aiImageFailed": {
+    ja: "AIで絵を作れませんでした。",
+    en: "Couldn't make a picture with AI.",
+    "zh-TW": "無法用 AI 畫圖。",
+  },
   "card.regenerating": { ja: "再生成中…", en: "Regenerating…", "zh-TW": "重新產生中…" },
   "card.reportFixing": { ja: "確かめています…", en: "Checking…", "zh-TW": "確認中…" },
   "card.reportFixed": {

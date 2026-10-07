@@ -295,6 +295,8 @@ export function StickerSheet({ stickerId, onClose, openPhotoPicker, from, local 
     swapping,
     swap: swapWebImage,
     failed: heroFailed,
+    generateAi,
+    generatingAi,
   } = useAutoHero(local ? undefined : s);
   // 「この画像にする」(下の `applyWebImage`)はネット画像を**実写として**
   // 採用するので、仮画像の経路とは別物。取ってくる所だけ共通。
@@ -870,6 +872,8 @@ export function StickerSheet({ stickerId, onClose, openPhotoPicker, from, local 
             swapping={swapping}
             swapWebImage={swapWebImage}
             heroFailed={heroFailed}
+            onGenerateAi={local ? undefined : generateAi}
+            generatingAi={generatingAi}
             applyWebImage={applyWebImage}
             editHeadword={editHeadword}
             heroRef={heroRef}
@@ -950,6 +954,8 @@ export function StickerSheetBody({
   swapping,
   swapWebImage,
   heroFailed = false,
+  onGenerateAi,
+  generatingAi = false,
   applyWebImage,
   editHeadword,
   photos,
@@ -1004,6 +1010,9 @@ export function StickerSheetBody({
   }) => void;
   /** 自動の1枚を入れられなかった（「探しています」のまま止めない）。 */
   heroFailed?: boolean;
+  /** Pro の「AIで絵を作る」（渡されない画面・Pro でない人にはボタンが出ない）。 */
+  onGenerateAi?: () => void;
+  generatingAi?: boolean;
   applyWebImage: (url: string) => void;
   /**
    * この単語をこれまでに撮った写真。
@@ -1225,10 +1234,13 @@ export function StickerSheetBody({
 
       {/* ネット画像の候補: 自動で入った画像が気に入らなければタップで変更。
             自分で撮った写真があるカードには出さない(#67)。 */}
-      {/* 見出しに絵が入らなかった時は、1枚だけでも選べるように出す。 */}
+      {/* 見出しに絵が入らなかった時は、1枚だけでも選べるように出す。
+            Pro の人には「AIで絵を作る」も出す（候補が無くても）。 */}
       {!s.object_url &&
         !s.cutout_url &&
-        (webCandidates.length > 1 || (!hero && webCandidates.length > 0)) && (
+        (webCandidates.length > 1 ||
+          (!hero && webCandidates.length > 0) ||
+          (isPro && !!onGenerateAi)) && (
           <section className="mb-4">
             <div className="mb-1.5 text-caption font-semibold text-muted-foreground">
               {t("card.pickAnotherImage")}
@@ -1251,6 +1263,22 @@ export function StickerSheetBody({
                 </button>
               ))}
             </div>
+            {isPro && onGenerateAi && (
+              <button
+                type="button"
+                onClick={onGenerateAi}
+                disabled={!!swapping}
+                aria-busy={generatingAi}
+                className="mt-2 inline-flex min-h-11 items-center gap-1.5 rounded-full bg-secondary px-4 text-footnote font-semibold text-foreground transition active:scale-95 disabled:opacity-50"
+              >
+                {generatingAi ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Sparkles className="h-4 w-4" />
+                )}
+                {generatingAi ? t("card.aiImageMaking") : t("card.aiImage")}
+              </button>
+            )}
           </section>
         )}
 

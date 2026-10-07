@@ -2,7 +2,11 @@ import { useEffect, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
-import { searchImageCandidates, fetchImageAsDataUrl } from "@/lib/images.functions";
+import {
+  searchImageCandidates,
+  fetchImageAsDataUrl,
+  generateProWordImage,
+} from "@/lib/images.functions";
 import { setStickerPlaceholder } from "@/lib/stickers.functions";
 import { supabase } from "@/integrations/supabase/client";
 import { putCachedImage } from "@/lib/image-cache";
@@ -56,6 +60,7 @@ export function useAutoHero(sticker: AutoHeroSticker | null | undefined) {
   const searchImagesFn = useServerFn(searchImageCandidates);
   const fetchImageFn = useServerFn(fetchImageAsDataUrl);
   const setPlaceholderFn = useServerFn(setStickerPlaceholder);
+  const generateProImageFn = useServerFn(generateProWordImage);
   const triedRef = useRef<Set<string>>(new Set());
   const [candidates, setCandidates] = useState<WebImageCandidate[]>([]);
   const [swapping, setSwapping] = useState<string | null>(null);
@@ -102,6 +107,29 @@ export function useAutoHero(sticker: AutoHeroSticker | null | undefined) {
     })();
   }, [sticker, searchImagesFn, fetchImageFn, setPlaceholderFn, qc]);
 
+  /** 選んだ1枚を、この札の仮画像として保存する（差し替えと AI の絵で共通）。 */
+  async function saveAsPlaceholder(stickerId: string, cand: WebImageCandidate) {
+    const path = await uploadWebImage(cand, fetchImageFn);
+    await setPlaceholderFn({
+      data: {
+        sticker_id: stickerId,
+        placeholder_path: path,
+        placeholder_credit: cand.credit
+          ? { ...cand.credit, source: cand.source }
+          : { source: cand.source },
+      },
+    });
+    await qc.invalidateQueries({ queryKey: ["sticker", stickerId] });
+    await qc.invalidateQueries({ queryKey: ["stickers"] });
+    setFailedId(null);
+  }
+
+  /** 失敗の知らせ。**理由も出す**（前は「失敗しました」だけで、何が悪いのか読めなかった）。 */
+  function failToast(head: string, e: unknown) {
+    const why = readable(e, "");
+    toast.error(why ? `${head} ${why}` : head);
+  }
+
   /**
    * 自動で入ったネット画像を、別の候補に差し替える。
    * 自分で撮った写真ではないので `object` ではなく `placeholder` 側を
@@ -112,33 +140,49 @@ export function useAutoHero(sticker: AutoHeroSticker | null | undefined) {
     if (!s || swapping) return;
     setSwapping(cand.url);
     try {
-      const path = await uploadWebImage(cand, fetchImageFn);
-      await setPlaceholderFn({
-        data: {
-          sticker_id: s.id,
-          placeholder_path: path,
-          placeholder_credit: cand.credit
-            ? { ...cand.credit, source: cand.source }
-            : { source: cand.source },
-        },
-      });
-      await qc.invalidateQueries({ queryKey: ["sticker", s.id] });
-      await qc.invalidateQueries({ queryKey: ["stickers"] });
-      setFailedId(null);
+      await saveAsPlaceholder(s.id, cand);
       toast.success(t("card.imageSet"));
     } catch (e) {
       console.warn("Swap web image failed", e);
-      // **理由も出す**（前は「失敗しました」だけで、何が悪いのか読めなかった）。
-      const why = readable(e, "");
-      toast.error(why ? `${t("card.photoFailed")} ${why}` : t("card.photoFailed"));
+      failToast(t("card.photoFailed"), e);
+    } finally {
+      setSwapping(null);
+    }
+  }
+
+  /**
+   * **Pro の人が AI で絵を1枚作る**（オーナー指示 2026-10-07）。Pro かどうか・枠は
+   * サーバが確かめる（`generateProWordImage`）。保存は差し替えと同じ道。
+   */
+  async function generateAi() {
+    const s = sticker;
+    if (!s || swapping) return;
+    setSwapping(AI_IMAGE_KEY);
+    try {
+      const made = await generateProImageFn({ data: { sticker_id: s.id } });
+      await saveAsPlaceholder(s.id, { url: made.url, source: made.source });
+      toast.success(t("card.aiImageDone"));
+    } catch (e) {
+      console.warn("Pro AI image failed", e);
+      failToast(t("card.aiImageFailed"), e);
     } finally {
       setSwapping(null);
     }
   }
 
   const failed = !!sticker && failedId === sticker.id && needsWebHero(sticker);
-  return { candidates, swapping, swap, failed };
+  return {
+    candidates,
+    swapping,
+    swap,
+    failed,
+    generateAi,
+    generatingAi: swapping === AI_IMAGE_KEY,
+  };
 }
+
+/** AI の絵を作っている間の `swapping` の印（候補の URL と重ならない）。 */
+const AI_IMAGE_KEY = "ai:generating";
 
 /**
  * ネットの画像を自分のフォルダへ写す。返すのは保存した path。
