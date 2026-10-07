@@ -103,7 +103,6 @@ export type Database = {
       }
       apple_tokens: {
         Row: {
-          client_id: string | null
           created_at: string
           token: string
           token_type: string
@@ -111,7 +110,6 @@ export type Database = {
           user_id: string
         }
         Insert: {
-          client_id?: string | null
           created_at?: string
           token: string
           token_type?: string
@@ -119,7 +117,6 @@ export type Database = {
           user_id: string
         }
         Update: {
-          client_id?: string | null
           created_at?: string
           token?: string
           token_type?: string
