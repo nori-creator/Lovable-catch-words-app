@@ -5,6 +5,7 @@ import { z } from "zod";
 import { commonsCandidates, commonsSearchUrl, type CommonsResponse } from "./commons-images";
 import {
   DEFAULT_LOVABLE_IMAGE_MODEL,
+  higgsfieldImageInput,
   imagePrompt,
   pickOpenRouterImage,
   readImageConfig,
@@ -281,11 +282,9 @@ async function generateWithHiggsfield(
   { ok: true; candidate: ImageCandidate; ms: number } | { ok: false; reason: string; ms: number }
 > {
   const { runHiggsfield } = await import("./higgsfield.server");
-  const r = await runHiggsfield(
-    model,
-    { prompt: imagePrompt(query), aspect_ratio: "1:1" },
-    { timeoutMs: 45_000 },
-  );
+  const r = await runHiggsfield(model, higgsfieldImageInput(model, imagePrompt(query)), {
+    timeoutMs: 45_000,
+  });
   if (!r.ok) return { ok: false, reason: r.reason, ms: r.ms };
   try {
     const img = await fetch(r.url, { signal: AbortSignal.timeout(20_000) });

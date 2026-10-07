@@ -62,6 +62,72 @@ export function readHiggsfieldCredentials(
   return null;
 }
 
+/**
+ * **Higgsfield へ送る見出し。公式 SDK（`@higgsfield/client` 0.2.6）と同じ物にする**
+ * （オーナー報告 2026-10-07「画像生成のテスト」が「型番が見つかりません（404）」）。
+ *
+ * SDK はサーバで動く時 `User-Agent: higgsfield-server-js/2.0` を付ける。こちらは
+ * Cloudflare Workers の `fetch` で、何も付けないと**名乗らずに**送っていた。
+ */
+export const HIGGSFIELD_USER_AGENT = "higgsfield-server-js/2.0";
+
+export function higgsfieldHeaders(credentials: string): Record<string, string> {
+  return {
+    Authorization: `Key ${credentials}`,
+    "Content-Type": "application/json",
+    Accept: "application/json",
+    "User-Agent": HIGGSFIELD_USER_AGENT,
+  };
+}
+
+/**
+ * 絵を1枚頼む時の入力。SDK と同じく**入力をそのまま**本文にする（包まない）。
+ * Seedream は大きさ（`resolution`）を受ける型なので、Higgsfield の例と同じ `2K` を添える。
+ */
+export function higgsfieldImageInput(model: string, prompt: string): Record<string, unknown> {
+  const input: Record<string, unknown> = { prompt, aspect_ratio: "1:1" };
+  if (/seedream/i.test(model)) input.resolution = "2K";
+  return input;
+}
+
+/**
+ * 失敗の返事の本文から、人に見せる理由を取り出す（`detail` が無ければ本文そのもの）。
+ * 長い HTML などは切る。
+ */
+export function higgsfieldErrorDetail(body: string): string {
+  const text = body.trim();
+  if (!text) return "";
+  try {
+    const j = JSON.parse(text) as { detail?: unknown; message?: unknown; error?: unknown };
+    const d = j?.detail ?? j?.message ?? j?.error;
+    if (typeof d === "string") return d.slice(0, 200);
+    if (d) return JSON.stringify(d).slice(0, 200);
+  } catch {
+    // JSON でなければ本文をそのまま（HTML の札は落とす）。
+  }
+  return text
+    .replace(/<[^>]*>/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 200);
+}
+
+/**
+ * 失敗の理由を、見た人が次に何をすればよいか分かる言い方にする。
+ * **向こうの返事（`detail`）は必ず添える** — 前は 404 の時に捨てていたので、
+ * 型番の綴りなのか道の違いなのか、画面から読めなかった。
+ */
+export function explainHiggsfieldHttp(status: number, detail: string): string {
+  const tail = detail ? `: ${detail}` : "";
+  if (status === 401)
+    return `鍵が正しくありません（401）。鍵ID:鍵の秘密 の形か確認してください${tail}`;
+  if (status === 403)
+    return `Higgsfield の残高が足りないか、鍵にこの型を使う権限がありません（403）${tail}`;
+  if (status === 404) return `型番が見つかりません（404）。型番の綴りを確認してください${tail}`;
+  if (status === 422 || status === 400) return `入力の形が合いません（${status}）${tail}`;
+  return `Higgsfield が失敗を返しました（${status}）${tail}`;
+}
+
 /** Higgsfield の状態の返事から、終わったか・絵/動画の URL を取り出す。 */
 export function pickHiggsfieldResult(json: unknown): {
   status: string;

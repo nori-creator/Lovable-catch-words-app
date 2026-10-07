@@ -5,7 +5,8 @@
  * 実行環境）に部品を増やさないため、ここでは**SDK と同じ手順を `fetch` で**行う:
  *
  *  1. `POST https://api.higgsfield.ai/<型番>` に入力をそのまま送る
- *     （見出し `Authorization: Key 鍵ID:鍵の秘密`）
+ *     （見出し `Authorization: Key 鍵ID:鍵の秘密` と SDK と同じ `User-Agent`。
+ *     向こうの不調（500番台）は SDK と同じく間を置いて送り直す）
  *  2. 返ってきた `request_id` で `GET /requests/<id>/status` を2秒ごとに見る
  *  3. `completed` なら `images[0].url` か `video.url`。`failed` / `nsfw` /
  *     `canceled` は**失敗として返す**（成功と言わない）
@@ -14,6 +15,9 @@
  */
 import {
   HIGGSFIELD_BASE_URL,
+  explainHiggsfieldHttp,
+  higgsfieldErrorDetail,
+  higgsfieldHeaders,
   pickHiggsfieldResult,
   readHiggsfieldCredentials,
 } from "./image-provider";
@@ -24,16 +28,8 @@ export type HiggsfieldOutcome =
 
 const DONE = new Set(["completed", "failed", "nsfw", "canceled", "cancelled"]);
 
-/** 失敗の理由を、見た人が次に何をすればよいか分かる言い方にする。 */
-function explainHttp(status: number, detail: string): string {
-  if (status === 401) return "鍵が正しくありません（401）。鍵ID:鍵の秘密 の形か確認してください";
-  if (status === 403)
-    return "Higgsfield の残高が足りないか、鍵にこの型を使う権限がありません（403）";
-  if (status === 404) return "型番が見つかりません（404）。型番の綴りを確認してください";
-  if (status === 422 || status === 400)
-    return `入力の形が合いません（${status}）${detail ? `: ${detail}` : ""}`;
-  return `Higgsfield が失敗を返しました（${status}）`;
-}
+/** 送り直す回数（SDK の既定は3回。画面で待たせすぎないよう少なめ）。 */
+const POST_RETRIES = 2;
 
 export async function runHiggsfield(
   model: string,
@@ -44,32 +40,24 @@ export async function runHiggsfield(
   const ms = () => Date.now() - started;
   const creds = readHiggsfieldCredentials(process.env);
   if (!creds) return { ok: false, reason: "Higgsfield の鍵が見つかりません", ms: ms() };
-  const headers = {
-    Authorization: `Key ${creds.credentials}`,
-    "Content-Type": "application/json",
-    Accept: "application/json",
-  };
+  const headers = higgsfieldHeaders(creds.credentials);
   const timeoutMs = opts.timeoutMs ?? 60_000;
   const pollMs = opts.pollMs ?? 2_000;
   try {
     const path = model.replace(/^\/+/, "");
-    const res = await fetch(`${HIGGSFIELD_BASE_URL}/${path}`, {
-      method: "POST",
-      headers,
-      body: JSON.stringify(input),
-      signal: AbortSignal.timeout(30_000),
-    });
+    const url = `${HIGGSFIELD_BASE_URL}/${path}`;
+    let res = await postOnce(url, headers, input);
+    for (let i = 0; i < POST_RETRIES && res.status >= 500; i++) {
+      await new Promise((ok) => setTimeout(ok, 1_000 * 2 ** i));
+      res = await postOnce(url, headers, input);
+    }
     if (!res.ok) {
-      const body = (await res.json().catch(() => null)) as { detail?: unknown } | null;
-      const detail =
-        typeof body?.detail === "string"
-          ? body.detail
-          : body?.detail
-            ? JSON.stringify(body.detail)
-            : "";
+      // 本文は JSON とは限らない（404 は道の無い所の HTML のこともある）ので、字で読む。
+      const detail = higgsfieldErrorDetail(await res.text().catch(() => ""));
+      console.warn("[higgsfield] request failed", { status: res.status, path, detail });
       return {
         ok: false,
-        reason: explainHttp(res.status, detail.slice(0, 200)),
+        reason: explainHiggsfieldHttp(res.status, detail),
         httpStatus: res.status,
         ms: ms(),
       };
@@ -93,7 +81,15 @@ export async function runHiggsfield(
       // 向こうの一時的な不調（500番台）は待って見直す（SDK と同じ）。
       if (s.status >= 500) continue;
       if (!s.ok)
-        return { ok: false, reason: explainHttp(s.status, ""), httpStatus: s.status, ms: ms() };
+        return {
+          ok: false,
+          reason: explainHiggsfieldHttp(
+            s.status,
+            higgsfieldErrorDetail(await s.text().catch(() => "")),
+          ),
+          httpStatus: s.status,
+          ms: ms(),
+        };
       const next = pickHiggsfieldResult(await s.json());
       r = { ...next, requestId: next.requestId ?? r.requestId };
     }
@@ -119,6 +115,19 @@ export async function runHiggsfield(
       ms: ms(),
     };
   }
+}
+
+function postOnce(
+  url: string,
+  headers: Record<string, string>,
+  input: Record<string, unknown>,
+): Promise<Response> {
+  return fetch(url, {
+    method: "POST",
+    headers,
+    body: JSON.stringify(input),
+    signal: AbortSignal.timeout(30_000),
+  });
 }
 
 /** 鍵がどの名前で入っているか（値は返さない）。 */
