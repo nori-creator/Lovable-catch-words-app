@@ -11,6 +11,7 @@ import { toImageDataUrl } from "@/lib/sticker-upload";
 import { heroSearchQuery, needsWebHero, shouldOfferWebCandidates } from "@/lib/hero-image";
 import type { PhotoSources } from "@/lib/sticker-photo";
 import { useT } from "@/lib/i18n";
+import { useReadableError } from "@/lib/errors";
 
 /**
  * 絵の無い札の見出しに、ネットの画像を1枚あてがう。
@@ -29,9 +30,16 @@ import { useT } from "@/lib/i18n";
  * 一度走ったかを覚えておかないと、書き戻すたびに何度も検索へ行く。
  * ただし**失敗した回は覚えない** — 電波が悪かっただけの札が、
  * その後ずっと絵無しで固定されてしまう。
+ *
+ * ## 失敗したら「探しています」をやめる（オーナー報告 2026-10-07）
+ * 前は失敗しても画面が知る手段が無く、見出しは「画像をネットから探しています…」の
+ * まま**ずっと**止まっていた。`failed` で「見つけられなかった」と伝え、下の候補か
+ * 写真を勧める（次に開いた時はまた取りに行く）。
  */
 export type WebImageCandidate = {
   url: string;
+  /** 一覧に並べる小さい絵（無ければ `url`）。 */
+  thumb?: string;
   credit?: { name?: string; link?: string };
   source: string;
 };
@@ -43,6 +51,7 @@ export type AutoHeroSticker = PhotoSources & {
 
 export function useAutoHero(sticker: AutoHeroSticker | null | undefined) {
   const t = useT();
+  const readable = useReadableError();
   const qc = useQueryClient();
   const searchImagesFn = useServerFn(searchImageCandidates);
   const fetchImageFn = useServerFn(fetchImageAsDataUrl);
@@ -50,6 +59,8 @@ export function useAutoHero(sticker: AutoHeroSticker | null | undefined) {
   const triedRef = useRef<Set<string>>(new Set());
   const [candidates, setCandidates] = useState<WebImageCandidate[]>([]);
   const [swapping, setSwapping] = useState<string | null>(null);
+  /** 自動の1枚を入れられなかった札（その札を開いている間だけ「見つけられなかった」）。 */
+  const [failedId, setFailedId] = useState<string | null>(null);
 
   useEffect(() => {
     const s = sticker;
@@ -67,10 +78,10 @@ export function useAutoHero(sticker: AutoHeroSticker | null | undefined) {
         setCandidates(cands.slice(0, 6));
         // すでに絵があるなら候補を出すだけで、勝手には差し替えない。
         if (!needsWebHero(s)) return;
+        // 1枚も無い・最初の1枚が保存できない → 「探しています」で止めない。
         const cand = cands[0];
-        if (!cand) return;
+        if (!cand) throw new Error("no candidates");
         const path = await uploadWebImage(cand, fetchImageFn);
-        if (!path) return;
         await setPlaceholderFn({
           data: {
             sticker_id: s.id,
@@ -82,9 +93,11 @@ export function useAutoHero(sticker: AutoHeroSticker | null | undefined) {
         });
         await qc.invalidateQueries({ queryKey: ["sticker", s.id] });
         await qc.invalidateQueries({ queryKey: ["stickers"] });
-      } catch {
+      } catch (e) {
+        console.warn("Auto web image failed", e);
         // **覚えない。** 次に開いたときにもう一度取りに行く。
         triedRef.current.delete(s.id);
+        setFailedId(s.id);
       }
     })();
   }, [sticker, searchImagesFn, fetchImageFn, setPlaceholderFn, qc]);
@@ -100,7 +113,6 @@ export function useAutoHero(sticker: AutoHeroSticker | null | undefined) {
     setSwapping(cand.url);
     try {
       const path = await uploadWebImage(cand, fetchImageFn);
-      if (!path) throw new Error("upload failed");
       await setPlaceholderFn({
         data: {
           sticker_id: s.id,
@@ -112,20 +124,25 @@ export function useAutoHero(sticker: AutoHeroSticker | null | undefined) {
       });
       await qc.invalidateQueries({ queryKey: ["sticker", s.id] });
       await qc.invalidateQueries({ queryKey: ["stickers"] });
+      setFailedId(null);
       toast.success(t("card.imageSet"));
     } catch (e) {
       console.warn("Swap web image failed", e);
-      toast.error(t("card.photoFailed"));
+      // **理由も出す**（前は「失敗しました」だけで、何が悪いのか読めなかった）。
+      const why = readable(e, "");
+      toast.error(why ? `${t("card.photoFailed")} ${why}` : t("card.photoFailed"));
     } finally {
       setSwapping(null);
     }
   }
 
-  return { candidates, swapping, swap };
+  const failed = !!sticker && failedId === sticker.id && needsWebHero(sticker);
+  return { candidates, swapping, swap, failed };
 }
 
 /**
  * ネットの画像を自分のフォルダへ写す。返すのは保存した path。
+ * 失敗は**理由の文を付けて投げる**（差し替えの知らせに出す）。
  *
  * ネットの画像はサーバ経由(CORS 回避)、AI の生成画像はそのまま —
  * その判断は `toImageDataUrl` が1箇所で持っている。
@@ -133,19 +150,19 @@ export function useAutoHero(sticker: AutoHeroSticker | null | undefined) {
 async function uploadWebImage(
   cand: WebImageCandidate,
   fetchImageFn: Parameters<typeof toImageDataUrl>[1],
-): Promise<string | null> {
+): Promise<string> {
   const dataUrl = await toImageDataUrl(cand.url, fetchImageFn);
   const small = await downscaleDataUrl(dataUrl, 1024, 0.8);
   const blob = await (await fetch(small)).blob();
   const { data: userData } = await supabase.auth.getUser();
   const userId = userData.user?.id;
-  if (!userId) return null;
+  if (!userId) throw new Error("ログインが切れています。もう一度ログインしてください");
   const path = `${userId}/${Date.now()}-placeholder.jpg`;
   const { error } = await supabase.storage.from("stickers").upload(path, blob, {
     contentType: blob.type,
     upsert: false,
   });
-  if (error) return null;
+  if (error) throw new Error(`画像を保存できませんでした: ${error.message}`);
   void putCachedImage(path, blob);
   return path;
 }

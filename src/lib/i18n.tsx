@@ -3065,6 +3065,12 @@ export const DICT: Record<string, Record<UiLang, string>> = {
     en: "🌐 Finding an image online…",
     "zh-TW": "🌐 正在從網路上找圖片…",
   },
+  // 自動の1枚を入れられなかった時（前は「探しています…」のまま止まった。2026-10-07）。
+  "card.imageNotFound": {
+    ja: "画像を見つけられませんでした。下から選ぶか、写真を撮ってください",
+    en: "Couldn't find an image. Pick one below or take a photo",
+    "zh-TW": "找不到圖片。請從下面選一張，或拍一張照片",
+  },
   "card.regenerating": { ja: "再生成中…", en: "Regenerating…", "zh-TW": "重新產生中…" },
   "card.reportFixing": { ja: "確かめています…", en: "Checking…", "zh-TW": "確認中…" },
   "card.reportFixed": {

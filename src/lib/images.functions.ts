@@ -12,6 +12,7 @@ import {
 } from "./image-provider";
 import { MAX_PROXY_IMAGE_BYTES, readCappedBytes } from "./byte-cap";
 import { isAiCapError } from "./ai-cap";
+import { ALLOWED_IMAGE_MIME, IMAGE_FETCH_USER_AGENT, fetchAllowedImage } from "./image-proxy";
 
 export type ImageCandidate = {
   url: string;
@@ -143,7 +144,7 @@ export async function searchImagesWith(
     try {
       const res = await fetch(commonsSearchUrl(data.query), {
         // コモンズは名乗らない相手を弾くことがある。
-        headers: { "User-Agent": "CatchWords/1.0 (language learning app)" },
+        headers: { "User-Agent": IMAGE_FETCH_USER_AGENT },
       });
       if (res.ok) {
         for (const c of commonsCandidates((await res.json()) as CommonsResponse)) {
@@ -436,47 +437,8 @@ async function generateWithLovable(
  */
 const FetchInput = z.object({ url: z.string().url().max(2000) });
 
-// Allowlist of external image hosts we're willing to proxy. Keeps this
-// endpoint from being abused as an SSRF gadget against internal/metadata
-// endpoints (e.g. 169.254.169.254) or arbitrary internal services.
-//
-// **コモンズの置き場も許す**（2026-09-28 の点検で発見）。候補にコモンズの写真
-// （`upload.wikimedia.org`）を出しているのに、ここで断っていたので**選んでも保存
-// できなかった**。置き場は固定の1つなので、許可を1つ足すだけで SSRF 除けは保てる。
-const ALLOWED_IMAGE_HOSTS = new Set<string>([
-  "images.unsplash.com",
-  "plus.unsplash.com",
-  "upload.wikimedia.org",
-]);
-
-const ALLOWED_IMAGE_MIME = /^image\/(jpeg|jpg|png|webp|gif|avif)$/i;
-
+// 許可リスト・転送の辿り方・名乗りは `image-proxy.ts`（試験から呼べるように外へ出した）。
 export const fetchImageAsDataUrl = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) => FetchInput.parse(input))
-  .handler(async ({ data }): Promise<{ dataUrl: string }> => {
-    let parsed: URL;
-    try {
-      parsed = new URL(data.url);
-    } catch {
-      throw new Error("Invalid URL");
-    }
-    if (parsed.protocol !== "https:") {
-      throw new Error("Only https URLs are permitted");
-    }
-    if (!ALLOWED_IMAGE_HOSTS.has(parsed.hostname.toLowerCase())) {
-      throw new Error("URL host is not permitted");
-    }
-    const res = await fetch(parsed.toString(), { redirect: "error" });
-    if (!res.ok) throw new Error(`image fetch failed: ${res.status}`);
-    const ct = (res.headers.get("content-type") ?? "").split(";")[0].trim();
-    if (!ALLOWED_IMAGE_MIME.test(ct)) {
-      throw new Error("Response is not a permitted image type");
-    }
-    // **大きさに上限**（監査 2026-10-03 L6）。許した置き場でも、とても大きい物を全部
-    // 読むとサーバの記憶を食い潰す（`byte-cap.ts`）。
-    const buf = await readCappedBytes(res, MAX_PROXY_IMAGE_BYTES);
-    // base64 encode (Buffer is available in workers via nodejs_compat)
-    const b64 = Buffer.from(buf).toString("base64");
-    return { dataUrl: `data:${ct};base64,${b64}` };
-  });
+  .handler(async ({ data }): Promise<{ dataUrl: string }> => fetchAllowedImage(data.url));

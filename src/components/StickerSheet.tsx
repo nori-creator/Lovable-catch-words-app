@@ -294,6 +294,7 @@ export function StickerSheet({ stickerId, onClose, openPhotoPicker, from, local 
     candidates: webCandidates,
     swapping,
     swap: swapWebImage,
+    failed: heroFailed,
   } = useAutoHero(local ? undefined : s);
   // 「この画像にする」(下の `applyWebImage`)はネット画像を**実写として**
   // 採用するので、仮画像の経路とは別物。取ってくる所だけ共通。
@@ -868,6 +869,7 @@ export function StickerSheet({ stickerId, onClose, openPhotoPicker, from, local 
             webCandidates={webCandidates}
             swapping={swapping}
             swapWebImage={swapWebImage}
+            heroFailed={heroFailed}
             applyWebImage={applyWebImage}
             editHeadword={editHeadword}
             heroRef={heroRef}
@@ -947,6 +949,7 @@ export function StickerSheetBody({
   webCandidates,
   swapping,
   swapWebImage,
+  heroFailed = false,
   applyWebImage,
   editHeadword,
   photos,
@@ -987,13 +990,20 @@ export function StickerSheetBody({
   setEnrichError: Dispatch<SetStateAction<string | null>>;
   /** 「もう一度作る」。印を消して問い合わせをやり直す。 */
   onEnrichRetry: () => void;
-  webCandidates: Array<{ url: string; credit?: { name?: string; link?: string }; source: string }>;
+  webCandidates: Array<{
+    url: string;
+    thumb?: string;
+    credit?: { name?: string; link?: string };
+    source: string;
+  }>;
   swapping: string | null;
   swapWebImage: (cand: {
     url: string;
     credit?: { name?: string; link?: string };
     source: string;
   }) => void;
+  /** 自動の1枚を入れられなかった（「探しています」のまま止めない）。 */
+  heroFailed?: boolean;
   applyWebImage: (url: string) => void;
   /**
    * この単語をこれまでに撮った写真。
@@ -1145,6 +1155,13 @@ export function StickerSheetBody({
                   </a>
                 )}
               </>
+            ) : heroFailed ? (
+              // 見つけられなかった時は**そう言う**（前は「探しています…」のまま止まった）。
+              <div className="grid h-full w-full place-items-center bg-secondary px-6 text-center">
+                <span className="text-footnote text-muted-foreground">
+                  {t("card.imageNotFound")}
+                </span>
+              </div>
             ) : (
               <div className="grid h-full w-full animate-pulse place-items-center bg-secondary">
                 <span className="text-footnote text-muted-foreground">
@@ -1208,31 +1225,34 @@ export function StickerSheetBody({
 
       {/* ネット画像の候補: 自動で入った画像が気に入らなければタップで変更。
             自分で撮った写真があるカードには出さない(#67)。 */}
-      {!s.object_url && !s.cutout_url && webCandidates.length > 1 && (
-        <section className="mb-4">
-          <div className="mb-1.5 text-caption font-semibold text-muted-foreground">
-            {t("card.pickAnotherImage")}
-          </div>
-          <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1">
-            {webCandidates.map((c) => (
-              <button
-                key={c.url}
-                onClick={() => void swapWebImage(c)}
-                disabled={!!swapping}
-                className="relative h-16 w-16 shrink-0 overflow-hidden rounded-xl ring-1 ring-border transition active:scale-95 disabled:opacity-50"
-                aria-label={t("card.pickAnotherImage")}
-              >
-                <img src={c.url} alt="" className="h-full w-full object-cover" />
-                {swapping === c.url && (
-                  <span className="absolute inset-0 grid place-items-center bg-black/40">
-                    <Loader2 className="h-4 w-4 animate-spin text-white" />
-                  </span>
-                )}
-              </button>
-            ))}
-          </div>
-        </section>
-      )}
+      {/* 見出しに絵が入らなかった時は、1枚だけでも選べるように出す。 */}
+      {!s.object_url &&
+        !s.cutout_url &&
+        (webCandidates.length > 1 || (!hero && webCandidates.length > 0)) && (
+          <section className="mb-4">
+            <div className="mb-1.5 text-caption font-semibold text-muted-foreground">
+              {t("card.pickAnotherImage")}
+            </div>
+            <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1">
+              {webCandidates.map((c) => (
+                <button
+                  key={c.url}
+                  onClick={() => void swapWebImage(c)}
+                  disabled={!!swapping}
+                  className="relative h-16 w-16 shrink-0 overflow-hidden rounded-xl ring-1 ring-border transition active:scale-95 disabled:opacity-50"
+                  aria-label={t("card.pickAnotherImage")}
+                >
+                  <img src={c.thumb ?? c.url} alt="" className="h-full w-full object-cover" />
+                  {swapping === c.url && (
+                    <span className="absolute inset-0 grid place-items-center bg-black/40">
+                      <Loader2 className="h-4 w-4 animate-spin text-white" />
+                    </span>
+                  )}
+                </button>
+              ))}
+            </div>
+          </section>
+        )}
 
       {/* When & Where chip */}
       <section className="mb-4 rounded-2xl border border-border bg-card p-3 text-body shadow-sm">
