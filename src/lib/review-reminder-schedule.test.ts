@@ -20,12 +20,43 @@ describe("復習の通知の文面", () => {
     image_url: "https://example.test/signed.jpg",
   };
 
-  it("写真のある語は、写真そのものを問う（押すとその語から）", () => {
-    const m = reminderMessage(p, 7, quiz);
-    expect(m.title).toBe("これ、台湾華語で言える？");
-    expect(m.body).toBe("押すと1問だけ出ます");
+  it("撮った語は「〇〇前に撮ったこの単語、覚えてる？」（押すとその語から復習が始まる）", () => {
+    // オーナー指示 2026-10-07「〇〇前に撮ったのこの単語覚えてる？に通知の名前を変えて」。
+    const m = reminderMessage(p, 7, { ...quiz, caught_at: "2026-06-20T12:00:00" });
+    expect(m.title).toBe("3か月前に撮ったこの単語、覚えてる？");
+    expect(m.body).toBe("押すと、この単語から復習が始まります");
+    expect(m.body).not.toMatch(/1問だけ/);
     expect(m.image).toBe(quiz.image_url);
     expect(m.stickerId).toBe(quiz.sticker_id);
+  });
+
+  it("「〇〇前」は**鳴る時刻**から数える（今日・日・週・年も言える）", () => {
+    const at = (iso: string) => reminderMessage(p, 1, { ...quiz, caught_at: iso }).title;
+    expect(at("2026-09-28T07:00:00")).toBe("今日撮ったこの単語、覚えてる？");
+    expect(at("2026-09-25T09:00:00")).toBe("3日前に撮ったこの単語、覚えてる？");
+    expect(at("2026-09-14T09:00:00")).toBe("2週間前に撮ったこの単語、覚えてる？");
+    expect(at("2024-09-01T09:00:00")).toBe("2年前に撮ったこの単語、覚えてる？");
+    // 予約した時ではなく鳴る時: 同じ語でも翌日に鳴る通知は1日ぶん古く言う。
+    const later = { ...p, at: new Date("2026-09-29T09:00:00") };
+    expect(reminderMessage(later, 1, { ...quiz, caught_at: "2026-09-26T09:00:00" }).title).toBe(
+      "3日前に撮ったこの単語、覚えてる？",
+    );
+  });
+
+  it("英語・繁體中文も同じ形", () => {
+    asEnglish();
+    const m = reminderMessage(p, 7, { ...quiz, caught_at: "2026-06-20T12:00:00" });
+    expect(m.title).toBe("A word you caught 3 months ago — remember it?");
+    expect(m.body).toBe("Tap to start your review with this word");
+  });
+
+  it("撮った時刻が分からない（文字から作った語・古いサーバ）時は、写真そのものを問う", () => {
+    const m = reminderMessage(p, 7, quiz);
+    expect(m.title).toBe("これ、台湾華語で言える？");
+    expect(m.stickerId).toBe(quiz.sticker_id);
+    expect(reminderMessage(p, 7, { ...quiz, caught_at: null }).title).toBe(
+      "これ、台湾華語で言える？",
+    );
   });
 
   it("写真の無い語は、意味で問う", () => {

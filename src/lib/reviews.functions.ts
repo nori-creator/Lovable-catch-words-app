@@ -1420,6 +1420,12 @@ export type ReminderQuiz = {
   headword: string;
   meaning_ja: string | null;
   image_url: string | null;
+  /**
+   * **写真を撮った時刻**（撮った語だけ。文字から作った語は `null`）。通知の題
+   * 「〇か月前に撮ったこの単語、覚えてる？」の「〇か月前」に使う（オーナー指示 2026-10-07）。
+   * 古い版のサーバの返事には無いので省略可。
+   */
+  caught_at?: string | null;
 };
 async function reminderQuiz(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -1433,7 +1439,7 @@ async function reminderQuiz(
     const { data, error } = await db
       .from("reviews")
       .select(
-        "sticker_id, due_at, stickers!inner(object_image_url, cutout_image_url, placeholder_image_url, words!inner(headword, language, meaning_ja))",
+        "sticker_id, due_at, stickers!inner(object_image_url, cutout_image_url, placeholder_image_url, capture_type, taken_at, created_at, words!inner(headword, language, meaning_ja))",
       )
       .eq("user_id", userId)
       .lte("due_at", horizon)
@@ -1447,6 +1453,9 @@ async function reminderQuiz(
         object_image_url: string | null;
         cutout_image_url: string | null;
         placeholder_image_url: string | null;
+        capture_type?: string | null;
+        taken_at?: string | null;
+        created_at?: string | null;
         words: { headword: string; language?: string | null; meaning_ja: string | null } | null;
       } | null;
     };
@@ -1472,6 +1481,10 @@ async function reminderQuiz(
       headword: pick.stickers!.words!.headword,
       meaning_ja: pick.stickers!.words!.meaning_ja,
       image_url,
+      caught_at:
+        pick.stickers!.capture_type === "photo"
+          ? (pick.stickers!.taken_at ?? pick.stickers!.created_at ?? null)
+          : null,
     };
   } catch {
     return null;

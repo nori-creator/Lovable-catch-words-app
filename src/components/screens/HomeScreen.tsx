@@ -412,16 +412,7 @@ export function HomePage() {
       >
         <PendingCapturesBanner />
         {/* 記念アルバムの日は、そちらだけ（昔を振り返る札を2枚並べない）。 */}
-        {!memorialShown && (
-          <ResurfaceCard
-            items={stickers?.items ?? []}
-            recall={recall}
-            onOpen={(id, from) => {
-              setOpenId(baseStickerId(id));
-              setOpenFrom(from ?? null);
-            }}
-          />
-        )}
+        {!memorialShown && <ResurfaceCard items={stickers?.items ?? []} recall={recall} />}
         {memorialToday &&
           !memorialHidden &&
           memorialPicks.length > 0 &&
