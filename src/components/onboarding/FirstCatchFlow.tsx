@@ -44,6 +44,8 @@ import {
   FIRST_CATCH_HANDOFF_PARAM,
   canRequestAccount,
   firstCatchSticker,
+  isStaleTutorialWrite,
+  resumeFirstCatch,
   type FirstCatch,
 } from "@/lib/first-catch";
 import { JUST_CAUGHT_VIEW } from "@/lib/dex-view";
@@ -307,7 +309,8 @@ function FirstCatchFlowInner({
             handoff && fresh
               ? handoff
               : saved?.stage !== "done" && saved
-                ? saved
+                ? // 復習を終えた下書きは途中の段から始めない（`resumeFirstCatch`）。
+                  resumeFirstCatch(saved)
                 : freshFirstCatch();
           applyFirstCatchLanguage(next);
           setDraft(next);
@@ -356,13 +359,46 @@ function FirstCatchFlowInner({
    * 写真をまだ撮っていない最初の画面・質問でも「写真」と出ていた。
    */
   async function commit(next: FirstCatch) {
+    /**
+     * **終えたチュートリアルを途中へ戻さない**（2026-10-05 オーナー報告「チュートリアルを
+     * 終えた後、途中の単語の詳細の画面に戻る」）。遅れて届いた古い控え（単語の詳細で届いた
+     * 解説を足した下書きなど）は、保存も画面の切り替えもしない。保存を待つ間に先へ
+     * 進んでいた時も同じ。
+     */
+    const before = draftRef.current;
+    if (before && isStaleTutorialWrite(before, next)) return;
     try {
       await persist(next);
     } catch {
       throw new Error("FIRST_CATCH_STORAGE");
     }
-    if (mounted.current) setDraft(next);
+    if (!mounted.current) return;
+    const latest = draftRef.current;
+    if (latest && isStaleTutorialWrite(latest, next)) return;
+    draftRef.current = next;
+    setDraft(next);
   }
+  /**
+   * Safari の「戻る」で、ページが前の状態のまま戻ってくる（bfcache）ことがある。その間に
+   * 別の画面で先へ進んでいたら（完了・登録の案内）、端末の下書きに合わせる。
+   */
+  useEffect(() => {
+    const onShow = (event: PageTransitionEvent) => {
+      if (!event.persisted) return;
+      void readFirstCatch()
+        .then((saved) => {
+          const current = draftRef.current;
+          if (!mounted.current || !saved || !current) return;
+          if (isStaleTutorialWrite(saved, current)) {
+            draftRef.current = saved;
+            setDraft(saved);
+          }
+        })
+        .catch(() => {});
+    };
+    window.addEventListener("pageshow", onShow);
+    return () => window.removeEventListener("pageshow", onShow);
+  }, []);
   /**
    * いま走っている処理の番号。分析中の面の「キャンセル」で番号を進めると、遅れて
    * 返ってきた古い結果・失敗・後片付けは、もう画面に触らない。
@@ -417,8 +453,10 @@ function FirstCatchFlowInner({
       );
   }
   function move(stage: FirstCatch["stage"]) {
-    if (!draft) return;
-    void action(() => commit({ ...draft, stage }));
+    // 描いた時の控えではなく、いまの下書きから（遅れて届いた解説などを落とさない）。
+    const current = draftRef.current ?? draft;
+    if (!current) return;
+    void action(() => commit({ ...current, stage }));
   }
   async function analyze(next: FirstCatch, mine = run.current) {
     await services.prepare(next);
@@ -493,6 +531,8 @@ function FirstCatchFlowInner({
       const openDex = () => {
         if (opened || !mounted.current) return;
         opened = true;
+        const latest = draftRef.current;
+        if (latest && isStaleTutorialWrite(latest, next)) return;
         setDraft(next);
       };
       try {
@@ -769,9 +809,10 @@ function FirstCatchFlowInner({
       {draft.stage === "review" && (
         <FirstCatchReview
           draft={draft}
-          onComplete={() =>
-            void action(() => commit({ ...draft, stage: "complete", reviewCompleted: true }))
-          }
+          onComplete={() => {
+            const current = draftRef.current ?? draft;
+            void action(() => commit({ ...current, stage: "complete", reviewCompleted: true }));
+          }}
         />
       )}
       {draft.stage === "complete" && (

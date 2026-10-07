@@ -49,3 +49,5 @@ create policy ai_consents_select_own on public.ai_consents
 comment on table public.ai_consents is
   '外部の AI へ送る前の同意の記録（版・同意した時刻・取り消した時刻）。'
   'サーバの鍵だけが書く。src/lib/ai-consent.server.ts。';
+
+-- drizzle 側の写し（同じ内容）: drizzle/migrations/0003_20261003140000_ai_consents.sql

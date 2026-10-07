@@ -161,13 +161,14 @@ export function speak(
     synth.speak(u);
   };
 
-  // 端末の音声一覧は非同期に届く。
-  if (synth.getVoices().length === 0) {
-    synth.addEventListener("voiceschanged", utter, { once: true });
-    setTimeout(utter, 300); // 事象が先に流れていたときの保険
-  } else {
-    utter();
-  }
+  /**
+   * **一覧が空でも、その場で話す**（2026-10-05 オーナー報告「iPhone/iPad の Safari で発音が
+   * 鳴らない」）。前は一覧が届くのを待って（`voiceschanged` か 300ms 後）話していたが、
+   * iPhone は一覧を最初は空で返すことが多く、待った後の `speak()` は**指の操作の外**になって
+   * 黙って捨てられていた。声を当てずに `lang` だけ渡して話す（近い声で埋めない方針は同じ。
+   * 一覧が空のうちに選んだ結果は覚えないので、次からは最良の声になる）。
+   */
+  utter();
 }
 
 /** ブラウザがそもそも喋れるか(喋れない端末で死んだUIを出さないため)。 */

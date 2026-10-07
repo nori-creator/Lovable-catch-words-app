@@ -91,8 +91,61 @@ export async function readFirstCatch(): Promise<FirstCatch | null> {
   if (value == null) return null;
   return FirstCatchSchema.parse(value);
 }
-export async function writeFirstCatch(draft: FirstCatch): Promise<void> {
-  await transaction("readwrite", (s) => s.put(FirstCatchSchema.parse(draft), "current"));
+/**
+ * 書き込みは**頼まれた順に1本ずつ**（2026-10-05 オーナー報告「チュートリアルを終えた後、
+ * 途中の単語の詳細の画面に戻る」）。
+ *
+ * 書くたびに別の接続を開くので、前は先に頼んだ書き込み（単語の詳細で届いた解説を足した
+ * 下書き = 段は explore）の接続が遅れて開くと、後から頼んだ「復習へ」「完了」の書き込みより
+ * **後に**届いて、端末の下書きも画面も単語の詳細へ戻ることがあった（iPhone の Safari は
+ * IndexedDB を開くのが遅い・止まることがある）。つなげて書けば、最後に頼んだ物が必ず残る。
+ */
+let writeChain: Promise<unknown> = Promise.resolve();
+export function writeFirstCatch(draft: FirstCatch): Promise<void> {
+  const parsed = FirstCatchSchema.parse(draft);
+  const job = writeChain.then(() => transaction("readwrite", (s) => s.put(parsed, "current")));
+  writeChain = job.catch(() => undefined);
+  return job.then(() => undefined);
+}
+
+/** 写真を撮ってから復習を終えるまでの段（終えた後に戻ってはいけない所）。 */
+const MID_TUTORIAL_STAGES: ReadonlySet<FirstCatch["stage"]> = new Set([
+  "home",
+  "dex",
+  "review",
+  "camera",
+  "card",
+  "added",
+  "explore",
+]);
+
+/**
+ * **チュートリアルを終えた後に、途中の段へ戻す書き込みか。** 復習を終えて完了・登録の案内
+ * まで来た下書きに、それより前の段（単語の詳細など）を被せる物は、遅れて届いた古い控え
+ * なので捨てる。最初からやり直す（`restart`）・質問をやり直す・学ぶ言語を変える時は、
+ * 段が途中の段ではないか `reviewCompleted` を外すので、ここには掛からない。
+ */
+export function isStaleTutorialWrite(current: FirstCatch, next: FirstCatch): boolean {
+  const finished =
+    (current.stage === "complete" || current.stage === "account") &&
+    current.reviewCompleted === true;
+  return finished && next.reviewCompleted !== false && MID_TUTORIAL_STAGES.has(next.stage);
+}
+
+/**
+ * 開き直した時の下書き。**復習を終えた下書きは、途中の段から始めない**（古い書き込みが
+ * 最後に残っていた端末でも、完了の画面から続ける）。
+ */
+export function resumeFirstCatch(saved: FirstCatch): FirstCatch {
+  if (
+    saved.reviewCompleted === true &&
+    MID_TUTORIAL_STAGES.has(saved.stage) &&
+    saved.photo &&
+    saved.card &&
+    saved.capturedAt
+  )
+    return { ...saved, stage: "complete" };
+  return saved;
 }
 export function canRequestAccount(draft: FirstCatch): boolean {
   return (
