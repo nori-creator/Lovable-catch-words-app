@@ -20,6 +20,7 @@ import {
   CounterSchema,
   ExtrasSchema,
   KanjiBreakdownSchema,
+  RegenUsageChunksSchema,
   emptyExtras,
   mergeExtras,
   normalizeExtras,
@@ -1516,22 +1517,8 @@ async function runSectionRegen(
     },
     usage_chunks: {
       prompt: `${base}\nネイティブが「${head}」を**実際にいちばん高い頻度で**組み合わせて使う型を4〜5個。**厳選する。思いつく組み合わせを並べない。**\n${formulaChunkRule(regenProfile.code)}\n${specificChunkRule(head, regenLevelGoal)}\n**短くする**: ${regenProfile.chunkPrompt.lengthRule}\nそのまま声に出せる形にする。${regenProfile.chunkPrompt.styleRule}\n${learnerL1}が崩しやすい型を優先する。\n${l1Gram}\n${chunkRule(word.language as string | null)}\nja はその型の自然な訳だけ（説明・注釈・括弧書きは書かない）。\n{"usage_chunks":[{"parts":[{"text":"","pos":"","slot":false,"ja":"","alts":[{"text":"","ja":""}]}],"ja":"訳"}]}`,
-      schema: z.object({
-        usage_chunks: z
-          .array(
-            z.object({
-              parts: z.array(
-                z.object({
-                  text: z.string(),
-                  pos: z.string().catch(""),
-                  slot: z.boolean().optional().catch(undefined),
-                }),
-              ),
-              ja: z.string().catch(""),
-            }),
-          )
-          .min(1),
-      }),
+      // 部品の形は `extras.ts` の1つ（`ja`・`alts` を落とさない）。
+      schema: RegenUsageChunksSchema,
     },
     related_words: {
       prompt: `${base}\n類義語(syn)2〜3・反義語(ant)0〜2・関連語(rel)2〜5。**反義語が無い語(物の名前など)は無理に作らず、その語を使うときに一緒によく使う語を関連語で出す**（例: ${regenProfile.capture.relatedExample}）。類義語の note には「${head}」との使い分けを必ず書く。\n**note は全部の語に必ず${NL}で書く**${sameLanguage(regenLang, regenProfile.code) ? "" : `。**${targetName}で書かない**(${targetName}なのは word/reading だけ。${targetName}の note は読めないので捨てられる — オーナー報告 2026-09-30「関連語の解説がなくなってる」)`}。\n**reading を空にしない** — 読めない語を並べても覚えられない(オーナー指示 2026-08-27 ⑧)。\n{"related_words":[{"word":"${targetName}の語","kind":"syn|ant|rel","note":"短い説明(${NL})","reading":"${regenReadingNames.primary}"${regenReadingNames.alt ? `,"reading_alt":"${regenReadingNames.alt}"` : ""}}]}`,
