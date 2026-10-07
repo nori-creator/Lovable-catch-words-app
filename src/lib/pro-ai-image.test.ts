@@ -17,12 +17,16 @@ import {
   type ProImageDeps,
 } from "./images.functions";
 import { DAILY_CAPS, dailyCapFor, dailyCapMessage } from "./ai-cap";
+import { AI_CONSENT_FUNCTIONS, AI_CONSENT_REQUIRED } from "./ai-consent";
 
 const deps = (over: Partial<ProImageDeps> = {}) => {
   const order: string[] = [];
   const d: ProImageDeps = {
     isPaidPro: async () => true,
     readWord: async () => ({ headword: "柚子", meaning: "ゆず（果物）、かんきつ" }),
+    assertConsent: async () => {
+      order.push("consent");
+    },
     reserve: async () => {
       order.push("reserve");
     },
@@ -47,7 +51,21 @@ describe("generateProImageWith", () => {
       url: "data:image/png;base64,AAAA",
       source: "ai",
     });
-    expect(order).toEqual(["reserve", "generate:柚子 (ゆず)"]);
+    expect(order).toEqual(["consent", "reserve", "generate:柚子 (ゆず)"]);
+  });
+
+  it("**AI へ送る同意が無ければ、枠も数えず何も送らない**", async () => {
+    const { d, order } = deps({
+      assertConsent: async () => {
+        throw new Error(`${AI_CONSENT_REQUIRED}: 同意が要ります`);
+      },
+    });
+    await expect(generateProImageWith(d)).rejects.toThrow(AI_CONSENT_REQUIRED);
+    expect(order).toEqual([]);
+    // 画面は他の AI と同じ道（`readableError` が確認の画面を開く）で扱う。
+    expect(AI_CONSENT_FUNCTIONS).toContain("generateProWordImage");
+    const hook = fs.readFileSync(path.join(__dirname, "../hooks/use-auto-hero.ts"), "utf8");
+    expect(hook).toMatch(/failToast\(t\("card\.aiImageFailed"\), e\)/);
   });
 
   it("**Pro でない人には枠も数えず作らない**（画面の判定は信じない）", async () => {
@@ -65,7 +83,7 @@ describe("generateProImageWith", () => {
       },
     });
     await expect(generateProImageWith(d)).rejects.toThrow("AI_DAILY_CAP");
-    expect(order).toEqual([]);
+    expect(order).toEqual(["consent"]);
   });
 
   it("自分の札の語が読めなければ作らない", async () => {
@@ -106,11 +124,24 @@ describe("枠と画面", () => {
   });
 
   it("ボタンは Pro の人だけに出し、作っている間は回る", () => {
-    const sheet = fs.readFileSync(path.join(__dirname, "../components/StickerSheet.tsx"), "utf8");
-    expect(sheet).toMatch(/isPro && onGenerateAi && \(/);
-    expect(sheet).toMatch(/t\("card\.aiImage"\)/);
-    expect(sheet).toMatch(/generatingAi \? \(\s*<Loader2/);
+    const row = fs.readFileSync(path.join(__dirname, "../components/HeroImageChoices.tsx"), "utf8");
+    expect(row).toMatch(/isPro && onGenerateAi && \(/);
+    expect(row).toMatch(/t\("card\.aiImage"\)/);
+    expect(row).toMatch(/generatingAi \? \(\s*<Loader2/);
     const hook = fs.readFileSync(path.join(__dirname, "../hooks/use-auto-hero.ts"), "utf8");
     expect(hook).toMatch(/generateProImageFn\(\{ data: \{ sticker_id: s\.id \} \}\)/);
+  });
+
+  it("札のシートと図鑑の詳細（`/dex/$stickerId`）の両方に、同じ列とボタンを出す", () => {
+    const read = (f: string) => fs.readFileSync(path.join(__dirname, f), "utf8");
+    const sheet = read("../components/StickerSheet.tsx");
+    expect(sheet).toMatch(/<HeroImageChoices/);
+    expect(sheet).toMatch(/onGenerateAi=\{onGenerateAi\}/);
+    const detail = read("../components/screens/StickerDetailScreen.tsx");
+    // 前は `useAutoHero(s);` と呼ぶだけで、候補と AI の絵を捨てていた。
+    expect(detail).toMatch(/const autoHero = useAutoHero\(s\);/);
+    expect(detail).toMatch(/onGenerateAi: \(\) => void autoHero\.generateAi\(\)/);
+    expect(detail).toMatch(/onSwap: \(c\) => void autoHero\.swap\(c\)/);
+    expect(detail).toMatch(/<HeroImageChoices/);
   });
 });

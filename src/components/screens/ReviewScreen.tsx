@@ -7,6 +7,7 @@ import {
   composeWantedBatch,
   packBatch,
   readBatch,
+  replaceContinuation,
   REVIEW_CACHE_KEY,
   REVIEW_CACHE_USER_KEY,
   REVIEW_TARGET_CACHE_KEY,
@@ -365,6 +366,47 @@ export function ReviewPage() {
       })
       .catch(() => undefined);
   }, [cachedBatch, wantedSticker, fetchDue]);
+  /**
+   * **名指しで来た回は、端末の束の続きを必ず裏で新しくする**（Codex 指摘 2026-10-07）。
+   *
+   * 名指しの束は通知を予約した時に用意した物で、最長 48 時間前。続きの札がもう期限で
+   * ない・1日の上限を越えていることがある。最初の1枚は端末の物ですぐ出し（待たせない）、
+   * 届いた束で**いま出ている札より後ろだけ**を入れ替える（`replaceContinuation`）。
+   * 束の目印（`batchKey`）が変わるので、いまの位置を新しい目印に書いてから入れ替える
+   * （書かないと1枚目へ戻され、答えた札をもう一度採点する）。
+   */
+  const idxRef = useRef(idx);
+  const tallyRef = useRef(tally);
+  useEffect(() => {
+    idxRef.current = idx;
+    tallyRef.current = tally;
+  }, [idx, tally]);
+  const wantedRevalidated = useRef(false);
+  useEffect(() => {
+    if (wantedRevalidated.current || !cachedBatch || !wantedSticker) return;
+    wantedRevalidated.current = true;
+    const key = ["reviews-due", wantedSticker];
+    void fetchDue({ data: { sticker_id: wantedSticker } })
+      .then((fresh) => {
+        const cur = qc.getQueryData<DueReviewCard[]>(key);
+        const at = idxRef.current;
+        if (!cur?.length || at >= cur.length) return;
+        const merged = replaceContinuation(cur, at, fresh ?? []);
+        if (merged.length === cur.length && merged.every((c, i) => c === cur[i])) return;
+        writeMark(batchKey(merged, wantedSticker), { idx: at, ...tallyRef.current });
+        qc.setQueryData(key, merged);
+        // 端末の名指しの束も新しい並びにする（途中で閉じて開き直した時に、同じ目印で
+        // 続きから出るように。古い並びのままだと目印が合わず1枚目へ戻る）。
+        try {
+          const uid = localStorage.getItem(REVIEW_CACHE_USER_KEY);
+          const packed = uid ? packBatch(merged, uid, wantedSticker, Date.now()) : null;
+          if (packed) localStorage.setItem(REVIEW_TARGET_CACHE_KEY, JSON.stringify(packed));
+        } catch {
+          /* 書けなくても、この回の画面は新しい並び */
+        }
+      })
+      .catch(() => undefined);
+  }, [cachedBatch, wantedSticker, fetchDue, qc]);
   // 進んだら憶える。**アプリを閉じても消えない**(`localStorage`、束と同じ4時間)。
   useEffect(() => {
     if (!batch || restoredFor.current !== batch) return;

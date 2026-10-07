@@ -437,9 +437,10 @@ async function generateWithLovable(
  *
  * 写真の無い語の詳細の「別の画像」の列にボタンを出す（`StickerSheet`）。ここでは
  *  1. **サーバで** `profiles.plan = pro` を確かめる（画面の判定は信じない）
- *  2. その人の枠を確保する（`pro_image`。`ai-cap.ts`。全体の枠にも数える）
- *  3. いつもの絵の道で作る（`generateOneAiImage` — Higgsfield が駄目なら Lovable）
- *  4. **data URL で返す** — 保存は差し替えと同じ道（`useAutoHero` → 仮画像）
+ *  2. 外部の AI へ送る**同意**を確かめる（`assertAiConsent`。`AI_CONSENT_FUNCTIONS` に載せてある）
+ *  3. その人の枠を確保する（`pro_image`。`ai-cap.ts`。全体の枠にも数える）
+ *  4. いつもの絵の道で作る（`generateOneAiImage` — Higgsfield が駄目なら Lovable）
+ *  5. **data URL で返す** — 保存は差し替えと同じ道（`useAutoHero` → 仮画像）
  *
  * 判断の本体は `generateProImageWith`（試験から差し替えて呼べるように分けてある）。
  */
@@ -477,6 +478,9 @@ export const generateProWordImage = createServerFn({ method: "POST" })
           ?.words;
         return w?.headword ? { headword: w.headword, meaning: w.meaning_ja ?? null } : null;
       },
+      // 語を外部の絵の AI へ送るので、送る前に同意を確かめる（他の AI の関数と同じ関所）。
+      assertConsent: async () =>
+        (await import("./ai-consent.server")).assertAiConsent(context.userId),
       reserve: async () => {
         const { assertWithinDailyCap } = await import("./ai-provider.server");
         await assertWithinDailyCap(userId, "pro_image");
@@ -489,6 +493,8 @@ export const generateProWordImage = createServerFn({ method: "POST" })
 export type ProImageDeps = {
   isPaidPro: () => Promise<boolean>;
   readWord: () => Promise<{ headword: string; meaning: string | null } | null>;
+  /** 外部の AI へ送る同意（無ければ `AI_CONSENT_REQUIRED` で投げる）。 */
+  assertConsent: () => Promise<void>;
   reserve: () => Promise<void>;
   generate: (query: string, reserve: () => Promise<void>) => Promise<ImageCandidate | null>;
   toDataUrl: (url: string) => Promise<string>;
@@ -502,6 +508,8 @@ export async function generateProImageWith(
   const word = await deps.readWord();
   if (!word) throw new Error("単語が見つかりません");
   const query = proImageQuery(word);
+  // 送る直前に同意を確かめる（同意が無ければ枠も数えず、何も送らない）。
+  await deps.assertConsent();
   const made = await deps.generate(query, deps.reserve);
   if (!made) throw new Error("絵を生成できませんでした。もう一度お試しください");
   const url = made.url.startsWith("data:") ? made.url : await deps.toDataUrl(made.url);

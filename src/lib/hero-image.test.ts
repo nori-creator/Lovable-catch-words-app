@@ -6,6 +6,7 @@ import {
   shouldOfferWebCandidates,
   heroSearchQuery,
   MAX_QUERY_CHARS,
+  placeAutoHeroWith,
 } from "./hero-image";
 
 /**
@@ -171,5 +172,74 @@ describe("探す言葉の作り方が散らばっていない", () => {
     }
     // 見つかったら、その file の検索語を `heroSearchQuery` に寄せること。
     expect(offenders).toEqual([]);
+  });
+});
+
+/**
+ * 自動の1枚と、人の差し替え・AI の絵が重なった時（Codex 指摘 2026-10-07）。
+ * 遅れて届いた自動の1枚で、人が選んだ絵を塗り替えない。
+ */
+describe("placeAutoHeroWith — 人の操作を上書きしない", () => {
+  const run = (supersededAt: "never" | "before" | "afterUpload") => {
+    const log: string[] = [];
+    let manual = supersededAt === "before";
+    const result = placeAutoHeroWith({
+      superseded: () => manual,
+      upload: async () => {
+        log.push("upload");
+        if (supersededAt === "afterUpload") manual = true;
+        return "u/1-placeholder.jpg";
+      },
+      save: async (p) => {
+        log.push(`save:${p}`);
+      },
+      discard: async (p) => {
+        log.push(`discard:${p}`);
+      },
+    });
+    return { result, log };
+  };
+
+  it("誰も触っていなければ、写して仮画像にする", async () => {
+    const { result, log } = run("never");
+    await expect(result).resolves.toBe("saved");
+    expect(log).toEqual(["upload", "save:u/1-placeholder.jpg"]);
+  });
+
+  it("**写す前に差し替え・AI の絵が始まっていたら、写しもしない**", async () => {
+    const { result, log } = run("before");
+    await expect(result).resolves.toBe("superseded");
+    expect(log).toEqual([]);
+  });
+
+  it("**写している間に始まったら、仮画像にせず写しを消す**（置き去りにしない）", async () => {
+    const { result, log } = run("afterUpload");
+    await expect(result).resolves.toBe("superseded");
+    expect(log).toEqual(["upload", "discard:u/1-placeholder.jpg"]);
+  });
+
+  it("消すのに失敗しても、上書きはしない", async () => {
+    await expect(
+      placeAutoHeroWith({
+        superseded: (() => {
+          let n = 0;
+          return () => n++ > 0;
+        })(),
+        upload: async () => "p",
+        save: async () => {
+          throw new Error("上書きしてはいけない");
+        },
+        discard: async () => {
+          throw new Error("消せない");
+        },
+      }),
+    ).resolves.toBe("superseded");
+  });
+
+  it("画面の手続き: 差し替え・AI の絵を始めた札を覚え、自動の道はそれを見る", () => {
+    const hook = fs.readFileSync(path.join(__dirname, "../hooks/use-auto-hero.ts"), "utf8");
+    expect(hook).toMatch(/superseded: \(\) => manualRef\.current\.has\(s\.id\)/);
+    // swap と generateAi の両方で、走り出す前に印を付ける。
+    expect(hook.match(/manualRef\.current\.add\(s\.id\);\s*setSwapping/g)).toHaveLength(2);
   });
 });

@@ -19,6 +19,8 @@
  * ここには外の世界に触れるものを入れない（読み書きは `ResurfaceCard` 側）。
  */
 
+import { taipeiDay } from "@/lib/taipei-day";
+
 export const RESURFACE_MIN_WORDS = 30;
 export const RESURFACE_MIN_AGE_DAYS = 60;
 export const RESURFACE_MIN_RECALL = 60;
@@ -110,15 +112,19 @@ export function caughtAgoLabel(ageDays: number): { unit: CaughtAgoUnit; n: numbe
   return { unit: "years", n: Math.floor(d / 365) };
 }
 
-/** 撮った時刻と「いつの時点で言うか」から、その言い方。読めない時刻は `null`。 */
+/**
+ * 撮った時刻と「いつの時点で言うか」から、その言い方。読めない時刻は `null`。
+ * 日数は**台湾の暦の日付の差**で数える（経過時間で数えると、きのう 23 時に撮った語を
+ * けさ 8 時の通知で「今日撮った」と言ってしまう）。
+ */
 export function caughtAgoAt(
   caughtAt: string | null | undefined,
   atMs: number,
 ): { unit: CaughtAgoUnit; n: number } | null {
   if (!caughtAt) return null;
   const t = Date.parse(caughtAt);
-  if (!Number.isFinite(t)) return null;
-  return caughtAgoLabel(Math.max(0, atMs - t) / DAY_MS);
+  if (!Number.isFinite(t) || !Number.isFinite(atMs)) return null;
+  return caughtAgoLabel(Math.max(0, dayDiff(taipeiDay(new Date(t)), taipeiDay(new Date(atMs)))));
 }
 
 /** 言い方 → 辞書の鍵（`i18n.tsx` の `remind.caught*`。ホームの札と通知で同じ文言）。 */

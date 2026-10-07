@@ -81,10 +81,16 @@ export async function applyReminderSchedule(
   dueTimes: Date[],
   quiz: ReminderQuiz | null = null,
 ): Promise<void> {
+  /**
+   * **その語を名指しするのは、いちばん早い1件だけ**（Codex 指摘 2026-10-07）。用意して
+   * ある名指しの束は1つで、その語から1回復習すれば捨てる（`dropTargetedReview`）。全部の
+   * 通知に同じ語を付けると、2件目以降は束の無い・もう答えた語を約束してしまう。残りは
+   * いつもの文で `/review` へ。
+   */
   const items = plan.slice(0, ID_COUNT).map((p, i) => ({
     id: ID_BASE + i,
     at: p.at,
-    ...reminderMessage(p, dueCountAt(p.at, dueTimes), quiz),
+    ...reminderMessage(p, dueCountAt(p.at, dueTimes), i === 0 ? quiz : null),
   }));
   if (Capacitor.isNativePlatform()) {
     try {

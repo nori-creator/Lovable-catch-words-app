@@ -198,6 +198,22 @@ describe("撮ってからの言い方", () => {
     });
   });
 
+  it("日数は経過時間ではなく台湾の暦の日付で数える", () => {
+    // きのう 23:00（台湾）に撮って、けさ 8:00（台湾）の通知 → 「1日前」（「今日」ではない）。
+    expect(
+      caughtAgoAt("2026-10-06T23:00:00+08:00", Date.parse("2026-10-07T08:00:00+08:00")),
+    ).toEqual({ unit: "days", n: 1 });
+    // 同じ日の朝に撮って夜に言う → 「今日」。
+    expect(
+      caughtAgoAt("2026-10-07T00:30:00+08:00", Date.parse("2026-10-07T23:30:00+08:00")),
+    ).toEqual({ unit: "today", n: 0 });
+    // UTC では同じ日でも、台湾では日をまたいでいる（UTC 15:59 → 16:01 = 台湾 23:59 → 0:01）。
+    expect(caughtAgoAt("2026-10-06T15:59:00Z", Date.parse("2026-10-06T16:01:00Z"))).toEqual({
+      unit: "days",
+      n: 1,
+    });
+  });
+
   it("どの言い方にも辞書の鍵がある（ホームの札と通知で同じ文言）", () => {
     expect(Object.keys(CAUGHT_AGO_KEY).sort()).toEqual(
       ["days", "months", "today", "weeks", "years"].sort(),

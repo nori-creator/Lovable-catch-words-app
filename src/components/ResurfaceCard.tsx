@@ -19,6 +19,9 @@ import {
   type ResurfaceState,
 } from "@/lib/resurface";
 
+/** 押した時に、用意の途中の束を待つ上限（これより遅ければ用意を待たずに開く）。 */
+const TAP_WAIT_MS = 1500;
+
 /**
  * **ホームの「〇か月前に撮ったこの単語、覚えてる？」**（`lib/resurface.ts`）。
  *
@@ -81,17 +84,29 @@ export function ResurfaceCard({
   }, [candidates, recall]);
 
   /**
-   * 札を出したら、その語から始まる復習を裏で用意する（押した瞬間に問題を出すため）。
-   * 起動直後の描画・写真の読み込みと取り合わないよう、少し待ってから。
+   * 札を出したら**すぐ**、その語から始まる復習を裏で用意する（押した瞬間に問題を出すため）。
+   * 前は描画と取り合わないよう 2.5 秒待っていたが、その間に押すと用意の無いまま開いて
+   * 「準備中…」になっていた（Codex 指摘 2026-10-07）。1時間以内に用意した物があれば
+   * 読み直さない（`PREPARED_REUSE_MS`）ので、開くたびに重い問い合わせは走らない。
    */
   const pickedId = pick?.id ?? null;
+  const preparing = useRef<{ id: string; done: Promise<unknown> } | null>(null);
   useEffect(() => {
     if (!pickedId) return;
-    const timer = window.setTimeout(() => {
-      void prepareTargetedReview(fetchReview, pickedId);
-    }, 2500);
-    return () => window.clearTimeout(timer);
+    preparing.current = {
+      id: pickedId,
+      done: prepareTargetedReview(fetchReview, pickedId).catch(() => false),
+    };
   }, [pickedId, fetchReview]);
+
+  /** 押した時。用意の途中なら**少しだけ**（`TAP_WAIT_MS` まで）待ってから開く。 */
+  const start = async (id: string) => {
+    const p = preparing.current;
+    if (p?.id === id) {
+      await Promise.race([p.done, new Promise((r) => window.setTimeout(r, TAP_WAIT_MS))]);
+    }
+    void navigate({ to: "/review", search: { sticker: id } });
+  };
 
   const sticker = pick ? items.find((s) => s.id === pick.id) : undefined;
   if (!pick || !sticker) return null;
@@ -99,7 +114,7 @@ export function ResurfaceCard({
     <ResurfaceCardView
       sticker={sticker}
       pick={pick}
-      onStart={(id) => void navigate({ to: "/review", search: { sticker: id } })}
+      onStart={(id) => void start(id)}
       onDismiss={() => {
         const next = dismissResurface(stateRef.current, taipeiDay());
         stateRef.current = next;

@@ -13,6 +13,7 @@ import { describe, expect, it } from "vitest";
 import {
   composeWantedBatch,
   packBatch,
+  replaceContinuation,
   readBatch,
   REVIEW_CACHE_KEY,
   REVIEW_CACHE_MAX_AGE_MS,
@@ -171,5 +172,40 @@ describe("名指しの1枚から始まる束", () => {
   it("どちらにも居なければ `null`（いつもどおり読み込み）", () => {
     expect(composeWantedBatch("s9", null, null)).toBeNull();
     expect(composeWantedBatch("s9", null, batch([c("s1")], NOW, null))).toBeNull();
+  });
+});
+
+/**
+ * 名指しの束（最長 48 時間前に用意）の続きは、裏で読み直した束で差し替える（Codex 指摘
+ * 2026-10-07: 期限でない札・1日の上限を越えた札が出ていた）。いま出ている札より後ろだけ。
+ */
+describe("replaceContinuation — 名指しの束の続きを新しくする", () => {
+  const c = (sticker_id: string) => ({ sticker_id });
+  const ids = (cs: { sticker_id: string }[]) => cs.map((x) => x.sticker_id);
+
+  it("1枚目（いま出ている札）は残し、後ろをサーバの束にする", () => {
+    const got = replaceContinuation([c("w"), c("old1"), c("old2")], 0, [c("w"), c("n1"), c("n2")]);
+    expect(ids(got)).toEqual(["w", "n1", "n2"]);
+  });
+
+  it("答え進めた位置までは動かさない（目の前の問題が入れ替わらない）", () => {
+    const got = replaceContinuation([c("w"), c("a"), c("b")], 1, [c("w"), c("x"), c("a")]);
+    expect(ids(got)).toEqual(["w", "a", "x"]);
+  });
+
+  it("サーバが何も返さなければ（期限の札が無い・上限）、続きは無くなる", () => {
+    expect(ids(replaceContinuation([c("w"), c("a"), c("b")], 0, []))).toEqual(["w"]);
+  });
+
+  it("新しくした並びを名指しの束に書けば、開き直しても同じ並びになる（続きの目印が合う）", () => {
+    const merged = replaceContinuation([c("w"), c("old")], 0, [c("w"), c("n1"), c("n2")]);
+    const targeted = packBatch(merged, "u1", "w", 2_000);
+    const normal = packBatch([c("n9"), c("w")], "u1", null, 1_000);
+    expect(ids(composeWantedBatch("w", targeted, normal)!.cards)).toEqual(ids(merged));
+  });
+
+  it("名指しの1枚を答えた後に読み直しても、同じ札を二度出さない", () => {
+    const got = replaceContinuation([c("w"), c("a")], 0, [c("w"), c("a"), c("b")]);
+    expect(ids(got)).toEqual(["w", "a", "b"]);
   });
 });

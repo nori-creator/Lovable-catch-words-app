@@ -195,3 +195,25 @@ export function composeWantedBatch<T extends { sticker_id: string }>(
     cards: [front, ...rest],
   };
 }
+
+/**
+ * **名指しの束の続きを、サーバの新しい束で差し替える**（Codex 指摘 2026-10-07）。
+ *
+ * 名指しの束は最長 48 時間前に用意した物なので、続きの札が**もう期限でない・1日の上限を
+ * 越えている**ことがある。最初の1枚は端末の物ですぐ出し（待たせない）、裏で読み直した
+ * 束が届いたら、**いま出している札より後ろだけ**を入れ替える。
+ *
+ * - `current` の `idx` 枚目まで（答えた札・いま出ている札）はそのまま残す（問題が目の前で
+ *   入れ替わらない・答えた位置がずれない）。
+ * - 後ろは `fresh` から、残した札と同じ語を除いた物（同じ札を二重に採点しない）。
+ *   サーバが何も返さなければ（期限の札が無い・上限）後ろは無くなる。
+ */
+export function replaceContinuation<T extends { sticker_id: string }>(
+  current: readonly T[],
+  idx: number,
+  fresh: readonly T[],
+): T[] {
+  const keep = current.slice(0, Math.max(0, idx) + 1);
+  const seen = new Set(keep.map((c) => c.sticker_id));
+  return [...keep, ...fresh.filter((c) => !seen.has(c.sticker_id))];
+}

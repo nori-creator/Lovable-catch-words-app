@@ -45,6 +45,7 @@ export const AI_CONSENT_FUNCTIONS = [
   "extractWordbook",
   "firstCatchAI",
   "firstCatchMemberAI",
+  "generateProWordImage",
 ] as const;
 
 /**

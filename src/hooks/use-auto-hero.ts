@@ -12,7 +12,12 @@ import { supabase } from "@/integrations/supabase/client";
 import { putCachedImage } from "@/lib/image-cache";
 import { downscaleDataUrl } from "@/lib/image-resize";
 import { toImageDataUrl } from "@/lib/sticker-upload";
-import { heroSearchQuery, needsWebHero, shouldOfferWebCandidates } from "@/lib/hero-image";
+import {
+  heroSearchQuery,
+  needsWebHero,
+  placeAutoHeroWith,
+  shouldOfferWebCandidates,
+} from "@/lib/hero-image";
 import type { PhotoSources } from "@/lib/sticker-photo";
 import { useT } from "@/lib/i18n";
 import { useReadableError } from "@/lib/errors";
@@ -62,6 +67,8 @@ export function useAutoHero(sticker: AutoHeroSticker | null | undefined) {
   const setPlaceholderFn = useServerFn(setStickerPlaceholder);
   const generateProImageFn = useServerFn(generateProWordImage);
   const triedRef = useRef<Set<string>>(new Set());
+  /** 人が差し替え・AI の絵を始めた札（遅れて届いた自動の1枚で上書きしない）。 */
+  const manualRef = useRef<Set<string>>(new Set());
   const [candidates, setCandidates] = useState<WebImageCandidate[]>([]);
   const [swapping, setSwapping] = useState<string | null>(null);
   /** 自動の1枚を入れられなかった札（その札を開いている間だけ「見つけられなかった」）。 */
@@ -86,16 +93,25 @@ export function useAutoHero(sticker: AutoHeroSticker | null | undefined) {
         // 1枚も無い・最初の1枚が保存できない → 「探しています」で止めない。
         const cand = cands[0];
         if (!cand) throw new Error("no candidates");
-        const path = await uploadWebImage(cand, fetchImageFn);
-        await setPlaceholderFn({
-          data: {
-            sticker_id: s.id,
-            placeholder_path: path,
-            placeholder_credit: cand.credit
-              ? { ...cand.credit, source: cand.source }
-              : { source: cand.source },
+        const done = await placeAutoHeroWith({
+          superseded: () => manualRef.current.has(s.id),
+          upload: () => uploadWebImage(cand, fetchImageFn),
+          save: async (path) => {
+            await setPlaceholderFn({
+              data: {
+                sticker_id: s.id,
+                placeholder_path: path,
+                placeholder_credit: cand.credit
+                  ? { ...cand.credit, source: cand.source }
+                  : { source: cand.source },
+              },
+            });
+          },
+          discard: async (path) => {
+            await supabase.storage.from("stickers").remove([path]);
           },
         });
+        if (done === "superseded") return;
         await qc.invalidateQueries({ queryKey: ["sticker", s.id] });
         await qc.invalidateQueries({ queryKey: ["stickers"] });
       } catch (e) {
@@ -138,12 +154,17 @@ export function useAutoHero(sticker: AutoHeroSticker | null | undefined) {
   async function swap(cand: WebImageCandidate) {
     const s = sticker;
     if (!s || swapping) return;
+    manualRef.current.add(s.id);
     setSwapping(cand.url);
     try {
       await saveAsPlaceholder(s.id, cand);
       toast.success(t("card.imageSet"));
     } catch (e) {
       console.warn("Swap web image failed", e);
+      // 入らなかった → 自動の1枚を止める理由も無い。止めた後なら「探しています」で
+      // 待たせない（絵が無ければ「見つけられなかった」にして候補を勧める）。
+      manualRef.current.delete(s.id);
+      if (needsWebHero(s)) setFailedId(s.id);
       failToast(t("card.photoFailed"), e);
     } finally {
       setSwapping(null);
@@ -157,6 +178,7 @@ export function useAutoHero(sticker: AutoHeroSticker | null | undefined) {
   async function generateAi() {
     const s = sticker;
     if (!s || swapping) return;
+    manualRef.current.add(s.id);
     setSwapping(AI_IMAGE_KEY);
     try {
       const made = await generateProImageFn({ data: { sticker_id: s.id } });
@@ -164,6 +186,8 @@ export function useAutoHero(sticker: AutoHeroSticker | null | undefined) {
       toast.success(t("card.aiImageDone"));
     } catch (e) {
       console.warn("Pro AI image failed", e);
+      manualRef.current.delete(s.id);
+      if (needsWebHero(s)) setFailedId(s.id);
       failToast(t("card.aiImageFailed"), e);
     } finally {
       setSwapping(null);

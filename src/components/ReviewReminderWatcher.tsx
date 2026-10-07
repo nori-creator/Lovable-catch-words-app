@@ -71,16 +71,19 @@ export function ReviewReminderWatcher() {
        *
        * 端末の予約通知は**鳴る時にこちらのコードが動かない**（題も行き先も予約した時に
        * 決まる）。だから「出す前に用意」＝「予約する前に用意」。束（その語が先頭・続きは
-       * 普通の復習）を読み、写真を端末へ落とし、書き留めてから予約する。束は最後の通知の
-       * 時刻＋`TAP_GRACE_MS` まで使えるようにする（`review-cache.ts` の `until`。上限 48 時間）。
+       * 普通の復習）を読み、写真を端末へ落とし、書き留めてから予約する。束は1つなので、
+       * その語を名指しするのは**いちばん早い通知だけ**（残りはいつもの文で `/review` へ）。
+       * 束はその通知の時刻＋`TAP_GRACE_MS` まで使えるようにする（`review-cache.ts` の `until`。上限 48 時間）。
        *
        * 用意できなかった（通信できない・その語の記録が無い）時は、その語を名指しせず
        * いつもの「復習の時間です」で `/review` へ（押しても待たせる約束をしない）。
        */
       if (quiz && plan.length) {
-        const last = Math.max(...plan.map((p) => p.at.getTime()));
+        // 名指しするのはいちばん早い1件だけ（`applyReminderSchedule`）。束はその通知が
+        // 鳴ってから押されるまで生かす。
+        const first = Math.min(...plan.map((p) => p.at.getTime()));
         const ready = await prepareTargetedReview(fetchReview, quiz.sticker_id, {
-          until: last + TAP_GRACE_MS,
+          until: first + TAP_GRACE_MS,
         });
         if (!ready) quiz = null;
       }

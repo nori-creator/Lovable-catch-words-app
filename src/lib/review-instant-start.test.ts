@@ -96,8 +96,8 @@ describe("つなぎ目", () => {
     expect(prep).toBeGreaterThan(0);
     expect(apply).toBeGreaterThan(prep);
     expect(s).toMatch(/if \(!ready\) quiz = null;/);
-    // 鳴った後に押されるまで束が生きているよう、最後の通知の時刻から延ばす。
-    expect(s).toMatch(/until: last \+ TAP_GRACE_MS/);
+    // 名指しするのはいちばん早い1件だけ。その通知が鳴った後に押されるまで束を生かす。
+    expect(s).toMatch(/until: first \+ TAP_GRACE_MS/);
   });
 
   it("復習の画面は、名指しで来ても端末の束から最初の描画で出す", () => {
@@ -107,10 +107,35 @@ describe("つなぎ目", () => {
     expect(s).toMatch(/dropTargetedReview\(wantedSticker\)/);
   });
 
+  it("名指しの束の続きは、裏で必ず読み直し、いま出ている札より後ろだけ差し替える", () => {
+    const s = codeOnly(read("components/screens/ReviewScreen.tsx"));
+    expect(s).toMatch(
+      /if \(wantedRevalidated\.current \|\| !cachedBatch \|\| !wantedSticker\) return;/,
+    );
+    expect(s).toMatch(/fetchDue\(\{ data: \{ sticker_id: wantedSticker \} \}\)/);
+    expect(s).toMatch(/replaceContinuation\(cur, at, fresh \?\? \[\]\)/);
+    // 位置を新しい目印へ書いてから入れ替える（1枚目へ戻されない）。
+    const mark = s.indexOf("writeMark(batchKey(merged, wantedSticker)");
+    const swap = s.indexOf("qc.setQueryData(key, merged)");
+    expect(mark).toBeGreaterThan(0);
+    expect(swap).toBeGreaterThan(mark);
+    // 開き直しても同じ目印で続きから出るよう、端末の名指しの束も新しい並びにする。
+    expect(s).toMatch(/packBatch\(merged, uid, wantedSticker, Date\.now\(\)\)/);
+  });
+
   it("ホームの札は、押すとその語から復習を始める（詳細を開かない・答えを鳴らさない）", () => {
     const s = codeOnly(read("components/ResurfaceCard.tsx"));
     expect(s).toMatch(/navigate\(\{ to: "\/review", search: \{ sticker: id \} \}\)/);
     expect(s).toMatch(/prepareTargetedReview\(fetchReview, pickedId\)/);
+    // 札が決まったらすぐ用意する（待ってから始めると、その間に押されて用意が無い）。
+    expect(s).not.toMatch(/setTimeout\(\(\) => \{\s*void prepareTargetedReview/);
+    // 押した時は用意の途中なら少しだけ待つ（上限 1.5 秒以下）。
+    expect(s).toMatch(
+      /Promise\.race\(\[p\.done, new Promise\(\(r\) => window\.setTimeout\(r, TAP_WAIT_MS\)\)\]\)/,
+    );
+    const wait = Number(/const TAP_WAIT_MS = (\d+);/.exec(s)?.[1]);
+    expect(wait).toBeGreaterThan(0);
+    expect(wait).toBeLessThanOrEqual(1500);
     expect(s).not.toMatch(/pronounce\(/);
     expect(s).toMatch(/CAUGHT_AGO_KEY\[pick\.unit\]/);
   });

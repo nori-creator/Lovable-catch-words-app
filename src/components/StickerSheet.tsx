@@ -55,6 +55,7 @@ import { downscaleDataUrl } from "@/lib/image-resize";
 import { toImageDataUrl } from "@/lib/sticker-upload";
 import { listStickerPhotos, type StickerPhoto } from "@/lib/encounters.functions";
 import { StickerPhotoHistory } from "@/components/StickerPhotoHistory";
+import { HeroImageChoices } from "@/components/HeroImageChoices";
 import { HeroPhotoSlides } from "@/components/HeroPhotoSlides";
 import { supabase } from "@/integrations/supabase/client";
 import { CachedImg, putCachedImage } from "@/lib/image-cache";
@@ -1232,55 +1233,17 @@ export function StickerSheetBody({
         </div>
       </div>
 
-      {/* ネット画像の候補: 自動で入った画像が気に入らなければタップで変更。
-            自分で撮った写真があるカードには出さない(#67)。 */}
-      {/* 見出しに絵が入らなかった時は、1枚だけでも選べるように出す。
-            Pro の人には「AIで絵を作る」も出す（候補が無くても）。 */}
-      {!s.object_url &&
-        !s.cutout_url &&
-        (webCandidates.length > 1 ||
-          (!hero && webCandidates.length > 0) ||
-          (isPro && !!onGenerateAi)) && (
-          <section className="mb-4">
-            <div className="mb-1.5 text-caption font-semibold text-muted-foreground">
-              {t("card.pickAnotherImage")}
-            </div>
-            <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1">
-              {webCandidates.map((c) => (
-                <button
-                  key={c.url}
-                  onClick={() => void swapWebImage(c)}
-                  disabled={!!swapping}
-                  className="relative h-16 w-16 shrink-0 overflow-hidden rounded-xl ring-1 ring-border transition active:scale-95 disabled:opacity-50"
-                  aria-label={t("card.pickAnotherImage")}
-                >
-                  <img src={c.thumb ?? c.url} alt="" className="h-full w-full object-cover" />
-                  {swapping === c.url && (
-                    <span className="absolute inset-0 grid place-items-center bg-black/40">
-                      <Loader2 className="h-4 w-4 animate-spin text-white" />
-                    </span>
-                  )}
-                </button>
-              ))}
-            </div>
-            {isPro && onGenerateAi && (
-              <button
-                type="button"
-                onClick={onGenerateAi}
-                disabled={!!swapping}
-                aria-busy={generatingAi}
-                className="mt-2 inline-flex min-h-11 items-center gap-1.5 rounded-full bg-secondary px-4 text-footnote font-semibold text-foreground transition active:scale-95 disabled:opacity-50"
-              >
-                {generatingAi ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <Sparkles className="h-4 w-4" />
-                )}
-                {generatingAi ? t("card.aiImageMaking") : t("card.aiImage")}
-              </button>
-            )}
-          </section>
-        )}
+      {/* ネット画像の候補と Pro の「AIで絵を作る」。図鑑の詳細（`/dex/$stickerId`）と同じ物。 */}
+      <HeroImageChoices
+        ownPhoto={!!s.object_url || !!s.cutout_url}
+        hasHero={!!hero}
+        candidates={webCandidates}
+        swapping={swapping}
+        onSwap={(c) => void swapWebImage(c)}
+        isPro={isPro}
+        onGenerateAi={onGenerateAi}
+        generatingAi={generatingAi}
+      />
 
       {/* When & Where chip */}
       <section className="mb-4 rounded-2xl border border-border bg-card p-3 text-body shadow-sm">
