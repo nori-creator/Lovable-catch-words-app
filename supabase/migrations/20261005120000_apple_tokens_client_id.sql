@@ -1,4 +1,5 @@
 -- apple_tokens に「token を出した相手（client_id）」を足す（2026-10-05）。
+-- Lovable が同じ内容を drizzle/migrations/0005_apple_tokens_client_id.sql にも書いた（中身は同じ）。
 --
 -- iOS 版の「Apple でサインイン」（ASAuthorizationAppleIDCredential）の authorizationCode は
 -- iOS の bundle id（com.nori.catchwords）に向けて出る。それを引き換えた refresh token は、

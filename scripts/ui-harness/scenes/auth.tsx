@@ -15,6 +15,8 @@ export function AuthScene({ q }: { q: URLSearchParams }) {
   );
   const [email, setEmail] = useState(q.get("email") === "1" ? "nori@example.com" : "");
   const [password, setPassword] = useState("");
+  const p = q.get("pending");
+  const pending = p === "google" || p === "apple" ? p : null;
   return (
     <AuthView
       mode={mode}
@@ -23,7 +25,9 @@ export function AuthScene({ q }: { q: URLSearchParams }) {
       setEmail={setEmail}
       password={password}
       setPassword={setPassword}
-      loading={false}
+      // `?pending=google` / `?pending=apple` … 押した後、Google・Apple の画面へ移るまでの面。
+      loading={pending !== null}
+      pending={pending}
       onEmail={(e) => e.preventDefault()}
       onGoogle={() => {}}
       onApple={() => {}}
