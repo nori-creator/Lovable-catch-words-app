@@ -1,4 +1,3 @@
--- Lovable が drizzle/migrations/0003_20261003140000_ai_consents.sql にも同じ内容で書いている。
 -- 外部の AI へ送る前の同意の記録（2026-10-03）。
 -- Lovable が同じ内容を drizzle/migrations/0003_20261003140000_ai_consents.sql にも書いた（中身は同じ）。
 --

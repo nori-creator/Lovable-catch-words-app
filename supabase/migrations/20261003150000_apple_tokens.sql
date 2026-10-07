@@ -1,4 +1,3 @@
--- Lovable が drizzle/migrations/0004_20261003150000_apple_tokens.sql にも同じ内容で書いている。
 -- 「Apple でサインイン」の token の置き場所（2026-10-03）。
 -- Lovable が同じ内容を drizzle/migrations/0004_20261003150000_apple_tokens.sql にも書いた（中身は同じ）。
 --

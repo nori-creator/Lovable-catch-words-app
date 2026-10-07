@@ -118,6 +118,11 @@ for (const browserName of BROWSERS) {
             .waitForURL(/\/~oauth\/initiate/, { timeout: 10_000 })
             .then(() => true)
             .catch(() => false);
+          // Google は毎回アカウントを選ぶ画面を出す（2026-10-07 の報告）。公開前の版では無いので記録だけ。
+          if (moved && provider === "google")
+            detail += /[?&]prompt=select_account/.test(page.url())
+              ? " select_account=yes"
+              : " select_account=NO";
           if (!moved) {
             result = "押しても窓口へ進まない";
             const toast = await page
