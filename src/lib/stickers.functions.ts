@@ -1138,6 +1138,62 @@ export const listMyShelves = createServerFn({ method: "GET" })
     }
   });
 
+/** `reuseOwnedSticker` が使う所だけの形（試験では手元の偽物を渡す）。 */
+type ReuseClient = {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  from: (table: string) => any;
+};
+
+/**
+ * その人が**同じ語の札をもう持っていれば**、その札に再会を1回書き足して札の id を返す
+ * （`recordEncounter` と同じ形: `encounters` に1行、札の `encounter_count` を1つ増やす。
+ * 復習の間隔は動かさない）。持っていない・書けなかった時は null（呼ぶ側が新しい札を作る）。
+ */
+export async function reuseOwnedSticker(
+  supabase: ReuseClient,
+  userId: string,
+  wordId: string,
+  enc: {
+    image_path: string | null;
+    cutout_path: string | null;
+    lat: number | null;
+    lng: number | null;
+    location_name: string | null;
+  },
+): Promise<string | null> {
+  try {
+    const { data: owned, error } = await supabase
+      .from("stickers")
+      .select("id, encounter_count")
+      .eq("user_id", userId)
+      .eq("word_id", wordId)
+      .order("created_at", { ascending: true })
+      .limit(1)
+      .maybeSingle();
+    if (error || !owned?.id) return null;
+    const ins = await supabase.from("encounters").insert({
+      user_id: userId,
+      sticker_id: owned.id,
+      recalled: null,
+      lat: enc.lat,
+      lng: enc.lng,
+      location_name: enc.location_name,
+      image_path: enc.image_path,
+      cutout_path: enc.cutout_path,
+    });
+    // 写真をどこにも結び付けられないまま「保存した」とは言わない — 新しい札に回す。
+    if (ins?.error) return null;
+    await supabase
+      .from("stickers")
+      .update({ encounter_count: (owned.encounter_count ?? 0) + 1 })
+      .eq("id", owned.id)
+      .eq("user_id", userId);
+    return owned.id as string;
+  } catch {
+    return null;
+  }
+}
+
 export const saveSticker = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) => SaveStickerInput.parse(input))
@@ -1174,6 +1230,28 @@ export const saveSticker = createServerFn({ method: "POST" })
       if (!p) return null;
       return p.startsWith(`${userId}/`) ? p : null;
     };
+
+    /**
+     * **もう持っている言葉なら、新しい札を作らずその札の再会にする**（オーナー報告 2026-10-08
+     * 「文字検索したら同じ単語でも同じものとしてカウントされてない」）。
+     *
+     * 画面は保存の前に「もう持っている語か」を確かめる（`checkOwnedWord`）が、確かめるのは
+     * **打った・選んだ見出し語**で、カードを作った後に見出し語が学習言語の語へ直される
+     * （`adoptResolvedHead`、例: 猫 → 貓）と、直した後の語はもう確かめられずに保存へ来る。
+     * 同じ言葉の札が2枚でき、図鑑に「貓」が2つ並んでいた。共有の語の行は
+     * `(language, headword)` で1つなので、**その人の同じ語の札**をここで見つけて使う。
+     * 再会の記録が書けない環境（表・列がまだ無い）では、今までどおり新しい札を作る。
+     */
+    if (!data.client_catch_id) {
+      const reused = await reuseOwnedSticker(supabase, userId, wordId, {
+        image_path: ownPath(data.object_path),
+        cutout_path: ownPath(data.cutout_path),
+        lat: data.lat ?? null,
+        lng: data.lng ?? null,
+        location_name: data.location_name ?? null,
+      });
+      if (reused) return { id: reused, word_id: wordId, first_catch: false, reencounter: true };
+    }
 
     // §6 word tree: freeze the branch plan at save time so later extras
     // regenerations don't reshuffle already-unlocked branches.

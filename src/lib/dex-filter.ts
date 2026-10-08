@@ -21,6 +21,7 @@
  */
 
 import { stickerCategoryKey } from "./user-category";
+import { normDexHeadword } from "./dex-catalog";
 import { localDayKey } from "./album-span";
 
 /** 絞り込みの状態。どちらも `null` は「すべて」。 */
@@ -40,7 +41,7 @@ export type FilterableSticker = {
   created_at: string;
   /** その人が写真ごとに移したカテゴリー（無ければ語の既定）。 */
   shelf_key?: string | null;
-  word: { category_key?: string | null };
+  word: { category_key?: string | null; headword?: string | null; language?: string | null };
 };
 
 /**
@@ -60,14 +61,20 @@ export function stickerDayKey(iso: string): string {
  * 並んで押すたび違う結果が出る。
  */
 export function categoryOptions(stickers: readonly FilterableSticker[]): FilterOption[] {
-  const map = new Map<string, number>();
+  /**
+   * **言葉の数で数える**（オーナー報告 2026-10-08「文字検索したら同じ単語でも同じものとして
+   * カウントされてない」）。同じ見出し語の札が2枚あっても1つ。見出し語の無い札は1枚ずつ。
+   */
+  const map = new Map<string, Set<unknown>>();
   for (const s of stickers) {
     const k = stickerCategoryKey(s);
-    map.set(k, (map.get(k) ?? 0) + 1);
+    const h = normDexHeadword(s.word.headword, s.word.language);
+    if (!map.has(k)) map.set(k, new Set());
+    map.get(k)!.add(h ? h : {});
   }
   return (
     [...map.entries()]
-      .map(([key, count]) => ({ key, count }))
+      .map(([key, words]) => ({ key, count: words.size }))
       // 同じ件数のときは名前で決める。並びが回るたび変わると、
       // 「さっき上から3つ目にあった物」を探し直すことになる。
       .sort((a, b) => b.count - a.count || (a.key < b.key ? -1 : 1))
