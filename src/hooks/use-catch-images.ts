@@ -10,14 +10,15 @@ import { uploadWebImage, type WebImageCandidate } from "@/hooks/use-auto-hero";
 const MAX_CHOICES = 6;
 /** 1枚目が読めない時に、次を試す数（読めない絵を札にしない）。 */
 const PRELOAD_TRIES = 3;
-/** 探しても届かない時の上限（ms）。これを過ぎたら語を組んだ札で決着させる。 */
-export const CATCH_IMAGE_WAIT_MS = 6000;
+/** 探しても届かない時の上限（ms）。これを過ぎたら語を組んだ札で決着させる。
+ *  サーバの意味決め（最大3.5秒）と見た目の確認（最大4秒）が入っても間に合う長さ。 */
+export const CATCH_IMAGE_WAIT_MS = 8000;
 
 /**
  * **文字で調べた語の札の絵と、その「別の画像」の候補**（オーナー指示 2026-10-08
  * 「シールを表示するときは必ず画像や発音が表示されてから、画像も変更出来きるように」）。
  *
- * `use-text-sticker-image` と同じ検索（`textStickerImageSearch` → `searchImageCandidates`）を
+ * 画像の検索（`textStickerImageSearch` → `searchImageCandidates`）を
  * 札を出す**前に**走らせ、画面に出せることを確かめた1枚を札の絵にする。候補は札の下の
  * 「別の画像」（`HeroImageChoices`）に並び、押すとその絵に替わる。保存の後は、いま札に
  * 載っている1枚をその札の仮画像にする（`attach`、まだ空の時だけ）。
@@ -31,6 +32,8 @@ export function useCatchImages(opts: {
   /** 画像検索用の英語（語を引いた時の `image_query`、カードの `extras.image_query`）。 */
   imageQuery?: string | null;
   category?: string | null;
+  /** 写っていてはいけない物（花・池など。カードの `extras.image_avoid`）。 */
+  avoid?: string[] | null;
 }) {
   const qc = useQueryClient();
   const searchImagesFn = useServerFn(searchImageCandidates);
@@ -51,6 +54,8 @@ export function useCatchImages(opts: {
   imageQueryRef.current = opts.imageQuery;
   const categoryRef = useRef(opts.category);
   categoryRef.current = opts.category;
+  const avoidRef = useRef(opts.avoid);
+  avoidRef.current = opts.avoid;
   const key = opts.enabled && opts.headword ? opts.headword : null;
 
   useEffect(() => {
@@ -67,12 +72,20 @@ export function useCatchImages(opts: {
       meaning: meaningRef.current,
       imageQuery: imageQueryRef.current,
       category: categoryRef.current,
+      avoid: avoidRef.current,
     });
     void (async () => {
       try {
         if (!req.query.trim()) throw new Error("empty query");
         const { candidates } = await searchImagesFn({
-          data: { query: req.query, category: req.category },
+          data: {
+            query: req.query,
+            category: req.category,
+            // 英語の検索語がまだ無い時は、サーバが意味を決めてから探す（`image-sense.ts`）。
+            headword: req.headword,
+            meaning: req.meaning,
+            avoid: req.avoid,
+          },
         });
         if (!alive) return;
         const list = candidates.slice(0, MAX_CHOICES);

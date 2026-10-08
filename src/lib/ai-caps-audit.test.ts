@@ -86,6 +86,21 @@ describe("searchImagesWith — 絵の生成の枠（H3）", () => {
     expect(fetchMock.mock.calls.every(([u]) => String(u).includes("commons"))).toBe(true);
   });
 
+  it("写真の候補: AI への送信に同意していなければ、絵は作らず写真の候補だけで続ける", async () => {
+    fetchMock.mockImplementation(async (url: string) => {
+      if (String(url).includes("commons")) return new Response(JSON.stringify({}));
+      throw new Error("should not generate");
+    });
+    const out = await searchImagesWith(
+      { query: "柚子", language: "zh-TW", purpose: "candidates" },
+      async () => {
+        throw new Error("AI_CONSENT_REQUIRED: test");
+      },
+    );
+    expect(out.candidates).toEqual([]);
+    expect(fetchMock.mock.calls.every(([u]) => String(u).includes("commons"))).toBe(true);
+  });
+
   it("生成を切ってある（off）時は枠を使わない", async () => {
     vi.stubEnv("IMAGE_PROVIDER", "off");
     const reserve = vi.fn(async () => undefined);

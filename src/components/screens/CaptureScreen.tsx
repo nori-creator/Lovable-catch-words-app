@@ -1,3 +1,4 @@
+import { imageAvoidOf } from "@/lib/image-sense";
 import { selfieCaptureEnabled } from "@/lib/product-features";
 import { shortMeaning } from "@/lib/meaning-rule";
 import { ZhuyinWord, useZhuyinUnits } from "@/components/ZhuyinWord";
@@ -381,6 +382,7 @@ export function CapturePage() {
     meaning: card?.meaning_ja,
     imageQuery: peelImage?.query || imageQueryOf(card?.extras),
     category: card?.category_key ?? null,
+    avoid: imageAvoidOf(card?.extras),
   });
   /** 札を出す前に、発音を取りに行く（届いた・取れないと分かったら札を出す）。 */
   const peelSpeech = useSpeechReady(

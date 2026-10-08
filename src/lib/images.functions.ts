@@ -13,6 +13,7 @@ import {
 } from "./image-provider";
 import { MAX_PROXY_IMAGE_BYTES, readCappedBytes } from "./byte-cap";
 import { isAiCapError } from "./ai-cap";
+import { AI_CONSENT_CHECK_FAILED, isAiConsentError } from "./ai-consent";
 import { heroSearchQuery, imageQueryOf } from "./hero-image";
 import { isConfidentMatch, selectImageCandidates, type RankContext } from "./image-search-rank";
 import {
@@ -73,9 +74,16 @@ type TextCandidate = ImageCandidate & { text?: string };
  */
 function imageGenReserver(userId: string): () => Promise<void> {
   return async () => {
+    // 検索語を外部の絵の AI へ送る前に、同意を確かめる（無ければ作らずに写真だけで続ける）。
+    const { assertAiConsent } = await import("./ai-consent.server");
+    await assertAiConsent(userId);
     const { assertWithinDailyCap } = await import("./ai-provider.server");
     await assertWithinDailyCap(userId, "image_gen");
   };
+}
+
+function isConsentRefusal(e: unknown): boolean {
+  return isAiConsentError(e) || (e instanceof Error && e.message.includes(AI_CONSENT_CHECK_FAILED));
 }
 
 /**
@@ -89,9 +97,9 @@ async function optionalAiImage(
   try {
     return await generateOneAiImage(query, reserve);
   } catch (e) {
-    if (isAiCapError(e)) {
+    if (isAiCapError(e) || isConsentRefusal(e)) {
       console.warn(
-        "image generation skipped (cap)",
+        "image generation skipped (cap/consent)",
         e instanceof Error ? e.message.slice(0, 40) : "",
       );
       return null;

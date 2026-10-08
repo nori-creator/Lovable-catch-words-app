@@ -20,12 +20,6 @@
 
 import { heroSearchQuery } from "./hero-image";
 
-/**
- * ネットの画像を待つ上限（ms）。カードが出てからこの間に届かなければ、
- * 語の札のまま進む（あとから届いた画像で、剥がしている札を差し替えない）。
- */
-export const TEXT_STICKER_IMAGE_WAIT_MS = 2500;
-
 /** 札の一辺（`PeelSticker` の viewBox と同じ 320）。 */
 const SIZE = 320;
 /** 字を置ける幅。札の内側（20..300）から、さらに左右に余白を取る。 */
