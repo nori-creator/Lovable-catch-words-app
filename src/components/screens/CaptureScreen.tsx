@@ -13,6 +13,7 @@ import { useTargetLang } from "@/lib/target-lang-pref";
 import { CandidatePicker } from "@/components/CandidatePicker";
 import {
   useEffect,
+  useMemo,
   useRef,
   useState,
   type CSSProperties,
@@ -72,6 +73,8 @@ import { Term } from "@/components/Term";
 import { Reading, useReadingText } from "@/lib/phonetic";
 import { ScanEffect } from "@/components/ScanEffect";
 import { CatchLandingOverlay, runCatchLanding } from "@/components/CatchLanding";
+import { useTextStickerImage } from "@/hooks/use-text-sticker-image";
+import { chooseStickerArt, textStickerDataUrl } from "@/lib/text-sticker";
 import { onPronounced, usePronounce } from "@/lib/use-pronounce";
 import { useFunnelEvent } from "@/lib/use-funnel-event";
 import { useCandidatePick } from "@/lib/use-candidate-pick";
@@ -319,9 +322,17 @@ export function CapturePage() {
   const reencPromiseRef = useRef<Promise<boolean> | null>(null);
   /** 保存が通ったか。通ったあとの失敗を「保存の失敗」と言わないための印。 */
   const savedRef = useRef(false);
-  // 「いま何を待っているか」— 候補出し(analyze)か、タップ後の切り抜き(cutout)か。
-  // 待ち画面の文言をここで切り替える。
-  const [waitKind, setWaitKind] = useState<"analyze" | "cutout">("analyze");
+  // 「いま何を待っているか」— 写真の候補出し(analyze)か、打った語の意味を調べている(lookup)か。
+  // 待ち画面をここで切り替える。**打った語に「AI が分析中」の粒子の演出は出さない**
+  // （オーナー報告 2026-10-08「写真が無いのに、黒い画面で11秒も分析中」）。
+  const [waitKind, setWaitKind] = useState<"analyze" | "lookup">("analyze");
+  /**
+   * 撮る画面へ戻すときの撮り方。打った語を調べるのを「やめる」・失敗したときは
+   * **検索の欄を開いたまま**戻す（打った語を書き直せるように）。
+   */
+  const [returnMode, setReturnMode] = useState<CameraMode | null>(null);
+  /** 飛び立った札の絵。飛んでいる間に札の絵が変わっても、飛ぶ絵は変えない。 */
+  const [landingArt, setLandingArt] = useState<string | null>(null);
   // キャッチ演出中は写真カードを隠し、代わりに飛ぶ画像を出す。
   const [landing, setLanding] = useState(false);
   /**
@@ -329,6 +340,22 @@ export function CapturePage() {
    * 押し直しを止める見張りがここに要る。無いと二重登録になる。
    */
   const [saving, setSaving] = useState(false);
+  /**
+   * **剥がす札に載せる絵**（オーナー報告 2026-10-08「文字で調べた語の札に何も載っていない」）。
+   * 撮った写真 → ネットの画像（短い上限つきで待つ）→ 語を組んだ札、の順（`lib/text-sticker.ts`）。
+   * 写真のある回は今までどおり写真だけ。
+   */
+  const webHero = useTextStickerImage({
+    enabled: step === "card" && !objectImg && !!card,
+    headword: selectedHead,
+    meaning: card?.meaning_ja,
+    frozen: saving || landing,
+  });
+  const textArt = useMemo(
+    () => textStickerDataUrl({ headword: selectedHead, lang: targetLanguage }),
+    [selectedHead, targetLanguage],
+  );
+  const stickerArt = chooseStickerArt({ photo: objectImg, webImage: webHero.image, textArt });
   const heroBoxRef = useRef<HTMLDivElement | null>(null);
   const flyRef = useRef<HTMLImageElement | null>(null);
   const objectImageRef = useRef<string | null>(null);
@@ -909,10 +936,12 @@ export function CapturePage() {
      * 謎の AI が分析中のアニメーションが一瞬映る。消して。そのままステッカーの画面に移行して」）。
      * 候補（`hint`）には読み・意味が入っていてカードはすぐ出せる。待つのは「もう持っている語か」
      * の確認（1往復）だけなので、その間は今の画面のまま待ち、終わったらカードへ直接移る。
-     * 候補が無い時（打った語など）はカードを作る間を待つので、今までどおり演出を出す。
+     * 候補が無い時（打った語など）はカードを作る間を待つ。**その間は打った語そのものと
+     * 「意味を調べています」だけを静かに出す**（`CaptureLookupPanel`。写真が無いのに
+     * 粒子の「AI が分析中」を出していた — オーナー報告 2026-10-08）。
      */
     if (!hint) {
-      setWaitKind("cutout");
+      setWaitKind("lookup");
       setStep("processing");
     }
     const startedAt = Date.now();
@@ -992,8 +1021,18 @@ export function CapturePage() {
       console.error(e);
       if (runTokenRef.current !== token) return;
       toast.error(t("cap.cardFailed"));
-      setStep("select");
+      // 打った語だけの回は、選ぶ候補が無い。検索の欄へ打った語を残して戻す。
+      if (!hint && suggestions.length === 0) backToSearch(head);
+      else setStep("select");
     }
+  }
+
+  /** 撮る画面の検索の欄へ、打った語を残したまま戻す。 */
+  function backToSearch(head: string) {
+    setSelectedHead("");
+    setTypedWord(head);
+    setReturnMode("search");
+    setStep("object");
   }
 
   /**
@@ -1004,7 +1043,12 @@ export function CapturePage() {
    * 動き出すまでに、回線しだいで1〜3秒の無音があった。
    * いまは押した瞬間に演出が始まり、これはその裏で走る。
    */
-  async function doSave(card: CardData, selectedHead: string) {
+  async function doSave(
+    card: CardData,
+    selectedHead: string,
+    /** 写真の無い札に載せたネットの画像（図鑑の手元の一覧に先に出す）。 */
+    placeholder: string | null = null,
+  ) {
     // 温めてある位置を**ここで確定させる**。状態を直に読むと、
     // 候補を早く選んだ回はまだ届いていない。
     const locationPromise = resolveLocation();
@@ -1122,7 +1166,7 @@ export function CapturePage() {
         cutout_thumb_url: null,
         capture_type: "photo",
         hero_role: null,
-        placeholder_url: null,
+        placeholder_url: placeholder,
         placeholder_credit: null,
         word: {
           headword: selectedHead,
@@ -1190,30 +1234,16 @@ export function CapturePage() {
     pronounce.prepare();
     track("catch_started");
     catchStartedAtRef.current = Date.now();
-    const hero = objectImg;
-    // 文字で入れた語には写真が無い。**飛ぶ物が無いのだから飛ばさない。**
-    // ここだけは従来どおり、待つ面を出す(そこには単語しか出ない)。
-    if (!hero) {
-      setStep("saving");
-      // 写真の経路では `v5_reward` の grip 段が鳴らすが、こちらは演出を
-      // 通らない。**押した返事まで消してはいけない**ので、ここで鳴らす。
-      Sound.rewardGrip();
-      haptic("selection");
-      try {
-        const res = await doSave(card, selectedHead);
-        savedRef.current = true;
-        // 捕まえた手応え（写真の経路は `v5_reward` の着地が鳴らす）。
-        haptic("success");
-        navigate({ to: "/dex", search: { justCaught: res.id } });
-      } catch (e) {
-        console.error(e);
-        reportSaveFailure("catch", e, { photo: false });
-        toast.error(readable(e, t("cap.saveFailed")));
-        setStep("card");
-      }
-      return;
-    }
-
+    /**
+     * **文字で入れた語も、その札から飛ばす**（オーナー報告 2026-10-08「白い画面に語だけが
+     * 数秒止まる」「図鑑のカテゴリーへ入っていく動きが無い」）。
+     *
+     * 前は写真が無いと「飛ぶ物が無い」として保存の面（語だけ）に差し替え、保存の
+     * 往復が終わるまで何も動かなかった。いまは札に必ず絵が載る（ネットの画像か、
+     * 語を組んだ札。`lib/text-sticker.ts`）ので、写真と同じ演出で図鑑のマス目へ飛ばす。
+     */
+    const art = stickerArt;
+    setLandingArt(art.url);
     setSaving(true);
     setLanding(true);
     // **ここで音と振動を鳴らさない。** `v5_reward` の grip 段が同じものを
@@ -1222,13 +1252,17 @@ export function CapturePage() {
 
     // 保存は裏で走らせる。**id は決まり次第ここに入る。**
     let savedId: string | undefined;
-    const savePromise = doSave(card, selectedHead).then((res) => {
-      savedId = res.id;
-      savedRef.current = true;
-      // DBへの保存が成功した写真だけを端末へ同期する。保存処理自体の失敗で
-      // キャッチを巻き戻さないため、ここは待たずに実行する。
-      return res;
-    });
+    const savePromise = doSave(card, selectedHead, art.kind === "web" ? art.url : null).then(
+      (res) => {
+        savedId = res.id;
+        savedRef.current = true;
+        // 写真の無い札には、探したネットの画像を仮画像として残す（裏で走る）。
+        if (art.kind !== "photo") void webHero.attach(res.id, selectedHead);
+        // DBへの保存が成功した写真だけを端末へ同期する。保存処理自体の失敗で
+        // キャッチを巻き戻さないため、ここは待たずに実行する。
+        return res;
+      },
+    );
     // **失敗が分かった時点で演出を畳む。** 祝ってから謝るのがいちばん悪い。
     void savePromise.catch(() => setLanding(false));
 
@@ -1241,6 +1275,8 @@ export function CapturePage() {
         pronounce(selectedHead, true, { pinyin: card.pinyin, zhuyin: card.reading_zhuyin }),
       // **先に読ませない。** 押した時点ではまだ決まっていない。
       getDestinationId: () => savedId,
+      // マス目がまだ出ない時は、その語のカテゴリーの見出しへ降ろす（`lib/landing-target.ts`）。
+      getDestinationCategory: () => card.new_shelf?.key ?? card.category_key ?? null,
       openDex: () => {
         if (!savedId) return;
         return navigate({ to: "/dex", search: { justCaught: savedId } });
@@ -1271,7 +1307,7 @@ export function CapturePage() {
         navigate({ to: "/dex", search: {} });
         return;
       }
-      reportSaveFailure("catch", e, { photo: true });
+      reportSaveFailure("catch", e, { photo: art.kind === "photo" });
       toast.error(readable(e, t("cap.saveFailed")));
     }
   }
@@ -1294,6 +1330,8 @@ export function CapturePage() {
     setFlipped(false);
     setError(null);
     setLanding(false);
+    setLandingArt(null);
+    setReturnMode(null);
     setReenc(null);
     setReencResult(null);
     // **やり直したら、預けた写真も捨てる。**
@@ -1314,10 +1352,15 @@ export function CapturePage() {
    * どちらの道でも `reset()`/番号の更新で走っている処理を無効化する。
    */
   function cancelProcessing() {
-    if (waitKind === "cutout" && suggestions.length > 0) {
+    if (waitKind === "lookup") {
       runTokenRef.current++;
-      setSelectedHead("");
-      setStep("select");
+      // 写真の候補から打ち直した回は候補へ、打っただけの回は検索の欄へ戻す。
+      if (suggestions.length > 0) {
+        setSelectedHead("");
+        setStep("select");
+      } else {
+        backToSearch(selectedHead);
+      }
       return;
     }
     reset();
@@ -1468,19 +1511,22 @@ export function CapturePage() {
            */
           onSearch={(w) => void searchWord(w)}
           searching={searching}
-          initialMode={modeParam ?? "photo"}
+          initialMode={returnMode ?? modeParam ?? "photo"}
           onOpenScan={() => navigate({ to: "/scan" })}
           error={error}
         />
       )}
 
-      {step === "processing" && (
-        <CaptureAnalyzingPanel
-          image={objectImg}
-          cutout={waitKind === "cutout"}
-          onCancel={cancelProcessing}
-        />
-      )}
+      {step === "processing" &&
+        (waitKind === "lookup" ? (
+          <CaptureLookupPanel
+            headword={selectedHead}
+            lang={targetLanguage}
+            onCancel={cancelProcessing}
+          />
+        ) : (
+          <CaptureAnalyzingPanel image={objectImg} onCancel={cancelProcessing} />
+        ))}
 
       {step === "select" && (
         <PickWordPanel
@@ -1510,6 +1556,7 @@ export function CapturePage() {
           card={card}
           selectedHead={selectedHead}
           objectImg={objectImg}
+          art={stickerArt.url}
           selfieImg={selfieImg}
           flipped={flipped}
           setFlipped={setFlipped}
@@ -1571,7 +1618,7 @@ export function CapturePage() {
       {landing && (
         <CatchLandingOverlay
           ref={flyRef}
-          image={objectImg}
+          image={landingArt ?? objectImg}
           headword={selectedHead}
           lang={targetLanguage}
           reading={landingReading}
@@ -1613,6 +1660,66 @@ export function CaptureAnalyzingPanel({
       >
         {t("capture.cancel")}
       </button>
+    </div>
+  );
+}
+
+/**
+ * **打った語の意味を調べている面**（写真の無いキャッチ）。
+ *
+ * ## オーナー報告 2026-10-08（画面の録画）
+ * > 文字で「貓」と調べたら、写真も物も無いのに、黒い画面の粒子の「AI が分析中…」が
+ * > 11秒ほど続いた。
+ *
+ * 写真の無い回に「分析」する物は無い。待っているのは**意味を引くこと**だけなので、
+ * 打った語そのものを大きく出し、「意味を調べています」を静かに添える。暗転も粒子も
+ * 出さない（明るい地のまま、カードが出る画面と同じ地）。動くのは小さな3つの点だけで、
+ * 動きを減らす設定では止まる。
+ *
+ * 出口は必ず置く（打った語を残して検索の欄へ戻る）。
+ */
+export function CaptureLookupPanel({
+  headword,
+  lang,
+  onCancel,
+}: {
+  headword: string;
+  /** その語の学習言語（字の組み方。`Term` の注）。 */
+  lang?: string | null;
+  onCancel: () => void;
+}) {
+  const t = useT();
+  return (
+    <div
+      className="flex min-h-[60dvh] flex-col items-center justify-center gap-5 text-center"
+      role="status"
+      aria-live="polite"
+      data-testid="capture-lookup"
+    >
+      <div className="capture-lookup__word grid aspect-square w-48 max-w-[62vw] place-items-center rounded-[28px] border border-border bg-card shadow-[0_16px_45px_#1175c514]">
+        <Term
+          as="p"
+          lang={lang}
+          className="px-4 text-[clamp(2.25rem,12vw,4.5rem)] font-bold leading-none tracking-tight text-foreground [overflow-wrap:anywhere]"
+        >
+          {headword}
+        </Term>
+      </div>
+      <p className="flex items-center gap-2 text-body text-muted-foreground">
+        {t("capture.lookingUp")}
+        <span aria-hidden className="inline-flex gap-1">
+          {[0, 1, 2].map((i) => (
+            <span
+              key={i}
+              className="h-1.5 w-1.5 animate-pulse rounded-full bg-muted-foreground/70 motion-reduce:animate-none"
+              style={{ animationDelay: `${i * 180}ms` }}
+            />
+          ))}
+        </span>
+      </p>
+      <Button variant="outline" onClick={onCancel} className="min-h-11 rounded-full px-5">
+        {t("capture.cancel")}
+      </Button>
     </div>
   );
 }
@@ -1990,10 +2097,16 @@ export function CaptureCardPanel({
   heroBoxRef,
   landing = false,
   saving = false,
+  art,
 }: {
   card: CardData;
   selectedHead: string;
   objectImg: string | null;
+  /**
+   * 札に載せる絵。**写真の無い回**（文字で調べた語）はネットの画像か、語を組んだ札
+   * （`lib/text-sticker.ts`）。渡さなければ撮った写真。
+   */
+  art?: string | null;
   /** 裏面。自撮りが無ければ「まだ無い」と描く。 */
   selfieImg: string | null;
   flipped: boolean;
@@ -2030,7 +2143,7 @@ export function CaptureCardPanel({
           <div className="card-face absolute inset-0 overflow-hidden rounded-3xl">
             <div className="grid h-full place-items-center">
               <PeelSticker
-                photoUrl={objectImg}
+                photoUrl={art ?? objectImg}
                 label={selectedHead}
                 actionLabel={t("capture.addToDex")}
                 hint={t("capture.peelHint")}

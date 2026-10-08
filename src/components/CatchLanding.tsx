@@ -42,6 +42,8 @@ export async function runCatchLanding(ctx: {
   destinationId?: string;
   /** 保存済みの札を後から受け取る口(`types.ts` の注)。 */
   getDestinationId?: () => string | undefined;
+  /** その語のカテゴリー（マス目が出ない時の降ろし先。`lib/landing-target.ts`）。 */
+  getDestinationCategory?: () => string | null | undefined;
   openDex?: () => void | Promise<void>;
   /** 保存の通信。見せ場の1秒がこれを待つ。 */
   gate?: Promise<unknown>;
@@ -95,6 +97,7 @@ export async function runCatchLanding(ctx: {
     speakLine: ctx.speakLine,
     destinationId: ctx.destinationId,
     getDestinationId: ctx.getDestinationId,
+    getDestinationCategory: ctx.getDestinationCategory,
     openDex: ctx.openDex,
     gate: ctx.gate,
     intensity: plan,

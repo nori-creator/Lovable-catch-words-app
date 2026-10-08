@@ -2584,19 +2584,25 @@ describe("キャッチの報酬演出", () => {
    * そこに置かれた**別の大きさの写真のコピー**(`w-64`)から飛んでいた。
    * 画面が変わってから別の絵が動くので、同じ物が動いたようには見えない。
    *
-   * **文字で入れた語だけは例外。** 飛ぶ写真が無いので待つ面を出す。
-   * だから「`setStep("saving")` を使わない」ではなく
-   * 「**写真が無いときにしか使わない**」が守るべき形。
+   * **文字で入れた語も例外にしない**（オーナー報告 2026-10-08「白い画面に語だけが
+   * 数秒止まる」）。前は写真が無いと保存の面（語だけ）へ差し替え、保存が終わるまで
+   * 何も動かなかった。いまは札に必ず絵が載る（`lib/text-sticker.ts`）ので、
+   * 写真と同じく**その札から**飛ばす。`setStep("saving")` はもう使わない。
    */
-  it("写真が在るときは画面を差し替えない（その場の写真から飛ばす）", () => {
+  it("画面を差し替えない（写真でも文字でも、その場の札から飛ばす）", () => {
     const cap = codeOnly(read("components/screens/CaptureScreen.tsx"));
     const fn = cap.slice(cap.indexOf("async function handleSave()"));
     const body = fn.slice(0, fn.indexOf("\n  }\n"));
-    // 飛ぶ枠は、いま画面に出ているカードの写真。
+    // 飛ぶ枠は、いま画面に出ているカードの札。
     expect(cap).toMatch(/heroBoxRef=\{heroBoxRef\}/);
-    // 差し替えは**写真が無い経路の中だけ**。
-    expect(body).toMatch(/if \(!hero\) \{[\s\S]{0,200}?setStep\("saving"\)/);
-    expect(body.match(/setStep\("saving"\)/g) ?? []).toHaveLength(1);
+    expect(body).not.toMatch(/setStep\("saving"\)/);
+    expect(body).not.toMatch(/if \(!hero\)/);
+    // 飛ぶ絵は押した時の札の絵（写真・ネットの画像・語の札）。
+    expect(body).toMatch(/const art = stickerArt;\s*setLandingArt\(art\.url\);/);
+    expect(cap).toMatch(/image=\{landingArt \?\? objectImg\}/);
+    // 写真が無い札には、剥がす札にも同じ絵を載せる（何も無い札を剥がさせない）。
+    expect(cap).toMatch(/art=\{stickerArt\.url\}/);
+    expect(cap).toMatch(/photoUrl=\{art \?\? objectImg\}/);
   });
 
   /**
@@ -4870,7 +4876,11 @@ describe("ホームは今日の誌面", () => {
     // 削除して」: 帯には**今回の依頼の面だけ**。
     // 2026-10-05: 先頭は今回変更したウェルカムのログイン導線。
     // その前の回（広告・ベータの計測）の面も、まだ見てもらう途中なので後ろに残す。
-    expect(list.slice(0, list.indexOf("},"))).toMatch(/scene: "first-catch&lang=ja"/);
+    // 2026-10-08: 先頭は文字で調べた語のキャッチ（調べている間・札・着地）。
+    expect(list.slice(0, list.indexOf("},"))).toMatch(/scene: "text-analyzing"/);
+    for (const sc of ["text-peel-web", "text-peel-only", "text-landing", "first-catch&lang=ja"]) {
+      expect(list).toContain(`scene: "${sc}"`);
+    }
     for (const sc of ["settings-saved", "home-resurface", "catch-animation&plan=full"]) {
       expect(list).toContain(`scene: "${sc}"`);
     }
@@ -6273,8 +6283,31 @@ describe("R22（2026-09-29 オーナー報告: 設定で止まる・演出・3D�
   it("候補を選んだ時は「AI が分析中」を出さない", () => {
     const cap = codeOnly(read("components/screens/CaptureScreen.tsx"));
     expect(cap).toMatch(
-      /if \(!hint\) \{\s*setWaitKind\("cutout"\);\s*setStep\("processing"\);\s*\}/,
+      /if \(!hint\) \{\s*setWaitKind\("lookup"\);\s*setStep\("processing"\);\s*\}/,
     );
+  });
+
+  it("打った語を調べる間は、粒子の「AI が分析中」ではなく語そのものを静かに出す", () => {
+    // オーナー報告 2026-10-08「写真が無いのに黒い画面で11秒も分析中」。
+    const cap = codeOnly(read("components/screens/CaptureScreen.tsx"));
+    expect(cap).toMatch(
+      /waitKind === "lookup" \? \(\s*<CaptureLookupPanel[\s\S]{0,200}?\) : \(\s*<CaptureAnalyzingPanel/,
+    );
+    const panel = cap.slice(cap.indexOf("export function CaptureLookupPanel"));
+    const body = panel.slice(0, panel.indexOf("\n}\n"));
+    // 暗転も粒子も出さない。点の動きは動きを減らす設定で止まる。
+    expect(body).not.toMatch(/ScanEffect|bg-black/);
+    expect(body).toMatch(/motion-reduce:animate-none/);
+    expect(body).toMatch(/t\("capture\.lookingUp"\)/);
+    // 出口は必ず置く。
+    expect(body).toMatch(/onClick=\{onCancel\}/);
+  });
+
+  it("着地先はマス目の約束（#dex-cell-<id>）を守り、待ちきれなければカテゴリーへ降ろす", () => {
+    const reward = codeOnly(read("components/effects/catch-landing/v5_reward.ts"));
+    expect(reward).toMatch(/findLandingTarget\(visible, \{ id, categoryKey, fallback \}\)/);
+    const cap = codeOnly(read("components/screens/CaptureScreen.tsx"));
+    expect(cap).toMatch(/getDestinationCategory: \(\) =>/);
   });
 
   it("候補の注音は見出しと同じ比（下限 11px を外す）", () => {
@@ -6369,7 +6402,9 @@ describe("R25（2026-09-30: ベータテストの指摘・最初の画面の4枚
     for (const k of ["save_failed_catch", "save_failed_reencounter", "save_failed_first_transfer"])
       expect(metrics).toContain(`"${k}"`);
     const capture = codeOnly(read("components/screens/CaptureScreen.tsx"));
-    expect(capture.match(/reportSaveFailure\("catch"/g)?.length).toBe(2);
+    // 写真と文字の経路は 2026-10-08 から1つ（どちらも札から飛ばす）。写真の有無は印で分ける。
+    expect(capture.match(/reportSaveFailure\("catch"/g)?.length).toBe(1);
+    expect(capture).toMatch(/reportSaveFailure\("catch", e, \{ photo: art\.kind === "photo" \}\)/);
     expect(capture).toMatch(/reportSaveFailure\("reencounter", e\)/);
     expect(codeOnly(read("components/onboarding/FirstCatchTransfer.tsx"))).toMatch(
       /reportSaveFailure\("first_transfer"/,

@@ -4418,6 +4418,12 @@ export const DICT: Record<string, Record<UiLang, string>> = {
     "zh-TW": "現在就再試一次",
   },
   "capture.cancel": { ja: "やめる", en: "Cancel", "zh-TW": "取消" },
+  // 打った語の意味を引いている間（`CaptureLookupPanel`）。写真が無いので「分析」とは言わない。
+  "capture.lookingUp": {
+    ja: "意味を調べています",
+    en: "Looking up the meaning",
+    "zh-TW": "正在查詢意思",
+  },
   "capture.toHome": { ja: "ホームへ", en: "Go Home", "zh-TW": "回首頁" },
   "capture.oneMore": { ja: "もう一枚撮る", en: "Take another", "zh-TW": "再拍一張" },
   "capture.reunion": { ja: "再会！", en: "Reunion!", "zh-TW": "重逢！" },

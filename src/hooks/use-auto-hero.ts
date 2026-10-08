@@ -215,7 +215,7 @@ const AI_IMAGE_KEY = "ai:generating";
  * ネットの画像はサーバ経由(CORS 回避)、AI の生成画像はそのまま —
  * その判断は `toImageDataUrl` が1箇所で持っている。
  */
-async function uploadWebImage(
+export async function uploadWebImage(
   cand: WebImageCandidate,
   fetchImageFn: Parameters<typeof toImageDataUrl>[1],
 ): Promise<string> {
