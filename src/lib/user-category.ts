@@ -12,7 +12,13 @@
  * 既定の54分類の**名前を変える**ときも同じ表に1行を置く（鍵は既定の鍵の
  * まま）。行を消せば元の名前に戻る。写真は1枚も動かない。
  */
-import { CATEGORY_KEYS, CATEGORY_META, asCategoryKey, type CategoryKey } from "./category";
+import {
+  CATEGORY_KEYS,
+  CATEGORY_META,
+  asCategoryKey,
+  wordCategoryKey,
+  type CategoryKey,
+} from "./category";
 import type { UserShelf } from "./shelf-plan";
 
 export type UserCategory = UserShelf;
@@ -32,12 +38,16 @@ export function isBuiltinCategory(key: string | null | undefined): key is Catego
  * `userKeys` を渡さない呼び出しは、その人の鍵も信じる（行の一覧を持たない所）。
  */
 export function stickerCategoryKey(
-  item: { shelf_key?: string | null; word: { category_key?: string | null } },
+  item: {
+    shelf_key?: string | null;
+    word: { category_key?: string | null; headword?: string | null };
+  },
   userKeys?: ReadonlySet<string>,
 ): string {
   const override = (item.shelf_key ?? "").trim();
   if (override && (BUILTIN.has(override) || !userKeys || userKeys.has(override))) return override;
-  return asCategoryKey(item.word.category_key);
+  // 見出し語で直した分類（保存した時の古い取り違えを、読む時に正す）。
+  return wordCategoryKey(item.word);
 }
 
 /** 見出しに出す名前と絵文字。その人が付け直した物を先に見る。 */

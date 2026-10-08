@@ -4878,7 +4878,10 @@ describe("ホームは今日の誌面", () => {
     // その前の回（広告・ベータの計測）の面も、まだ見てもらう途中なので後ろに残す。
     // 2026-10-08: 先頭は文字で調べた語のキャッチ（調べている間・札・着地）、続いて図鑑（影・番号・
     // 入れ替わる写真・同じ言葉は1マス）。ウェルカムのログイン導線はまだ見てもらう途中なので後ろに残す。
-    expect(list.slice(0, list.indexOf("},"))).toMatch(/scene: "text-analyzing"/);
+    // 2026-10-08（後）「図鑑の影のクオリティーが低い」: 先頭は図鑑の影（項目ごとの塗りの形）。
+    expect(list.slice(0, list.indexOf("},"))).toMatch(/scene: "dex-book"/);
+    expect(list).toContain(`scene: "dex-book&case=all"`);
+    expect(list).toContain(`scene: "text-analyzing"`);
     for (const sc of [
       "text-peel-web",
       "text-peel-only",

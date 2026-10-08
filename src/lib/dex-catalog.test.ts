@@ -13,7 +13,6 @@ import {
   normDexHeadword,
 } from "./dex-catalog";
 import { CATEGORY_KEYS } from "./category";
-import { DEX_SYMBOL_ICONS, dexSilhouetteIcon } from "@/components/DexSilhouette";
 import ios from "./__fixtures__/ios-dex-catalog.json";
 
 /**
@@ -141,17 +140,5 @@ describe("見出し語で影を引く", () => {
     expect(dexHeadword(cat, "en")).toBe("cat");
     expect(dexHeadword(cat, "ja")).toBe("猫");
     expect(dexHeadword(cat, undefined)).toBe("貓");
-  });
-});
-
-describe("影の絵", () => {
-  it("Web の絵に置き換えた SF Symbol は、表に在る名前だけ", () => {
-    const used = new Set(DEX_ITEMS.map((it) => it.symbol).filter(Boolean));
-    for (const name of Object.keys(DEX_SYMBOL_ICONS)) expect(used.has(name)).toBe(true);
-  });
-
-  it("絵の無い物は null（角の丸い四角）", () => {
-    expect(dexSilhouetteIcon({ id: "nothing", symbol: null })).toBeNull();
-    expect(dexSilhouetteIcon({ id: "cat", symbol: "cat" })).not.toBeNull();
   });
 });

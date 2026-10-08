@@ -392,6 +392,9 @@ const q = new URLSearchParams(location.search);
  * 「これを見てください」と差し出すことになる。
  */
 const REVIEW_SCENES: Array<{ scene: string; label: string }> = [
+  // 2026-10-08「図鑑の影のクオリティーが低い。もっとデザインのクオリティーを最高品質にして」。
+  { scene: "dex-book", label: "図鑑: 影を項目ごとの塗りの形に・No.???・燒仙草はお菓子へ" },
+  { scene: "dex-book&case=all", label: "図鑑: 379 の影を全部（カテゴリーごと）" },
   // 2026-10-08 文字で調べた語（「貓」）のキャッチ。オーナーの録画で出た4つの段。
   { scene: "text-analyzing", label: "文字で調べた語: 意味を調べている間（粒子の演出を出さない）" },
   { scene: "text-peel-web", label: "文字で調べた語: ネットの画像を載せた札" },
@@ -405,7 +408,6 @@ const REVIEW_SCENES: Array<{ scene: string; label: string }> = [
   // 2026-10-08「iOS版のように図鑑自体にものの影を表示して、それぞれの単語に番号振って」
   // 「文字検索したら同じ単語でも同じものとしてカウントされてない」「同じ単語で複数回撮った場合は…
   // 画像が変わるようにして。また撮った回数を書き入れて」。
-  { scene: "dex-book", label: "図鑑: 影と番号（iOS と同じ20のカテゴリー）" },
   { scene: "dex-book&case=cycle", label: "図鑑: 何度も撮った言葉の写真が入れ替わる・×3" },
   { scene: "dex-book&case=merge", label: "図鑑: 文字で2回検索した「貓」が1マスに" },
   { scene: "first-catch&lang=ja", label: "ウェルカム → 既存アカウントのログイン" },
