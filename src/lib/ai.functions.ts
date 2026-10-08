@@ -39,6 +39,7 @@ import {
   type AiAttemptRecord,
 } from "./ai-attempts";
 import { fitSuggestionsToReader } from "./first-catch-meaning";
+import { WordCandidatesSchema, normalizeUsage } from "./text-search-flow";
 
 // 形は `card-schema.ts` に移したが、**取り込み元は変えない** —
 // 5箇所が `@/lib/ai.functions` から型を取っている。移した都合を
@@ -470,22 +471,15 @@ const WordCandidatesInput = z.object({
   /** どこで・どんな様子だったか(任意)。候補を絞る手がかり。 */
   scene: z.string().max(200).optional(),
   targetLanguage: z.string().default(DEFAULT_TARGET_LANGUAGE),
+  /**
+   * 画面が手元で見分けた「打った語は何語か」（`lib/text-query-lang.ts`）。
+   * 省いた呼び出し（古い iOS）は今までどおり母語として引く。
+   */
+  queryLang: z.enum(["target", "native", "ambiguous"]).optional(),
 });
 
-const CandidateSchema = z.object({
-  candidates: z
-    .array(
-      z.object({
-        headword: z.string(),
-        reading_zhuyin: z.string().default(""),
-        pinyin: z.string().default(""),
-        meaning_ja: z.string().default(""),
-        /** 他の候補との**違い**を一言で(例: トイレに置く方)。 */
-        distinction: z.string().default(""),
-      }),
-    )
-    .default([]),
-});
+// 候補の形は `lib/text-search-flow.ts`（画面の決め事と試験が同じ物を読む）。
+const CandidateSchema = WordCandidatesSchema;
 
 export const suggestWordCandidates = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
@@ -504,8 +498,18 @@ export const suggestWordCandidates = createServerFn({ method: "POST" })
 
     // 学習言語の名前も分け方の例も、言語の表から取る(決め打たない)。
     const candProfile = targetProfile(data.targetLanguage);
-    const prompt = `学習者が母語で「${data.query}」と書いた。これが指す${candProfile.promptName}の候補を挙げてください。
+    const queryLine =
+      data.queryLang === "target"
+        ? `「${data.query}」はすでに${candProfile.promptName}の語として打たれている。query_is_target は true。candidates にはその語1つだけ（読み・意味）を返す。`
+        : data.queryLang === "native"
+          ? `「${data.query}」は学習者の母語（または別の言語）で打たれている。query_is_target は false。`
+          : `「${data.query}」が**${candProfile.promptName}としてそのまま通じる語か**を先に判断し、query_is_target に true / false で書く（漢字だけの語は日本語とも${candProfile.promptName}とも読めるので、${candProfile.promptName}で実際にその意味でふつうに使う語なら true。日本語の字形・日本語にしか無い言い方なら false）。true なら candidates にはその語1つだけを返す。`;
+    const usageLocal = data.targetLanguage.startsWith("zh")
+      ? "local（台湾でよく使う。中国大陸の言い方と違う時）"
+      : "local（その土地でよく使う言い方）";
+    const prompt = `学習者が「${data.query}」と書いた。これが指す${candProfile.promptName}の語を挙げてください。
 
+${queryLine}
 ${sceneLine}
 ${levelRule}
 ${langRule}
@@ -518,12 +522,24 @@ ${langRule}
   返らないと母語のまま次へ渡り、最後に「学んでいる言語の単語ではありません」
   とだけ出る — 打った人には**機能が壊れているようにしか見えない**
   (オーナー指摘 2026-08-20「単語の文字入力がエラーが出て、機能してない」)。
-- **細かく分ける。** 母語の1語が${candProfile.promptName}では複数の別語になることが多い。
+- **一対一なら1つだけ。** 母語の語と${candProfile.promptName}の語がほぼ一対一に対応するなら、
+  候補は1つだけ返す。**候補を水増ししない**（同じ物の言い換え・ほとんど使わない語・作った語を足さない）。
+- **本当に割れる時だけ複数。** 母語の1語が${candProfile.promptName}では別々の語に分かれる時
+  （指す物が違う・日常の言い方と書き言葉/学術的な言い方・口語・その土地の言い方）だけ、
+  2〜5個を**よく使う順**に並べる。
   例: ${candProfile.capture.distinctionExamples}
 - それぞれの distinction に、**他とどう違うか**を短く書く(15文字程度)。
   違いが書けない候補は挙げない — 同じ物の言い換えを並べても選べない。
-- 実際に使われている語だけ。${candProfile.capture.scriptRule}。
-- 2〜5個。**確かなものだけ**。1つしか無いならそれだけ返す。`;
+- それぞれの usage に、使われ方を次のどれか1つで書く:
+  common（一般的）/ colloquial（口語）/ formal（書き言葉・改まった）/ academic（学術・専門）/ ${usageLocal}。
+- それぞれの image_query に、その物を写真で探すための**短い英語**（2〜4語。例: "lotus root"）を書く。
+  物の形が無い語（動詞・形容詞・抽象語）でも、その意味が伝わる場面を短く。
+- meaning_ja は一行の短い訳（その語の意味が分かる程度）。
+- 実際に${candProfile.promptName}で使われている語だけ。${candProfile.capture.scriptRule}。
+  中国大陸でしか使わない言い方は出さない。
+- **確かなものだけ**。
+
+出力の形: {"query_is_target":true/false,"candidates":[{"headword":"…","reading_zhuyin":"…","pinyin":"…","meaning_ja":"…","distinction":"…","usage":"common","image_query":"…"}]}`;
 
     const ask = (extra = "") =>
       generateStructured({
@@ -547,7 +563,7 @@ ${langRule}
      */
     if (raw.candidates.length === 0) {
       raw = await ask(
-        `\n\n出力の形: {"candidates":[{"headword":"…","reading_zhuyin":"…","pinyin":"…","meaning_ja":"…","distinction":"…"}]} のJSONだけを返す。前後に説明を書かない。headword は${candProfile.promptName}の語だけにし、括弧やローマ字の注釈を付けない。`,
+        `\n\n出力の形: {"query_is_target":false,"candidates":[{"headword":"…","reading_zhuyin":"…","pinyin":"…","meaning_ja":"…","distinction":"…","usage":"common","image_query":"…"}]} のJSONだけを返す。前後に説明を書かない。headword は${candProfile.promptName}の語だけにし、括弧やローマ字の注釈を付けない。`,
       );
     }
 
@@ -571,9 +587,28 @@ ${langRule}
       })
       .slice(0, 5)
       // 候補の読みも検める（`tw-reading.server.ts`）。
-      .map((c) => correctTaiwanReading(data.targetLanguage, c.headword, c));
+      .map((c) => correctTaiwanReading(data.targetLanguage, c.headword, c))
+      .map((c) => ({
+        headword: c.headword,
+        reading_zhuyin: c.reading_zhuyin,
+        pinyin: c.pinyin,
+        meaning_ja: c.meaning_ja,
+        distinction: c.distinction,
+        // 使われ方の印と、札の絵を探す英語（古い画面は読まない — 足しただけ）。
+        usage: normalizeUsage(c.usage),
+        image_query: (c.image_query ?? "").trim().slice(0, 80),
+      }));
     await recordCandidateReceipts(candProfile.code, candidates);
-    return { candidates };
+    // 手元で分かった時はそれを返す（AI の判定より確か）。
+    const query_is_target =
+      data.queryLang === "target"
+        ? true
+        : data.queryLang === "native"
+          ? false
+          : typeof raw.query_is_target === "boolean"
+            ? raw.query_is_target
+            : null;
+    return { candidates, query_is_target };
   });
 
 /**

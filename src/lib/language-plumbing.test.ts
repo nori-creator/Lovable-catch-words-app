@@ -1247,7 +1247,9 @@ describe("2026-08-26 の2度目の報告", () => {
     expect(cap).not.toMatch(/from "@\/components\/InputCatchSheet"/);
     // 検索している間も検索の画面のまま。全画面の「分析中」へ飛ばさない。
     expect(cap).toMatch(/setSearching\(true\)/);
-    expect(cap).toMatch(/disabled=\{searching \|\| !typedWord\.trim\(\)\}/);
+    // 2026-10-08: 調べている間も打ち直せる（打ち直して押せば前の検索は捨てる）。釦はその場で回る。
+    expect(cap).toMatch(/disabled=\{!typedWord\.trim\(\)\}/);
+    expect(cap).toMatch(/\{searching \? \(\s*<Loader2 className="animate-spin/);
   });
 });
 
@@ -1489,12 +1491,15 @@ describe("2026-08-26: 打つのは何語でもよいが、見出しは学習言�
   it("打った語を**解決してから**カードを作る", () => {
     const cap = codeOnly(read("components/screens/CaptureScreen.tsx"));
     expect(cap).toMatch(/async function searchWord\(/);
-    // 学習言語の語ならそのまま（速い道を残す）。
-    expect(cap).toMatch(/if \(isTargetHeadword\(word, targetLanguage\)\)/);
-    // そうでなければ候補に訊く（打つ言語は選ばせない）。
+    // 何語で打ったかを手元で見分けてから訊く（2026-10-08、`lib/text-query-lang.ts`）。
+    expect(cap).toMatch(/const local = detectQueryLang\(word, targetLanguage\)/);
+    // 候補に訊く（打つ言語は選ばせない）。学習言語の語なら、その語のまま札へ。
     expect(cap).toMatch(/await candidatesFn\(\{/);
-    // 学習言語の語として通る候補だけを使う。
-    expect(cap).toMatch(/isTargetHeadword\(c\.headword, targetLanguage\)/);
+    expect(cap).toMatch(/decideTextSearch\(\{/);
+    // 学習言語の語として通る候補だけを使う（`dedupeCandidates`）。
+    const flow = codeOnly(read("lib/text-search-flow.ts"));
+    expect(flow).toMatch(/coerceTargetHeadword\(c\.headword, targetLanguage\)/);
+    expect(flow).toMatch(/isTarget && isTargetHeadword\(query, input\.targetLanguage\)/);
   });
 
   it("**手で打つ所も同じ道を通る**（片方だけ直る事故を防ぐ）", () => {
@@ -1572,9 +1577,11 @@ describe("2026-08-26（7件目）: 文字検索・言語の切り替え・記憶
 
   it("**候補が1つなら選ばせない**(意味と発音へ直行)", () => {
     const cap = codeOnly(read("components/screens/CaptureScreen.tsx"));
-    expect(cap).toMatch(/if \(usable\.length === 1\)/);
-    const one = cap.slice(cap.indexOf("if (usable.length === 1)"));
-    expect(one.slice(0, one.indexOf("setSuggestions"))).toMatch(/confirmWord\(/);
+    const flow = codeOnly(read("lib/text-search-flow.ts"));
+    expect(flow).toMatch(/if \(usable\.length === 1\) return \{ kind: "peel", via: "single"/);
+    // 「剥がす」と決まったら、選ばせずに札を用意する。
+    expect(cap).toMatch(/logPick\(\{ via, rank: 1, n: 1 \}\);\s*startPeel\(decision\.pick\)/);
+    expect(cap).toMatch(/function startPeel\(pick: TextCandidate\) \{[\s\S]{0,800}?confirmWord\(/);
   });
 
   it("**母語も選んだ瞬間に効く**(学習言語と同じ形)", () => {
@@ -4877,8 +4884,12 @@ describe("ホームは今日の誌面", () => {
     // その前の回（広告・ベータの計測）の面も、まだ見てもらう途中なので後ろに残す。
     // 2026-10-08: 先頭は文字で調べた語のキャッチ（調べている間・札・着地）、続いて図鑑（影・番号・
     // 入れ替わる写真・同じ言葉は1マス）。ウェルカムのログイン導線はまだ見てもらう途中なので後ろに残す。
-    expect(list.slice(0, list.indexOf("},"))).toMatch(/scene: "text-analyzing"/);
+    // 2026-10-08（2回目）: 先頭は文字検索の流れ（その場で回る → 候補 → 絵と発音のそろった札）。
+    expect(list.slice(0, list.indexOf("},"))).toMatch(/scene: "text-searching"/);
     for (const sc of [
+      "text-candidates",
+      "text-candidates&state=preparing",
+      "text-peel-ready",
       "text-peel-web",
       "text-peel-only",
       "text-landing",
@@ -6290,25 +6301,22 @@ describe("R22（2026-09-29 オーナー報告: 設定で止まる・演出・3D�
 
   it("候補を選んだ時は「AI が分析中」を出さない", () => {
     const cap = codeOnly(read("components/screens/CaptureScreen.tsx"));
-    expect(cap).toMatch(
-      /if \(!hint\) \{\s*setWaitKind\("lookup"\);\s*setStep\("processing"\);\s*\}/,
-    );
+    const fn = cap.slice(cap.indexOf("async function confirmWord("));
+    const body = fn.slice(0, fn.indexOf("\n  }\n"));
+    expect(body).not.toMatch(/setStep\("processing"\)/);
   });
 
-  it("打った語を調べる間は、粒子の「AI が分析中」ではなく語そのものを静かに出す", () => {
-    // オーナー報告 2026-10-08「写真が無いのに黒い画面で11秒も分析中」。
+  it("打った語を調べる間は、待ち画面を出さず、その場で回る（2026-10-08 の2回目）", () => {
+    // オーナー報告 2026-10-08「写真が無いのに黒い画面で11秒も分析中」→ 同日の指示
+    // 「検索ボタンを押したらその場でくるくるとロード中になり…」。
     const cap = codeOnly(read("components/screens/CaptureScreen.tsx"));
-    expect(cap).toMatch(
-      /waitKind === "lookup" \? \(\s*<CaptureLookupPanel[\s\S]{0,200}?\) : \(\s*<CaptureAnalyzingPanel/,
-    );
-    const panel = cap.slice(cap.indexOf("export function CaptureLookupPanel"));
-    const body = panel.slice(0, panel.indexOf("\n}\n"));
-    // 暗転も粒子も出さない。点の動きは動きを減らす設定で止まる。
-    expect(body).not.toMatch(/ScanEffect|bg-black/);
-    expect(body).toMatch(/motion-reduce:animate-none/);
-    expect(body).toMatch(/t\("capture\.lookingUp"\)/);
-    // 出口は必ず置く。
-    expect(body).toMatch(/onClick=\{onCancel\}/);
+    expect(cap).not.toMatch(/CaptureLookupPanel|waitKind/);
+    expect(cap).toMatch(/\{step === "processing" && \(\s*<CaptureAnalyzingPanel/);
+    // 札を用意している間（絵と発音を待つ間）も、検索の欄が回る。
+    expect(cap).toMatch(/searching=\{searching \|\| !!holdHead\}/);
+    // 札の画面へは、絵と発音がそろってから（`peelReady`）。
+    expect(cap).toMatch(/const ready = peelReady\(\{/);
+    expect(cap).toMatch(/if \(hold\) \{\s*setReadySince\(Date\.now\(\)\);/);
   });
 
   it("着地先はマス目の約束（#dex-cell-<id>）を守り、待ちきれなければカテゴリーへ降ろす", () => {
