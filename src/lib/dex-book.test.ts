@@ -3,6 +3,7 @@ import {
   assignDexNumbers,
   countDexWords,
   dexAdGroupSizes,
+  dexPlaceOf,
   dexSections,
   formatDexNo,
   groupDexWords,
@@ -152,10 +153,10 @@ describe("図鑑の番号（iOS `DexNumbering`）", () => {
     expect(n.get("a")).toBe(n.get("b"));
   });
 
-  it("表示は No.%03d、無ければ No.---", () => {
+  it("表示は No.%03d、無ければ No.???（No.--- は作りかけに見えた）", () => {
     expect(formatDexNo(7)).toBe("No.007");
     expect(formatDexNo(123)).toBe("No.123");
-    expect(formatDexNo(null)).toBe("No.---");
+    expect(formatDexNo(null)).toBe("No.???");
   });
 });
 
@@ -163,7 +164,7 @@ describe("図鑑の節（iOS `DexBook.sections`）", () => {
   const stickers = [
     st("cat1", "貓", { day: 1 }),
     st("cat2", "貓", { day: 2 }),
-    st("m", "電梯卡", { cat: "transport" }),
+    st("m", "電動車", { cat: "transport" }),
   ];
   const numbers = assignDexNumbers(stickers, "zh-TW", memStore());
 
@@ -377,5 +378,17 @@ describe("写真の升目の広告は、捕まえた札の後ろにだけ数え�
       for (const i of list) expect(secs[g].slots[i].kind).toBe("caught");
     });
     expect(secs.some((s) => s.slots.some((x) => x.kind === "shadow"))).toBe(true);
+  });
+});
+
+describe("表に無い語の置き場所", () => {
+  it("燒仙草は「植物・花」(17) ではなく「お菓子」(4)（オーナー報告 2026-10-08）", () => {
+    const s = st("x", "燒仙草", { cat: "plant" });
+    expect(dexPlaceOf(s, "zh-TW", new Set())).toBe(4);
+  });
+
+  it("その人が移した先は、いつも勝つ", () => {
+    const s = { ...st("x", "燒仙草", { cat: "plant" }), shelf_key: "plant" };
+    expect(dexPlaceOf(s, "zh-TW", new Set())).toBe(17);
   });
 });

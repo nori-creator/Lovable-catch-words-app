@@ -144,6 +144,26 @@ const EXACT: Record<string, CategoryKey> = {
   家人: "family",
 };
 
+/**
+ * **語末の規則より先に見る語**。名前に「草・花・葉・鍋・燈」が入っていても、植物・花・台所道具・
+ * 家具ではない物。燒仙草（温かい仙草ゼリー）が「〜草」で**植物・花**の棚に入っていた
+ * （オーナー報告 2026-10-08、図鑑の画面）。同じ形の取り違えをまとめて先に拾う。
+ */
+const BEFORE_SUFFIX: Array<[RegExp, CategoryKey]> = [
+  // 飲み物（仙草茶・青草茶は「茶」、茶葉は「葉」で植物に入っていた）
+  [/(仙草茶|仙草蜜|青草茶|茶葉)$/, "drink"],
+  // 甘い物（仙草・愛玉・豆花・爆米花・雪花冰・棉花糖 など）
+  [/(仙草|愛玉|粉圓|豆花|爆米花|雪花冰|綿花糖|棉花糖|花生糖|花生湯)/, "dessert"],
+  // 料理（「〜鍋」は台所道具の規則に当たる — 火鍋は鍋ではなく料理）
+  [/(火鍋|麻辣鍋|臭臭鍋|涮涮鍋|鴛鴦鍋|石頭鍋)$/, "food"],
+  // 野菜（「〜花」で花に入る食べる花）
+  [/(韭菜花|花椰菜|青花菜)$/, "vegetable"],
+  // 街の灯り（「〜燈」は家具の規則に当たる）
+  [/(紅綠燈|路燈|號誌燈)$/, "street"],
+  // 空・天気
+  [/^雪花$/, "weather"],
+];
+
 /** 語末一致(「〜傘」「〜鞋」など、末尾で種類が決まるもの)。 */
 const SUFFIX: Array<[RegExp, CategoryKey]> = [
   [/(花|玫瑰|櫻花|向日葵|鬱金香|百合)$/, "flower"],
@@ -213,6 +233,7 @@ export function normalizeCategory(headword: string, cat: string | null | undefin
     // (文字キャッチは見出し語を人が打てるので、机上の話ではない)
     const exact = Object.prototype.hasOwnProperty.call(EXACT, h) ? EXACT[h] : undefined;
     if (exact) return exact;
+    for (const [re, key] of BEFORE_SUFFIX) if (re.test(h)) return key;
     for (const [re, key] of SUFFIX) if (re.test(h)) return key;
     for (const [re, key] of CONTAINS) if (re.test(h)) return key;
   }
@@ -362,6 +383,21 @@ export function asCategoryKey(key: string | null | undefined): CategoryKey {
   // として素通りしてしまう。そのまま CATEGORY_META を引くと関数が
   // 返り、`.emoji` で落ちる。自分が持っている鍵だけを認める。
   return k && Object.prototype.hasOwnProperty.call(CATEGORY_META, k) ? k : "other";
+}
+
+/**
+ * **語の分類を、読む時にも見出し語で直す。** 保存済みの鍵は、保存した時の規則のまま
+ * （燒仙草 = plant のような古い取り違えが残る）。見出し語があれば `normalizeCategory` を
+ * 通し、規則を直せば過去の札もその場で正しい棚に並ぶ。見出し語が無ければ `asCategoryKey`。
+ */
+export function wordCategoryKey(word: {
+  category_key?: string | null;
+  headword?: string | null;
+}): CategoryKey {
+  const h = (word.headword ?? "").trim();
+  return h
+    ? normalizeCategory(h, asCategoryKey(word.category_key))
+    : asCategoryKey(word.category_key);
 }
 
 /** そのカテゴリーの絵文字。 */

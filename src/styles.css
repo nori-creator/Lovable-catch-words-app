@@ -9633,3 +9633,45 @@ html[data-motion="reduce"] .save-status {
 html[data-motion="reduce"] .resurface-card {
   animation: none;
 }
+
+/* 図鑑の、まだ捕まえていない物の影（`components/DexSilhouette.tsx`）。
+   色はどれも地の色から作る — 明るい面でも暗いテーマ（.dark と暗い data-ui-theme）でも、
+   同じ「地より一段沈んだ形」に見える。 */
+.dex-shadow-tile {
+  background: radial-gradient(
+    120% 90% at 50% 30%,
+    color-mix(in oklab, var(--card) 55%, var(--secondary)) 0%,
+    var(--secondary) 70%
+  );
+  box-shadow:
+    inset 0 1px 2px color-mix(in oklab, var(--foreground) 7%, transparent),
+    inset 0 0 0 1px color-mix(in oklab, var(--foreground) 5%, transparent);
+}
+.dex-sil {
+  --dex-sil-top: color-mix(in oklab, var(--muted-foreground) 36%, var(--secondary));
+  --dex-sil-bottom: color-mix(in oklab, var(--muted-foreground) 56%, var(--secondary));
+}
+.dex-sil-top {
+  stop-color: var(--dex-sil-top);
+}
+.dex-sil-bottom {
+  stop-color: var(--dex-sil-bottom);
+}
+/* 下側に 1px の明るい縁: 地に押し込んだ型のように見せる。 */
+.dex-sil-art {
+  filter: drop-shadow(0 1px 0 color-mix(in oklab, var(--card) 80%, transparent));
+  animation: dexSilIn 240ms var(--ease-out-soft) both;
+}
+@keyframes dexSilIn {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+html[data-motion="reduce"] .dex-sil-art {
+  animation: none;
+}

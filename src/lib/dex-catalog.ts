@@ -12,7 +12,7 @@
  *   この順で**まだ捕まえていない最初の5つ**。
  * - 見出し語は学習言語ごと（zh-TW が主、en、ja）。捕まえた語は、学習言語の見出し語が
  *   同じなら、その影の物（`dexItemFor`）。
- * - `symbol` は iOS の SF Symbol の名前（影の絵）。Web では `DexSilhouette` が近い絵に置き換える。
+ * - `symbol` は iOS の SF Symbol の名前（iOS の影の絵）。Web の影は `dex-glyphs.ts` の表（項目 id → 塗りの形）。
  *   null は iOS の needsArt（絵がまだ無い — 角の丸い四角の影）。
  *
  * 見出し語の文字列は**学習する言語のデータ**で、画面の文言ではない（i18n の表には入れない）。

@@ -1032,16 +1032,18 @@ export function DexAlbumGrid({
               className="dex-shadow block"
               data-dex-shadow={cell.item.id}
             >
-              <div className="relative grid aspect-square place-items-center overflow-hidden rounded-2xl bg-secondary/70 pb-4 text-muted-foreground/30 ring-1 ring-black/5">
+              {/* 影のマス: 地より一段沈んだ型の中に、その物の形（`DexSilhouette`）。
+                  下に見出し語 — まだ捕まえていなくても、何を探せばいいかは読める。 */}
+              <div className="dex-shadow-tile relative grid aspect-square place-items-center overflow-hidden rounded-2xl pb-[22%]">
                 <DexSilhouette item={cell.item} />
                 <span
                   lang={htmlLangOf(dexLang(lang))}
-                  className="absolute inset-x-0 bottom-1 truncate px-1.5 text-center text-footnote font-semibold text-muted-foreground"
+                  className="absolute inset-x-0 bottom-1.5 truncate px-1.5 text-center text-footnote font-semibold text-muted-foreground"
                 >
                   {head}
                 </span>
               </div>
-              {showNo && <DexNo no={cell.no} />}
+              {showNo && <DexNo no={cell.no} shadow />}
             </div>
           );
         }
@@ -1305,11 +1307,24 @@ function DexCyclingPhoto({
   );
 }
 
-/** マスの下の番号（iOS `.no`: 小さく太く、灰色）。 */
-function DexNo({ no }: { no: number | null }) {
+/**
+ * マスの下の番号（iOS `.no`: 小さく太く、灰色）。影（`shadow`）は一段淡く — 捕まえた物の番号が
+ * 先に目に入る。番号がまだ無い物は `No.???`（「？？？」は更に淡く: 捕まえると番号が付く）。
+ */
+function DexNo({ no, shadow = false }: { no: number | null; shadow?: boolean }) {
+  const tone = shadow ? "text-muted-foreground/75" : "text-muted-foreground";
   return (
-    <div className="mt-1 text-center text-caption font-bold tabular-nums tracking-wide text-muted-foreground">
-      {formatDexNo(no)}
+    <div
+      className={`mt-1 text-center text-caption font-bold tabular-nums tracking-wide ${tone}`}
+      data-dex-no={no ?? "unknown"}
+    >
+      {no == null ? (
+        <>
+          No.<span className="tracking-[0.18em] opacity-60">???</span>
+        </>
+      ) : (
+        formatDexNo(no)
+      )}
     </div>
   );
 }

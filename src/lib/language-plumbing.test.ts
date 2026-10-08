@@ -4886,6 +4886,7 @@ describe("ホームは今日の誌面", () => {
     // 入れ替わる写真・同じ言葉は1マス）。ウェルカムのログイン導線はまだ見てもらう途中なので後ろに残す。
     // 2026-10-08（2回目）: 先頭は文字検索の流れ（その場で回る → 候補 → 絵と発音のそろった札）。
     expect(list.slice(0, list.indexOf("},"))).toMatch(/scene: "text-searching"/);
+    expect(list).toContain(`scene: "dex-book&case=all"`);
     for (const sc of [
       "text-candidates",
       "text-candidates&state=preparing",

@@ -18,6 +18,7 @@ import {
   type DexItem,
 } from "./dex-catalog";
 import { isBuiltinCategory } from "./user-category";
+import { wordCategoryKey } from "./category";
 
 /** 升目に並べる札に要る物だけ（`StickerWithWord` の一部）。 */
 export type DexGroupable = {
@@ -165,10 +166,17 @@ export function assignDexNumbers(
   return out;
 }
 
-/** 番号の表示（iOS `"No.%03d"`、番号が無ければ `No.---`）。 */
+/**
+ * 番号の表示（iOS `"No.%03d"`）。番号がまだ無い物（基本の100の外の影 — 番号は捕まえた順に
+ * 付く）は `No.???`。前は `No.---` で、オーナーから「作りかけに見える」（2026-10-08）。
+ * 「まだ分からない番号」を、図鑑のなぞとしてはっきり見せる。
+ */
 export function formatDexNo(no: number | null | undefined): string {
-  return no == null ? "No.---" : `No.${String(no).padStart(3, "0")}`;
+  return no == null ? DEX_NO_UNKNOWN : `No.${String(no).padStart(3, "0")}`;
 }
+
+/** まだ番号の無い物の表示。 */
+export const DEX_NO_UNKNOWN = "No.???";
 
 /** 升目の1マス: 捕まえた言葉か、まだの影か。 */
 export type DexSlot<T extends DexGroupable> =
@@ -230,7 +238,8 @@ export function dexPlaceOf(
     if (userKeys.has(override)) return override;
   }
   const item = dexItemFor(s.word.headword, s.word.language ?? lang);
-  return item ? item.category : dexCategoryForKey(s.word.category_key);
+  // 表に無い語は、見出し語で直した分類から（燒仙草が「〜草」で植物・花に入っていた）。
+  return item ? item.category : dexCategoryForKey(wordCategoryKey(s.word));
 }
 
 /**
