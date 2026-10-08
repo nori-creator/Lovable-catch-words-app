@@ -1834,7 +1834,7 @@ describe("ネットの画像は、届いてから並べる", () => {
   it("鍵の要らない出所がある", () => {
     expect(fs.existsSync(path.join(root, "lib/commons-images.ts"))).toBe(true);
     const fn = codeOnly(read("lib/images.functions.ts"));
-    expect(fn).toMatch(/commonsSearchUrl\(data\.query\)/);
+    expect(fn).toMatch(/commonsSearchUrl\(data\.query[,)]/);
     expect(fn).toMatch(/source: "commons"/);
     // 写真の候補が無い時の最後の控え（AI の1枚）は、コモンズを探した後。
     // 2026-10-03 から控えの1枚は枠を確保してから作る（`optionalAiImage`）。

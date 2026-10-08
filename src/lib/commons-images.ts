@@ -40,6 +40,11 @@ export type CommonsCandidate = {
   url: string;
   thumb: string;
   credit: { name: string; link: string };
+  /**
+   * 題・説明・分類をつないだ字（並べ直しの手がかり。`image-search-rank.ts`）。
+   * 画面には出さない — 候補を返す前に `images.functions.ts` が落とす。
+   */
+  text: string;
 };
 
 /**
@@ -102,6 +107,16 @@ export function commonsCandidates(json: CommonsResponse, limit = 6): CommonsCand
         name: license ? `${artist} / ${license}` : artist,
         link: info?.descriptionurl || url,
       },
+      text: [
+        (page.title ?? "").replace(/^File:/i, "").replace(/\.[a-z0-9]+$/i, ""),
+        metaValue(page, "ObjectName"),
+        metaValue(page, "ImageDescription"),
+        metaValue(page, "Categories"),
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .replace(/[_|]/g, " ")
+        .slice(0, 600),
     });
     if (out.length >= limit) break;
   }

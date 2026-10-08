@@ -5,6 +5,8 @@ import {
   needsWebHero,
   shouldOfferWebCandidates,
   heroSearchQuery,
+  cleanImageQuery,
+  imageQueryOf,
   MAX_QUERY_CHARS,
   placeAutoHeroWith,
 } from "./hero-image";
@@ -241,5 +243,40 @@ describe("placeAutoHeroWith — 人の操作を上書きしない", () => {
     expect(hook).toMatch(/superseded: \(\) => manualRef\.current\.has\(s\.id\)/);
     // swap と generateAi の両方で、走り出す前に印を付ける。
     expect(hook.match(/manualRef\.current\.add\(s\.id\);\s*setSwapping/g)).toHaveLength(2);
+  });
+});
+
+describe("heroSearchQuery — 画像検索用の英語（オーナー報告 2026-10-08「牛蒡で花の写真しか出ない」）", () => {
+  it("AI が返した image_query が在れば、意味の欄より先に使う", () => {
+    expect(
+      heroSearchQuery({ headword: "牛蒡", meaning: "ゴボウ", imageQuery: "burdock root" }),
+    ).toBe("burdock root");
+  });
+
+  it("無い・空・形が違う時は今までどおり意味の欄（古いカード）", () => {
+    expect(heroSearchQuery({ headword: "牛蒡", meaning: "ゴボウ" })).toBe("ゴボウ");
+    expect(heroSearchQuery({ headword: "牛蒡", meaning: "ゴボウ", imageQuery: "  " })).toBe(
+      "ゴボウ",
+    );
+    expect(heroSearchQuery({ headword: "牛蒡", meaning: "ゴボウ", imageQuery: null })).toBe(
+      "ゴボウ",
+    );
+  });
+
+  it("cleanImageQuery: 引用符・括弧・末尾の句点を落とし、文は使わない", () => {
+    expect(cleanImageQuery('"burdock root"')).toBe("burdock root");
+    expect(cleanImageQuery("burdock root (vegetable).")).toBe("burdock root");
+    expect(cleanImageQuery("This is a photo of a root! Really?")).toBe("");
+    expect(cleanImageQuery("a b c d e f g")).toBe("");
+    expect(cleanImageQuery(undefined)).toBe("");
+    const long = cleanImageQuery("supercalifragilistic expialidocious vegetable root");
+    expect(long.length).toBeLessThanOrEqual(MAX_QUERY_CHARS);
+    expect(long.endsWith(" ")).toBe(false);
+  });
+
+  it("imageQueryOf: 札の extras から読む（無い・形が違えば空）", () => {
+    expect(imageQueryOf({ image_query: "mango fruit" })).toBe("mango fruit");
+    expect(imageQueryOf({ image_query: 3 })).toBe("");
+    expect(imageQueryOf(null)).toBe("");
   });
 });

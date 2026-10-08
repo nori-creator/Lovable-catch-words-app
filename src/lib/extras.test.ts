@@ -460,3 +460,14 @@ describe("RegenUsageChunksSchema — 作り直しでも入れ替えの候補を�
     expect(src).toMatch(/schema: RegenUsageChunksSchema/);
   });
 });
+
+describe("image_query（画像検索用の英語。オーナー報告 2026-10-08）", () => {
+  it("保存の正規化で落とさない・型違いは空", () => {
+    expect(normalizeExtras({ image_query: "burdock root" })?.image_query).toBe("burdock root");
+    expect(normalizeExtras({ image_query: 5 })?.image_query).toBe("");
+  });
+
+  it("読む中身ではないので「中身がある」に数えない", () => {
+    expect(hasExtrasContent({ image_query: "burdock root" })).toBe(false);
+  });
+});

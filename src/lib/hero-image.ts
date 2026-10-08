@@ -68,16 +68,54 @@ export function shouldOfferWebCandidates(sources: PhotoSources | null | undefine
 /**
  * 画像検索に投げる言葉を作る。
  *
- * 意味の欄を**最初の語義だけ**に削り、括弧と穴埋め記号を落とす。
- * 何も残らなければ見出し語そのものに落ちる(空の検索を投げない)。
+ * 1. カードを作る時に AI が返した**画像検索用の英語**（`extras.image_query`）が在れば
+ *    それを使う（オーナー報告 2026-10-08「牛蒡を検索すると花の写真しか出ない」 —
+ *    意味の欄の `ゴボウ` で探すと植物のゴボウの花に当たる。`burdock root` なら食べる根）
+ * 2. 無ければ（古いカード）意味の欄を**最初の語義だけ**に削り、括弧と穴埋め記号を落とす
+ * 3. 何も残らなければ見出し語そのものに落ちる(空の検索を投げない)
  */
 export function heroSearchQuery(word: {
   headword?: string | null;
   meaning?: string | null;
+  imageQuery?: string | null;
 }): string {
   const head = (word.headword ?? "").trim();
+  const preferred = cleanImageQuery(word.imageQuery);
+  if (preferred) return preferred;
   const cleaned = firstSense(word.meaning ?? "");
   return (cleaned || head).slice(0, MAX_QUERY_CHARS);
+}
+
+/**
+ * `extras.image_query` を検索語に使える形にする。引用符・括弧を落とし、空白を詰め、
+ * 長すぎる物は語の切れ目で切る。文になっている物（句点入り・語が多すぎる）は使わない。
+ */
+export function cleanImageQuery(raw: string | null | undefined): string {
+  if (typeof raw !== "string") return "";
+  const t = raw
+    .replace(BRACKETED, " ")
+    .replace(/["'“”‘’「」『』]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .replace(/[。.]+$/, "")
+    .trim();
+  if (!t || /[。!?！？]/.test(t)) return "";
+  const words = t.split(" ");
+  if (words.length > 6) return "";
+  let out = "";
+  for (const w of words) {
+    const next = out ? `${out} ${w}` : w;
+    if (next.length > MAX_QUERY_CHARS) break;
+    out = next;
+  }
+  return out;
+}
+
+/** 札の語から、画像検索の手がかり（`extras.image_query`）を読む。形が違えば空。 */
+export function imageQueryOf(extras: unknown): string {
+  if (!extras || typeof extras !== "object") return "";
+  const v = (extras as { image_query?: unknown }).image_query;
+  return typeof v === "string" ? v : "";
 }
 
 function firstSense(raw: string): string {

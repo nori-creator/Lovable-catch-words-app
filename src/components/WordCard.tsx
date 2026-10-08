@@ -41,7 +41,8 @@ import { useT, useUiLang } from "@/lib/i18n";
 import { shortMeaning } from "@/lib/meaning-rule";
 import { readerMeaning, readerText } from "@/lib/note-language";
 import { Prose } from "@/components/Prose";
-import { useWebImages } from "@/lib/use-web-images";
+import { useWebImages, type WebImageWord } from "@/lib/use-web-images";
+import { imageQueryOf } from "@/lib/hero-image";
 import {
   chunkSpeechText,
   chunkTranslation,
@@ -105,6 +106,8 @@ export type WordCardData = {
   level?: string | null;
   example_sentence?: string | null;
   example_translation?: string | null;
+  /** 棚（ネットの画像の候補を並べ直す手がかり）。 */
+  category_key?: string | null;
   extras?: WordExtras | null;
 };
 
@@ -687,10 +690,7 @@ export const WordCard = forwardRef<
    */
   // 節の一覧に無い言語では検索しない（2026-10-02 にネットの画像の節を外した）。
   const wantsWebImages = inThisLanguage.has("web_images");
-  const webImages = useWebImages(
-    wantsWebImages ? word.headword : "",
-    wantsWebImages ? (word.meaning_ja ?? "") : "",
-  );
+  const webImages = useWebImages(webImageWord(wantsWebImages ? word : null));
   const canShow = (id: SectionId) =>
     id === "web_images" ? webImages.candidates.length > 0 : hasContent(id);
   const shown = minimal
@@ -1969,13 +1969,7 @@ function Body({
       return <Prose panel lang={word.language} text={ex.culture_note ?? ""} />;
 
     case "web_images":
-      return (
-        <WebImagesBody
-          headword={word.headword}
-          meaningJa={word.meaning_ja}
-          onPickImage={onPickImage}
-        />
-      );
+      return <WebImagesBody word={webImageWord(word)} onPickImage={onPickImage} />;
     case "real_usage":
       return (
         <>
@@ -2191,23 +2185,36 @@ function MeasureWordRow({
  * (以前はStickerSheetの折りたたみで、タップしないと出なかった)。
  * 結果は24hキャッシュされるので実コストは初回検索のみ。
  */
+/**
+ * ネットの画像を探す語（節を並べる側と中身を描く側で**同じ値**を渡す — 問い合わせの鍵が揃う）。
+ * `null` は「探さない」（空の語）。
+ */
+function webImageWord(word: WordCardData | null): WebImageWord {
+  if (!word) return { headword: "", meaningJa: "" };
+  return {
+    headword: word.headword,
+    meaningJa: word.meaning_ja ?? "",
+    imageQuery: imageQueryOf(word.extras),
+    category: word.category_key ?? null,
+  };
+}
+
 function WebImagesBody({
-  headword,
-  meaningJa,
+  word,
   onPickImage,
 }: {
-  headword: string;
-  meaningJa: string;
+  word: WebImageWord;
   onPickImage?: (url: string) => void | Promise<void>;
 }) {
   const t = useT();
+  const { headword } = word;
   // 「別の画像」を押すたびに検索し直す(seed をキーに入れてキャッシュを外す)。
   const [seed, setSeed] = useState(0);
   const [picking, setPicking] = useState<string | null>(null);
   // **節を並べる側と同じ問い合わせを読む**(`use-web-images.ts` の注)。
   // ここで自前に検索すると、「節は出ているのに中身が空」「中身は在るのに
   // 節が出ない」がどちらも起きうる。
-  const { candidates: all, isLoading, isFetching } = useWebImages(headword, meaningJa, seed);
+  const { candidates: all, isLoading, isFetching } = useWebImages(word, seed);
   // 再検索のたびに違う3枚を見せる(候補は最大6件返る)。
   const offset = seed % Math.max(1, Math.ceil(all.length / 3));
   const candidates = all.slice(offset * 3, offset * 3 + 3);
