@@ -45,6 +45,11 @@ export type LandingCtx = {
    * 「消えて終わり」になる。
    */
   getDestinationId?: () => string | undefined;
+  /**
+   * その語のカテゴリーの鍵（図鑑の `data-dex-cat`）。**札のマス目を待ちきれない時**に
+   * 降ろす先（`lib/landing-target.ts`）。後から決まることもあるので、これも口で渡す。
+   */
+  getDestinationCategory?: () => string | null | undefined;
   /** 最大表示のまま図鑑を背後に開く。 */
   openDex?: () => void | Promise<void>;
   /**

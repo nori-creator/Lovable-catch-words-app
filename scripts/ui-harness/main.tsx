@@ -5,6 +5,7 @@ import { ChunkDesignsScene } from "./scenes/chunk-designs";
 import { PeelStickerScene } from "./scenes/peel-sticker";
 import { MemoryDesignsScene } from "./scenes/memory-designs";
 import { CatchAnimationScene, HomeResurfaceScene, SettingsSavedScene } from "./scenes/ux-gaps";
+import { TextAnalyzingScene, TextLandingScene, TextPeelScene } from "./scenes/text-search";
 /**
  * 画面の検査用ハーネス — **本物のコンポーネントを描く**。
  *
@@ -144,6 +145,11 @@ const SCENES: Record<string, ((p: { q: URLSearchParams }) => ReactNode) | undefi
   "regen-magic": RegenMagicScene,
   // 2026-10-03 仕様の穴: キャッチの演出（A/B/C）・設定の「保存しました」・昔の1枚。
   "catch-animation": CatchAnimationScene,
+  // 2026-10-08 文字で調べた語のキャッチ（調べている間・札・着地）。
+  "text-analyzing": TextAnalyzingScene,
+  "text-peel-web": () => <TextPeelScene art="web" />,
+  "text-peel-only": () => <TextPeelScene art="text" />,
+  "text-landing": TextLandingScene,
   "settings-saved": SettingsSavedScene,
   "home-resurface": HomeResurfaceScene,
   // `auth` は下の `AuthScene`（作り直した迎える面まるごと）。main に在った
@@ -383,6 +389,16 @@ const q = new URLSearchParams(location.search);
  * 「これを見てください」と差し出すことになる。
  */
 const REVIEW_SCENES: Array<{ scene: string; label: string }> = [
+  // 2026-10-08 文字で調べた語（「貓」）のキャッチ。オーナーの録画で出た4つの段。
+  { scene: "text-analyzing", label: "文字で調べた語: 意味を調べている間（粒子の演出を出さない）" },
+  { scene: "text-peel-web", label: "文字で調べた語: ネットの画像を載せた札" },
+  { scene: "text-peel-only", label: "文字で調べた語: 画像が無い時の、語を組んだ札" },
+  { scene: "text-landing", label: "文字で調べた語: 札から図鑑のカテゴリーへ着地" },
+  { scene: "text-landing&art=web", label: "文字で調べた語: ネットの画像の札が着地" },
+  {
+    scene: "text-landing&dest=header",
+    label: "文字で調べた語: マス目がまだ無い時はカテゴリーの見出しへ",
+  },
   { scene: "first-catch&lang=ja", label: "ウェルカム → 既存アカウントのログイン" },
   // 2026-10-03 仕様の穴（PRODUCT・ROADMAP Phase 4 / 7 / 8、ARCHITECTURE「Preferences」）。
   // キャッチの演出は帯の A/B/C で見比べる（普段は B 短く、節目は A しっかり、C は発音だけ）。
