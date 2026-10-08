@@ -14,7 +14,16 @@ import {
 import { MAX_PROXY_IMAGE_BYTES, readCappedBytes } from "./byte-cap";
 import { isAiCapError } from "./ai-cap";
 import { heroSearchQuery, imageQueryOf } from "./hero-image";
-import { rankImageCandidates } from "./image-search-rank";
+import { isConfidentMatch, selectImageCandidates, type RankContext } from "./image-search-rank";
+import {
+  VERIFY_MAX_IMAGES,
+  applyVerdict,
+  cleanAvoidTerms,
+  needsSenseResolution,
+  shouldVerify,
+  type ImageSense,
+} from "./image-sense";
+import type { ImageSenseDeps } from "./image-sense.server";
 import { ALLOWED_IMAGE_MIME, IMAGE_FETCH_USER_AGENT, fetchAllowedImage } from "./image-proxy";
 
 export type ImageCandidate = {
@@ -33,6 +42,16 @@ const SearchInput = z.object({
    * （`image-search-rank.ts`）。古い呼び出し（iOS）は送らないので任意。
    */
   category: z.string().max(40).nullish(),
+  /**
+   * **その語そのもの**（見出し語）と、学ぶ人の意味（オーナー報告 2026-10-08 ②「レンコンを
+   * 調べたのに蓮の花」）。`query` が英語でない（意味の欄の日本語）時、サーバがこの2つから
+   * 英語の検索語と避ける語を決めてから探す（`image-sense.ts`）。絵を確かめる時にも使う。
+   * 古い呼び出し（iOS）は送らないので任意。
+   */
+  headword: z.string().max(80).nullish(),
+  meaning: z.string().max(200).nullish(),
+  /** 写っていたら外れの英語（`extras.image_avoid`。例 `flower` `pond`）。 */
+  avoid: z.array(z.string().max(40)).max(12).nullish(),
 });
 
 /**
@@ -88,7 +107,32 @@ async function optionalAiImage(
 export const searchImageCandidates = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) => SearchInput.parse(input))
-  .handler(async ({ data, context }) => searchImagesWith(data, imageGenReserver(context.userId)));
+  .handler(async ({ data, context }) => {
+    // 意味を決める・絵を確かめる AI（同意と枠で守る。`image-sense.server.ts`）。
+    const { imageSenseDepsFor } = await import("./image-sense.server");
+    return searchImagesWith(
+      data,
+      imageGenReserver(context.userId),
+      imageSenseDepsFor(context.userId),
+    );
+  });
+
+/**
+ * AI に見せる小さな絵。Unsplash は幅を指定して縮め、コモンズは決まった幅（250px）にする。
+ * 形が違えばそのまま。
+ */
+export function verifyThumb(url: string): string {
+  try {
+    const u = new URL(url);
+    if (u.hostname.endsWith("unsplash.com")) {
+      u.searchParams.set("w", "256");
+      return u.toString();
+    }
+  } catch {
+    return url;
+  }
+  return url.replace(/\/\d+px-/, "/250px-");
+}
 
 /**
  * 候補を集める本体（試験から `reserve` を差し替えて呼べるように分けてある）。
@@ -97,6 +141,8 @@ export const searchImageCandidates = createServerFn({ method: "POST" })
 export async function searchImagesWith(
   data: z.infer<typeof SearchInput>,
   reserve: () => Promise<void>,
+  /** 意味を決める・絵を確かめる AI（無ければ説明の並べ替えだけ）。 */
+  senseDeps?: ImageSenseDeps | null,
 ): Promise<{ candidates: ImageCandidate[] }> {
   // Typed catches use an original generated illustration, never stock photos.
   // 枠に届いた時は理由（上限の印）をそのまま返す（iOS は 429 になる）。
@@ -104,22 +150,45 @@ export async function searchImagesWith(
     const ai = await generateOneAiImage(data.query, reserve);
     return { candidates: ai ? [ai] : [] };
   }
+
+  /**
+   * **探す前に意味を決める**（オーナー報告 2026-10-08 ②「レンコンを調べたのに蓮の花」）。
+   * 英語の検索語（`extras.image_query`）がまだ無い時（カードの AI が答える前の文字検索・
+   * 古いカード）は、意味の欄の日本語で探すと別の物（蓮の花）に当たる。見出し語と意味から
+   * 英語の検索語と避ける語を決める。決められなければ今までどおり（日本語で探す）。
+   */
+  const word = data.headword?.trim()
+    ? { headword: data.headword.trim(), meaning: data.meaning ?? null, language: data.language }
+    : null;
+  let sense: ImageSense = { query: data.query, avoid: cleanAvoidTerms(data.avoid ?? []) };
+  if (word && senseDeps && needsSenseResolution(data.query)) {
+    const resolved = await senseDeps.resolveSense(word).catch(() => null);
+    if (resolved?.query) {
+      sense = {
+        ...resolved,
+        avoid: cleanAvoidTerms([...resolved.avoid, ...sense.avoid]),
+      };
+    }
+  }
+  const query = sense.query;
+
   const key = process.env.UNSPLASH_ACCESS_KEY;
   const candidates: TextCandidate[] = [];
-  const rankContext = { query: data.query, category: data.category };
+  const rankContext: RankContext = { query, category: data.category, avoid: sense.avoid };
   const imageConfig = readImageConfig(process.env);
 
   // **AI を先に**（`IMAGE_SEARCH_MODE=ai-first`）。1枚作って先頭に置き、
   // 後ろに写真の候補も並べる（AI が失敗しても写真で選べる）。
   if (imageConfig.mode === "ai-first") {
-    const ai = await optionalAiImage(data.query, reserve);
+    const ai = await optionalAiImage(query, reserve);
     if (ai) candidates.push(ai);
   }
 
+  const photos: TextCandidate[] = [];
   if (key) {
     try {
       const url = new URL("https://api.unsplash.com/search/photos");
-      url.searchParams.set("query", data.query);
+      url.searchParams.set("query", query);
       url.searchParams.set("per_page", String(FETCH_PER_SOURCE));
       url.searchParams.set("content_filter", "high");
       url.searchParams.set("orientation", "squarish");
@@ -136,17 +205,17 @@ export async function searchImagesWith(
             tags?: Array<{ title?: string | null } | null> | null;
           }>;
         };
-        const photos: TextCandidate[] = (json.results ?? []).map((r) => ({
-          url: r.urls.regular,
-          thumb: r.urls.small,
-          source: "unsplash" as const,
-          credit: { name: r.user.name, link: r.user.links.html },
-          text: [r.alt_description, r.description, ...(r.tags ?? []).map((t) => t?.title)]
-            .filter(Boolean)
-            .join(" "),
-        }));
-        // 探した物に合う写真を前へ、花・図版の外れを後ろへ（`image-search-rank.ts`）。
-        candidates.push(...rankImageCandidates(photos, rankContext));
+        photos.push(
+          ...(json.results ?? []).map((r) => ({
+            url: r.urls.regular,
+            thumb: r.urls.small,
+            source: "unsplash" as const,
+            credit: { name: r.user.name, link: r.user.links.html },
+            text: [r.alt_description, r.description, ...(r.tags ?? []).map((t) => t?.title)]
+              .filter(Boolean)
+              .join(" "),
+          })),
+        );
       }
     } catch (e) {
       console.warn("unsplash search failed", e);
@@ -155,37 +224,55 @@ export async function searchImagesWith(
 
   /**
    * **鍵の要らない出所を1つ持つ**(オーナー報告 2026-08-27 ④
-   * 「単語の詳細のネットの画像がよく表示されない」)。
+   * 「単語の詳細のネットの画像がよく表示されない」)。読み替えは `commons-images.ts`。
    *
-   * ここまでの出所は Unsplash（鍵が要る）だけで、控えは AI の生成
-   * （鍵と残高が要る）だけだった。どちらかが切れると候補は 0 件になり、
-   * 画面には「画像がありません」しか残らない。**切れ方が見えない**ので、
-   * 使う人には「よく出ない機能」としか映らない。
-   *
-   * コモンズは鍵が要らず、素性のはっきりした自由利用の画像がある。
-   * 街で見かける具体的な物には特に強い。読み替えは `commons-images.ts`。
+   * 前は Unsplash が1枚でも返せばコモンズを見なかった。Unsplash が蓮の花しか返さない語
+   * （`lotus root`）では、花しか並ばなかった（オーナー報告 2026-10-08 ②）。今は Unsplash に
+   * **説明で確かと言える写真**（`isConfidentMatch`）が無ければコモンズも探す。コモンズは
+   * 題と分類（`Lotus roots (food)`）が付いていて、食べる物の写真に強い。
    */
-  if (candidates.every((c) => c.source === "ai")) {
+  const confident = (list: TextCandidate[]) =>
+    list.some((c) => isConfidentMatch(c.text, rankContext));
+  if (!confident(photos)) {
     try {
-      const res = await fetch(commonsSearchUrl(data.query, FETCH_PER_SOURCE), {
+      const res = await fetch(commonsSearchUrl(query, FETCH_PER_SOURCE), {
         // コモンズは名乗らない相手を弾くことがある。
         headers: { "User-Agent": IMAGE_FETCH_USER_AGENT },
       });
       if (res.ok) {
         const found = commonsCandidates((await res.json()) as CommonsResponse, FETCH_PER_SOURCE);
-        for (const c of rankImageCandidates(found, rankContext)) {
-          candidates.push({ ...c, source: "commons" });
-        }
+        photos.push(...found.map((c) => ({ ...c, source: "commons" as const })));
       }
     } catch (e) {
       console.warn("commons search failed", e);
     }
   }
 
+  // 探した物に合う写真を前へ、**外れと分かる物（花・避ける語）は捨てる**（`image-search-rank.ts`）。
+  // 同じ点なら Unsplash が先（写真がきれい）。
+  let ranked = selectImageCandidates(photos, rankContext);
+
+  /**
+   * **説明で言い切れない時だけ、絵を見て確かめる**（`image-sense.ts`）。先頭が確かな写真なら
+   * AI を呼ばない。確かめられなければ（同意・枠・時間切れ・失敗）説明の順のまま。
+   */
+  if (word && senseDeps && shouldVerify(ranked, rankContext)) {
+    const top = ranked.slice(0, VERIFY_MAX_IMAGES);
+    const result = await senseDeps
+      .verify({
+        word,
+        sense,
+        images: top.map((c) => ({ url: c.url, thumb: verifyThumb(c.thumb || c.url) })),
+      })
+      .catch(() => null);
+    if (result) ranked = applyVerdict(ranked, result.checked, result.matched);
+  }
+  candidates.push(...ranked);
+
   // Always offer at least one AI fallback option so user has a choice when
   // photo search returns nothing or is unconfigured.
   if (candidates.length === 0) {
-    const ai = await optionalAiImage(data.query, reserve);
+    const ai = await optionalAiImage(query, reserve);
     if (ai) candidates.push(ai);
   }
 

@@ -441,6 +441,12 @@ export const ExtrasSchema = z.object({
    * その時は今までどおり意味の欄で探す。画面には出さない。
    */
   image_query: z.string().catch(""),
+  /**
+   * **写っていたら外れの英語**（オーナー報告 2026-10-08 ②「レンコンを調べたのに蓮の花」）。
+   * `image_query` と同じ呼び出しで返させる（レンコン → `flower` `blossom` `pond` `petal`）。
+   * 候補の並べ替えで、これが説明に出てくる写真を捨てる（`image-search-rank.ts`）。画面には出さない。
+   */
+  image_avoid: z.array(z.string()).catch([]).default([]),
 });
 
 export type WordExtrasDTO = z.infer<typeof ExtrasSchema>;
@@ -459,10 +465,10 @@ export function normalizeExtras(raw: unknown): WordExtrasDTO | null {
 /** True when an extras object carries at least one non-empty field. */
 export function hasExtrasContent(e: Partial<WordExtrasDTO> | null | undefined): boolean {
   if (!e) return false;
-  // explain_lang / explain_l1 は内容ではなく目印、image_query は画像検索の手がかりで
-  // 読む物ではないので「中身がある」判定から外す。
+  // explain_lang / explain_l1 は内容ではなく目印、image_query / image_avoid は画像検索の
+  // 手がかりで読む物ではないので「中身がある」判定から外す。
   return Object.entries(e).some(([k, v]) =>
-    k === "explain_lang" || k === "explain_l1" || k === "image_query"
+    k === "explain_lang" || k === "explain_l1" || k === "image_query" || k === "image_avoid"
       ? false
       : Array.isArray(v)
         ? v.length > 0

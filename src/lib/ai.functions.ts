@@ -700,6 +700,7 @@ ${
 - usage_context: ネイティブがこの語をどこで見て・使うか（スーパー/夜市/レストラン/ニュース/SNS/新聞など具体的な場所・メディア）と頻度感を1〜2文(${NL})で
 - frequency_level: 使用頻度 1〜5 の整数（5=毎日レベル、1=まれ）
 - image_query: ${IMAGE_QUERY_RULE}
+- image_avoid: ${IMAGE_AVOID_RULE}
 - encounter_labels: **この語に出会いやすい所を、短い札で3〜7個**。
   各 {kind, label}。kind は place(場所) / situation(状況) / emotion(気持ち) /
   time(時刻・時期) / media(媒体) / season(季節) / trait(その物じたいの性質) のどれか。
@@ -765,7 +766,7 @@ ${data.hintCategory ? `カテゴリのヒント: ${data.hintCategory}` : ""}`;
         "example_chunks[{text,pos}]",
         want("examples_extra") && "examples_extra[{zh,ja,scene,chunks:[{text,pos}]}]",
         "usage_context, frequency_level, register_tag, register_scale, encounter_labels[{kind,label}]",
-        "scene_weights, season_months, region_scope, region_scope_kind, image_query",
+        "scene_weights, season_months, region_scope, region_scope_kind, image_query, image_avoid[]",
         want("related_words") && "related_words[{word,kind,note}]",
         wantMeasure && "measure_words[{word,zhuyin,pinyin,note}]",
         wantOwn("kanji_breakdown") && "kanji_breakdown[{kanji,meaning,on,kun}]",
@@ -794,7 +795,8 @@ ${data.hintCategory ? `カテゴリのヒント: ${data.hintCategory}` : ""}`;
       `region_scope_kind（同上、null）/ ` +
       `season_months（通年なら空配列）/ ` +
       `measure_words（名詞でなければ空配列）/ ` +
-      `image_query（写真で表せない語なら空文字）` +
+      `image_query（写真で表せない語なら空文字）/ ` +
+      `image_avoid（取り違える写真が無ければ空配列）` +
       // 日本語の節にも「当てはまらなければ空」が在る(かなだけの語の漢字、名詞の活用)。
       (wantOwn("kanji_breakdown") ? ` / kanji_breakdown（かなだけの語なら空配列）` : "") +
       (wantOwn("conjugation") ? ` / conjugation（活用しない語なら空配列）` : "") +
@@ -1198,8 +1200,21 @@ function chunkRule(language: string | null | undefined): string {
 const IMAGE_QUERY_RULE =
   `その語が指す物・様子の写真を探すための**英語の短い検索語（1〜3語）**。` +
   `学習者がその語でふだん指す**日常の物**にする（植物の名の語でも、ふつう食べる物なら食べる部分: ` +
-  `牛蒡 → "burdock root"、芒果 → "mango fruit"、跑步 → "running"、雨傘 → "umbrella"）。` +
+  `牛蒡 → "burdock root"、蓮藕 → "lotus root"、竹筍 → "bamboo shoot"、花生 → "peanuts"、` +
+  `芒果 → "mango fruit"、滑鼠 → "computer mouse"、跑步 → "running"、雨傘 → "umbrella"）。` +
+  `**別の物と取り違えられる1語にしない**（✗ "lotus" は花に当たる → ○ "lotus root"）。` +
   `花・学名・辞書の言い換えにしない。写真で表せない語（抽象語・機能語）は空文字`;
+
+/**
+ * **写っていたら外れの英語**（`extras.image_avoid`。オーナー報告 2026-10-08 ②「レンコンを
+ * 調べたのに蓮の花の画像しか出てこない」）。検索語だけでは、写真の出所が同じ名の別の物
+ * （蓮の花・竹林・ネズミ）を返す。候補の説明にこの語が出てくる写真を捨てる
+ * （`image-search-rank.ts`）。同じ呼び出しに1欄足すだけ（AI の呼び出しは増やさない）。
+ */
+const IMAGE_AVOID_RULE =
+  `image_query で探すと混ざりやすい**別の物の写真**を表す英小文字の語を 0〜6 個の配列で` +
+  `（蓮藕 → ["flower","blossom","pond","petal"]、竹筍 → ["forest","grove","panda"]、` +
+  `滑鼠 → ["animal","rodent","pet"]、牛蒡 → ["flower","thistle"]）。取り違える物が無い語は空配列`;
 
 /**
  * **「＋」をパーツにさせない**（オーナー報告 2026-10-08「牛蒡 [+] 炒 のように + が札で出る」）。

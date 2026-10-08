@@ -33,6 +33,8 @@ export function useTextStickerImage(opts: {
   imageQuery?: string | null;
   /** 語の分類の鍵（検索の並べ替えに使う。`use-auto-hero` と同じ）。 */
   category?: string | null;
+  /** 写っていたら外れの英語（`imageAvoidOf(extras)`）。無ければサーバが決める。 */
+  avoid?: string[] | null;
   /** 剥がし始めた・飛んでいる。これ以降は札を差し替えない。 */
   frozen: boolean;
 }) {
@@ -53,6 +55,8 @@ export function useTextStickerImage(opts: {
   imageQueryRef.current = opts.imageQuery;
   const categoryRef = useRef(opts.category);
   categoryRef.current = opts.category;
+  const avoidRef = useRef(opts.avoid);
+  avoidRef.current = opts.avoid;
   const key = opts.enabled && opts.headword ? opts.headword : null;
 
   useEffect(() => {
@@ -68,10 +72,23 @@ export function useTextStickerImage(opts: {
       meaning: meaningRef.current,
       imageQuery: imageQueryRef.current,
       category: categoryRef.current,
+      avoid: avoidRef.current,
     });
     const job = findTextStickerImage<WebImageCandidate>({
       query: req.query,
-      search: (query) => searchImagesFn({ data: { query, category: req.category } }),
+      // 見出し語と意味も渡す。**カードの AI が答える前に探し始める**ので、英語の検索語
+      // （`image_query`）はまだ無いことが多い — その時はサーバが意味を決めてから探す
+      // （オーナー報告 2026-10-08 ②「レンコンを調べたのに蓮の花」）。
+      search: (query) =>
+        searchImagesFn({
+          data: {
+            query,
+            category: req.category,
+            headword: req.headword,
+            meaning: req.meaning,
+            avoid: req.avoid,
+          },
+        }),
       preload: preloadImage,
     }).catch((e) => {
       console.warn("text sticker image failed", e);

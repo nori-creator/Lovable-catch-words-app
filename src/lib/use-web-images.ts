@@ -41,6 +41,8 @@ export type WebImageWord = {
   imageQuery?: string | null;
   /** 棚（`category_key`）。候補を並べ直す手がかり。 */
   category?: string | null;
+  /** 写っていたら外れの英語（`extras.image_avoid`）。古いカードは空。 */
+  avoid?: string[] | null;
 };
 
 export function useWebImages(
@@ -49,7 +51,7 @@ export function useWebImages(
   seed = 0,
 ): WebImages {
   const searchFn = useServerFn(searchImageCandidates);
-  const { headword, meaningJa, imageQuery, category } = word;
+  const { headword, meaningJa, imageQuery, category, avoid } = word;
   const base = heroSearchQuery({ headword, meaning: meaningJa, imageQuery });
   // 英語の検索語に中国語の見出し語を足すと、どの出所でも当たらなくなる。
   // 意味の欄で探している（古いカードの）時だけ、取り直しで見出し語を足す。
@@ -60,7 +62,19 @@ export function useWebImages(
     // 語も意味も無い札に空の検索を投げない。
     enabled: base.length > 0,
     queryFn: async () =>
-      (await searchFn({ data: { query, category: category ?? null } })).candidates,
+      (
+        await searchFn({
+          // 見出し語と意味も渡す（英語の検索語が無いカードは、サーバが意味を決めて探す。
+          // 絵を見て確かめる時の手がかりにもなる — `image-sense.ts`）。
+          data: {
+            query,
+            category: category ?? null,
+            headword,
+            meaning: meaningJa || null,
+            avoid: avoid ?? null,
+          },
+        })
+      ).candidates,
     staleTime: 24 * 60 * 60 * 1000,
   });
   return { candidates: data ?? [], isLoading, isFetching };

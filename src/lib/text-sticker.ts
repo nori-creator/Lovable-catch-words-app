@@ -186,8 +186,19 @@ export function textStickerImageSearch(word: {
   meaning: string | null | undefined;
   imageQuery?: string | null;
   category?: string | null;
-}): { query: string; category: string | null } {
+  avoid?: string[] | null;
+}): {
+  query: string;
+  category: string | null;
+  /** 見出し語と意味（英語の検索語がまだ無い時、サーバが意味を決めて探す。`image-sense.ts`）。 */
+  headword: string;
+  meaning: string | null;
+  avoid: string[];
+} {
   return {
+    headword: word.headword,
+    meaning: word.meaning ?? null,
+    avoid: word.avoid ?? [],
     query: heroSearchQuery({
       headword: word.headword,
       meaning: word.meaning,
