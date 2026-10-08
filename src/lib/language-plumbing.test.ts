@@ -4876,9 +4876,18 @@ describe("ホームは今日の誌面", () => {
     // 削除して」: 帯には**今回の依頼の面だけ**。
     // 2026-10-05: 先頭は今回変更したウェルカムのログイン導線。
     // その前の回（広告・ベータの計測）の面も、まだ見てもらう途中なので後ろに残す。
-    // 2026-10-08: 先頭は文字で調べた語のキャッチ（調べている間・札・着地）。
+    // 2026-10-08: 先頭は文字で調べた語のキャッチ（調べている間・札・着地）、続いて図鑑（影・番号・
+    // 入れ替わる写真・同じ言葉は1マス）。ウェルカムのログイン導線はまだ見てもらう途中なので後ろに残す。
     expect(list.slice(0, list.indexOf("},"))).toMatch(/scene: "text-analyzing"/);
-    for (const sc of ["text-peel-web", "text-peel-only", "text-landing", "first-catch&lang=ja"]) {
+    for (const sc of [
+      "text-peel-web",
+      "text-peel-only",
+      "text-landing",
+      "dex-book",
+      "dex-book&case=cycle",
+      "dex-book&case=merge",
+      "first-catch&lang=ja",
+    ]) {
       expect(list).toContain(`scene: "${sc}"`);
     }
     for (const sc of ["settings-saved", "home-resurface", "catch-animation&plan=full"]) {
