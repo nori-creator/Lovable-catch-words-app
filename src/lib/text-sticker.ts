@@ -18,6 +18,8 @@
  * ここには外の世界に触れるものを入れない（文字列を組むだけ）。
  */
 
+import { heroSearchQuery } from "./hero-image";
+
 /**
  * ネットの画像を待つ上限（ms）。カードが出てからこの間に届かなければ、
  * 語の札のまま進む（あとから届いた画像で、剥がしている札を差し替えない）。
@@ -173,4 +175,25 @@ export async function findTextStickerImage<C extends TextStickerCandidate>(deps:
     }
   }
   return null;
+}
+
+/**
+ * 札の絵を探す検索語。**図鑑の詳細の自動の1枚（`use-auto-hero`）と同じ決め方** —
+ * AI の画像検索用の英語 → 意味 → 見出し語の順（`heroSearchQuery`）。
+ */
+export function textStickerImageSearch(word: {
+  headword: string;
+  meaning: string | null | undefined;
+  imageQuery?: string | null;
+  category?: string | null;
+}): { query: string; category: string | null } {
+  return {
+    query: heroSearchQuery({
+      headword: word.headword,
+      meaning: word.meaning,
+      imageQuery: word.imageQuery,
+    }),
+    // 候補の並べ直しの手がかり（`image-search-rank.ts`）。
+    category: word.category ?? null,
+  };
 }

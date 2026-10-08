@@ -267,6 +267,75 @@ export const listStickerPhotos = createServerFn({ method: "GET" })
     return { photos };
   });
 
+/** 図鑑の升目で入れ替える再会の写真の上限（1つの札あたり）。 */
+export const GRID_PHOTO_LIMIT = 4;
+
+/**
+ * 升目に出す再会の写真の、署名する物の一覧。**小さな写し（`.thumb.webp`）を先に**、
+ * 無い時（古い写真・写しの作成に失敗）だけ元の写真へ戻るよう、両方を並べる。
+ */
+export function gridPhotoPaths(
+  rows: ReadonlyArray<{ image_path: string | null; cutout_path: string | null }>,
+  limit = GRID_PHOTO_LIMIT,
+): Array<{ path: string; thumb: string }> {
+  const out: Array<{ path: string; thumb: string }> = [];
+  for (const r of rows) {
+    const p = r.image_path || r.cutout_path;
+    if (!p || out.some((o) => o.path === p)) continue;
+    out.push({ path: p, thumb: `${p}.thumb.webp` });
+    if (out.length >= limit) break;
+  }
+  return out;
+}
+
+/** 署名の結果から、写真ごとに1つの URL（写しが在れば写し、無ければ元の写真）。 */
+export function pickGridPhotoUrls(
+  wanted: ReadonlyArray<{ path: string; thumb: string }>,
+  signed: ReadonlyArray<{ path: string | null; signedUrl: string | null; error: string | null }>,
+): string[] {
+  const urlByPath = new Map<string, string>();
+  for (const s of signed) if (s.path && s.signedUrl && !s.error) urlByPath.set(s.path, s.signedUrl);
+  const out: string[] = [];
+  for (const w of wanted) {
+    const url = urlByPath.get(w.thumb) ?? urlByPath.get(w.path);
+    if (url) out.push(url);
+  }
+  return out;
+}
+
+/**
+ * **図鑑の升目で入れ替える、再会の写真**（オーナー指示 2026-10-08「同じ単語で複数回撮った
+ * 場合は、図鑑の一覧を自動的に画像が変わるようにして」）。
+ *
+ * 詳細の `listStickerPhotos` は全部の写真を元の大きさで署名する。升目はマスが小さく、
+ * 画面に見えている札の数だけ呼ばれるので、**上限つき（`GRID_PHOTO_LIMIT`）・小さな写し**
+ * にする（画像の変換（transform）はこのアプリでは使っていないので、保存時に作った
+ * `.thumb.webp` を使う）。最初の1枚（札の側）は図鑑の一覧が既に持っているので返さない。
+ */
+export const listStickerGridPhotos = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) => z.object({ sticker_id: z.string().uuid() }).parse(input))
+  .handler(async ({ context, data }): Promise<{ urls: string[] }> => {
+    const { supabase, userId } = context;
+    const { data: rows, error } = await supabase
+      .from("encounters")
+      .select("image_path, cutout_path")
+      .eq("sticker_id", data.sticker_id)
+      .eq("user_id", userId)
+      .or("image_path.not.is.null,cutout_path.not.is.null")
+      .order("created_at", { ascending: true })
+      .limit(GRID_PHOTO_LIMIT);
+    // 写真の列がまだ無い環境・読めない時は、入れ替えないだけ（表の1枚は一覧が出す）。
+    if (error || !rows) return { urls: [] };
+    const wanted = gridPhotoPaths(rows);
+    if (wanted.length === 0) return { urls: [] };
+    const { data: signed } = await supabase.storage.from("stickers").createSignedUrls(
+      wanted.flatMap((w) => [w.thumb, w.path]),
+      60 * 60 * 6,
+    );
+    return { urls: pickGridPhotoUrls(wanted, signed ?? []) };
+  });
+
 export type StickerPhoto = {
   url: string;
   taken_at: string;

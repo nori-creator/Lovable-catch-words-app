@@ -5,8 +5,10 @@ import {
   findTextStickerImage,
   textStickerDataUrl,
   textStickerFontSize,
+  textStickerImageSearch,
   textStickerSvg,
 } from "./text-sticker";
+import { imageQueryOf } from "./hero-image";
 
 describe("語を組んだ札（文字で調べた語）", () => {
   it("1文字の語は大きく、長い語ほど小さく組む（上限と下限の間）", () => {
@@ -107,5 +109,26 @@ describe("ネットの画像を1枚決める", () => {
     });
     expect(got).toBeNull();
     expect(called).toBe(false);
+  });
+});
+
+describe("札の絵を探す検索語（図鑑の詳細の自動の1枚と同じ）", () => {
+  it("AI の画像検索用の英語を先に使い、分類の鍵も渡す（牛蒡 → burdock root）", () => {
+    const extras = { image_query: "burdock root" };
+    expect(
+      textStickerImageSearch({
+        headword: "牛蒡",
+        meaning: "ごぼう",
+        imageQuery: imageQueryOf(extras),
+        category: "vegetable",
+      }),
+    ).toEqual({ query: "burdock root", category: "vegetable" });
+  });
+
+  it("英語が無ければ今までどおり意味から（分類が無ければ null）", () => {
+    expect(textStickerImageSearch({ headword: "貓", meaning: "ねこ", imageQuery: "" })).toEqual({
+      query: "ねこ",
+      category: null,
+    });
   });
 });

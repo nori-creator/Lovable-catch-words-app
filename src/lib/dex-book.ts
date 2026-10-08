@@ -133,6 +133,13 @@ export function assignDexNumbers(
   stickers: readonly DexGroupable[],
   lang: string | null | undefined,
   store: DexNumberStore,
+  /**
+   * 新しく振った番号を覚えるか。**札をまだ全部読んでいない間は false**（図鑑は最初の
+   * ページだけ先に出し、残りを裏で読み足す）。途中で覚えると、まだ届いていない古い札より
+   * 先に新しい札が 101 から番号を取り、捕まえた順の番号がずれたまま残る。
+   * 覚えない間も番号は出す（読み終えた時に、捕まえた順で振り直して覚える）。
+   */
+  persist = true,
 ): Map<string, number> {
   const saved = store.load();
   let next = Math.max(100, ...Object.values(saved)) + 1;
@@ -154,7 +161,7 @@ export function assignDexNumbers(
       changed = true;
     }
   }
-  if (changed) store.save(saved);
+  if (changed && persist) store.save(saved);
   return out;
 }
 
@@ -177,6 +184,35 @@ export type DexSection<T extends DexGroupable> = {
   slots: DexSlot<T>[];
   caughtCount: number;
 };
+
+/**
+ * 入れ替わる写真のうち、**描く物**（図鑑の升目）。表の1枚と、次に浮かべる1枚だけ —
+ * 何枚撮っていても、1マスに読み込む写真は最大2枚。動かさない時・画面の外は表の1枚だけ
+ * （`withNext` が偽）。
+ */
+export function dexCycleFrames(
+  count: number,
+  shown: number,
+  withNext: boolean,
+): Array<{ k: number; role: "current" | "next" }> {
+  if (count <= 0) return [];
+  const current = ((shown % count) + count) % count;
+  if (!withNext || count < 2) return [{ k: current, role: "current" }];
+  return [
+    { k: current, role: "current" },
+    { k: (current + 1) % count, role: "next" },
+  ];
+}
+
+/**
+ * 広告を挟む数え方の、節ごとの大きさ。**捕まえた札のマスだけ**を数える。
+ * 広告は捕まえた札の後ろにしか挟めない（影の後ろには出さない）。影まで数えると、
+ * 広告の番号が影に当たって消えたり、何枚目の後に出すかの間隔がずれたりする。
+ * 節の中は捕まえた札 → 影の順なので、0..caughtCount-1 がそのまま札の番号になる。
+ */
+export function dexAdGroupSizes(sections: ReadonlyArray<{ caughtCount: number }>): number[] {
+  return sections.map((sec) => sec.caughtCount);
+}
 
 /**
  * 言葉の図鑑のカテゴリー。その人が移した先（`shelf_key`）があればそれが勝つ — 既定の鍵なら

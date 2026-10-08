@@ -6,14 +6,16 @@ import { useServerFn } from "@tanstack/react-start";
 import { AppShell } from "@/components/AppShell";
 import { StickerSheet } from "@/components/StickerSheet";
 import { listMyShelves, listMyStickers, type StickerWithWord } from "@/lib/stickers.functions";
-import { listStickerPhotos } from "@/lib/encounters.functions";
+import { listStickerGridPhotos } from "@/lib/encounters.functions";
 import {
   assignDexNumbers,
   countDexWords,
+  dexAdGroupSizes,
   dexSections,
   dexWordKey,
   formatDexNo,
   groupDexWords,
+  dexCycleFrames,
   localDexNumberStore,
   type DexSlot,
   type DexWordGroup,
@@ -320,6 +322,7 @@ export function DexPage() {
         isFetching={isFetching}
         onRetry={() => void refetch()}
         truncated={truncated}
+        loadingMore={stickers?.loadingMore ?? false}
         totalCount={totalCount}
         otherLanguages={stickers?.otherLanguages ?? 0}
         targetLanguage={stickers?.targetLanguage}
@@ -459,6 +462,7 @@ export function DexSurface({
   isFetching = false,
   onRetry = () => {},
   truncated = false,
+  loadingMore = false,
   totalCount,
   otherLanguages = 0,
   targetLanguage,
@@ -494,6 +498,8 @@ export function DexSurface({
   isFetching?: boolean;
   onRetry?: () => void;
   truncated?: boolean;
+  /** 残りのページを裏で読み足している最中か（`sticker-pages.ts`）。 */
+  loadingMore?: boolean;
   totalCount?: number | null;
   otherLanguages?: number;
   targetLanguage?: string;
@@ -532,8 +538,15 @@ export function DexSurface({
    * 絞り込みに関係なく**全部の札**から振る — 絞ると番号が変わるのでは番号の意味が無い。
    */
   const numbers = useMemo(
-    () => assignDexNumbers(captured, lang, localDexNumberStore(readUid(), lang)),
-    [captured, lang],
+    () =>
+      assignDexNumbers(
+        captured,
+        lang,
+        localDexNumberStore(readUid(), lang),
+        // 全部の札を読み終えるまで覚えない（No.101〜 が捕まえた順からずれる）。
+        !loadingMore && !truncated,
+      ),
+    [captured, lang, loadingMore, truncated],
   );
   /** 影は「全部を見ている時」だけ（絞り込み・検索の結果に、まだの物は混ぜない）。 */
   const showShadows = !isFiltering(filter) && !search.trim();
@@ -556,9 +569,7 @@ export function DexSurface({
   const adAfter = useMemo(() => {
     if (!ads?.show || !ads.placements.dex || (view !== "gallery" && view !== "list")) return null;
     const sizes =
-      view === "gallery"
-        ? sections.map((sec) => sec.slots.length)
-        : groups.map(([, items]) => items.length);
+      view === "gallery" ? dexAdGroupSizes(sections) : groups.map(([, items]) => items.length);
     return groupAdSlots(
       sizes,
       nativeSlots(
@@ -1175,6 +1186,8 @@ function groupPhotos(g: DexWordGroup<StickerWithWord>) {
 
 /** 写真が入れ替わる間隔（ゆっくり。見比べる物ではなく「何度も会った」気配）。 */
 const DEX_CYCLE_MS = 3600;
+/** 次の1枚が浮かび上がる長さ（`duration-1000` と同じ）。 */
+const DEX_FADE_MS = 1000;
 
 /**
  * **何度も撮った言葉の写真を、ゆっくり入れ替える**（オーナー指示 2026-10-08「同じ単語で
@@ -1210,21 +1223,22 @@ function DexCyclingPhoto({
     io.observe(el);
     return () => io.disconnect();
   }, []);
-  // 再会の写真（2枚目以降は `encounters` に在る）。見えている札の分だけ、詳細と同じ鍵で読む。
-  const fetchPhotos = useServerFn(listStickerPhotos);
+  // 再会の写真（2枚目以降は `encounters` に在る）。見えている札の分だけ読む。
+  // **升目用の上限つき・小さな写しの問い合わせ**（`listStickerGridPhotos`）— 詳細の
+  // `listStickerPhotos` は全部を元の大きさで署名するので、マスの数だけ呼ぶと重い。
+  // 鍵は詳細と同じ頭（`["sticker-photos", id]`）にして、再会の後の読み直しで一緒に古くなる。
+  const fetchPhotos = useServerFn(listStickerGridPhotos);
   const withEncounters = group.members.filter((m) => (m.encounter_count ?? 0) > 0);
   const wantRemote = !extra && !reduced && visible && withEncounters.length > 0;
   const remote = useQueries({
     queries: withEncounters.slice(0, 4).map((m) => ({
-      queryKey: ["sticker-photos", m.id],
+      queryKey: ["sticker-photos", m.id, "grid"],
       queryFn: () => fetchPhotos({ data: { sticker_id: m.id } }),
       enabled: wantRemote,
       staleTime: 30 * 60 * 1000,
     })),
   });
-  const remoteUrls = remote.flatMap(
-    (r) => r.data?.photos.filter((p) => !p.first).map((p) => p.url) ?? [],
-  );
+  const remoteUrls = remote.flatMap((r) => r.data?.urls ?? []);
   const extraUrls = extra ? group.members.flatMap((m) => extra(m.id) ?? []) : [];
   const all = [...photos];
   for (const src of [...extraUrls, ...remoteUrls])
@@ -1232,42 +1246,61 @@ function DexCyclingPhoto({
   const list = all.slice(0, 8);
   const cycling = !reduced && list.length > 1;
   const [shown, setShown] = useState(0);
+  /** 次の1枚を重ねて浮かべている最中（終わったら次の1枚が表になる）。 */
+  const [fading, setFading] = useState(false);
   useEffect(() => {
     if (!cycling || !visible) return;
     // 始まりを札ごとにずらす（並びの番号から、0〜間隔の中で散らす）。
     const offset = ((index * 7) % 6) * (DEX_CYCLE_MS / 6);
     let timer: ReturnType<typeof setInterval> | undefined;
+    let settle: ReturnType<typeof setTimeout> | undefined;
+    // 次の1枚を上に浮かべ、浮かび終えたら表を進める（描くのは表と次の2枚だけ）。
+    const step = () => {
+      setFading(true);
+      settle = setTimeout(() => {
+        setShown((n) => (n + 1) % list.length);
+        setFading(false);
+      }, DEX_FADE_MS);
+    };
     const start = setTimeout(
       () => {
-        setShown((n) => (n + 1) % list.length);
-        timer = setInterval(() => setShown((n) => (n + 1) % list.length), DEX_CYCLE_MS);
+        step();
+        timer = setInterval(step, DEX_CYCLE_MS);
       },
       offset + DEX_CYCLE_MS / 2,
     );
     return () => {
       clearTimeout(start);
+      if (settle) clearTimeout(settle);
       if (timer) clearInterval(timer);
+      setFading(false);
     };
   }, [cycling, visible, index, list.length]);
-  const current = cycling ? shown % list.length : 0;
+  // 画面の外・動かさない時は、表の1枚だけを描く（読み込みも1枚ぶん）。
+  const frames = dexCycleFrames(list.length, cycling ? shown : 0, cycling && visible);
   return (
     <div ref={ref} className="absolute inset-0" data-dex-photos={list.length}>
-      {list.map((p, k) =>
-        // 画面の外・動かさない時は、表の1枚だけを描く（読み込みも1枚ぶん）。
-        k === current || (cycling && visible) ? (
+      {frames.map(({ k, role }) => {
+        const p = list[k];
+        const front = role === "current";
+        // 表の1枚は下、次の1枚はその上で浮かぶ（浮かび終えたら次が表になる）。
+        const shownNow = front || fading;
+        return (
           <CachedImg
             key={p.src}
             src={p.src}
-            alt={k === current ? alt : ""}
-            aria-hidden={k === current ? undefined : true}
+            alt={front ? alt : ""}
+            aria-hidden={front ? undefined : true}
             loading="lazy"
             decoding="async"
-            className={`absolute inset-0 h-full w-full transition-opacity duration-1000 ease-in-out motion-reduce:transition-none ${
+            className={`absolute inset-0 h-full w-full ${
+              front ? "" : "z-[1] transition-opacity duration-1000 ease-in-out"
+            } motion-reduce:transition-none ${
               p.fit === "contain" ? "object-contain p-2" : "object-cover"
-            } ${k === current ? "opacity-100" : "opacity-0"}`}
+            } ${shownNow ? "opacity-100" : "opacity-0"}`}
           />
-        ) : null,
-      )}
+        );
+      })}
     </div>
   );
 }

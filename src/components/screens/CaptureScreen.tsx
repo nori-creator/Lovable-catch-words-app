@@ -74,6 +74,8 @@ import { Reading, useReadingText } from "@/lib/phonetic";
 import { ScanEffect } from "@/components/ScanEffect";
 import { CatchLandingOverlay, runCatchLanding } from "@/components/CatchLanding";
 import { useTextStickerImage } from "@/hooks/use-text-sticker-image";
+import { landingCategoryKey } from "@/lib/landing-category";
+import { imageQueryOf } from "@/lib/hero-image";
 import { chooseStickerArt, textStickerDataUrl } from "@/lib/text-sticker";
 import { onPronounced, usePronounce } from "@/lib/use-pronounce";
 import { useFunnelEvent } from "@/lib/use-funnel-event";
@@ -345,11 +347,21 @@ export function CapturePage() {
    * 撮った写真 → ネットの画像（短い上限つきで待つ）→ 語を組んだ札、の順（`lib/text-sticker.ts`）。
    * 写真のある回は今までどおり写真だけ。
    */
+  /**
+   * **指を札に置いた語**（剥がし始めた）。保存を押した後だけでなく、**掴んだ時点で**札の絵を
+   * 決着させる — 掴んでから2.5秒の検索の間にネットの画像が届くと、剥がしている途中で
+   * 札の絵が差し替わり、剥がしが最初からやり直しになっていた。語ごとに覚える
+   * （別の語のカードに替わったら、また待つ）。
+   */
+  const [grabbedHead, setGrabbedHead] = useState<string | null>(null);
   const webHero = useTextStickerImage({
     enabled: step === "card" && !objectImg && !!card,
     headword: selectedHead,
     meaning: card?.meaning_ja,
-    frozen: saving || landing,
+    // 図鑑の詳細の自動の1枚と同じ検索（AI の画像検索用の英語 → 分類で並べ直し）。
+    imageQuery: imageQueryOf(card?.extras),
+    category: card?.category_key ?? null,
+    frozen: saving || landing || (!!selectedHead && grabbedHead === selectedHead),
   });
   const textArt = useMemo(
     () => textStickerDataUrl({ headword: selectedHead, lang: targetLanguage }),
@@ -1257,7 +1269,9 @@ export function CapturePage() {
         savedId = res.id;
         savedRef.current = true;
         // 写真の無い札には、探したネットの画像を仮画像として残す（裏で走る）。
-        if (art.kind !== "photo") void webHero.attach(res.id, selectedHead);
+        // **再会（もう持っている札）には付けない** — その札にはもう選んだ絵が在る。
+        // サーバ側も「まだ空の時だけ」入れる（`only_if_empty`）。
+        if (art.kind !== "photo" && !res.reencounter) void webHero.attach(res.id, selectedHead);
         // DBへの保存が成功した写真だけを端末へ同期する。保存処理自体の失敗で
         // キャッチを巻き戻さないため、ここは待たずに実行する。
         return res;
@@ -1276,7 +1290,15 @@ export function CapturePage() {
       // **先に読ませない。** 押した時点ではまだ決まっていない。
       getDestinationId: () => savedId,
       // マス目がまだ出ない時は、その語のカテゴリーの見出しへ降ろす（`lib/landing-target.ts`）。
-      getDestinationCategory: () => card.new_shelf?.key ?? card.category_key ?? null,
+      // 図鑑の写真の升目の節は**20のカテゴリーの代表の鍵**で印が付く。語の分類の鍵（54）を
+      // そのまま渡すと見出しが見つからない（`lib/landing-category.ts`）。
+      getDestinationCategory: () =>
+        landingCategoryKey({
+          headword: selectedHead,
+          categoryKey: card.category_key,
+          newShelfKey: card.new_shelf?.key,
+          lang: targetLanguage,
+        }),
       openDex: () => {
         if (!savedId) return;
         return navigate({ to: "/dex", search: { justCaught: savedId } });
@@ -1314,6 +1336,7 @@ export function CapturePage() {
 
   function reset() {
     selfiePendingRef.current = false;
+    setGrabbedHead(null);
     analysisNextRef.current = null;
     // 走っている解析・切り抜きを無効化してから畳む。番号を進めないと、
     // 前の写真の結果が後から届いて新しい画面を上書きする。
@@ -1557,6 +1580,7 @@ export function CapturePage() {
           selectedHead={selectedHead}
           objectImg={objectImg}
           art={stickerArt.url}
+          onGrab={() => setGrabbedHead(selectedHead)}
           selfieImg={selfieImg}
           flipped={flipped}
           setFlipped={setFlipped}
@@ -2098,6 +2122,7 @@ export function CaptureCardPanel({
   landing = false,
   saving = false,
   art,
+  onGrab,
 }: {
   card: CardData;
   selectedHead: string;
@@ -2107,6 +2132,8 @@ export function CaptureCardPanel({
    * （`lib/text-sticker.ts`）。渡さなければ撮った写真。
    */
   art?: string | null;
+  /** 札を掴んだ時（剥がし始め）。ここで札の絵を決着させる（`PeelSticker` の `onGrab`）。 */
+  onGrab?: () => void;
   /** 裏面。自撮りが無ければ「まだ無い」と描く。 */
   selfieImg: string | null;
   flipped: boolean;
@@ -2149,6 +2176,7 @@ export function CaptureCardPanel({
                 hint={t("capture.peelHint")}
                 disabled={saving || landing || flipped}
                 onPeel={onSave}
+                onGrab={onGrab}
               />
             </div>
           </div>
