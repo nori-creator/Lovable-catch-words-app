@@ -5,7 +5,13 @@ import { ChunkDesignsScene } from "./scenes/chunk-designs";
 import { PeelStickerScene } from "./scenes/peel-sticker";
 import { MemoryDesignsScene } from "./scenes/memory-designs";
 import { CatchAnimationScene, HomeResurfaceScene, SettingsSavedScene } from "./scenes/ux-gaps";
-import { TextAnalyzingScene, TextLandingScene, TextPeelScene } from "./scenes/text-search";
+import {
+  TextCandidatesScene,
+  TextLandingScene,
+  TextPeelReadyScene,
+  TextPeelScene,
+  TextSearchingScene,
+} from "./scenes/text-search";
 /**
  * 画面の検査用ハーネス — **本物のコンポーネントを描く**。
  *
@@ -147,7 +153,9 @@ const SCENES: Record<string, ((p: { q: URLSearchParams }) => ReactNode) | undefi
   // 2026-10-03 仕様の穴: キャッチの演出（A/B/C）・設定の「保存しました」・昔の1枚。
   "catch-animation": CatchAnimationScene,
   // 2026-10-08 文字で調べた語のキャッチ（調べている間・札・着地）。
-  "text-analyzing": TextAnalyzingScene,
+  "text-searching": TextSearchingScene,
+  "text-candidates": TextCandidatesScene,
+  "text-peel-ready": TextPeelReadyScene,
   "text-peel-web": () => <TextPeelScene art="web" />,
   "text-peel-only": () => <TextPeelScene art="text" />,
   "text-landing": TextLandingScene,
@@ -368,6 +376,7 @@ const BARE = new Set([
   // 読みやすさを測ることになる（実際、枠の「CatchWords」が
   // 地＝黒い映像で 1.12 と出た）。
   "capture-object",
+  "text-searching",
   "reward-catch",
   "catch-animation",
   // 押した札から詳細が広がる絵。全画面の面なので枠は要らない。
@@ -392,8 +401,15 @@ const q = new URLSearchParams(location.search);
  * 「これを見てください」と差し出すことになる。
  */
 const REVIEW_SCENES: Array<{ scene: string; label: string }> = [
-  // 2026-10-08 文字で調べた語（「貓」）のキャッチ。オーナーの録画で出た4つの段。
-  { scene: "text-analyzing", label: "文字で調べた語: 意味を調べている間（粒子の演出を出さない）" },
+  // 2026-10-08 文字検索の流れ（その場で回る → 学習言語ならそのまま札 / 割れたら候補）。
+  { scene: "text-searching", label: "文字検索: 押したらその場で回る（別の待ち画面を出さない）" },
+  { scene: "text-candidates", label: "文字検索: 母語の「電車」の候補（使われ方の札つき）" },
+  { scene: "text-candidates&state=preparing", label: "文字検索: 押した候補の行が回る間" },
+  { scene: "text-peel-ready", label: "文字検索: 絵と発音がそろった札・別の画像を選ぶ" },
+  // 2026-10-08「図鑑の影のクオリティーが低い。もっとデザインのクオリティーを最高品質にして」。
+  { scene: "dex-book", label: "図鑑: 影を項目ごとの塗りの形に・No.???・燒仙草はお菓子へ" },
+  { scene: "dex-book&case=all", label: "図鑑: 379 の影を全部（カテゴリーごと）" },
+  // 2026-10-08 文字で調べた語（「貓」）のキャッチ。オーナーの録画で出た段。
   { scene: "text-peel-web", label: "文字で調べた語: ネットの画像を載せた札" },
   { scene: "text-peel-only", label: "文字で調べた語: 画像が無い時の、語を組んだ札" },
   { scene: "text-landing", label: "文字で調べた語: 札から図鑑のカテゴリーへ着地" },
@@ -405,7 +421,6 @@ const REVIEW_SCENES: Array<{ scene: string; label: string }> = [
   // 2026-10-08「iOS版のように図鑑自体にものの影を表示して、それぞれの単語に番号振って」
   // 「文字検索したら同じ単語でも同じものとしてカウントされてない」「同じ単語で複数回撮った場合は…
   // 画像が変わるようにして。また撮った回数を書き入れて」。
-  { scene: "dex-book", label: "図鑑: 影と番号（iOS と同じ20のカテゴリー）" },
   { scene: "dex-book&case=cycle", label: "図鑑: 何度も撮った言葉の写真が入れ替わる・×3" },
   { scene: "dex-book&case=merge", label: "図鑑: 文字で2回検索した「貓」が1マスに" },
   { scene: "first-catch&lang=ja", label: "ウェルカム → 既存アカウントのログイン" },

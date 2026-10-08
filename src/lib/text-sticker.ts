@@ -20,12 +20,6 @@
 
 import { heroSearchQuery } from "./hero-image";
 
-/**
- * ネットの画像を待つ上限（ms）。カードが出てからこの間に届かなければ、
- * 語の札のまま進む（あとから届いた画像で、剥がしている札を差し替えない）。
- */
-export const TEXT_STICKER_IMAGE_WAIT_MS = 2500;
-
 /** 札の一辺（`PeelSticker` の viewBox と同じ 320）。 */
 const SIZE = 320;
 /** 字を置ける幅。札の内側（20..300）から、さらに左右に余白を取る。 */
@@ -186,8 +180,19 @@ export function textStickerImageSearch(word: {
   meaning: string | null | undefined;
   imageQuery?: string | null;
   category?: string | null;
-}): { query: string; category: string | null } {
+  avoid?: string[] | null;
+}): {
+  query: string;
+  category: string | null;
+  /** 見出し語と意味（英語の検索語がまだ無い時、サーバが意味を決めて探す。`image-sense.ts`）。 */
+  headword: string;
+  meaning: string | null;
+  avoid: string[];
+} {
   return {
+    headword: word.headword,
+    meaning: word.meaning ?? null,
+    avoid: word.avoid ?? [],
     query: heroSearchQuery({
       headword: word.headword,
       meaning: word.meaning,

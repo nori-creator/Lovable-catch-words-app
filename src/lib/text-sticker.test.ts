@@ -122,13 +122,23 @@ describe("札の絵を探す検索語（図鑑の詳細の自動の1枚と同じ
         imageQuery: imageQueryOf(extras),
         category: "vegetable",
       }),
-    ).toEqual({ query: "burdock root", category: "vegetable" });
+    ).toEqual({
+      query: "burdock root",
+      category: "vegetable",
+      headword: "牛蒡",
+      meaning: "ごぼう",
+      avoid: [],
+    });
   });
 
   it("英語が無ければ今までどおり意味から（分類が無ければ null）", () => {
+    // 見出し語と意味も渡す（英語が無い時はサーバが意味を決めて探す。`image-sense.ts`）。
     expect(textStickerImageSearch({ headword: "貓", meaning: "ねこ", imageQuery: "" })).toEqual({
       query: "ねこ",
       category: null,
+      headword: "貓",
+      meaning: "ねこ",
+      avoid: [],
     });
   });
 });

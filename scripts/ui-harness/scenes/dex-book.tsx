@@ -2,7 +2,9 @@
  * **iOS 版と同じ図鑑の升目**（オーナー指示 2026-10-08）。本物の `DexSurface`（写真の升目）と
  * 本物の `DexAlbumGrid` を描く。
  *
- * - `?scene=dex-book` … 20 のカテゴリーごとに、捕まえた言葉（番号順）→ まだの影（灰色の絵・番号）
+ * - `?scene=dex-book` … 20 のカテゴリーごとに、捕まえた言葉（番号順）→ まだの影（塗りの形・番号）。
+ *   燒仙草（AI が「植物」と答えた語）が「お菓子」に並ぶ（前は「植物・花」だった）。
+ * - `?scene=dex-book&case=all` … 379 の影を全部、カテゴリーごとに（項目ごとに別の形か見比べる）
  * - `?scene=dex-book&case=cycle` … 同じ言葉を何度も撮ったマス: 写真がゆっくり入れ替わり「×3」
  * - `?scene=dex-book&case=merge` … 文字で2回検索した「貓」が1マスにまとまる（前は2マス）
  *
@@ -10,6 +12,9 @@
  */
 import { useState } from "react";
 import { DexAlbumGrid, DexSurface, type ViewMode } from "@/components/screens/DexScreen";
+import { DEX_CATEGORIES, dexCategoryLabelKey } from "@/lib/dex-catalog";
+import type { DexSlot } from "@/lib/dex-book";
+import { useT } from "@/lib/i18n";
 import { NO_FILTER, applyDexFilter, type DexFilter } from "@/lib/dex-filter";
 import { memoryBadgeMap } from "@/lib/memory-badge";
 import type { StickerWithWord } from "@/lib/stickers.functions";
@@ -78,6 +83,12 @@ const BOOK: Fx[] = [
   { id: "mrt", head: "捷運", cat: "transport", photo: board("#4a90d9", "捷運"), day: 5 },
   { id: "aiyu", head: "愛玉", cat: "dessert", day: 7 },
   { id: "scooter-shop", head: "機車行", cat: "shop", photo: board("#d0483c", "機車行"), day: 8 },
+  // AI が「植物」と答えていた語（名前に「草」）。いまは「お菓子」に並ぶ。
+  { id: "grassjelly", head: "燒仙草", cat: "plant", photo: board("#3b2f2a", "燒仙草"), day: 9 },
+  { id: "pigeon", head: "鴿子", cat: "animal", photo: board("#b8c2cc", "鴿子"), day: 9 },
+  { id: "rice", head: "飯", cat: "food", photo: board("#efe6d2", "飯"), day: 10 },
+  { id: "fan", head: "電風扇", cat: "appliance", photo: board("#cfe3f4", "電風扇"), day: 10 },
+  { id: "tree", head: "樹", cat: "plant", photo: board("#7fb27a", "樹"), day: 11 },
 ];
 
 /** 再会の写真（本番は見えた時に `listStickerPhotos` で読む）。 */
@@ -92,6 +103,7 @@ export function DexBookScene({ q }: { q: URLSearchParams }) {
   const kase = q.get("case");
   if (kase === "cycle") return <CycleCase />;
   if (kase === "merge") return <MergeCase />;
+  if (kase === "all") return <AllCase />;
   return <BookCase />;
 }
 
@@ -192,5 +204,43 @@ function MergeCase() {
       ])}
       targetLanguage="zh-TW"
     />
+  );
+}
+
+/**
+ * 379 の影を全部（カテゴリーごと）。本番の図鑑は各カテゴリーの最初の5つだけを出すので、
+ * 残りの影の形はここで見る。
+ */
+function AllCase() {
+  const t = useT();
+  return (
+    <div style={{ padding: "16px 16px 120px" }}>
+      <p style={{ fontSize: 13, color: "#6e6e73", margin: "0 0 12px" }}>
+        まだ捕まえていない物の影（379）。本番では各カテゴリーの最初の5つが出ます。
+      </p>
+      {DEX_CATEGORIES.map((c) => {
+        const slots: DexSlot<StickerWithWord>[] = c.items.map((it) => ({
+          kind: "shadow",
+          id: `i:${it.id}`,
+          no: it.baseNo,
+          item: it,
+        }));
+        return (
+          <section key={c.no} style={{ marginBottom: 20 }}>
+            <h2 style={{ fontSize: 15, fontWeight: 700, margin: "0 0 8px" }}>
+              {c.emoji} {t(dexCategoryLabelKey(c.no))}
+            </h2>
+            <DexAlbumGrid
+              items={[]}
+              slots={slots}
+              lang="zh-TW"
+              numbers={new Map()}
+              onOpen={() => {}}
+              memory={new Map()}
+            />
+          </section>
+        );
+      })}
+    </div>
   );
 }

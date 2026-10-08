@@ -19,6 +19,8 @@ import {
   placeAutoHeroWith,
   shouldOfferWebCandidates,
 } from "@/lib/hero-image";
+import { imageAvoidOf } from "@/lib/image-sense";
+import { resolveWordLanguage } from "@/lib/word-language";
 import type { PhotoSources } from "@/lib/sticker-photo";
 import { useT } from "@/lib/i18n";
 import { useReadableError } from "@/lib/errors";
@@ -63,6 +65,8 @@ export type AutoHeroSticker = PhotoSources & {
     category_key?: string | null;
     /** `image_query`（画像検索用の英語）を読む。 */
     extras?: unknown;
+    /** 学習言語（`words.language`）。意味を決める時にその言語の語として引く。 */
+    language?: string | null;
   };
 };
 
@@ -100,8 +104,17 @@ export function useAutoHero(sticker: AutoHeroSticker | null | undefined) {
         });
         // 空の検索を投げない(語も意味も無い札は、ただ絵が無いままでよい)。
         if (!query) return;
+        // 見出し語と意味も渡す: 英語の検索語が無い（古い）カードは、サーバが意味を決めてから
+        // 探し、絵を見て確かめる（オーナー報告 2026-10-08 ②「レンコンで蓮の花」）。
         const { candidates: cands } = await searchImagesFn({
-          data: { query, category: s.word.category_key ?? null },
+          data: {
+            query,
+            category: s.word.category_key ?? null,
+            headword: s.word.headword,
+            meaning: s.word.meaning_ja ?? null,
+            avoid: imageAvoidOf(s.word.extras),
+            language: resolveWordLanguage(s.word.language, s.word.headword),
+          },
         });
         setCandidates(cands.slice(0, 6));
         // すでに絵があるなら候補を出すだけで、勝手には差し替えない。

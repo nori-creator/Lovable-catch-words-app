@@ -9,6 +9,7 @@ import {
   normalizeCategory,
   normalizeRoomWeights,
   roomMixFromCategories,
+  wordCategoryKey,
 } from "./category";
 
 /**
@@ -84,6 +85,43 @@ describe("asCategoryKey", () => {
   it("見出し語が既知でなければ、AI の答えを尊重する", () => {
     expect(normalizeCategory("沒有この語", "drink")).toBe("drink");
     expect(normalizeCategory("沒有この語", "存在しない鍵")).toBe("other");
+  });
+
+  /**
+   * オーナー報告 2026-10-08: 図鑑で**燒仙草が「植物・花」**に入っていた（「〜草」の語末規則）。
+   * 名前に草・花・葉・鍋・燈が入っていても、食べ物・飲み物・街の物はそちらへ。
+   */
+  it("名前に草・花・葉・鍋・燈があっても、食べ物・飲み物・街の物はその棚へ", () => {
+    const cases: Array<[string, string]> = [
+      ["燒仙草", "dessert"],
+      ["仙草", "dessert"],
+      ["仙草凍", "dessert"],
+      ["愛玉", "dessert"],
+      ["豆花", "dessert"],
+      ["爆米花", "dessert"],
+      ["棉花糖", "dessert"],
+      ["仙草茶", "drink"],
+      ["青草茶", "drink"],
+      ["茶葉", "drink"],
+      ["火鍋", "food"],
+      ["麻辣鍋", "food"],
+      ["韭菜花", "vegetable"],
+      ["紅綠燈", "street"],
+      ["路燈", "street"],
+    ];
+    for (const [h, want] of cases) expect(normalizeCategory(h, "plant"), h).toBe(want);
+    // 本物の植物・花・道具は今まで通り。
+    expect(normalizeCategory("小草", null)).toBe("plant");
+    expect(normalizeCategory("玫瑰花", null)).toBe("flower");
+    expect(normalizeCategory("平底鍋", null)).toBe("kitchenware");
+    expect(normalizeCategory("檯燈", null)).toBe("furniture");
+  });
+
+  it("読む時も見出し語で直す（保存済みの古い取り違えを正す）", () => {
+    expect(wordCategoryKey({ headword: "燒仙草", category_key: "plant" })).toBe("dessert");
+    expect(wordCategoryKey({ headword: "某個字", category_key: "drink" })).toBe("drink");
+    expect(wordCategoryKey({ headword: "", category_key: "place" })).toBe("other");
+    expect(wordCategoryKey({ category_key: null })).toBe("other");
   });
 });
 

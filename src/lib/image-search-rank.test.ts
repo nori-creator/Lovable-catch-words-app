@@ -94,7 +94,7 @@ describe("searchImagesWith — 並べ直して返す", () => {
     vi.restoreAllMocks();
   });
 
-  it("Unsplash: 根の写真・料理が前、花・野草が後ろ。説明の字は返さない", async () => {
+  it("Unsplash: 根の写真・料理だけを返す（花・野草は捨てる）。説明の字は返さない", async () => {
     vi.stubEnv("UNSPLASH_ACCESS_KEY", "test-only");
     fetchMock.mockImplementation(async () => new Response(JSON.stringify(fixture.unsplash)));
     const out = await searchImagesWith(
@@ -104,12 +104,13 @@ describe("searchImagesWith — 並べ直して返す", () => {
     const asked = new URL(String(fetchMock.mock.calls[0][0]));
     expect(asked.searchParams.get("query")).toBe("burdock root");
     expect(asked.searchParams.get("per_page")).toBe("12");
+    // オーナー報告 2026-10-08 ②: 後ろへ回すだけでは、出所が花しか返さない語で花が先頭になる。
+    // 外れと分かる物は捨てる。根の写真が在るのでコモンズは探さない（1回だけ取りに行く）。
     expect(out.candidates.map((c) => c.url)).toEqual([
       "https://images.unsplash.com/root-3",
       "https://images.unsplash.com/dish-4",
-      "https://images.unsplash.com/flower-1",
-      "https://images.unsplash.com/wild-2",
     ]);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(out.candidates.every((c) => !("text" in c))).toBe(true);
   });
 

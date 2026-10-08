@@ -1,26 +1,33 @@
 /**
- * **文字で調べた語のキャッチ**（写真の無い回）の4つの段。
+ * **文字で調べた語のキャッチ**（写真の無い回）。
  *
- * オーナー報告 2026-10-08（画面の録画、「貓」を打って調べた回）:
- *   a) 物も写真も無いのに、黒い粒子の「AI が分析中…」が11秒ほど続く
- *   b) 剥がす札に何も載っていない（白く光る台紙だけ）
- *   c) 白い画面に語だけが数秒止まる
- *   d) 図鑑のカテゴリーへ入っていく動きが無い
+ * オーナー指示 2026-10-08「文字検索したときは検索ボタンを押したらその場でくるくるとロード中に
+ * なり、ユーザーが検索したものが学習言語ならそのままシールをはがす場面（シールを表示するときは
+ * 必ず画像や発音が表示されてから、画像も変更出来きるように。）に移行し、母語で一対一の関係では
+ * なく、複数の単語の候補がある場合…は単語の候補を表示して」:
  *
- * - `?scene=text-analyzing` … 意味を調べている間（語そのもの + 意味を調べています）
+ * - `?scene=text-searching` … 検索の欄のまま回る（別の待ち画面を出さない）
+ * - `?scene=text-candidates` … 母語の「電車」が台湾華語で割れた時の候補（`&state=preparing` は
+ *   押した行が回っている間）
+ * - `?scene=text-peel-ready` … 絵と発音がそろった札と、その下の「別の画像」
+ *
+ * 同日のオーナー報告（画面の録画、「貓」を打って調べた回）の札と着地:
  * - `?scene=text-peel-web` … ネットの画像が届いた札
  * - `?scene=text-peel-only` … 画像が届かなかった時の、語を組んだ札
  * - `?scene=text-landing` … 札を剥がして図鑑のカテゴリーのマス目へ着地
  *   （`&art=web` でネットの画像の札、`&dest=header` でマス目がまだ無い回 → カテゴリーの見出しへ）
  *
- * どれも本物の部品を描く（`CaptureLookupPanel` / `CaptureCardPanel` / `PeelSticker` /
- * `runCatchLanding`）。札の絵は本番と同じ `textStickerDataUrl` で作る。
+ * どれも本物の部品を描く（`CaptureObjectPanel` / `TextCandidateList` / `CaptureCardPanel` /
+ * `HeroImageChoices` / `PeelSticker` / `runCatchLanding`）。
  */
 import { useEffect, useRef, useState } from "react";
-import { CaptureCardPanel, CaptureLookupPanel } from "@/components/screens/CaptureScreen";
+import { CaptureCardPanel, CaptureObjectPanel } from "@/components/screens/CaptureScreen";
 import { CatchLandingOverlay, runCatchLanding } from "@/components/CatchLanding";
+import { HeroImageChoices } from "@/components/HeroImageChoices";
+import { TextCandidateList } from "@/components/TextCandidateList";
 import { parseCatchAnimation } from "@/lib/catch-animation-pref";
 import { textStickerDataUrl } from "@/lib/text-sticker";
+import type { TextCandidate } from "@/lib/text-search-flow";
 
 /** ネットの画像の代わり（見本は外へ取りに行かない）。猫の絵。 */
 export const WEB_CAT =
@@ -46,9 +53,161 @@ function artFor(kind: string | null): string {
   return kind === "web" ? WEB_CAT : textStickerDataUrl({ headword: HEAD, lang: "zh-TW" });
 }
 
-/** a) 意味を調べている間。 */
-export function TextAnalyzingScene() {
-  return <CaptureLookupPanel headword={HEAD} lang="zh-TW" onCancel={() => {}} />;
+/** 1) 検索の欄のまま回る（押した直後）。 */
+export function TextSearchingScene() {
+  const [typed, setTyped] = useState("蓮藕");
+  return (
+    <CaptureObjectPanel
+      initialMode="search"
+      retakeWord={null}
+      onObjectFile={() => {}}
+      typedWord={typed}
+      setTypedWord={setTyped}
+      onSearch={() => {}}
+      searching
+      onOpenScan={() => {}}
+      error={null}
+    />
+  );
+}
+
+/** 母語の「電車」が台湾華語で割れる（指す物が違う・言い方が違う）。 */
+const DENSHA: TextCandidate[] = [
+  {
+    headword: "電車",
+    reading_zhuyin: "ㄉㄧㄢˋ ㄔㄜ",
+    pinyin: "diànchē",
+    meaning_ja: "電車・路面電車",
+    distinction: "架線で走る車両そのもの",
+    usage: "common",
+    image_query: "electric train",
+  },
+  {
+    headword: "火車",
+    reading_zhuyin: "ㄏㄨㄛˇ ㄔㄜ",
+    pinyin: "huǒchē",
+    meaning_ja: "（都市間の）列車",
+    distinction: "台鐵など駅と駅を結ぶ列車",
+    usage: "local",
+    image_query: "train station taiwan",
+  },
+  {
+    headword: "捷運",
+    reading_zhuyin: "ㄐㄧㄝˊ ㄩㄣˋ",
+    pinyin: "jiéyùn",
+    meaning_ja: "地下鉄・MRT",
+    distinction: "台北・高雄の都市鉄道",
+    usage: "local",
+    image_query: "taipei metro",
+  },
+  {
+    headword: "列車",
+    reading_zhuyin: "ㄌㄧㄝˋ ㄔㄜ",
+    pinyin: "lièchē",
+    meaning_ja: "列車",
+    distinction: "案内放送・文書の言い方",
+    usage: "formal",
+    image_query: "passenger train",
+  },
+];
+
+/** 2) 候補（`&state=preparing` で「火車」を押して札を用意している間）。 */
+export function TextCandidatesScene({ q }: { q: URLSearchParams }) {
+  const [preparing, setPreparing] = useState<string | null>(
+    q.get("state") === "preparing" ? "火車" : null,
+  );
+  return (
+    <TextCandidateList
+      query="電車"
+      candidates={DENSHA}
+      language="zh-TW"
+      preparing={preparing}
+      onPick={(c) => setPreparing(c.headword)}
+      onBack={() => setPreparing(null)}
+    />
+  );
+}
+
+/** 「別の画像」の見本（外へ取りに行かない）。 */
+function swatch(bg: string, fg: string, shape: string): string {
+  return (
+    "data:image/svg+xml;utf8," +
+    encodeURIComponent(
+      `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120"><rect width="120" height="120" fill="${bg}"/>${shape.replaceAll("FG", fg)}</svg>`,
+    )
+  );
+}
+const LOTUS = swatch(
+  "#efe6d8",
+  "#c9a27a",
+  '<ellipse cx="60" cy="64" rx="44" ry="30" fill="FG"/><circle cx="44" cy="60" r="7" fill="#efe6d8"/><circle cx="60" cy="54" r="7" fill="#efe6d8"/><circle cx="76" cy="60" r="7" fill="#efe6d8"/><circle cx="52" cy="74" r="6" fill="#efe6d8"/><circle cx="68" cy="74" r="6" fill="#efe6d8"/>',
+);
+const CHOICES = [
+  { url: LOTUS, source: "demo" },
+  {
+    url: swatch(
+      "#e3efe3",
+      "#b98d62",
+      '<rect x="18" y="44" width="84" height="34" rx="17" fill="FG"/>',
+    ),
+    source: "demo",
+  },
+  {
+    url: swatch(
+      "#f5ede4",
+      "#d6b48e",
+      '<circle cx="60" cy="60" r="36" fill="FG"/><circle cx="60" cy="60" r="9" fill="#f5ede4"/>',
+    ),
+    source: "demo",
+  },
+  {
+    url: swatch("#e8eef6", "#a8805a", '<path d="M20 80 Q60 20 100 80Z" fill="FG"/>'),
+    source: "demo",
+  },
+];
+
+const LOTUS_CARD = {
+  reading_zhuyin: "ㄌㄧㄢˊ ㄡˇ",
+  pinyin: "lián'ǒu",
+  meaning_ja: "レンコン",
+  part_of_speech: "名詞",
+  level: "TOCFL-3",
+  category_key: "vegetable",
+  example_sentence: "",
+  example_translation: "",
+} as never;
+
+/** 3) 絵と発音がそろった札。下の「別の画像」を押すと札の絵が替わる。 */
+export function TextPeelReadyScene() {
+  const [flipped, setFlipped] = useState(false);
+  const [caption, setCaption] = useState("");
+  const [art, setArt] = useState(LOTUS);
+  return (
+    <CaptureCardPanel
+      card={LOTUS_CARD}
+      selectedHead="蓮藕"
+      objectImg={null}
+      art={art}
+      selfieImg={null}
+      flipped={flipped}
+      setFlipped={setFlipped}
+      caption={caption}
+      setCaption={setCaption}
+      placeName={null}
+      onRedo={() => {}}
+      onSave={() => {}}
+      imageChoices={
+        <HeroImageChoices
+          ownPhoto={false}
+          hasHero
+          candidates={CHOICES}
+          swapping={null}
+          onSwap={(c) => setArt(c.url)}
+          isPro={false}
+        />
+      }
+    />
+  );
 }
 
 /** b) 剥がす札。`web` はネットの画像、`text` は語を組んだ札。 */

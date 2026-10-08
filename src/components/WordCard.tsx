@@ -43,6 +43,7 @@ import { readerMeaning, readerText } from "@/lib/note-language";
 import { Prose } from "@/components/Prose";
 import { useWebImages, type WebImageWord } from "@/lib/use-web-images";
 import { imageQueryOf } from "@/lib/hero-image";
+import { imageAvoidOf } from "@/lib/image-sense";
 import {
   chunkSpeechText,
   chunkTranslation,
@@ -2196,6 +2197,8 @@ function webImageWord(word: WordCardData | null): WebImageWord {
     meaningJa: word.meaning_ja ?? "",
     imageQuery: imageQueryOf(word.extras),
     category: word.category_key ?? null,
+    avoid: imageAvoidOf(word.extras),
+    language: word.language ?? null,
   };
 }
 

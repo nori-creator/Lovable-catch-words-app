@@ -78,7 +78,8 @@ describe("札の仮画像（自動の1枚は、絵がまだ無い時だけ）", 
     expect(cap).toMatch(
       /if \(art\.kind !== "photo" && !res\.reencounter\) void webHero\.attach\(res\.id, selectedHead\);/,
     );
-    const hook = source("hooks/use-text-sticker-image.ts");
+    // 文字で調べた語の札の絵は `use-catch-images`（2026-10-08、札の下で選び直せる）。
+    const hook = source("hooks/use-catch-images.ts");
     expect(hook).toMatch(/only_if_empty: true/);
     // 手で選ぶ・AI の絵（`use-auto-hero` の差し替え）は上書きしてよい。
     const swap = source("hooks/use-auto-hero.ts");
@@ -90,10 +91,15 @@ describe("札の仮画像（自動の1枚は、絵がまだ無い時だけ）", 
     const peel = source("components/PeelSticker.tsx");
     expect(peel).toMatch(/function begin\(next: PeelDrag\) \{[^}]*live\.current\.onGrab\?\.\(\);/);
     const cap = source("components/screens/CaptureScreen.tsx");
-    expect(cap).toMatch(/onGrab=\{\(\) => setGrabbedHead\(selectedHead\)\}/);
     expect(cap).toMatch(/onGrab=\{onGrab\}/);
-    expect(cap).toMatch(
-      /frozen: saving \|\| landing \|\| \(!!selectedHead && grabbedHead === selectedHead\)/,
+    // 2026-10-08 から、文字で調べた語の札は**絵を探し終えてから**出す（`peelReady`）。
+    // 出た後に札の絵が替わるのは、人が「別の画像」を押した時だけ（`use-catch-images`）。
+    expect(cap).toMatch(/imageSettled: !!objectImageRef\.current \|\| webHero\.settled/);
+    const hook = source("hooks/use-catch-images.ts");
+    expect(hook).toMatch(
+      /s\.key === key && !s\.settled \? \{ \.\.\.s, chosen: c, shown, settled: true \}/,
     );
+    // 剥がしている・飛んでいる間は「別の画像」を押させない。
+    expect(cap).toMatch(/swapping=\{saving \|\| landing \? "busy" : webHero\.swapping\}/);
   });
 });
