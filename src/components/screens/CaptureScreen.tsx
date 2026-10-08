@@ -18,6 +18,7 @@ import {
   useState,
   type CSSProperties,
   type PointerEvent as ReactPointerEvent,
+  type ReactNode,
   type RefObject,
 } from "react";
 import { useServerFn } from "@tanstack/react-start";
@@ -73,11 +74,20 @@ import { Term } from "@/components/Term";
 import { Reading, useReadingText } from "@/lib/phonetic";
 import { ScanEffect } from "@/components/ScanEffect";
 import { CatchLandingOverlay, runCatchLanding } from "@/components/CatchLanding";
-import { useTextStickerImage } from "@/hooks/use-text-sticker-image";
+import { useCatchImages } from "@/hooks/use-catch-images";
+import { HeroImageChoices } from "@/components/HeroImageChoices";
+import { TextCandidateList } from "@/components/TextCandidateList";
+import { detectQueryLang } from "@/lib/text-query-lang";
+import {
+  decideTextSearch,
+  peelReady,
+  PEEL_READY_MAX_WAIT_MS,
+  type TextCandidate,
+} from "@/lib/text-search-flow";
 import { landingCategoryKey } from "@/lib/landing-category";
 import { imageQueryOf } from "@/lib/hero-image";
 import { chooseStickerArt, textStickerDataUrl } from "@/lib/text-sticker";
-import { onPronounced, usePronounce } from "@/lib/use-pronounce";
+import { onPronounced, usePronounce, useSpeechReady } from "@/lib/use-pronounce";
 import { useFunnelEvent } from "@/lib/use-funnel-event";
 import { useCandidatePick } from "@/lib/use-candidate-pick";
 import type { CandidatePickVia } from "@/lib/funnel-events";
@@ -126,6 +136,8 @@ type Step =
   | "processing"
   | "select"
   | "textInput"
+  /** 母語で打った語が学習言語で割れた時の候補（`TextCandidateList`）。 */
+  | "textPick"
   | "imagePick"
   | "card"
   | "saving"
@@ -324,10 +336,6 @@ export function CapturePage() {
   const reencPromiseRef = useRef<Promise<boolean> | null>(null);
   /** 保存が通ったか。通ったあとの失敗を「保存の失敗」と言わないための印。 */
   const savedRef = useRef(false);
-  // 「いま何を待っているか」— 写真の候補出し(analyze)か、打った語の意味を調べている(lookup)か。
-  // 待ち画面をここで切り替える。**打った語に「AI が分析中」の粒子の演出は出さない**
-  // （オーナー報告 2026-10-08「写真が無いのに、黒い画面で11秒も分析中」）。
-  const [waitKind, setWaitKind] = useState<"analyze" | "lookup">("analyze");
   /**
    * 撮る画面へ戻すときの撮り方。打った語を調べるのを「やめる」・失敗したときは
    * **検索の欄を開いたまま**戻す（打った語を書き直せるように）。
@@ -343,29 +351,54 @@ export function CapturePage() {
    */
   const [saving, setSaving] = useState(false);
   /**
-   * **剥がす札に載せる絵**（オーナー報告 2026-10-08「文字で調べた語の札に何も載っていない」）。
-   * 撮った写真 → ネットの画像（短い上限つきで待つ）→ 語を組んだ札、の順（`lib/text-sticker.ts`）。
-   * 写真のある回は今までどおり写真だけ。
+   * **文字で調べた語の流れ**（オーナー指示 2026-10-08、`lib/text-search-flow.ts`）。
+   *
+   * - `textQuery` / `textPicks` … 母語で打った語が学習言語で割れた時の候補（`textPick` の段）。
+   * - `holdHead` … 剥がす札を**用意している**語。札は絵と発音がそろうまで出さず、その間は
+   *   今の画面のまま（検索の欄・押した候補の行）が回る。別の待ち画面は出さない。
+   * - `readySince` … 読みの載ったカードがそろい、絵と発音を待ち始めた時刻。
+   * - `peelImage` … 札の絵を探す語と、検索用の英語（語を引いた時の `image_query`）。
+   *   見出しが後から直っても（`adoptResolvedHead`）探し直さない — 出した札の絵を替えない。
    */
+  const [textQuery, setTextQuery] = useState("");
+  const [textPicks, setTextPicks] = useState<TextCandidate[]>([]);
+  const [holdHead, setHoldHead] = useState<string | null>(null);
+  const [readySince, setReadySince] = useState<number | null>(null);
+  const [peelImage, setPeelImage] = useState<{ head: string; query: string } | null>(null);
+  /** いま調べている語（同じ語を2度投げない）。 */
+  const searchingWordRef = useRef<string | null>(null);
+  /** 検索の番号（回すのを止めてよいのは、いちばん新しい検索だけ）。 */
+  const searchSeqRef = useRef(0);
   /**
-   * **指を札に置いた語**（剥がし始めた）。保存を押した後だけでなく、**掴んだ時点で**札の絵を
-   * 決着させる — 掴んでから2.5秒の検索の間にネットの画像が届くと、剥がしている途中で
-   * 札の絵が差し替わり、剥がしが最初からやり直しになっていた。語ごとに覚える
-   * （別の語のカードに替わったら、また待つ）。
+   * **剥がす札に載せる絵**（オーナー報告 2026-10-08「文字で調べた語の札に何も載っていない」・
+   * 同日の指示「シールを表示するときは必ず画像や発音が表示されてから、画像も変更出来きるように」）。
+   * 撮った写真 → ネットの画像 → 語を組んだ札、の順（`lib/text-sticker.ts`）。札を出す前に探し終え、
+   * 札の下の「別の画像」で選び直せる（`use-catch-images.ts`）。写真のある回は今までどおり写真だけ。
    */
-  const [grabbedHead, setGrabbedHead] = useState<string | null>(null);
-  const webHero = useTextStickerImage({
-    enabled: step === "card" && !objectImg && !!card,
-    headword: selectedHead,
+  const webHero = useCatchImages({
+    enabled: !objectImg && !!peelImage && (readySince != null || step === "card"),
+    headword: peelImage?.head ?? "",
     meaning: card?.meaning_ja,
-    // 図鑑の詳細の自動の1枚と同じ検索（AI の画像検索用の英語 → 分類で並べ直し）。
-    imageQuery: imageQueryOf(card?.extras),
+    imageQuery: peelImage?.query || imageQueryOf(card?.extras),
     category: card?.category_key ?? null,
-    frozen: saving || landing || (!!selectedHead && grabbedHead === selectedHead),
   });
+  /** 札を出す前に、発音を取りに行く（届いた・取れないと分かったら札を出す）。 */
+  const peelSpeech = useSpeechReady(
+    readySince != null ? selectedHead : null,
+    targetLanguage,
+    readySince != null,
+    { pinyin: card?.pinyin, zhuyin: card?.reading_zhuyin },
+  );
+  /** 待つ上限で描き直すための刻み。 */
+  const [, setPeelTick] = useState(0);
   const textArt = useMemo(
-    () => textStickerDataUrl({ headword: selectedHead, lang: targetLanguage }),
-    [selectedHead, targetLanguage],
+    () =>
+      textStickerDataUrl({
+        headword: selectedHead,
+        reading: card?.pinyin ?? null,
+        lang: targetLanguage,
+      }),
+    [selectedHead, card?.pinyin, targetLanguage],
   );
   const stickerArt = chooseStickerArt({ photo: objectImg, webImage: webHero.image, textArt });
   const heroBoxRef = useRef<HTMLDivElement | null>(null);
@@ -505,6 +538,9 @@ export function CapturePage() {
     // 打った語と同じ道（`searchWord`）を通す。学習言語の語ならそのまま
     // `confirmWord` へ進み、そうでなければ学習言語の語に直してから進む。
     // 直に `confirmWord` へ渡すと、渡された語が何語でも見出しになる。
+    // 検索の欄を開き、その語を入れたまま回す（調べている所が見えるように）。
+    setTypedWord(wordParam);
+    setReturnMode("search");
     void searchWord(wordParam);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [wordParam]);
@@ -701,7 +737,9 @@ export function CapturePage() {
     // 候補が並ぶまでの待ち時間: シャッターからの時間（無ければ解析を始めた時から）。
     const waitFrom = shutterAtRef.current ?? Date.now();
     shutterAtRef.current = null;
-    setWaitKind("analyze");
+    // 文字で調べていた語の札の用意は捨てる（写真の流れの上で札の画面へ移らない）。
+    setHoldHead(null);
+    setReadySince(null);
     showAnalysisStep("processing");
     setError(null);
     setSavedReason(null);
@@ -832,87 +870,152 @@ export function CapturePage() {
       step === "select" && suggestSourceRef.current === "photo" ? "native_search" : "typed";
     const word = raw.trim();
     if (!word) return;
-    setError(null);
-    // すでに学習言語の語。**そのまま進む**（余計な問い合わせを足さない）。
-    if (isTargetHeadword(word, targetLanguage)) {
-      setTypedWord("");
-      logPick({ via, rank: 1, n: 1 });
-      void confirmWord(word);
-      return;
-    }
+    // 同じ語を調べている最中に押し直しても、2度は引かない（AI の上限を削らない）。
+    if (searchingWordRef.current === word) return;
     /**
-     * **調べている間も検索の画面のまま**（オーナー指示 2026-08-26
-     * 「検索したら AI が分析中と画像を撮ったときと同じ画面が表示されて
-     * いるが、検索した画面で検索ボタンがロード中だとわかるくるくる
-     * まわるやつになって」）。
+     * **新しく調べたら、前の検索は捨てる。** 番号を進めると、走っている検索・札の用意は
+     * 返ってきても何もしない（打ち直した語の結果だけが画面に届く）。
+     */
+    const token = ++runTokenRef.current;
+    const seq = ++searchSeqRef.current;
+    searchingWordRef.current = word;
+    setError(null);
+    setHoldHead(null);
+    setReadySince(null);
+    /**
+     * **調べている間も検索の画面のまま**（オーナー指示 2026-08-26 / 2026-10-08
+     * 「検索ボタンを押したらその場でくるくるとロード中になり」）。
      *
-     * ここは撮ったときと同じ全画面の「分析中」に飛ばしていた。
-     * 撮る方はカメラが閉じて他に見る物が無いのでそれでよいが、
-     * 打つ方は**打った語がまだ画面に在る**。飛ばすと、
-     * 打った物も、書き直す口も、いっぺんに消える。
-     *
-     * 打った語も消さない。**失敗したときに書き直せない**のが
-     * 「機能してない」と見える一番の理由だった。
+     * 撮ったときの全画面の「分析中」にも、意味を調べている面にも飛ばさない。
+     * 打った語は**画面に在るまま**回り、失敗したらそのまま書き直せる。
      */
     setSearching(true);
+    /**
+     * **打った語が何語か**を手元で見分ける（`lib/text-query-lang.ts`）。かな → 母語、
+     * 台湾の字にしか無い形 → 学習言語。漢字だけで決まらない語（「電車」「蓮藕」）は
+     * 語を引く AI に判定させる（`query_is_target`）。
+     */
+    const local = detectQueryLang(word, targetLanguage);
     try {
-      const { candidates } = await candidatesFn({
-        data: { query: word, targetLanguage: targetLanguage },
+      const res = await candidatesFn({
+        data: { query: word, targetLanguage: targetLanguage, queryLang: local },
       });
-      const usable = candidates.filter((c) => isTargetHeadword(c.headword, targetLanguage));
-      if (usable.length === 0) {
+      if (runTokenRef.current !== token) return;
+      const decision = decideTextSearch({
+        query: word,
+        local,
+        queryIsTarget: res.query_is_target,
+        candidates: res.candidates.map((c) => ({
+          ...c,
+          usage: c.usage ?? null,
+          image_query: c.image_query ?? "",
+        })),
+        targetLanguage,
+      });
+      if (decision.kind === "none") {
         // **打った語のままカードを作らない。** 見出しが母語のまま残る。
         // 何が起きたかを**その人が学んでいる言語の名前で**言う。
         setError(t("input.notTargetLang", { lang: t(TARGET_LANG_LABEL_KEYS[targetLanguage]) }));
         return;
       }
-      if (usable.length === 1) {
+      if (decision.kind === "choose") {
         /**
-         * **候補が1つなら選ばせない**（オーナー指示 2026-08-26
-         * 「学習言語と母語が一対一の関係で…単語の候補の画面をスキップして、
-         * 単語の意味と発音の画面に直接移って」）。
-         *
-         * 選択肢が1つの画面は、押す以外にできることが無い。
+         * **母語の1語が学習言語で割れたら選ばせる**（同 2026-10-08「同じ日本でも台湾華語だと
+         * 区別があったり一般的な言い方や学術的な言い方など」）。こちらで1つに決めると、
+         * 別の語を覚えることになる。
          */
-        const c = usable[0];
+        suggestSourceRef.current = via;
+        setTextQuery(word);
+        setTextPicks(decision.candidates);
         setTypedWord("");
-        logPick({ via, rank: 1, n: 1 });
-        void confirmWord(c.headword, {
-          headword: c.headword,
-          reading_zhuyin: c.reading_zhuyin,
-          pinyin: c.pinyin,
-          meaning_ja: c.meaning_ja,
-          distinction: c.distinction,
-          category_key: "other",
-        });
+        setStep("textPick");
         return;
       }
-      // **複数あるなら選ばせる。** 母語の1語が学習言語では別々の語に割れる
-      // ことが多く、こちらで1つに決めると別の語を覚えることになる。
-      suggestSourceRef.current = via;
-      setSuggestions(
-        usable.map((c) => ({
-          headword: c.headword,
-          reading_zhuyin: c.reading_zhuyin,
-          pinyin: c.pinyin,
-          meaning_ja: c.meaning_ja,
-          distinction: c.distinction,
-          category_key: "other",
-        })),
-      );
-      setTypedWord("");
-      setStep("select");
+      /**
+       * **学習言語で打った語・一対一の語は選ばせない**（オーナー指示 2026-08-26 /
+       * 2026-10-08「学習言語ならそのままシールをはがす場面に移行」）。
+       * 選ぶ物が1つの画面は、押す以外にできることが無い。
+       */
+      logPick({ via, rank: 1, n: 1 });
+      startPeel(decision.pick);
+      // ここからは `holdHead` が回す（札がそろうまで）。
+      setSearching(false);
     } catch (e) {
+      if (runTokenRef.current !== token) return;
       // **本当の理由をそのまま出す。** 上限に達した・鍵が無いなど、
       // 打ち直しても直らない話をここで握り潰すと「機能してない」になる。
       // 上限に達した等の理由は `readable` が画面の言語の文に直す。
       // 生の `e.message`（Failed to fetch・サーバの日本語）は出さない。
-      setError(
-        readable(e, t("input.notTargetLang", { lang: t(TARGET_LANG_LABEL_KEYS[targetLanguage]) })),
-      );
+      // 打った語は欄に残るので、もう一度押せばやり直せる。
+      setError(readable(e, t("textSearch.failed")));
     } finally {
-      setSearching(false);
+      // 写真を撮る等で番号が進んだ回も、回し続けない（新しい検索が始まっていれば任せる）。
+      if (searchSeqRef.current === seq) {
+        searchingWordRef.current = null;
+        setSearching(false);
+      }
     }
+  }
+
+  /**
+   * 選んだ（決まった）語の**剥がす札を用意する**。札は絵と発音がそろってから出す
+   * （`peelReady`）— その間は今の画面のまま回る（検索の欄・押した候補の行）。
+   */
+  function startPeel(pick: TextCandidate) {
+    setHoldHead(pick.headword);
+    setPeelImage({ head: pick.headword, query: pick.image_query });
+    const hasReading = !!(pick.pinyin || pick.reading_zhuyin) && !!pick.meaning_ja;
+    void confirmWord(
+      pick.headword,
+      hasReading
+        ? {
+            headword: pick.headword,
+            reading_zhuyin: pick.reading_zhuyin,
+            pinyin: pick.pinyin,
+            meaning_ja: pick.meaning_ja,
+            distinction: pick.distinction,
+            category_key: "other",
+          }
+        : undefined,
+      { hold: true },
+    );
+  }
+
+  /**
+   * **絵と発音がそろったら、剥がす札の画面へ。** 上限（`PEEL_READY_MAX_WAIT_MS`）を
+   * 過ぎたら、そろった物で出す（語を組んだ札・読みの文字だけ）— 待たせ続けない。
+   */
+  useEffect(() => {
+    if (readySince == null || !holdHead) return;
+    const waitedMs = Date.now() - readySince;
+    const ready = peelReady({
+      hasCard: !!card,
+      imageSettled: !!objectImageRef.current || webHero.settled,
+      speech: peelSpeech,
+      waitedMs,
+    });
+    if (ready) {
+      setHoldHead(null);
+      setReadySince(null);
+      setSearching(false);
+      setTypedWord("");
+      setStep("card");
+      return;
+    }
+    const id = window.setTimeout(
+      () => setPeelTick((n) => n + 1),
+      Math.max(50, PEEL_READY_MAX_WAIT_MS - waitedMs),
+    );
+    return () => window.clearTimeout(id);
+  }, [readySince, holdHead, card, webHero.settled, peelSpeech]);
+
+  /** 候補の画面から検索の欄へ戻る（打った語を欄に戻す）。 */
+  function backFromTextPick() {
+    runTokenRef.current++;
+    setHoldHead(null);
+    setReadySince(null);
+    setTextPicks([]);
+    backToSearch(textQuery);
   }
 
   /**
@@ -933,7 +1036,16 @@ export function CapturePage() {
     setSelectedHead((prev) => (prev === resolved ? prev : resolved));
   }
 
-  async function confirmWord(head: string, hint?: Suggestion) {
+  async function confirmWord(
+    head: string,
+    hint?: Suggestion,
+    /**
+     * `hold` … 文字で調べた語。**札の画面へは絵と発音がそろってから移る**（`startPeel`）。
+     * それまでは今の画面のまま（検索の欄・候補の行が回る）。
+     */
+    opts: { hold?: boolean } = {},
+  ) {
+    const hold = !!opts.hold;
     const token = ++runTokenRef.current;
     // 写真は ref から読む。スキャンから渡されたときは、同じ描画のうちに
     // ここへ来るので、`objectImg`（状態）はまだ前の値のまま。
@@ -948,14 +1060,9 @@ export function CapturePage() {
      * 謎の AI が分析中のアニメーションが一瞬映る。消して。そのままステッカーの画面に移行して」）。
      * 候補（`hint`）には読み・意味が入っていてカードはすぐ出せる。待つのは「もう持っている語か」
      * の確認（1往復）だけなので、その間は今の画面のまま待ち、終わったらカードへ直接移る。
-     * 候補が無い時（打った語など）はカードを作る間を待つ。**その間は打った語そのものと
-     * 「意味を調べています」だけを静かに出す**（`CaptureLookupPanel`。写真が無いのに
-     * 粒子の「AI が分析中」を出していた — オーナー報告 2026-10-08）。
+     * 文字で調べた語（`hold`）は、カード・絵・発音がそろうまで今の画面のまま回る
+     * （オーナー指示 2026-10-08。前は「意味を調べています」の面に移っていた）。
      */
-    if (!hint) {
-      setWaitKind("lookup");
-      setStep("processing");
-    }
     const startedAt = Date.now();
 
     // **カードは待たせずに出す**(オーナー指摘 2026-08-20)。
@@ -973,6 +1080,10 @@ export function CapturePage() {
         }));
       if (runTokenRef.current !== token) return;
       if (owned) {
+        // 再会の札は持っている絵で剥がす（探す絵も発音の待ちも要らない）。
+        setHoldHead(null);
+        setReadySince(null);
+        setTypedWord("");
         setReenc(owned);
         setReencResult(null);
         setStep("reencounter");
@@ -1019,7 +1130,12 @@ export function CapturePage() {
         adoptResolvedHead(c);
       }
       if (runTokenRef.current !== token) return;
-      setStep("card");
+      if (hold) {
+        // 絵と発音を待ち始める（そろったら `peelReady` の効果が札の画面へ移す）。
+        setReadySince(Date.now());
+      } else {
+        setStep("card");
+      }
       // 候補を押してから意味の載ったカードが出るまで（QA.md「selection → usable meaning」）。
       track("meaning_shown", Date.now() - startedAt);
       // 要望 #73「切り抜きあり/なしの時間を計測して比較」。
@@ -1033,8 +1149,15 @@ export function CapturePage() {
       console.error(e);
       if (runTokenRef.current !== token) return;
       toast.error(t("cap.cardFailed"));
+      setHoldHead(null);
+      setReadySince(null);
+      // 文字で調べた語は、今の画面（候補の一覧・検索の欄）のまま押し直せる。
+      if (hold) {
+        if (step !== "textPick" && step !== "select") backToSearch(head);
+        setError(t("cap.cardFailed"));
+      }
       // 打った語だけの回は、選ぶ候補が無い。検索の欄へ打った語を残して戻す。
-      if (!hint && suggestions.length === 0) backToSearch(head);
+      else if (!hint && suggestions.length === 0) backToSearch(head);
       else setStep("select");
     }
   }
@@ -1336,7 +1459,13 @@ export function CapturePage() {
 
   function reset() {
     selfiePendingRef.current = false;
-    setGrabbedHead(null);
+    setHoldHead(null);
+    setReadySince(null);
+    setPeelImage(null);
+    setTextPicks([]);
+    setTextQuery("");
+    searchingWordRef.current = null;
+    setSearching(false);
     analysisNextRef.current = null;
     // 走っている解析・切り抜きを無効化してから畳む。番号を進めないと、
     // 前の写真の結果が後から届いて新しい画面を上書きする。
@@ -1368,24 +1497,10 @@ export function CapturePage() {
   }
 
   /**
-   * 待ち画面の「やめる」。
-   *
-   * 切り抜き待ちなら候補一覧に戻す — 写真も候補もまだ手元にあるので、
-   * そこまで捨てる理由がない。解析待ちなら最初からやり直す。
-   * どちらの道でも `reset()`/番号の更新で走っている処理を無効化する。
+   * 待ち画面（写真の解析）の「やめる」。最初からやり直す。
+   * `reset()` が番号を進めて、走っている処理を無効化する。
    */
   function cancelProcessing() {
-    if (waitKind === "lookup") {
-      runTokenRef.current++;
-      // 写真の候補から打ち直した回は候補へ、打っただけの回は検索の欄へ戻す。
-      if (suggestions.length > 0) {
-        setSelectedHead("");
-        setStep("select");
-      } else {
-        backToSearch(selectedHead);
-      }
-      return;
-    }
     reset();
   }
 
@@ -1533,23 +1648,36 @@ export function CapturePage() {
            * 台湾華語の決め打ちで引いていた)。
            */
           onSearch={(w) => void searchWord(w)}
-          searching={searching}
+          searching={searching || !!holdHead}
           initialMode={returnMode ?? modeParam ?? "photo"}
           onOpenScan={() => navigate({ to: "/scan" })}
           error={error}
         />
       )}
 
-      {step === "processing" &&
-        (waitKind === "lookup" ? (
-          <CaptureLookupPanel
-            headword={selectedHead}
-            lang={targetLanguage}
-            onCancel={cancelProcessing}
-          />
-        ) : (
-          <CaptureAnalyzingPanel image={objectImg} onCancel={cancelProcessing} />
-        ))}
+      {step === "processing" && (
+        <CaptureAnalyzingPanel image={objectImg} onCancel={cancelProcessing} />
+      )}
+
+      {step === "textPick" && (
+        <TextCandidateList
+          query={textQuery}
+          candidates={textPicks}
+          language={targetLanguage}
+          preparing={holdHead}
+          onPick={(c) => {
+            if (holdHead) return;
+            const rank = textPicks.findIndex((x) => x.headword === c.headword) + 1;
+            logPick({
+              via: suggestSourceRef.current,
+              rank: rank > 0 ? rank : textPicks.length,
+              n: Math.max(1, textPicks.length),
+            });
+            startPeel(c);
+          }}
+          onBack={backFromTextPick}
+        />
+      )}
 
       {step === "select" && (
         <PickWordPanel
@@ -1571,6 +1699,7 @@ export function CapturePage() {
           // **ここも学習言語へ直してから進む**(`searchWord` の注)。
           // 写真の候補に無い語を手で打つ所なので、母語で書かれることが多い。
           onManual={() => void searchWord(manualWord)}
+          searching={searching || !!holdHead}
         />
       )}
 
@@ -1580,7 +1709,19 @@ export function CapturePage() {
           selectedHead={selectedHead}
           objectImg={objectImg}
           art={stickerArt.url}
-          onGrab={() => setGrabbedHead(selectedHead)}
+          imageChoices={
+            stickerArt.kind !== "photo" && (
+              <HeroImageChoices
+                ownPhoto={false}
+                hasHero={!!webHero.image}
+                candidates={webHero.candidates}
+                // 剥がしている・飛んでいる間は替えさせない。
+                swapping={saving || landing ? "busy" : webHero.swapping}
+                onSwap={(c) => void webHero.choose(c)}
+                isPro={false}
+              />
+            )
+          }
           selfieImg={selfieImg}
           flipped={flipped}
           setFlipped={setFlipped}
@@ -1684,66 +1825,6 @@ export function CaptureAnalyzingPanel({
       >
         {t("capture.cancel")}
       </button>
-    </div>
-  );
-}
-
-/**
- * **打った語の意味を調べている面**（写真の無いキャッチ）。
- *
- * ## オーナー報告 2026-10-08（画面の録画）
- * > 文字で「貓」と調べたら、写真も物も無いのに、黒い画面の粒子の「AI が分析中…」が
- * > 11秒ほど続いた。
- *
- * 写真の無い回に「分析」する物は無い。待っているのは**意味を引くこと**だけなので、
- * 打った語そのものを大きく出し、「意味を調べています」を静かに添える。暗転も粒子も
- * 出さない（明るい地のまま、カードが出る画面と同じ地）。動くのは小さな3つの点だけで、
- * 動きを減らす設定では止まる。
- *
- * 出口は必ず置く（打った語を残して検索の欄へ戻る）。
- */
-export function CaptureLookupPanel({
-  headword,
-  lang,
-  onCancel,
-}: {
-  headword: string;
-  /** その語の学習言語（字の組み方。`Term` の注）。 */
-  lang?: string | null;
-  onCancel: () => void;
-}) {
-  const t = useT();
-  return (
-    <div
-      className="flex min-h-[60dvh] flex-col items-center justify-center gap-5 text-center"
-      role="status"
-      aria-live="polite"
-      data-testid="capture-lookup"
-    >
-      <div className="capture-lookup__word grid aspect-square w-48 max-w-[62vw] place-items-center rounded-[28px] border border-border bg-card shadow-[0_16px_45px_#1175c514]">
-        <Term
-          as="p"
-          lang={lang}
-          className="px-4 text-[clamp(2.25rem,12vw,4.5rem)] font-bold leading-none tracking-tight text-foreground [overflow-wrap:anywhere]"
-        >
-          {headword}
-        </Term>
-      </div>
-      <p className="flex items-center gap-2 text-body text-muted-foreground">
-        {t("capture.lookingUp")}
-        <span aria-hidden className="inline-flex gap-1">
-          {[0, 1, 2].map((i) => (
-            <span
-              key={i}
-              className="h-1.5 w-1.5 animate-pulse rounded-full bg-muted-foreground/70 motion-reduce:animate-none"
-              style={{ animationDelay: `${i * 180}ms` }}
-            />
-          ))}
-        </span>
-      </p>
-      <Button variant="outline" onClick={onCancel} className="min-h-11 rounded-full px-5">
-        {t("capture.cancel")}
-      </Button>
     </div>
   );
 }
@@ -1965,7 +2046,10 @@ export function PickWordPanel({
   onPick,
   onManual,
   targetLanguage,
+  searching = false,
 }: {
+  /** 「違う単語」を調べている最中（検索の釦をその場で回す）。 */
+  searching?: boolean;
   objectImg: string | null;
   suggestions: Suggestion[];
   manualWord: string;
@@ -2031,8 +2115,12 @@ export function PickWordPanel({
             enterKeyHint="search"
             className="search-field"
           />
-          <Button type="submit" disabled={!manualWord.trim()} className="gap-1.5">
-            <Search className="h-4 w-4" />
+          <Button type="submit" disabled={searching || !manualWord.trim()} className="gap-1.5">
+            {searching ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Search className="h-4 w-4" />
+            )}
             {t("capture.useThis")}
           </Button>
         </form>
@@ -2123,6 +2211,7 @@ export function CaptureCardPanel({
   saving = false,
   art,
   onGrab,
+  imageChoices,
 }: {
   card: CardData;
   selectedHead: string;
@@ -2134,6 +2223,11 @@ export function CaptureCardPanel({
   art?: string | null;
   /** 札を掴んだ時（剥がし始め）。ここで札の絵を決着させる（`PeelSticker` の `onGrab`）。 */
   onGrab?: () => void;
+  /**
+   * 札のすぐ下に置く「別の画像」（写真の無い札だけ。`HeroImageChoices`）。
+   * オーナー指示 2026-10-08「画像も変更出来きるように」。
+   */
+  imageChoices?: ReactNode;
   /** 裏面。自撮りが無ければ「まだ無い」と描く。 */
   selfieImg: string | null;
   flipped: boolean;
@@ -2191,6 +2285,7 @@ export function CaptureCardPanel({
           </div>
         </div>
       </div>
+      {imageChoices && <div className="mx-auto w-full max-w-sm">{imageChoices}</div>}
       <div className="flex gap-2">
         <Button variant="outline" onClick={onRedo} disabled={saving} className="flex-1">
           {t("capture.redo")}
@@ -2356,6 +2451,10 @@ export function CaptureObjectPanel({
    * 出てくる」)。「スキャン」だけは別の画面へ渡す。
    */
   const [mode, setMode] = useState<CameraMode>(initialMode);
+  // 後から「検索」で開き直すよう頼まれた時（`/capture?word=` で調べ始めた等）は欄を開く。
+  useEffect(() => {
+    if (initialMode === "search") setMode("search");
+  }, [initialMode]);
   const textOpen = !selfieMode && mode === "search";
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -2919,14 +3018,25 @@ export function CaptureObjectPanel({
                 placeholder={t("capture.searchPlaceholder")}
                 aria-label={t("capture.typeWord")}
                 enterKeyHint="search"
-                disabled={searching}
+                // 調べている間も打ち直せる（打ち直して押せば、前の検索は捨てる — `searchWord`）。
+                aria-busy={searching}
                 className="search-field h-11 rounded-xl pl-9 text-foreground"
               />
             </div>
             {/* 端末の写真で調べる口は、左下の「写真」に1つにまとめた（R17「検索の横のカメラロール
                 から追加するボタンを消して、…すべてのモードで左下からスマホにある画像を分析」）。 */}
-            <Button type="submit" disabled={searching || !typedWord.trim()} size="icon">
-              {searching ? <Loader2 className="animate-spin" /> : <Search />}
+            <Button
+              type="submit"
+              disabled={!typedWord.trim()}
+              size="icon"
+              aria-label={t("capture.typeWord")}
+              aria-busy={searching}
+            >
+              {searching ? (
+                <Loader2 className="animate-spin motion-reduce:animate-none" />
+              ) : (
+                <Search />
+              )}
             </Button>
           </form>
         )}

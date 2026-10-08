@@ -4455,12 +4455,35 @@ export const DICT: Record<string, Record<UiLang, string>> = {
     "zh-TW": "現在就再試一次",
   },
   "capture.cancel": { ja: "やめる", en: "Cancel", "zh-TW": "取消" },
-  // 打った語の意味を引いている間（`CaptureLookupPanel`）。写真が無いので「分析」とは言わない。
-  "capture.lookingUp": {
-    ja: "意味を調べています",
-    en: "Looking up the meaning",
-    "zh-TW": "正在查詢意思",
+  // 文字で調べた語の検索が失敗した時（打った語は欄に残る — もう一度押せばやり直せる）。
+  "textSearch.failed": {
+    ja: "調べられませんでした。もう一度検索してください",
+    en: "Couldn’t look that up. Please search again.",
+    "zh-TW": "查詢失敗，請再搜尋一次",
   },
+  // 母語で打った語の、学習言語の候補（`TextCandidateList`）。
+  "textPick.back": { ja: "検索に戻る", en: "Back to search", "zh-TW": "回到搜尋" },
+  "textPick.title": {
+    ja: "「{query}」の言い方",
+    en: "Ways to say “{query}”",
+    "zh-TW": "「{query}」的說法",
+  },
+  "textPick.hint": {
+    ja: "覚えたい言い方を選んでください",
+    en: "Pick the one you want to learn",
+    "zh-TW": "請選擇想學的說法",
+  },
+  "textPick.preparing": {
+    ja: "シールを用意しています",
+    en: "Preparing the sticker",
+    "zh-TW": "正在準備貼紙",
+  },
+  "textPick.usage.common": { ja: "一般的", en: "Common", "zh-TW": "一般" },
+  "textPick.usage.colloquial": { ja: "口語", en: "Casual", "zh-TW": "口語" },
+  "textPick.usage.formal": { ja: "書き言葉", en: "Formal", "zh-TW": "書面語" },
+  "textPick.usage.academic": { ja: "学術・専門", en: "Technical", "zh-TW": "學術用語" },
+  "textPick.usage.taiwan": { ja: "台湾でよく使う", en: "Taiwan usage", "zh-TW": "台灣常用" },
+  "textPick.usage.local": { ja: "現地でよく使う", en: "Local usage", "zh-TW": "當地常用" },
   "capture.toHome": { ja: "ホームへ", en: "Go Home", "zh-TW": "回首頁" },
   "capture.oneMore": { ja: "もう一枚撮る", en: "Take another", "zh-TW": "再拍一張" },
   "capture.reunion": { ja: "再会！", en: "Reunion!", "zh-TW": "重逢！" },
