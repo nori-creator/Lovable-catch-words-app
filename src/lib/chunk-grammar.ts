@@ -191,13 +191,78 @@ function withDegreeSlots(
   });
 }
 
+/**
+ * 区切りの記号だけの札（`+` `＋` `・` `/` `／` `|`、空白）。札ではなく継ぎ目の書き方。
+ */
+const SEPARATOR_ONLY = /^[\s+＋・･/／|｜]*$/u;
+
+/**
+ * 区切りとしての `+` か。全角の `＋` はいつも区切り。半角の `+` は、隣が英字・数字・`+` の
+ * 時は語の一部として残す（`C++` `Wi-Fi+` を割らない）。
+ */
+function isSeparatorPlus(text: string, i: number): boolean {
+  const ch = text[i];
+  if (ch === "＋") return true;
+  if (ch !== "+") return false;
+  const near = /[A-Za-z0-9+]/;
+  return !near.test(text[i - 1] ?? "") && !near.test(text[i + 1] ?? "");
+}
+
+/** 区切りの `+` で切る。区切りが無ければ1つだけの配列（元の字のまま）。 */
+function splitOnSeparatorPlus(text: string): string[] {
+  const out: string[] = [];
+  let cur = "";
+  for (let i = 0; i < text.length; i++) {
+    if (isSeparatorPlus(text, i)) {
+      out.push(cur);
+      cur = "";
+    } else {
+      cur += text[i];
+    }
+  }
+  out.push(cur);
+  return out.map((s) => s.trim()).filter((s) => s.length > 0);
+}
+
+/**
+ * **「+」を札にしない**（オーナー報告 2026-10-08「使い方チャンクで 牛蒡 [+] 炒 のように
+ * + が1つの札で出る」）。
+ *
+ * 指示文の例が「跟＋男朋友＋吵架」と `＋` で書いてあるので、AI がその `＋` を
+ * パーツとして返す回がある。描く前に:
+ * - 区切りの記号だけの札（`+` `＋` `・` `/` `／`、空白）は落とす
+ * - 「牛蒡+炒」のように `+` を含む札は、そこで切って別々の札にする
+ *   （切った札は品詞だけ受け継ぐ。入れ替えの候補・意味は元の札全体の物なので付けない）
+ *
+ * **保存済みの語**にも効くよう、生成の後ではなく描く直前（`tidyUsageParts`・
+ * `refineUsageChunks`）に通す。何度通しても同じ結果。
+ */
+export function withoutSeparatorParts(parts: ReadonlyArray<ChunkPart>): ChunkPart[] {
+  const out: ChunkPart[] = [];
+  for (const p of parts) {
+    if (!p) continue;
+    const text = p.text ?? "";
+    if (SEPARATOR_ONLY.test(text)) continue;
+    const pieces = splitOnSeparatorPlus(text);
+    if (pieces.length === 0) continue;
+    if (pieces.length === 1) {
+      // 端に付いた `+` だけを落とした（「炒+」）。札の中身は同じなので他の欄は残す。
+      out.push(pieces[0] === text ? p : { ...p, text: pieces[0] });
+      continue;
+    }
+    for (const piece of pieces) out.push({ text: piece, pos: p.pos ?? "" });
+  }
+  return out;
+}
+
 /** 使い方の型（`usage_chunks`）を画面・音声に出す前の形にする。何度通しても同じ結果。 */
 export function tidyUsageParts(
-  parts: ChunkPart[],
+  rawParts: ChunkPart[],
   language?: string | null,
   opts: { headword?: string; reader?: string | null } = {},
 ): ChunkPart[] {
   const zh = normalizeTargetLanguage(language).startsWith("zh");
+  const parts = withoutSeparatorParts(rawParts);
   const merged = opts.headword ? mergeCompounds(parts, opts.headword, language) : parts;
   const withDegree = withDegreeAdverb(merged, language);
   return zh ? withDegreeSlots(withDegree, opts.headword ?? "", opts.reader) : withDegree;

@@ -675,7 +675,7 @@ extras 項目（**すべて具体的な内容で必ず埋めること**。空文
 
 チャンク分解の共通ルール: parts/chunks は {text: ${cardProfile.promptName}のパーツ, pos: 役割} の配列。
 pos は ${cardProfile.chunkRoles.join(" / ")} を使う。
-「${data.headword}」自体は必ずどれかのパーツとして含める。
+「${data.headword}」自体は必ずどれかのパーツとして含める。${NO_PLUS_PART_RULE}
 
 ${
   want("usage_chunks")
@@ -1184,8 +1184,18 @@ const RegenInput = z.object({
  */
 function chunkRule(language: string | null | undefined): string {
   const p = targetProfile(language);
-  return `チャンクは {text: ${p.promptName}のパーツ, pos: 品詞} の配列。${p.chunkPrompt.posRule}`;
+  return `チャンクは {text: ${p.promptName}のパーツ, pos: 品詞} の配列。${p.chunkPrompt.posRule}${NO_PLUS_PART_RULE}`;
 }
+
+/**
+ * **「＋」をパーツにさせない**（オーナー報告 2026-10-08「牛蒡 [+] 炒 のように + が札で出る」）。
+ * 型の例を「跟＋男朋友＋吵架」と ＋ で書いているので、AI がその ＋ をパーツとして返す回がある。
+ * 返ってきた物は `chunk-grammar.ts` の `withoutSeparatorParts` でも正す（保存済みの語にも効く）。
+ */
+const NO_PLUS_PART_RULE =
+  `\n**「＋」「+」は例の中で区切りを見せる記号で、パーツではない。**` +
+  `「+」「＋」「・」「/」だけのパーツを作らない。text の中にも「+」「＋」を入れない` +
+  `（✗ [{text:"牛蒡"},{text:"+"},{text:"炒"}] / ✗ {text:"牛蒡+炒"} → ○ [{text:"炒"},{text:"牛蒡"}]）。`;
 
 /**
  * **どの語にも付く組み合わせを書かせない**(オーナー指示 2026-08-28 ③)。
@@ -1227,6 +1237,7 @@ function formulaChunkRule(code: string): string {
     // （チャンクの表示ルール C5: 程度の語だけは副詞でも入れ替えられる）。
     `**slot を付けてよいのは ① 具体的な物・人・場所を表す名詞 ② 量詞 ③ 程度の語（很・超・非常・有點・蠻）だけ。` +
     `動詞・形容詞・程度以外の副詞・助詞には絶対に slot を付けない。**` +
+    NO_PLUS_PART_RULE +
     // 2026-10-01「芒果冰のようにひとかたまりとして普段扱われるものはチャンクを分けなくていい」（C7）。
     `\n**ネイティブが1語として使う語は分けずに1つのパーツにする**（✗ 芒果＋冰 → ○ 芒果冰、✗ 手搖＋飲）。` +
     `その1語だけの型は作らない（それは語であって使い方ではない）。` +

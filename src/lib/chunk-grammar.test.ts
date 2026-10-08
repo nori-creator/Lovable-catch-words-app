@@ -4,6 +4,7 @@ import {
   mergeCompounds,
   swappedTranslation,
   tidyUsageParts,
+  withoutSeparatorParts,
 } from "./chunk-grammar";
 import { chunkSpeechText } from "./extras";
 
@@ -200,5 +201,59 @@ describe("チャンクの表示ルール C5/C7（2026-10-01「芒果冰は分け
     const alts = [{ text: "x", ja: "" }];
     expect(isSwappableSlot({ text: "也", pos: "Adv", slot: true, alts }, "zh-TW")).toBe(false);
     expect(isSwappableSlot({ text: "甜", pos: "Vs", slot: true, alts }, "zh-TW")).toBe(false);
+  });
+});
+
+describe("withoutSeparatorParts（「+」を札にしない。オーナー報告 2026-10-08）", () => {
+  it("「+」「＋」「・」「/」だけの札を落とす（牛蒡 [+] 炒 → 牛蒡 炒）", () => {
+    const out = withoutSeparatorParts([
+      { text: "牛蒡", pos: "N" },
+      { text: "+", pos: "" },
+      { text: "炒", pos: "V" },
+      { text: " ＋ ", pos: "" },
+      { text: "・", pos: "" },
+      { text: "／", pos: "" },
+      { text: "  ", pos: "" },
+    ]);
+    expect(out.map((p) => p.text)).toEqual(["牛蒡", "炒"]);
+  });
+
+  it("「牛蒡+炒」は + で切って別の札にする（品詞は受け継ぐ）", () => {
+    const out = withoutSeparatorParts([{ text: "牛蒡+炒", pos: "V", slot: true, ja: "x" }]);
+    expect(out).toEqual([
+      { text: "牛蒡", pos: "V" },
+      { text: "炒", pos: "V" },
+    ]);
+    expect(withoutSeparatorParts([{ text: "牛蒡 ＋ 很", pos: "" }]).map((p) => p.text)).toEqual([
+      "牛蒡",
+      "很",
+    ]);
+  });
+
+  it("端の + だけを落とした札は、ほかの欄を残す", () => {
+    const alts = [{ text: "煮", ja: "煮る" }];
+    expect(withoutSeparatorParts([{ text: "炒+", pos: "V", alts }])).toEqual([
+      { text: "炒", pos: "V", alts },
+    ]);
+  });
+
+  it("英字に付いた + は語の一部として残す（C++）", () => {
+    expect(withoutSeparatorParts([{ text: "C++", pos: "N" }]).map((p) => p.text)).toEqual(["C++"]);
+    expect(withoutSeparatorParts([{ text: "learn + C++", pos: "" }]).map((p) => p.text)).toEqual([
+      "learn",
+      "C++",
+    ]);
+  });
+
+  it("保存済みの語も描く前に正す（tidyUsageParts）。何度通しても同じ", () => {
+    const stored = [
+      { text: "牛蒡", pos: "N" },
+      { text: "+", pos: "" },
+      { text: "很", pos: "Adv" },
+      { text: "健康", pos: "Vs" },
+    ];
+    const once = tidyUsageParts(stored, "zh-TW", { headword: "牛蒡" });
+    expect(once.map((p) => p.text)).toEqual(["牛蒡", "很", "健康"]);
+    expect(tidyUsageParts(once, "zh-TW", { headword: "牛蒡" })).toEqual(once);
   });
 });

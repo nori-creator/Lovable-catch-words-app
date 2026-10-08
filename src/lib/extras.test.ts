@@ -234,6 +234,24 @@ describe("refineUsageChunks", () => {
     expect(refineUsageChunks([many], [], "雨傘")).toEqual([]);
   });
 
+  it("「+」だけの札を除いてから数える（牛蒡 [+] 炒 → 牛蒡 炒。保存済みの語にも効く）", () => {
+    const out = refineUsageChunks(
+      [chunk("炒", "+", "牛蒡"), chunk("牛蒡＋湯"), chunk("煮", "＋", "牛蒡")],
+      [],
+      "牛蒡",
+      "zh-TW",
+    );
+    expect(out.map((c) => c.parts.map((p) => p.text))).toEqual([
+      ["炒", "牛蒡"],
+      ["牛蒡", "湯"],
+      ["煮", "牛蒡"],
+    ]);
+  });
+
+  it("「+」と見出し語だけの型は、見出し語だけの型として落とす", () => {
+    expect(refineUsageChunks([chunk("牛蒡", "+")], [], "牛蒡", "zh-TW")).toEqual([]);
+  });
+
   it("見出し語しか無い型を落とす(その語を見れば分かる)", () => {
     expect(refineUsageChunks([chunk("雨傘")], [], "雨傘")).toEqual([]);
   });
