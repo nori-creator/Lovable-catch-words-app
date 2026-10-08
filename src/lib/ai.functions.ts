@@ -563,7 +563,7 @@ ${langRule}
      */
     if (raw.candidates.length === 0) {
       raw = await ask(
-        `\n\n出力の形: {"query_is_target":false,"candidates":[{"headword":"…","reading_zhuyin":"…","pinyin":"…","meaning_ja":"…","distinction":"…","usage":"common","image_query":"…"}]} のJSONだけを返す。前後に説明を書かない。headword は${candProfile.promptName}の語だけにし、括弧やローマ字の注釈を付けない。`,
+        `\n\n出力の形: {"query_is_target":true/false,"candidates":[{"headword":"…","reading_zhuyin":"…","pinyin":"…","meaning_ja":"…","distinction":"…","usage":"common","image_query":"…"}]} のJSONだけを返す。前後に説明を書かない。headword は${candProfile.promptName}の語だけにし、括弧やローマ字の注釈を付けない。`,
       );
     }
 

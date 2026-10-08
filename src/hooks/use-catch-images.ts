@@ -34,6 +34,8 @@ export function useCatchImages(opts: {
   category?: string | null;
   /** 写っていてはいけない物（花・池など。カードの `extras.image_avoid`）。 */
   avoid?: string[] | null;
+  /** 学習言語（いま学んでいる言語）。 */
+  language?: string | null;
 }) {
   const qc = useQueryClient();
   const searchImagesFn = useServerFn(searchImageCandidates);
@@ -56,6 +58,8 @@ export function useCatchImages(opts: {
   categoryRef.current = opts.category;
   const avoidRef = useRef(opts.avoid);
   avoidRef.current = opts.avoid;
+  const languageRef = useRef(opts.language);
+  languageRef.current = opts.language;
   const key = opts.enabled && opts.headword ? opts.headword : null;
 
   useEffect(() => {
@@ -85,6 +89,7 @@ export function useCatchImages(opts: {
             headword: req.headword,
             meaning: req.meaning,
             avoid: req.avoid,
+            ...(languageRef.current ? { language: languageRef.current } : {}),
           },
         });
         if (!alive) return;

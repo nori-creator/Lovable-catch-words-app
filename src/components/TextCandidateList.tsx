@@ -52,7 +52,6 @@ export function TextCandidateList({
   onBack: () => void;
 }) {
   const t = useT();
-  const zh = language.startsWith("zh");
   return (
     <div className="space-y-3 overflow-x-hidden [touch-action:pan-y]" data-testid="text-candidates">
       <button
@@ -96,18 +95,13 @@ export function TextCandidateList({
                     <Term lang={language} className="break-words text-title font-medium">
                       {c.headword}
                     </Term>
-                    {zh ? (
-                      c.pinyin && (
-                        <span className="text-footnote text-muted-foreground">{c.pinyin}</span>
-                      )
-                    ) : (
-                      <Reading
-                        lang={language}
-                        zhuyin={c.reading_zhuyin}
-                        pinyin={c.pinyin}
-                        className="text-footnote text-muted-foreground"
-                      />
-                    )}
+                    {/* 読みは設定した表記（注音・ピンイン）で（`Reading`）。 */}
+                    <Reading
+                      lang={language}
+                      zhuyin={c.reading_zhuyin}
+                      pinyin={c.pinyin}
+                      className="text-footnote text-muted-foreground"
+                    />
                     {label && (
                       <span className="rounded-full bg-primary/10 px-2 py-0.5 text-caption font-semibold text-primary-ink">
                         {t(label)}

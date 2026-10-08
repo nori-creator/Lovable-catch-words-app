@@ -383,6 +383,7 @@ export function CapturePage() {
     imageQuery: peelImage?.query || imageQueryOf(card?.extras),
     category: card?.category_key ?? null,
     avoid: imageAvoidOf(card?.extras),
+    language: targetLanguage,
   });
   /** 札を出す前に、発音を取りに行く（届いた・取れないと分かったら札を出す）。 */
   const peelSpeech = useSpeechReady(

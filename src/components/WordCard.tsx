@@ -2198,6 +2198,7 @@ function webImageWord(word: WordCardData | null): WebImageWord {
     imageQuery: imageQueryOf(word.extras),
     category: word.category_key ?? null,
     avoid: imageAvoidOf(word.extras),
+    language: word.language ?? null,
   };
 }
 

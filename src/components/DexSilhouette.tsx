@@ -23,18 +23,26 @@ let loading: Promise<Shapes> | null = null;
 
 /** 形の表を読む（1回だけ）。 */
 function loadDexSilhouettes(): Promise<Shapes> {
-  loading ??= import("@/lib/dex-silhouettes.generated").then((m) => (shapes = m.DEX_SIL_SHAPES));
+  loading ??= import("@/lib/dex-silhouettes.generated").then(
+    (m) => (shapes = m.DEX_SIL_SHAPES),
+    (e: unknown) => {
+      // 読めなかった（圏外・公開の切り替わりの間）。次に図鑑を開いた時に読み直せるよう忘れる。
+      loading = null;
+      throw e;
+    },
+  );
   return loading;
 }
 
-function useShapes(): Shapes | null {
-  const [s, setS] = useState<Shapes | null>(shapes);
+/** 形の表。読めなかった時は `"failed"`（角の丸い四角で代える）。 */
+function useShapes(): Shapes | "failed" | null {
+  const [s, setS] = useState<Shapes | "failed" | null>(shapes);
   useEffect(() => {
     if (s) return;
     let alive = true;
     loadDexSilhouettes().then(
       (v) => alive && setS(v),
-      () => {},
+      () => alive && setS("failed"),
     );
     return () => {
       alive = false;
@@ -53,7 +61,7 @@ export function DexSilhouette({ item }: { item: Pick<DexItem, "id"> }) {
   // useId は「:r1:」のような記号を含むので、url(#…) で引ける形に。
   const gid = "dexsil" + useId().replace(/[^\w-]/g, "");
   const ref = dexGlyphOf(item.id);
-  const shape = all && ref ? all[ref] : null;
+  const shape = all && all !== "failed" && ref ? all[ref] : null;
   return (
     <span aria-hidden className="dex-sil grid aspect-square w-[52%] place-items-center">
       {shape ? (

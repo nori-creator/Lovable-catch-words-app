@@ -1,3 +1,4 @@
+import { resolveWordLanguage } from "@/lib/word-language";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { searchImageCandidates, type ImageCandidate } from "@/lib/images.functions";
@@ -43,6 +44,8 @@ export type WebImageWord = {
   category?: string | null;
   /** 写っていたら外れの英語（`extras.image_avoid`）。古いカードは空。 */
   avoid?: string[] | null;
+  /** 学習言語（`words.language`）。 */
+  language?: string | null;
 };
 
 export function useWebImages(
@@ -52,13 +55,16 @@ export function useWebImages(
 ): WebImages {
   const searchFn = useServerFn(searchImageCandidates);
   const { headword, meaningJa, imageQuery, category, avoid } = word;
+  const language = resolveWordLanguage(word.language, headword);
+  // 並べ直しに効く物はすべて鍵に入れる（後から避ける語が届いたら取り直す）。
+  const avoidKey = (avoid ?? []).join("|");
   const base = heroSearchQuery({ headword, meaning: meaningJa, imageQuery });
   // 英語の検索語に中国語の見出し語を足すと、どの出所でも当たらなくなる。
   // 意味の欄で探している（古いカードの）時だけ、取り直しで見出し語を足す。
   const english = cleanImageQuery(imageQuery).length > 0;
   const query = seed === 0 || english ? base : `${base} ${headword}`;
   const { data, isLoading, isFetching } = useQuery({
-    queryKey: ["web-images", headword, base, seed],
+    queryKey: ["web-images", headword, base, seed, avoidKey, category ?? null, language],
     // 語も意味も無い札に空の検索を投げない。
     enabled: base.length > 0,
     queryFn: async () =>
@@ -72,6 +78,7 @@ export function useWebImages(
             headword,
             meaning: meaningJa || null,
             avoid: avoid ?? null,
+            language,
           },
         })
       ).candidates,
