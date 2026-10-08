@@ -44,7 +44,7 @@ function makeSticker(f: (typeof FIXTURES)[number], i: number): StickerWithWord {
     lng: null,
     taken_at: new Date().toISOString(),
     created_at: new Date().toISOString(),
-    encounter_count: f.count ?? 1,
+    encounter_count: f.count ?? 0,
     object_url: f.object ?? null,
     cutout_url: f.cutout || null,
     selfie_url: null,

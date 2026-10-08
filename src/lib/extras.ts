@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { withoutGenericChunks } from "./generic-chunks";
 import { normalizeTargetLanguage } from "./target-lang";
-import { tidyUsageParts } from "./chunk-grammar";
+import { tidyUsageParts, withoutSeparatorParts } from "./chunk-grammar";
 
 /**
  * 単語カードの extras の唯一の定義(2026-07-25 詳細カード再構成)。
@@ -431,6 +431,16 @@ export const ExtrasSchema = z.object({
    * 空=旧データで、母語不明。日本語向けとみなす。
    */
   explain_l1: z.string().catch(""),
+  /**
+   * **画像検索に投げる短い英語**（オーナー報告 2026-10-08「牛蒡を検索すると花の写真しか
+   * 出ない」）。学ぶ人がその語で指す**日常の物**（牛蒡 → `burdock root`）。
+   *
+   * 意味の欄（`ゴボウ`）をそのまま投げると、写真の出所は英語の説明で引くので植物の
+   * ゴボウ（花・野草）に当たる。カードを作る呼び出しで一緒に返させる（AI の呼び出しは
+   * 増やさない）。読むのは `hero-image.ts` の `heroSearchQuery`。古いカードは空 —
+   * その時は今までどおり意味の欄で探す。画面には出さない。
+   */
+  image_query: z.string().catch(""),
 });
 
 export type WordExtrasDTO = z.infer<typeof ExtrasSchema>;
@@ -449,9 +459,10 @@ export function normalizeExtras(raw: unknown): WordExtrasDTO | null {
 /** True when an extras object carries at least one non-empty field. */
 export function hasExtrasContent(e: Partial<WordExtrasDTO> | null | undefined): boolean {
   if (!e) return false;
-  // explain_lang / explain_l1 は内容ではなく目印なので「中身がある」判定から外す。
+  // explain_lang / explain_l1 は内容ではなく目印、image_query は画像検索の手がかりで
+  // 読む物ではないので「中身がある」判定から外す。
   return Object.entries(e).some(([k, v]) =>
-    k === "explain_lang" || k === "explain_l1"
+    k === "explain_lang" || k === "explain_l1" || k === "image_query"
       ? false
       : Array.isArray(v)
         ? v.length > 0
@@ -651,8 +662,13 @@ export function refineUsageChunks(
   const seen = new Set<string>();
   const isEnglish = normalizeTargetLanguage(language) === "en";
   const maxChars = chunkCharLimit(language);
+  // 「+」だけの札・「牛蒡+炒」の継ぎ目を先に正す（`withoutSeparatorParts`）。長さ・札の数・
+  // 重複は、画面に出る札で数える（保存済みの語にも効く）。
+  const cleaned = (chunks ?? [])
+    .filter(Boolean)
+    .map((c) => ({ ...c, parts: withoutSeparatorParts(c.parts ?? []) }));
   return withoutGenericChunks(
-    withoutMeasureWords(chunks, measureWords, headword),
+    withoutMeasureWords(cleaned, measureWords, headword),
     headword,
     language,
   )

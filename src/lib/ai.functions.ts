@@ -675,7 +675,7 @@ extras 項目（**すべて具体的な内容で必ず埋めること**。空文
 
 チャンク分解の共通ルール: parts/chunks は {text: ${cardProfile.promptName}のパーツ, pos: 役割} の配列。
 pos は ${cardProfile.chunkRoles.join(" / ")} を使う。
-「${data.headword}」自体は必ずどれかのパーツとして含める。
+「${data.headword}」自体は必ずどれかのパーツとして含める。${NO_PLUS_PART_RULE}
 
 ${
   want("usage_chunks")
@@ -699,6 +699,7 @@ ${
 }
 - usage_context: ネイティブがこの語をどこで見て・使うか（スーパー/夜市/レストラン/ニュース/SNS/新聞など具体的な場所・メディア）と頻度感を1〜2文(${NL})で
 - frequency_level: 使用頻度 1〜5 の整数（5=毎日レベル、1=まれ）
+- image_query: ${IMAGE_QUERY_RULE}
 - encounter_labels: **この語に出会いやすい所を、短い札で3〜7個**。
   各 {kind, label}。kind は place(場所) / situation(状況) / emotion(気持ち) /
   time(時刻・時期) / media(媒体) / season(季節) / trait(その物じたいの性質) のどれか。
@@ -764,7 +765,7 @@ ${data.hintCategory ? `カテゴリのヒント: ${data.hintCategory}` : ""}`;
         "example_chunks[{text,pos}]",
         want("examples_extra") && "examples_extra[{zh,ja,scene,chunks:[{text,pos}]}]",
         "usage_context, frequency_level, register_tag, register_scale, encounter_labels[{kind,label}]",
-        "scene_weights, season_months, region_scope, region_scope_kind",
+        "scene_weights, season_months, region_scope, region_scope_kind, image_query",
         want("related_words") && "related_words[{word,kind,note}]",
         wantMeasure && "measure_words[{word,zhuyin,pinyin,note}]",
         wantOwn("kanji_breakdown") && "kanji_breakdown[{kanji,meaning,on,kun}]",
@@ -792,7 +793,8 @@ ${data.hintCategory ? `カテゴリのヒント: ${data.hintCategory}` : ""}`;
       `region_scope（そこにしか無い物でなければ空文字）/ ` +
       `region_scope_kind（同上、null）/ ` +
       `season_months（通年なら空配列）/ ` +
-      `measure_words（名詞でなければ空配列）` +
+      `measure_words（名詞でなければ空配列）/ ` +
+      `image_query（写真で表せない語なら空文字）` +
       // 日本語の節にも「当てはまらなければ空」が在る(かなだけの語の漢字、名詞の活用)。
       (wantOwn("kanji_breakdown") ? ` / kanji_breakdown（かなだけの語なら空配列）` : "") +
       (wantOwn("conjugation") ? ` / conjugation（活用しない語なら空配列）` : "") +
@@ -1184,8 +1186,30 @@ const RegenInput = z.object({
  */
 function chunkRule(language: string | null | undefined): string {
   const p = targetProfile(language);
-  return `チャンクは {text: ${p.promptName}のパーツ, pos: 品詞} の配列。${p.chunkPrompt.posRule}`;
+  return `チャンクは {text: ${p.promptName}のパーツ, pos: 品詞} の配列。${p.chunkPrompt.posRule}${NO_PLUS_PART_RULE}`;
 }
+
+/**
+ * **画像検索用の短い英語**（`extras.image_query`。オーナー報告 2026-10-08「牛蒡を検索すると
+ * 花の写真しか出ない」）。意味の欄（`ゴボウ`）で探すと植物のゴボウ（花）に当たる。
+ * 学ぶ人がその語で指す**日常の物**を、写真の説明に書かれる英語で返させる。
+ * カードを作る同じ呼び出しに1欄足すだけ（AI の呼び出しは増やさない）。
+ */
+const IMAGE_QUERY_RULE =
+  `その語が指す物・様子の写真を探すための**英語の短い検索語（1〜3語）**。` +
+  `学習者がその語でふだん指す**日常の物**にする（植物の名の語でも、ふつう食べる物なら食べる部分: ` +
+  `牛蒡 → "burdock root"、芒果 → "mango fruit"、跑步 → "running"、雨傘 → "umbrella"）。` +
+  `花・学名・辞書の言い換えにしない。写真で表せない語（抽象語・機能語）は空文字`;
+
+/**
+ * **「＋」をパーツにさせない**（オーナー報告 2026-10-08「牛蒡 [+] 炒 のように + が札で出る」）。
+ * 型の例を「跟＋男朋友＋吵架」と ＋ で書いているので、AI がその ＋ をパーツとして返す回がある。
+ * 返ってきた物は `chunk-grammar.ts` の `withoutSeparatorParts` でも正す（保存済みの語にも効く）。
+ */
+const NO_PLUS_PART_RULE =
+  `\n**「＋」「+」は例の中で区切りを見せる記号で、パーツではない。**` +
+  `「+」「＋」「・」「/」だけのパーツを作らない。text の中にも「+」「＋」を入れない` +
+  `（✗ [{text:"牛蒡"},{text:"+"},{text:"炒"}] / ✗ {text:"牛蒡+炒"} → ○ [{text:"炒"},{text:"牛蒡"}]）。`;
 
 /**
  * **どの語にも付く組み合わせを書かせない**(オーナー指示 2026-08-28 ③)。
@@ -1227,6 +1251,7 @@ function formulaChunkRule(code: string): string {
     // （チャンクの表示ルール C5: 程度の語だけは副詞でも入れ替えられる）。
     `**slot を付けてよいのは ① 具体的な物・人・場所を表す名詞 ② 量詞 ③ 程度の語（很・超・非常・有點・蠻）だけ。` +
     `動詞・形容詞・程度以外の副詞・助詞には絶対に slot を付けない。**` +
+    NO_PLUS_PART_RULE +
     // 2026-10-01「芒果冰のようにひとかたまりとして普段扱われるものはチャンクを分けなくていい」（C7）。
     `\n**ネイティブが1語として使う語は分けずに1つのパーツにする**（✗ 芒果＋冰 → ○ 芒果冰、✗ 手搖＋飲）。` +
     `その1語だけの型は作らない（それは語であって使い方ではない）。` +

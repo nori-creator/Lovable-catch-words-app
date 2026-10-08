@@ -1,11 +1,28 @@
 import { Link, useNavigate, getRouteApi } from "@tanstack/react-router";
 import { ReaderMeaning } from "@/components/ReaderMeaning";
 import { stickerPhotoUrl } from "@/lib/sticker-photo";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { AppShell } from "@/components/AppShell";
 import { StickerSheet } from "@/components/StickerSheet";
 import { listMyShelves, listMyStickers, type StickerWithWord } from "@/lib/stickers.functions";
+import { listStickerGridPhotos } from "@/lib/encounters.functions";
+import {
+  assignDexNumbers,
+  countDexWords,
+  dexAdGroupSizes,
+  dexSections,
+  dexWordKey,
+  formatDexNo,
+  groupDexWords,
+  dexCycleFrames,
+  localDexNumberStore,
+  type DexSlot,
+  type DexWordGroup,
+} from "@/lib/dex-book";
+import { DEX_CATEGORIES, dexCategoryLabelKey, dexHeadword, dexLang } from "@/lib/dex-catalog";
+import { DexSilhouette } from "@/components/DexSilhouette";
+import { REVIEW_CACHE_USER_KEY } from "@/lib/review-cache";
 import { stickerListQueryFn } from "@/lib/sticker-pages";
 import { MemoryBadge } from "@/components/MemoryBadge";
 import { useMemoryBadges } from "@/lib/use-memory-map";
@@ -35,7 +52,7 @@ import {
   Pencil,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
-import { getUiLang, useT, TARGET_LANG_LABEL_KEYS } from "@/lib/i18n";
+import { getUiLang, htmlLangOf, useT, TARGET_LANG_LABEL_KEYS } from "@/lib/i18n";
 import { readerMeaningCached } from "@/lib/reader-meanings";
 import { formatCount } from "@/lib/count";
 import { normalizeTargetLanguage } from "@/lib/target-lang";
@@ -73,7 +90,7 @@ import { DEX_SHELF_ENABLED } from "@/lib/features";
 // 読まずに使えるように）。ここからも今までどおり出す。
 import { JUST_CAUGHT_VIEW, type ViewMode } from "@/lib/dex-view";
 export { JUST_CAUGHT_VIEW, type ViewMode };
-import { motionReducedNow } from "@/hooks/use-reduced-motion";
+import { motionReducedNow, usePrefersReducedMotion } from "@/hooks/use-reduced-motion";
 import { neutralizeMeasureGe } from "@/lib/tw-neutral-tone";
 import { useWebAds, type WebAds } from "@/hooks/use-web-ads";
 import { nativeSlots } from "@/lib/ad-policy";
@@ -305,6 +322,7 @@ export function DexPage() {
         isFetching={isFetching}
         onRetry={() => void refetch()}
         truncated={truncated}
+        loadingMore={stickers?.loadingMore ?? false}
         totalCount={totalCount}
         otherLanguages={stickers?.otherLanguages ?? 0}
         targetLanguage={stickers?.targetLanguage}
@@ -327,13 +345,24 @@ export function DexPage() {
           const from = stickerCategoryKey(s, userCatKeys);
           if (from === key) return;
           const to = displayOf(key);
+          // 同じ言葉の札は1マスなので、**全部**一緒に運ぶ（1枚だけ運ぶと、残りの札が元の節に
+          // 同じ言葉のマスをもう1つ作る）。
+          const lang = normalizeTargetLanguage(stickers?.targetLanguage ?? s.word.language);
+          const wordKey = dexWordKey(s, lang);
+          const same = captured.filter((x) => x.id === id || dexWordKey(x, lang) === wordKey);
           void cats
-            .setMembers([{ sticker_id: id, key }])
+            .setMembers(same.map((x) => ({ sticker_id: x.id, key })))
             .then(() =>
               toast(t("dex.movedTo", { word: s.word.headword, cat: `${to.emoji} ${to.label}` }), {
                 action: {
                   label: t("album.undo"),
-                  onClick: () => void cats.setMembers([{ sticker_id: id, key: from }]),
+                  onClick: () =>
+                    void cats.setMembers(
+                      same.map((x) => ({
+                        sticker_id: x.id,
+                        key: stickerCategoryKey(x, userCatKeys),
+                      })),
+                    ),
                 },
               }),
             )
@@ -433,6 +462,7 @@ export function DexSurface({
   isFetching = false,
   onRetry = () => {},
   truncated = false,
+  loadingMore = false,
   totalCount,
   otherLanguages = 0,
   targetLanguage,
@@ -443,6 +473,7 @@ export function DexSurface({
   onManageCategories,
   onMoveToCategory,
   onEditCategory,
+  photosOf,
 }: {
   captured: StickerWithWord[];
   filtered: StickerWithWord[];
@@ -467,6 +498,8 @@ export function DexSurface({
   isFetching?: boolean;
   onRetry?: () => void;
   truncated?: boolean;
+  /** 残りのページを裏で読み足している最中か（`sticker-pages.ts`）。 */
+  loadingMore?: boolean;
   totalCount?: number | null;
   otherLanguages?: number;
   targetLanguage?: string;
@@ -478,28 +511,75 @@ export function DexSurface({
    */
   ads?: WebAds;
   shelves?: React.ComponentProps<typeof DexShelf>["userShelves"];
+  /** 再会の写真（札の id → URL）。雛形だけが渡す（`DexAlbumGrid`）。 */
+  photosOf?: (stickerId: string) => readonly string[] | undefined;
 }) {
   const t = useT();
   const userCatKeys = useMemo(() => new Set(shelves.map((c) => c.key)), [shelves]);
   const displayOf = (key: string) => categoryDisplay(key, shelves, (k) => t(`cat.${k}`));
+  /** 学習言語（言葉をまとめる比べ方・影の見出し語）。 */
+  const lang = normalizeTargetLanguage(targetLanguage ?? captured[0]?.word.language);
+  /**
+   * 縦の一覧の組。**1つの言葉は1行**（オーナー報告 2026-10-08「文字検索したら同じ単語でも
+   * 同じものとしてカウントされてない」— 同じ見出し語の札が2枚あると2行並んでいた）。
+   */
   const groups = useMemo(() => {
     const map = new Map<string, typeof filtered>();
-    for (const s of filtered) {
+    for (const g of groupDexWords(filtered, lang, justCaught)) {
+      const s = g.rep;
       const k = stickerCategoryKey(s, userCatKeys);
       if (!map.has(k)) map.set(k, []);
       map.get(k)!.push(s);
     }
     return Array.from(map.entries()).sort((a, b) => b[1].length - a[1].length);
-  }, [filtered, userCatKeys]);
+  }, [filtered, userCatKeys, lang, justCaught]);
+  /**
+   * 図鑑の番号（iOS と同じ: 基本の100は No.001〜100、ほかは捕まえた順に 101 から）。
+   * 絞り込みに関係なく**全部の札**から振る — 絞ると番号が変わるのでは番号の意味が無い。
+   */
+  const numbers = useMemo(
+    () =>
+      assignDexNumbers(
+        captured,
+        lang,
+        localDexNumberStore(readUid(), lang),
+        // 全部の札を読み終えるまで覚えない（No.101〜 が捕まえた順からずれる）。
+        !loadingMore && !truncated,
+      ),
+    [captured, lang, loadingMore, truncated],
+  );
+  /** 影は「全部を見ている時」だけ（絞り込み・検索の結果に、まだの物は混ぜない）。 */
+  const showShadows = !isFiltering(filter) && !search.trim();
+  /** 写真の升目の節（iOS の図鑑と同じ20のカテゴリー → その人が作ったカテゴリー）。 */
+  const sections = useMemo(
+    () =>
+      view === "gallery"
+        ? dexSections(filtered, {
+            lang,
+            numbers,
+            userKeys: userCatKeys,
+            shadows: showShadows,
+            preferId: justCaught,
+            userOrder: shelves.map((c) => c.key),
+          })
+        : [],
+    [view, filtered, lang, numbers, userCatKeys, showShadows, justCaught, shelves],
+  );
   /** 組ごとの「何枚目の後に広告」（写真の並びは3列なので行の終わりへ送る）。 */
   const adAfter = useMemo(() => {
     if (!ads?.show || !ads.placements.dex || (view !== "gallery" && view !== "list")) return null;
+    const sizes =
+      view === "gallery" ? dexAdGroupSizes(sections) : groups.map(([, items]) => items.length);
     return groupAdSlots(
-      groups.map(([, items]) => items.length),
-      nativeSlots(filtered.length, ads.cfg, false),
+      sizes,
+      nativeSlots(
+        sizes.reduce((a, b) => a + b, 0),
+        ads.cfg,
+        false,
+      ),
       view === "gallery" ? 3 : 1,
     );
-  }, [ads, view, groups, filtered.length]);
+  }, [ads, view, groups, sections]);
   const renderAd = ads
     ? (framed = true) => (
         <AdCard client={ads.client} slot={ads.cfg.slotDexInFeed} minHeight={120} framed={framed} />
@@ -541,11 +621,12 @@ export function DexSurface({
       `}</style>
       <DexOverlay>
         <DexHeader
-          found={captured.length}
-          caught={
-            captured.filter((s) => s.capture_type === "photo" || !!s.cutout_url || !!s.object_url)
-              .length
-          }
+          // 言葉の数で数える（同じ言葉の札が2枚あっても1つ）。
+          found={countDexWords(captured, lang)}
+          caught={countDexWords(
+            captured.filter((s) => s.capture_type === "photo" || !!s.cutout_url || !!s.object_url),
+            lang,
+          )}
           view={view}
           onView={setView}
           filter={filter}
@@ -657,45 +738,87 @@ export function DexSurface({
           onMove={(id, key) => onMoveToCategory?.(id, key)}
           onEditCategory={onEditCategory}
         >
-          {groups.map(([key, items], gi) => (
-            <section key={key} className="dex-cat mb-6" data-dex-cat={key}>
-              <div className="mb-2 flex items-baseline justify-between">
-                <h3
-                  className="dex-cat__head text-body font-semibold tracking-tight"
-                  data-dex-cat-head={onEditCategory ? key : undefined}
-                >
-                  {/* カテゴリーは既知なら翻訳、未知のキーはそのまま見せる
-                  (訳が無いより分かる)。 */}
-                  {displayOf(key).emoji} {displayOf(key).label}
-                </h3>
-                <span className="text-footnote text-muted-foreground">{items.length}</span>
-              </div>
-
-              {view === "gallery" ? (
-                // 試作品(Capture&Converse)のアルバム: 写真がタイルいっぱいに
-                // 表示される3列グリッド+下端のグラデーションに単語名。
-                <DexAlbumGrid
-                  items={items}
-                  memory={memory}
-                  justCaught={justCaught}
-                  onOpen={setOpenId}
-                  adAfter={adAfter?.[gi]}
-                  renderAd={renderAd}
-                />
-              ) : (
-                <DexList
-                  items={items}
-                  onOpen={setOpenId}
-                  adAfter={adAfter?.[gi]}
-                  renderAd={renderAd}
-                />
-              )}
-            </section>
-          ))}
+          {view === "gallery"
+            ? // **iOS 版と同じ図鑑**（オーナー指示 2026-10-08「iOS版のように図鑑自体にものの影を
+              // 表示して、それぞれの単語に番号振って」）: 20 のカテゴリーごとに、捕まえた言葉
+              // （番号順）→ まだ捕まえていない物の影を5つ。その人が作ったカテゴリーは後ろに。
+              sections.map((sec, gi) => {
+                const head =
+                  sec.dexNo != null
+                    ? {
+                        emoji: DEX_CATEGORIES[sec.dexNo - 1].emoji,
+                        label: t(dexCategoryLabelKey(sec.dexNo)),
+                      }
+                    : displayOf(sec.key);
+                return (
+                  <section key={sec.key} className="dex-cat mb-6" data-dex-cat={sec.key}>
+                    <div className="mb-2 flex items-baseline justify-between">
+                      <h3
+                        className="dex-cat__head text-body font-semibold tracking-tight"
+                        // 名前を変えられるのはその人が作ったカテゴリーだけ（図鑑の20は iOS と同じ名前）。
+                        data-dex-cat-head={
+                          onEditCategory && sec.dexNo == null ? sec.key : undefined
+                        }
+                      >
+                        {head.emoji} {head.label}
+                      </h3>
+                      <span className="text-footnote tabular-nums text-muted-foreground">
+                        {showShadows && sec.dexNo != null
+                          ? `${sec.caughtCount} / ${sec.slots.length}`
+                          : sec.caughtCount}
+                      </span>
+                    </div>
+                    {/* 試作品(Capture&Converse)のアルバム: 写真がタイルいっぱいに
+                        表示される3列グリッド+下端のグラデーションに単語名。 */}
+                    <DexAlbumGrid
+                      items={filtered}
+                      slots={sec.slots}
+                      lang={lang}
+                      numbers={numbers}
+                      memory={memory}
+                      justCaught={justCaught}
+                      onOpen={setOpenId}
+                      adAfter={adAfter?.[gi]}
+                      renderAd={renderAd}
+                      photosOf={photosOf}
+                    />
+                  </section>
+                );
+              })
+            : groups.map(([key, items], gi) => (
+                <section key={key} className="dex-cat mb-6" data-dex-cat={key}>
+                  <div className="mb-2 flex items-baseline justify-between">
+                    <h3
+                      className="dex-cat__head text-body font-semibold tracking-tight"
+                      data-dex-cat-head={onEditCategory ? key : undefined}
+                    >
+                      {/* カテゴリーは既知なら翻訳、未知のキーはそのまま見せる
+                      (訳が無いより分かる)。 */}
+                      {displayOf(key).emoji} {displayOf(key).label}
+                    </h3>
+                    <span className="text-footnote text-muted-foreground">{items.length}</span>
+                  </div>
+                  <DexList
+                    items={items}
+                    onOpen={setOpenId}
+                    adAfter={adAfter?.[gi]}
+                    renderAd={renderAd}
+                  />
+                </section>
+              ))}
         </DexCategoryDrag>
       )}
     </div>
   );
+}
+
+/** この端末でサインインしている人（図鑑の番号を人ごとに覚える）。読めなければ null。 */
+function readUid(): string | null {
+  try {
+    return typeof localStorage === "undefined" ? null : localStorage.getItem(REVIEW_CACHE_USER_KEY);
+  } catch {
+    return null;
+  }
 }
 
 export function DexEmptyState({
@@ -842,6 +965,10 @@ export function DexAlbumGrid({
   memory,
   adAfter,
   renderAd,
+  lang,
+  numbers,
+  slots,
+  photosOf,
 }: {
   items: StickerWithWord[];
   justCaught?: string;
@@ -854,21 +981,81 @@ export function DexAlbumGrid({
    * （`useMemoryBadges`）。雛形は通信できないので、こちらで渡す。
    */
   memory?: Map<string, MemoryBadgeInfo>;
+  /** 学習言語（同じ言葉の札をまとめる比べ方）。 */
+  lang?: string;
+  /** 札の id → 図鑑の番号（`assignDexNumbers`）。渡した時だけマスの下に番号を出す。 */
+  numbers?: ReadonlyMap<string, number>;
+  /**
+   * 並べるマス（`dexSections` の1節: 捕まえた言葉 → まだの影）。無ければ `items` を
+   * 言葉ごとにまとめて並べる（影は出さない）。
+   */
+  slots?: readonly DexSlot<StickerWithWord>[];
+  /** 再会の写真（札の id → URL）。雛形用 — 無ければ見えた時にサーバから読む。 */
+  photosOf?: (stickerId: string) => readonly string[] | undefined;
 }) {
   const t = useT();
   const fetched = useMemoryBadges(memory === undefined);
-  const memoryById = memory ?? fetched;
+  const cells = useMemo(
+    () =>
+      slots ??
+      groupDexWords(items, lang, justCaught).map((g) => ({
+        ...caughtSlot(g),
+        no: numbers?.get(g.rep.id) ?? null,
+      })),
+    [slots, items, lang, justCaught, numbers],
+  );
+  const memoryById = useMemo(() => {
+    const base = memory ?? fetched;
+    // 同じ言葉の札が2枚あるとき、記憶の印は**どれかの札に付いている物**を出す
+    // （復習は最初の札で採点されていることが多い。表の札は新しい方）。
+    let out: Map<string, MemoryBadgeInfo> | null = null;
+    for (const c of cells) {
+      if (c.kind !== "caught" || base.get(c.id)) continue;
+      const m = c.group.members.find((x) => base.get(x.id));
+      if (!m) continue;
+      out ??= new Map(base);
+      out.set(c.id, base.get(m.id)!);
+    }
+    return out ?? base;
+  }, [memory, fetched, cells]);
+  const showNo = numbers !== undefined;
   return (
     <div className="grid grid-cols-3 gap-2.5">
-      {items.map((s, i) => {
-        const photo = s.object_thumb_url ?? s.object_url;
+      {cells.map((cell, i) => {
+        if (cell.kind === "shadow") {
+          const head = dexHeadword(cell.item, lang);
+          return (
+            <div
+              key={cell.id}
+              role="img"
+              aria-label={t("dex.shadowAria", { word: head })}
+              className="dex-shadow block"
+              data-dex-shadow={cell.item.id}
+            >
+              <div className="relative grid aspect-square place-items-center overflow-hidden rounded-2xl bg-secondary/70 pb-4 text-muted-foreground/30 ring-1 ring-black/5">
+                <DexSilhouette item={cell.item} />
+                <span
+                  lang={htmlLangOf(dexLang(lang))}
+                  className="absolute inset-x-0 bottom-1 truncate px-1.5 text-center text-footnote font-semibold text-muted-foreground"
+                >
+                  {head}
+                </span>
+              </div>
+              {showNo && <DexNo no={cell.no} />}
+            </div>
+          );
+        }
+        const g = cell.group;
+        const s = g.rep;
+        const photos = groupPhotos(g);
+        const photo = photos[0];
         // 下端の帯を出すかの判定。絵が1枚も無いときだけ false。
-        const hasImage = Boolean(photo || s.cutout_url || s.placeholder_url);
+        const hasImage = Boolean(photo);
         const sharedFlightActive =
           typeof document !== "undefined" && Boolean(document.documentElement.dataset.rewardFlight);
         // 飛んで着いた札は、図鑑の側で落とし直さない（`catch-flight.ts`）。
         const slam = s.id === justCaught && !sharedFlightActive && !wasFlown(s.id);
-        const cell = (
+        const tile = (
           <button
             key={s.id}
             data-dex-item={s.id}
@@ -884,29 +1071,14 @@ export function DexAlbumGrid({
               className={`relative aspect-square overflow-hidden rounded-2xl bg-white shadow-md ring-1 ring-black/5 transition-transform group-active:scale-95 motion-reduce:transition-none motion-reduce:group-active:scale-100 ${slam ? "slam-in ring-2 ring-amber-400" : ""}`}
             >
               {photo ? (
-                <CachedImg
-                  src={photo}
+                // **同じ言葉を何度も撮ったら、写真がゆっくり入れ替わる**（オーナー指示
+                // 2026-10-08）。1枚なら今までどおりの1枚。
+                <DexCyclingPhoto
+                  group={g}
+                  photos={photos}
+                  index={i}
+                  extra={photosOf}
                   alt={t("common.photoOf", { word: s.word.headword })}
-                  loading="lazy"
-                  decoding="async"
-                  className="h-full w-full object-cover"
-                />
-              ) : s.cutout_url ? (
-                <CachedImg
-                  src={s.cutout_thumb_url ?? s.cutout_url}
-                  alt={t("common.stickerOf", { word: s.word.headword })}
-                  loading="lazy"
-                  decoding="async"
-                  className="h-full w-full object-contain p-2"
-                />
-              ) : s.placeholder_url ? (
-                // ネット画像も普通の絵として見せる(段ボール/ゴースト廃止)
-                <CachedImg
-                  src={s.placeholder_url}
-                  alt={t("common.imageOf", { word: s.word.headword })}
-                  loading="lazy"
-                  decoding="async"
-                  className="h-full w-full object-cover"
                 />
               ) : (
                 // 画像がまだ無いときは静かなプレースホルダ。
@@ -957,25 +1129,204 @@ export function DexAlbumGrid({
                     >
                       {s.word.headword}
                     </div>
+                    {g.captures > 1 && <DexCaptureCount n={g.captures} onDark />}
                   </div>
                 </div>
+              )}
+              {!hasImage && g.captures > 1 && (
+                <span className="absolute bottom-1 right-1">
+                  <DexCaptureCount n={g.captures} />
+                </span>
               )}
               {slam && (
                 <span className="pointer-events-none absolute inset-0 slam-flash rounded-2xl" />
               )}
             </div>
+            {showNo && <DexNo no={cell.no} />}
           </button>
         );
-        if (!renderAd || !adAfter?.includes(i)) return cell;
+        if (!renderAd || !adAfter?.includes(i)) return tile;
         // 横いっぱい・上下に間（押し間違えない距離）。札と同じ角丸の箱。
         return (
           <Fragment key={s.id}>
-            {cell}
+            {tile}
             <div className="col-span-3 my-3 has-[[data-ad-card][hidden]]:hidden">{renderAd()}</div>
           </Fragment>
         );
       })}
     </div>
+  );
+}
+
+function caughtSlot(g: DexWordGroup<StickerWithWord>): DexSlot<StickerWithWord> {
+  return { kind: "caught", id: g.rep.id, no: null, group: g };
+}
+
+/** その札の表の絵（撮った写真 → 切り抜き → ネット画像）。 */
+function stickerPicture(s: StickerWithWord): { src: string; fit: "cover" | "contain" } | null {
+  const photo = s.object_thumb_url ?? s.object_url;
+  if (photo) return { src: photo, fit: "cover" };
+  if (s.cutout_url) return { src: s.cutout_thumb_url ?? s.cutout_url, fit: "contain" };
+  if (s.placeholder_url) return { src: s.placeholder_url, fit: "cover" };
+  return null;
+}
+
+/**
+ * 同じ言葉の札の絵。**表の札の絵が先**（着地したばかりの写真がまず見える）、
+ * 続けてほかの札の絵を古い順に。同じ URL は1つ。
+ */
+function groupPhotos(g: DexWordGroup<StickerWithWord>) {
+  const out: Array<{ src: string; fit: "cover" | "contain" }> = [];
+  for (const s of [g.rep, ...g.members.filter((m) => m !== g.rep)]) {
+    const p = stickerPicture(s);
+    if (p && !out.some((o) => o.src === p.src)) out.push(p);
+  }
+  return out;
+}
+
+/** 写真が入れ替わる間隔（ゆっくり。見比べる物ではなく「何度も会った」気配）。 */
+const DEX_CYCLE_MS = 3600;
+/** 次の1枚が浮かび上がる長さ（`duration-1000` と同じ）。 */
+const DEX_FADE_MS = 1000;
+
+/**
+ * **何度も撮った言葉の写真を、ゆっくり入れ替える**（オーナー指示 2026-10-08「同じ単語で
+ * 複数回撮った場合は、図鑑の一覧を自動的に画像が変わるようにして」）。
+ *
+ * - 入れ替えは重ねた写真の不透明度だけ（約1秒のクロスフェード、3.6秒ごと）。
+ * - 札ごとに始まりをずらす — 全部が同時に変わると画面が点滅して見える。
+ * - 画面の外では止める（`IntersectionObserver`）。再会の写真もそのとき初めて読む。
+ * - 動きを減らす設定（`html[data-motion="reduce"]`）では入れ替えない（表の写真のまま）。
+ */
+function DexCyclingPhoto({
+  group,
+  photos,
+  index,
+  extra,
+  alt,
+}: {
+  group: DexWordGroup<StickerWithWord>;
+  photos: ReadonlyArray<{ src: string; fit: "cover" | "contain" }>;
+  index: number;
+  extra?: (stickerId: string) => readonly string[] | undefined;
+  alt: string;
+}) {
+  const ref = useRef<HTMLDivElement | null>(null);
+  const reduced = usePrefersReducedMotion();
+  const [visible, setVisible] = useState(false);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el || typeof IntersectionObserver === "undefined") return;
+    const io = new IntersectionObserver(([e]) => setVisible(e.isIntersecting), {
+      rootMargin: "120px",
+    });
+    io.observe(el);
+    return () => io.disconnect();
+  }, []);
+  // 再会の写真（2枚目以降は `encounters` に在る）。見えている札の分だけ読む。
+  // **升目用の上限つき・小さな写しの問い合わせ**（`listStickerGridPhotos`）— 詳細の
+  // `listStickerPhotos` は全部を元の大きさで署名するので、マスの数だけ呼ぶと重い。
+  // 鍵は詳細と同じ頭（`["sticker-photos", id]`）にして、再会の後の読み直しで一緒に古くなる。
+  const fetchPhotos = useServerFn(listStickerGridPhotos);
+  const withEncounters = group.members.filter((m) => (m.encounter_count ?? 0) > 0);
+  const wantRemote = !extra && !reduced && visible && withEncounters.length > 0;
+  const remote = useQueries({
+    queries: withEncounters.slice(0, 4).map((m) => ({
+      queryKey: ["sticker-photos", m.id, "grid"],
+      queryFn: () => fetchPhotos({ data: { sticker_id: m.id } }),
+      enabled: wantRemote,
+      staleTime: 30 * 60 * 1000,
+    })),
+  });
+  const remoteUrls = remote.flatMap((r) => r.data?.urls ?? []);
+  const extraUrls = extra ? group.members.flatMap((m) => extra(m.id) ?? []) : [];
+  const all = [...photos];
+  for (const src of [...extraUrls, ...remoteUrls])
+    if (!all.some((p) => p.src === src)) all.push({ src, fit: "cover" });
+  const list = all.slice(0, 8);
+  const cycling = !reduced && list.length > 1;
+  const [shown, setShown] = useState(0);
+  /** 次の1枚を重ねて浮かべている最中（終わったら次の1枚が表になる）。 */
+  const [fading, setFading] = useState(false);
+  useEffect(() => {
+    if (!cycling || !visible) return;
+    // 始まりを札ごとにずらす（並びの番号から、0〜間隔の中で散らす）。
+    const offset = ((index * 7) % 6) * (DEX_CYCLE_MS / 6);
+    let timer: ReturnType<typeof setInterval> | undefined;
+    let settle: ReturnType<typeof setTimeout> | undefined;
+    // 次の1枚を上に浮かべ、浮かび終えたら表を進める（描くのは表と次の2枚だけ）。
+    const step = () => {
+      setFading(true);
+      settle = setTimeout(() => {
+        setShown((n) => (n + 1) % list.length);
+        setFading(false);
+      }, DEX_FADE_MS);
+    };
+    const start = setTimeout(
+      () => {
+        step();
+        timer = setInterval(step, DEX_CYCLE_MS);
+      },
+      offset + DEX_CYCLE_MS / 2,
+    );
+    return () => {
+      clearTimeout(start);
+      if (settle) clearTimeout(settle);
+      if (timer) clearInterval(timer);
+      setFading(false);
+    };
+  }, [cycling, visible, index, list.length]);
+  // 画面の外・動かさない時は、表の1枚だけを描く（読み込みも1枚ぶん）。
+  const frames = dexCycleFrames(list.length, cycling ? shown : 0, cycling && visible);
+  return (
+    <div ref={ref} className="absolute inset-0" data-dex-photos={list.length}>
+      {frames.map(({ k, role }) => {
+        const p = list[k];
+        const front = role === "current";
+        // 表の1枚は下、次の1枚はその上で浮かぶ（浮かび終えたら次が表になる）。
+        const shownNow = front || fading;
+        return (
+          <CachedImg
+            key={p.src}
+            src={p.src}
+            alt={front ? alt : ""}
+            aria-hidden={front ? undefined : true}
+            loading="lazy"
+            decoding="async"
+            className={`absolute inset-0 h-full w-full ${
+              front ? "" : "z-[1] transition-opacity duration-1000 ease-in-out"
+            } motion-reduce:transition-none ${
+              p.fit === "contain" ? "object-contain p-2" : "object-cover"
+            } ${shownNow ? "opacity-100" : "opacity-0"}`}
+          />
+        );
+      })}
+    </div>
+  );
+}
+
+/** マスの下の番号（iOS `.no`: 小さく太く、灰色）。 */
+function DexNo({ no }: { no: number | null }) {
+  return (
+    <div className="mt-1 text-center text-caption font-bold tabular-nums tracking-wide text-muted-foreground">
+      {formatDexNo(no)}
+    </div>
+  );
+}
+
+/** 出会った回数「×3」。 */
+function DexCaptureCount({ n, onDark = false }: { n: number; onDark?: boolean }) {
+  const t = useT();
+  return (
+    <span
+      aria-label={t("dex.captureCount", { n: String(n) })}
+      title={t("dex.captureCount", { n: String(n) })}
+      className={`shrink-0 rounded-full px-1.5 text-caption font-bold tabular-nums ${
+        onDark ? "bg-white/90 text-black" : "bg-foreground/80 text-background"
+      }`}
+    >
+      ×{n}
+    </span>
   );
 }
 

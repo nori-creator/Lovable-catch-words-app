@@ -234,6 +234,24 @@ describe("refineUsageChunks", () => {
     expect(refineUsageChunks([many], [], "雨傘")).toEqual([]);
   });
 
+  it("「+」だけの札を除いてから数える（牛蒡 [+] 炒 → 牛蒡 炒。保存済みの語にも効く）", () => {
+    const out = refineUsageChunks(
+      [chunk("炒", "+", "牛蒡"), chunk("牛蒡＋湯"), chunk("煮", "＋", "牛蒡")],
+      [],
+      "牛蒡",
+      "zh-TW",
+    );
+    expect(out.map((c) => c.parts.map((p) => p.text))).toEqual([
+      ["炒", "牛蒡"],
+      ["牛蒡", "湯"],
+      ["煮", "牛蒡"],
+    ]);
+  });
+
+  it("「+」と見出し語だけの型は、見出し語だけの型として落とす", () => {
+    expect(refineUsageChunks([chunk("牛蒡", "+")], [], "牛蒡", "zh-TW")).toEqual([]);
+  });
+
   it("見出し語しか無い型を落とす(その語を見れば分かる)", () => {
     expect(refineUsageChunks([chunk("雨傘")], [], "雨傘")).toEqual([]);
   });
@@ -440,5 +458,16 @@ describe("RegenUsageChunksSchema — 作り直しでも入れ替えの候補を�
   it("`runSectionRegen` はこの形を使う（部品の形を書き出さない）", () => {
     const src = fs.readFileSync(path.join(__dirname, "ai.functions.ts"), "utf8");
     expect(src).toMatch(/schema: RegenUsageChunksSchema/);
+  });
+});
+
+describe("image_query（画像検索用の英語。オーナー報告 2026-10-08）", () => {
+  it("保存の正規化で落とさない・型違いは空", () => {
+    expect(normalizeExtras({ image_query: "burdock root" })?.image_query).toBe("burdock root");
+    expect(normalizeExtras({ image_query: 5 })?.image_query).toBe("");
+  });
+
+  it("読む中身ではないので「中身がある」に数えない", () => {
+    expect(hasExtrasContent({ image_query: "burdock root" })).toBe(false);
   });
 });

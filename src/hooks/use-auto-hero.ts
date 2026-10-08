@@ -14,6 +14,7 @@ import { downscaleDataUrl } from "@/lib/image-resize";
 import { toImageDataUrl } from "@/lib/sticker-upload";
 import {
   heroSearchQuery,
+  imageQueryOf,
   needsWebHero,
   placeAutoHeroWith,
   shouldOfferWebCandidates,
@@ -55,7 +56,14 @@ export type WebImageCandidate = {
 
 export type AutoHeroSticker = PhotoSources & {
   id: string;
-  word: { headword: string; meaning_ja?: string | null };
+  word: {
+    headword: string;
+    meaning_ja?: string | null;
+    /** 棚（候補を並べ直す手がかり）。 */
+    category_key?: string | null;
+    /** `image_query`（画像検索用の英語）を読む。 */
+    extras?: unknown;
+  };
 };
 
 export function useAutoHero(sticker: AutoHeroSticker | null | undefined) {
@@ -83,10 +91,18 @@ export function useAutoHero(sticker: AutoHeroSticker | null | undefined) {
     triedRef.current.add(s.id);
     void (async () => {
       try {
-        const query = heroSearchQuery({ headword: s.word.headword, meaning: s.word.meaning_ja });
+        // 探す言葉は意味の欄ではなく、AI が返した画像検索用の英語を先に使う
+        // （オーナー報告 2026-10-08「牛蒡を検索すると花の写真しか出ない」）。
+        const query = heroSearchQuery({
+          headword: s.word.headword,
+          meaning: s.word.meaning_ja,
+          imageQuery: imageQueryOf(s.word.extras),
+        });
         // 空の検索を投げない(語も意味も無い札は、ただ絵が無いままでよい)。
         if (!query) return;
-        const { candidates: cands } = await searchImagesFn({ data: { query } });
+        const { candidates: cands } = await searchImagesFn({
+          data: { query, category: s.word.category_key ?? null },
+        });
         setCandidates(cands.slice(0, 6));
         // すでに絵があるなら候補を出すだけで、勝手には差し替えない。
         if (!needsWebHero(s)) return;
@@ -215,7 +231,7 @@ const AI_IMAGE_KEY = "ai:generating";
  * ネットの画像はサーバ経由(CORS 回避)、AI の生成画像はそのまま —
  * その判断は `toImageDataUrl` が1箇所で持っている。
  */
-async function uploadWebImage(
+export async function uploadWebImage(
   cand: WebImageCandidate,
   fetchImageFn: Parameters<typeof toImageDataUrl>[1],
 ): Promise<string> {

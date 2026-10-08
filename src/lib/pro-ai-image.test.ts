@@ -114,6 +114,12 @@ describe("proImageQuery", () => {
     expect(proImageQuery({ headword: "柚子", meaning: "ゆず、かんきつ" })).toBe("柚子 (ゆず)");
     expect(proImageQuery({ headword: "apple", meaning: null })).toBe("apple");
   });
+
+  it("画像検索用の英語が在れば添える（牛蒡 → 花ではなく食べる根）", () => {
+    expect(proImageQuery({ headword: "牛蒡", meaning: "ゴボウ", imageQuery: "burdock root" })).toBe(
+      "牛蒡 (burdock root)",
+    );
+  });
 });
 
 describe("枠と画面", () => {

@@ -1138,6 +1138,126 @@ export const listMyShelves = createServerFn({ method: "GET" })
     }
   });
 
+/** `reuseOwnedSticker` が使う所だけの形（試験では手元の偽物を渡す）。 */
+type ReuseClient = {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  from: (table: string) => any;
+};
+
+/**
+ * その人が**同じ語の札をもう持っていれば**、その札に再会を1回書き足して札の id を返す
+ * （`recordEncounter` と同じ形: `encounters` に1行、札の `encounter_count` を1つ増やす。
+ * 復習の間隔は動かさない）。持っていない・書けなかった時は null（呼ぶ側が新しい札を作る）。
+ */
+export async function reuseOwnedSticker(
+  supabase: ReuseClient,
+  userId: string,
+  wordId: string,
+  enc: {
+    image_path: string | null;
+    cutout_path: string | null;
+    lat: number | null;
+    lng: number | null;
+    location_name: string | null;
+  },
+): Promise<string | null> {
+  try {
+    const { data: owned, error } = await supabase
+      .from("stickers")
+      .select("id, encounter_count")
+      .eq("user_id", userId)
+      .eq("word_id", wordId)
+      .order("created_at", { ascending: true })
+      .limit(1)
+      .maybeSingle();
+    if (error || !owned?.id) return null;
+    const ins = await supabase.from("encounters").insert({
+      user_id: userId,
+      sticker_id: owned.id,
+      recalled: null,
+      lat: enc.lat,
+      lng: enc.lng,
+      location_name: enc.location_name,
+      image_path: enc.image_path,
+      cutout_path: enc.cutout_path,
+    });
+    // 写真をどこにも結び付けられないまま「保存した」とは言わない — 新しい札に回す。
+    if (ins?.error) return null;
+    await bumpEncounterCount(supabase, userId, owned.id as string, owned.encounter_count ?? 0);
+    return owned.id as string;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * 保存を**もう持っている札の再会**にしてよいか。
+ *
+ * **ひと言・自撮りがある回は、再会にしない**（新しい札を作る — 今までの形）。
+ * 再会の行（`encounters`）にはひと言・自撮りの列が無い。再会にすると、書いたひと言は
+ * 捨てられ、アップロード済みの自撮りはどこからも指されないまま残っていた。
+ * 同じ語の札が2枚になる方が、書いた物が消えるよりずっと軽い（図鑑は言葉ごとにまとめる）。
+ * 初めてのキャッチの引き継ぎ（`client_catch_id`）も、決めた id の札を作るので再会にしない。
+ */
+export function mayReuseOwnedSticker(
+  data: { client_catch_id?: string | null; caption?: string | null; selfie_path?: string | null },
+  userId: string,
+): boolean {
+  if (data.client_catch_id) return false;
+  if (data.caption?.trim()) return false;
+  // 自分のフォルダの自撮りだけが保存される（`ownPath`）。それ以外は元々捨てる物。
+  if (data.selfie_path && data.selfie_path.startsWith(`${userId}/`)) return false;
+  return true;
+}
+
+/** 数え直しを繰り返す上限（同じ札へ同時に再会が書かれた時だけ回る）。 */
+const ENCOUNTER_BUMP_TRIES = 3;
+
+/**
+ * 札の `encounter_count` を1つ増やす。**結果を見る**（前は更新の失敗を黙って捨てていた —
+ * 再会の行は在るのに「×N」が増えない札になる）。
+ *
+ * 数を足す RPC は無いので、**読んだ値のままの時だけ書く**（`eq("encounter_count", 前の値)`）。
+ * 同時に別の再会が書いて1行も当たらなければ、読み直して数回やり直す。それでも書けない・
+ * 失敗した時は記録に残して諦める（再会の行と写真はもう結び付いているので、札は使う）。
+ */
+export async function bumpEncounterCount(
+  supabase: ReuseClient,
+  userId: string,
+  stickerId: string,
+  seen: number,
+): Promise<boolean> {
+  let current = seen;
+  for (let i = 0; i < ENCOUNTER_BUMP_TRIES; i++) {
+    const { data, error } = await supabase
+      .from("stickers")
+      .update({ encounter_count: current + 1 })
+      .eq("id", stickerId)
+      .eq("user_id", userId)
+      .eq("encounter_count", current)
+      .select("id");
+    if (error) {
+      console.warn("encounter_count の更新に失敗", error.message);
+      return false;
+    }
+    if (Array.isArray(data) && data.length > 0) return true;
+    // 1行も当たらない = 読んだ後に誰かが数を変えた。読み直して、もう一度。
+    const again = await supabase
+      .from("stickers")
+      .select("encounter_count")
+      .eq("id", stickerId)
+      .eq("user_id", userId)
+      .maybeSingle();
+    if (again.error || !again.data) {
+      console.warn("encounter_count を読み直せない", again.error?.message);
+      return false;
+    }
+    current = again.data.encounter_count ?? 0;
+  }
+  console.warn("encounter_count を書けないまま諦めた", stickerId);
+  return false;
+}
+
 export const saveSticker = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) => SaveStickerInput.parse(input))
@@ -1174,6 +1294,29 @@ export const saveSticker = createServerFn({ method: "POST" })
       if (!p) return null;
       return p.startsWith(`${userId}/`) ? p : null;
     };
+
+    /**
+     * **もう持っている言葉なら、新しい札を作らずその札の再会にする**（オーナー報告 2026-10-08
+     * 「文字検索したら同じ単語でも同じものとしてカウントされてない」）。
+     *
+     * 画面は保存の前に「もう持っている語か」を確かめる（`checkOwnedWord`）が、確かめるのは
+     * **打った・選んだ見出し語**で、カードを作った後に見出し語が学習言語の語へ直される
+     * （`adoptResolvedHead`、例: 猫 → 貓）と、直した後の語はもう確かめられずに保存へ来る。
+     * 同じ言葉の札が2枚でき、図鑑に「貓」が2つ並んでいた。共有の語の行は
+     * `(language, headword)` で1つなので、**その人の同じ語の札**をここで見つけて使う。
+     * 再会の記録が書けない環境（表・列がまだ無い）では、今までどおり新しい札を作る。
+     */
+    // ひと言・自撮りがある回は再会にしない（`mayReuseOwnedSticker`）。
+    if (mayReuseOwnedSticker(data, userId)) {
+      const reused = await reuseOwnedSticker(supabase, userId, wordId, {
+        image_path: ownPath(data.object_path),
+        cutout_path: ownPath(data.cutout_path),
+        lat: data.lat ?? null,
+        lng: data.lng ?? null,
+        location_name: data.location_name ?? null,
+      });
+      if (reused) return { id: reused, word_id: wordId, first_catch: false, reencounter: true };
+    }
 
     // §6 word tree: freeze the branch plan at save time so later extras
     // regenerations don't reshuffle already-unlocked branches.
@@ -1673,27 +1816,58 @@ const SetPlaceholderInput = z.object({
     .object({ name: z.string().optional(), link: z.string().optional(), source: z.string() })
     .nullable()
     .optional(),
+  /**
+   * **仮画像がまだ無い時だけ入れる**（自動で付ける経路: 文字で調べた語の札・詳細を開いた時の
+   * 自動の1枚）。再会になった保存（もう持っている札）に、その人が選んだ絵を自動の1枚で
+   * 上書きしない。入らなかった時はアップロード済みの1枚を消す（どこからも指されない）。
+   * 手で差し替える・Pro の AI の絵は渡さない（上書きしてよい）。
+   */
+  only_if_empty: z.boolean().optional(),
 });
+
+/** `setStickerPlaceholder` の本体（試験では手元の偽物を渡す）。 */
+export async function applyStickerPlaceholder(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  supabase: { from: (table: string) => any; storage: { from: (bucket: string) => any } },
+  userId: string,
+  data: z.infer<typeof SetPlaceholderInput>,
+): Promise<{ ok: true; applied: boolean }> {
+  // Path-spoofing guard: only paths under the caller's own uid folder.
+  if (!data.placeholder_path.startsWith(`${userId}/`)) {
+    throw new Error("不正な画像パスです");
+  }
+  let q = supabase
+    .from("stickers")
+    .update({
+      placeholder_image_url: data.placeholder_path,
+      placeholder_credit: (data.placeholder_credit ?? null) as never,
+    })
+    .eq("id", data.sticker_id)
+    .eq("user_id", userId);
+  if (!data.only_if_empty) {
+    const { error } = await q;
+    if (error) throw new Error(error.message);
+    return { ok: true, applied: true };
+  }
+  q = q.is("placeholder_image_url", null).select("id");
+  const { data: rows, error } = await q;
+  if (error) throw new Error(error.message);
+  if (Array.isArray(rows) && rows.length > 0) return { ok: true, applied: true };
+  // もう絵が在った。今アップロードした1枚は誰も指さないので片付ける（失敗しても札は無事）。
+  try {
+    await supabase.storage.from("stickers").remove([data.placeholder_path]);
+  } catch {
+    /* 片付けられなくても、札の絵はそのまま */
+  }
+  return { ok: true, applied: false };
+}
 
 export const setStickerPlaceholder = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) => SetPlaceholderInput.parse(input))
   .handler(async ({ context, data }) => {
     const { supabase, userId } = context;
-    // Path-spoofing guard: only paths under the caller's own uid folder.
-    if (!data.placeholder_path.startsWith(`${userId}/`)) {
-      throw new Error("不正な画像パスです");
-    }
-    const { error } = await supabase
-      .from("stickers")
-      .update({
-        placeholder_image_url: data.placeholder_path,
-        placeholder_credit: (data.placeholder_credit ?? null) as never,
-      })
-      .eq("id", data.sticker_id)
-      .eq("user_id", userId);
-    if (error) throw new Error(error.message);
-    return { ok: true };
+    return applyStickerPlaceholder(supabase as never, userId, data);
   });
 
 /**

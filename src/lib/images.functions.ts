@@ -13,7 +13,8 @@ import {
 } from "./image-provider";
 import { MAX_PROXY_IMAGE_BYTES, readCappedBytes } from "./byte-cap";
 import { isAiCapError } from "./ai-cap";
-import { heroSearchQuery } from "./hero-image";
+import { heroSearchQuery, imageQueryOf } from "./hero-image";
+import { rankImageCandidates } from "./image-search-rank";
 import { ALLOWED_IMAGE_MIME, IMAGE_FETCH_USER_AGENT, fetchAllowedImage } from "./image-proxy";
 
 export type ImageCandidate = {
@@ -27,7 +28,22 @@ const SearchInput = z.object({
   query: z.string().min(1).max(120),
   language: z.string().default(DEFAULT_TARGET_LANGUAGE),
   purpose: z.enum(["text-catch", "candidates"]).default("candidates"),
+  /**
+   * その語の棚（`category_key`。例 `vegetable`）。候補を並べ直す手がかり
+   * （`image-search-rank.ts`）。古い呼び出し（iOS）は送らないので任意。
+   */
+  category: z.string().max(40).nullish(),
 });
+
+/**
+ * 写真の出所に多めに頼む数。並べ直して上から {@link MAX_CANDIDATES} 枚を返す
+ * （外れの写真を後ろへ回す余地を持つ）。
+ */
+const FETCH_PER_SOURCE = 12;
+const MAX_CANDIDATES = 6;
+
+/** 並べ直しの間だけ持つ説明の字（題・説明・タグ）。返す前に落とす。 */
+type TextCandidate = ImageCandidate & { text?: string };
 
 /**
  * 絵を1枚作る前に、その人の枠を確保する（`image_gen`。`ai-cap.ts`）。
@@ -89,7 +105,8 @@ export async function searchImagesWith(
     return { candidates: ai ? [ai] : [] };
   }
   const key = process.env.UNSPLASH_ACCESS_KEY;
-  const candidates: ImageCandidate[] = [];
+  const candidates: TextCandidate[] = [];
+  const rankContext = { query: data.query, category: data.category };
   const imageConfig = readImageConfig(process.env);
 
   // **AI を先に**（`IMAGE_SEARCH_MODE=ai-first`）。1枚作って先頭に置き、
@@ -103,7 +120,7 @@ export async function searchImagesWith(
     try {
       const url = new URL("https://api.unsplash.com/search/photos");
       url.searchParams.set("query", data.query);
-      url.searchParams.set("per_page", "6");
+      url.searchParams.set("per_page", String(FETCH_PER_SOURCE));
       url.searchParams.set("content_filter", "high");
       url.searchParams.set("orientation", "squarish");
       const res = await fetch(url.toString(), {
@@ -114,16 +131,22 @@ export async function searchImagesWith(
           results?: Array<{
             urls: { regular: string; small: string };
             user: { name: string; links: { html: string } };
+            alt_description?: string | null;
+            description?: string | null;
+            tags?: Array<{ title?: string | null } | null> | null;
           }>;
         };
-        for (const r of json.results ?? []) {
-          candidates.push({
-            url: r.urls.regular,
-            thumb: r.urls.small,
-            source: "unsplash",
-            credit: { name: r.user.name, link: r.user.links.html },
-          });
-        }
+        const photos: TextCandidate[] = (json.results ?? []).map((r) => ({
+          url: r.urls.regular,
+          thumb: r.urls.small,
+          source: "unsplash" as const,
+          credit: { name: r.user.name, link: r.user.links.html },
+          text: [r.alt_description, r.description, ...(r.tags ?? []).map((t) => t?.title)]
+            .filter(Boolean)
+            .join(" "),
+        }));
+        // 探した物に合う写真を前へ、花・図版の外れを後ろへ（`image-search-rank.ts`）。
+        candidates.push(...rankImageCandidates(photos, rankContext));
       }
     } catch (e) {
       console.warn("unsplash search failed", e);
@@ -144,12 +167,13 @@ export async function searchImagesWith(
    */
   if (candidates.every((c) => c.source === "ai")) {
     try {
-      const res = await fetch(commonsSearchUrl(data.query), {
+      const res = await fetch(commonsSearchUrl(data.query, FETCH_PER_SOURCE), {
         // コモンズは名乗らない相手を弾くことがある。
         headers: { "User-Agent": IMAGE_FETCH_USER_AGENT },
       });
       if (res.ok) {
-        for (const c of commonsCandidates((await res.json()) as CommonsResponse)) {
+        const found = commonsCandidates((await res.json()) as CommonsResponse, FETCH_PER_SOURCE);
+        for (const c of rankImageCandidates(found, rankContext)) {
           candidates.push({ ...c, source: "commons" });
         }
       }
@@ -165,7 +189,10 @@ export async function searchImagesWith(
     if (ai) candidates.push(ai);
   }
 
-  return { candidates: candidates.slice(0, 6) };
+  // 説明の字は並べ直しのためだけの物。画面へは送らない。
+  return {
+    candidates: candidates.slice(0, MAX_CANDIDATES).map(({ text: _text, ...c }) => c),
+  };
 }
 
 /**
@@ -470,13 +497,22 @@ export const generateProWordImage = createServerFn({ method: "POST" })
         // 自分の札だけ（他人の札の語で作らせない）。
         const { data: row } = await supabase
           .from("stickers")
-          .select("words!inner(headword, meaning_ja)")
+          .select("words!inner(headword, meaning_ja, extras)")
           .eq("id", data.sticker_id)
           .eq("user_id", userId)
           .maybeSingle();
-        const w = (row as { words?: { headword?: string; meaning_ja?: string | null } } | null)
-          ?.words;
-        return w?.headword ? { headword: w.headword, meaning: w.meaning_ja ?? null } : null;
+        const w = (
+          row as {
+            words?: { headword?: string; meaning_ja?: string | null; extras?: unknown };
+          } | null
+        )?.words;
+        return w?.headword
+          ? {
+              headword: w.headword,
+              meaning: w.meaning_ja ?? null,
+              imageQuery: imageQueryOf(w.extras) || null,
+            }
+          : null;
       },
       // 語を外部の絵の AI へ送るので、送る前に同意を確かめる（他の AI の関数と同じ関所）。
       assertConsent: async () =>
@@ -492,7 +528,12 @@ export const generateProWordImage = createServerFn({ method: "POST" })
 
 export type ProImageDeps = {
   isPaidPro: () => Promise<boolean>;
-  readWord: () => Promise<{ headword: string; meaning: string | null } | null>;
+  readWord: () => Promise<{
+    headword: string;
+    meaning: string | null;
+    /** 画像検索用の英語（`extras.image_query`）。古いカードは無い。 */
+    imageQuery?: string | null;
+  } | null>;
   /** 外部の AI へ送る同意（無ければ `AI_CONSENT_REQUIRED` で投げる）。 */
   assertConsent: () => Promise<void>;
   reserve: () => Promise<void>;
@@ -518,11 +559,20 @@ export async function generateProImageWith(
 
 /**
  * 絵の指示に渡す言葉。語そのものと、その意味の最初の1つ（`hero-image.ts` と同じ削り方）。
- * 語だけだと、読めない字の「形」を描かれることがある。
+ * 語だけだと、読めない字の「形」を描かれることがある。画像検索用の英語
+ * （`extras.image_query`）が在ればそちらを添える（牛蒡 → 花ではなく食べる根を描かせる）。
  */
-export function proImageQuery(word: { headword: string; meaning: string | null }): string {
+export function proImageQuery(word: {
+  headword: string;
+  meaning: string | null;
+  imageQuery?: string | null;
+}): string {
   const head = word.headword.trim();
-  const sense = heroSearchQuery({ headword: head, meaning: word.meaning });
+  const sense = heroSearchQuery({
+    headword: head,
+    meaning: word.meaning,
+    imageQuery: word.imageQuery,
+  });
   return sense && sense !== head ? `${head} (${sense})` : head;
 }
 

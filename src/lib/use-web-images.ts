@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { searchImageCandidates, type ImageCandidate } from "@/lib/images.functions";
-import { heroSearchQuery } from "@/lib/hero-image";
+import { cleanImageQuery, heroSearchQuery } from "@/lib/hero-image";
 
 /**
  * その語のネットの画像。**節を出すかどうかと、節の中身が同じ答えを見る。**
@@ -34,20 +34,33 @@ export type WebImages = {
   isFetching: boolean;
 };
 
+export type WebImageWord = {
+  headword: string;
+  meaningJa: string;
+  /** カードを作る時に AI が返した画像検索用の英語（`extras.image_query`）。古いカードは空。 */
+  imageQuery?: string | null;
+  /** 棚（`category_key`）。候補を並べ直す手がかり。 */
+  category?: string | null;
+};
+
 export function useWebImages(
-  headword: string,
-  meaningJa: string,
+  word: WebImageWord,
   /** 「別の画像」を押した回数。0 が最初の検索。 */
   seed = 0,
 ): WebImages {
   const searchFn = useServerFn(searchImageCandidates);
-  const base = heroSearchQuery({ headword, meaning: meaningJa });
+  const { headword, meaningJa, imageQuery, category } = word;
+  const base = heroSearchQuery({ headword, meaning: meaningJa, imageQuery });
+  // 英語の検索語に中国語の見出し語を足すと、どの出所でも当たらなくなる。
+  // 意味の欄で探している（古いカードの）時だけ、取り直しで見出し語を足す。
+  const english = cleanImageQuery(imageQuery).length > 0;
+  const query = seed === 0 || english ? base : `${base} ${headword}`;
   const { data, isLoading, isFetching } = useQuery({
-    queryKey: ["web-images", headword, seed],
+    queryKey: ["web-images", headword, base, seed],
     // 語も意味も無い札に空の検索を投げない。
     enabled: base.length > 0,
     queryFn: async () =>
-      (await searchFn({ data: { query: seed === 0 ? base : `${base} ${headword}` } })).candidates,
+      (await searchFn({ data: { query, category: category ?? null } })).candidates,
     staleTime: 24 * 60 * 60 * 1000,
   });
   return { candidates: data ?? [], isLoading, isFetching };

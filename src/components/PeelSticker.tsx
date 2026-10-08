@@ -19,6 +19,11 @@ type Props = {
   hint: string;
   disabled?: boolean;
   onPeel: () => void;
+  /**
+   * 指（またはマウス）が札を掴んだ時。剥がし終える前に呼ぶ — 呼ぶ側はここで札の絵を
+   * 決着させる（掴んだ後に絵が替わると、剥がしが最初からやり直しになる）。
+   */
+  onGrab?: () => void;
 };
 
 /**
@@ -38,6 +43,7 @@ export function PeelSticker({
   hint,
   disabled = false,
   onPeel,
+  onGrab,
 }: Props) {
   const id = useId().replace(/:/g, "");
   const reduced = usePrefersReducedMotion();
@@ -56,8 +62,8 @@ export function PeelSticker({
    * 最新の値。Touch の受け口は `addEventListener` で付ける（React の `onTouchMove` は
    * passive なので `preventDefault()` が効かない）ため、描画ごとの値をここから読む。
    */
-  const live = useRef({ disabled, committed, ready, reduced, angle, pose, onPeel });
-  live.current = { disabled, committed, ready, reduced, angle, pose, onPeel };
+  const live = useRef({ disabled, committed, ready, reduced, angle, pose, onPeel, onGrab });
+  live.current = { disabled, committed, ready, reduced, angle, pose, onPeel, onGrab };
   const setPose = (next: { p: number; x: number; y: number }) => {
     live.current.pose = next;
     setPoseState(next);
@@ -137,6 +143,7 @@ export function PeelSticker({
     cancelAnimationFrame(frame.current);
     drag.current = next;
     setHeld(true);
+    live.current.onGrab?.();
   }
   function update(x: number, y: number) {
     const d = drag.current;

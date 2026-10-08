@@ -4,6 +4,13 @@ import { Score, SCORE } from "@/lib/celebration-score";
 import { haptic } from "@/lib/haptics";
 import type { LandingRunner } from "./types";
 import { loadConfetti3d } from "@/components/three/load-confetti";
+import {
+  LANDING_CELL_WAIT_MS,
+  LANDING_GIVE_UP_MS,
+  findLandingTarget,
+  landingBoxFor,
+  type LandingTargetKind,
+} from "@/lib/landing-target";
 
 const wait = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 
@@ -26,16 +33,41 @@ const EASE_IOS = "cubic-bezier(0.32, 0.72, 0, 1)";
  * 保存後の新しい標準演出。過去版の振り付けは使わず、押し込まれた物体が
  * 浮き、張力を蓄え、解放され、図鑑へ渡る一続きの運動として組む。
  */
-async function waitForDestination(id: string): Promise<HTMLElement | null> {
-  const deadline = performance.now() + 5000;
-  while (performance.now() < deadline) {
-    const target = document.getElementById(`dex-cell-${id}`);
-    if (target) {
-      target.scrollIntoView({ block: "center", behavior: "instant" as ScrollBehavior });
-      await new Promise<void>((resolve) =>
-        requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
-      );
-      return document.getElementById(`dex-cell-${id}`);
+/**
+ * 着地先を探す（`lib/landing-target.ts`）。まずその札のマス目を待ち、待ちきれなければ
+ * **その語のカテゴリーの見出し**（無ければ図鑑のタブ）へ降ろす。
+ *
+ * 前はマス目だけを5秒待ち、見つからなければ淡く消えて終わっていた。文字で調べた語は
+ * 図鑑の読み直しが追いつかない回が多く、**図鑑へ入っていく動きが無い**ように見えた
+ * （オーナー報告 2026-10-08）。
+ */
+async function waitForDestination(
+  id: string | undefined,
+  categoryKey: string | null | undefined,
+): Promise<{ el: HTMLElement; kind: LandingTargetKind } | null> {
+  const started = performance.now();
+  const visible = (selector: string): HTMLElement | null => {
+    const el = document.querySelector(selector) as HTMLElement | null;
+    if (!el) return null;
+    const r = el.getBoundingClientRect();
+    // 畳まれた・描かれていない要素（幅も高さも 0）は受け口にしない。
+    return r.width > 0 || r.height > 0 ? el : null;
+  };
+  while (performance.now() - started < LANDING_GIVE_UP_MS) {
+    const fallback = performance.now() - started >= LANDING_CELL_WAIT_MS;
+    const found = findLandingTarget(visible, { id, categoryKey, fallback });
+    if (found) {
+      // 画面の外なら見える所まで送る（カテゴリーが下の方に在る・まだ巻き取っていない）。
+      // 図鑑のタブは下に固定なので送らない。
+      if (found.kind !== "tab") {
+        found.el.scrollIntoView({ block: "center", behavior: "instant" as ScrollBehavior });
+        await new Promise<void>((resolve) =>
+          requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+        );
+      }
+      // 送った間に描き直されていたら、同じ物を探し直す。
+      if (!found.el.isConnected) continue;
+      return found;
     }
     await wait(32);
   }
@@ -48,6 +80,7 @@ export const v5reward: LandingRunner = async ({
   speakLine,
   destinationId,
   getDestinationId,
+  getDestinationCategory,
   openDex,
   gate,
   intensity = "full",
@@ -268,8 +301,23 @@ export const v5reward: LandingRunner = async ({
     // `undefined`。`gate` を待った後に読み直した `targetId`(163行目)が
     // 本当の着地先。ここを取り違えると、飛んだ絵が着く所を見失って
     // 淡く消えて終わる — **捕まえたのに図鑑へ入らなかったように見える**。
-    const target = targetId ? await waitForDestination(targetId) : null;
-    if (!target) {
+    // **探している間も止めない**（オーナー報告 2026-10-08「語が白い画面で数秒止まる」）。
+    // マス目が描かれるのを待つ間、札は浮いたまま小さく息をする。
+    const searching = handoffImage.animate(
+      [
+        { transform: "translate(0,0) scale(1)" },
+        { transform: "translate(0,-9px) scale(1.015)" },
+        { transform: "translate(0,0) scale(1)" },
+      ],
+      { duration: 900, iterations: Infinity, easing: "ease-in-out" },
+    );
+    let found: Awaited<ReturnType<typeof waitForDestination>>;
+    try {
+      found = await waitForDestination(targetId, getDestinationCategory?.());
+    } finally {
+      searching.cancel();
+    }
+    if (!found) {
       await handoff.animate([{ opacity: 1 }, { opacity: 0 }], {
         duration: 220,
         easing: EASE_IOS,
@@ -278,9 +326,17 @@ export const v5reward: LandingRunner = async ({
       return;
     }
 
-    const targetRect = (target.querySelector("img") ?? target).getBoundingClientRect();
-    target.style.visibility = "hidden";
-    hiddenCell = target;
+    const target = found.el;
+    /** その札そのもの（マス目・行）に降りるか。見出し・タブなら、着いたら写しを溶かす。 */
+    const onCell = found.kind === "cell" || found.kind === "item";
+    const targetRect = landingBoxFor(
+      found.kind,
+      (onCell ? (target.querySelector("img") ?? target) : target).getBoundingClientRect(),
+    );
+    if (onCell) {
+      target.style.visibility = "hidden";
+      hiddenCell = target;
+    }
     const dx = targetRect.left - heroRect.left;
     const dy = targetRect.top - heroRect.top;
     const sx = targetRect.width / Math.max(heroRect.width, 1);
@@ -341,12 +397,25 @@ export const v5reward: LandingRunner = async ({
      */
     target.style.visibility = "";
     hiddenCell = null;
-    handoffImage.style.opacity = "0";
+    if (onCell) {
+      handoffImage.style.opacity = "0";
+    } else {
+      // 本物の札がまだ並んでいない所へ降りた。写しを小さく溶かして「入った」を見せる。
+      void handoffImage
+        .animate(
+          [
+            { transform: `translate(${dx}px,${dy}px) scale(${sx},${sy})`, opacity: 1 },
+            { transform: `translate(${dx}px,${dy}px) scale(${sx * 0.4},${sy * 0.4})`, opacity: 0 },
+          ],
+          { duration: 220, easing: EASE_IOS, fill: "forwards" },
+        )
+        .finished.catch(() => undefined);
+    }
     target.animate([{ boxShadow: "0 0 0 0 #58d7ff99" }, { boxShadow: "0 0 0 24px #58d7ff00" }], {
       duration: 600,
       easing: "ease-out",
     });
-    const shelf = target.parentElement;
+    const shelf = onCell ? target.parentElement : null;
     shelf?.animate(
       [
         { transform: "translateY(0)" },

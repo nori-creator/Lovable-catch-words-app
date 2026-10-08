@@ -1446,6 +1446,43 @@ export const DICT: Record<string, Record<UiLang, string>> = {
     "zh-TW": "遇到這個字的紀錄",
   },
   "photos.count": { ja: "{n}枚", en: "{n} {n|photo|photos}", "zh-TW": "{n} 張" },
+  // 図鑑の20のカテゴリー（iOS `DexCatalog.label` と同じ名前。`lib/dex-catalog.ts`）。
+  "dexcat.1": { ja: "飲み物", en: "Drinks", "zh-TW": "飲料" },
+  "dexcat.2": { ja: "料理・屋台", en: "Dishes & Street Food", "zh-TW": "料理、小吃" },
+  "dexcat.3": { ja: "果物・野菜", en: "Fruit & Vegetables", "zh-TW": "水果、蔬菜" },
+  "dexcat.4": { ja: "お菓子・パン", en: "Sweets & Bread", "zh-TW": "點心、麵包" },
+  "dexcat.5": { ja: "食器・台所", en: "Tableware & Kitchen", "zh-TW": "餐具、廚房" },
+  "dexcat.6": { ja: "家具・インテリア", en: "Furniture & Interior", "zh-TW": "家具、室內擺設" },
+  "dexcat.7": { ja: "家電", en: "Appliances", "zh-TW": "家電" },
+  "dexcat.8": { ja: "スマホ・パソコン", en: "Phones & Computers", "zh-TW": "手機、電腦" },
+  "dexcat.9": { ja: "文房具・本", en: "Stationery & Books", "zh-TW": "文具、書" },
+  "dexcat.10": { ja: "洗面・日用品", en: "Toiletries & Daily Goods", "zh-TW": "盥洗、日用品" },
+  "dexcat.11": { ja: "服", en: "Clothes", "zh-TW": "衣服" },
+  "dexcat.12": {
+    ja: "靴・バッグ・小物",
+    en: "Shoes, Bags & Accessories",
+    "zh-TW": "鞋子、包包、配件",
+  },
+  "dexcat.13": { ja: "乗り物", en: "Vehicles", "zh-TW": "交通工具" },
+  "dexcat.14": { ja: "建物・お店", en: "Buildings & Shops", "zh-TW": "建築、商店" },
+  "dexcat.15": { ja: "道・街の物", en: "Streets & Street Things", "zh-TW": "道路、街上的東西" },
+  "dexcat.16": { ja: "動物", en: "Animals", "zh-TW": "動物" },
+  "dexcat.17": { ja: "植物・花", en: "Plants & Flowers", "zh-TW": "植物、花" },
+  "dexcat.18": { ja: "空・自然", en: "Sky & Nature", "zh-TW": "天空、大自然" },
+  "dexcat.19": { ja: "スポーツ・遊び", en: "Sports & Play", "zh-TW": "運動、遊戲" },
+  "dexcat.20": { ja: "人・体", en: "People", "zh-TW": "人、身體" },
+  // 図鑑のまだ捕まえていない物の影（読み上げ。iOS「まだ見つけていない言葉 {1}」）。
+  "dex.shadowAria": {
+    ja: "まだ見つけていない言葉 {word}",
+    en: "Not found yet: {word}",
+    "zh-TW": "還沒找到的詞：{word}",
+  },
+  // 同じ言葉に出会った回数（図鑑のマスの「×3」の読み上げ）。
+  "dex.captureCount": {
+    ja: "{n}回出会った",
+    en: "Met {n} {n|time|times}",
+    "zh-TW": "遇到 {n} 次",
+  },
   "photos.first": { ja: "はじめて", en: "First", "zh-TW": "第一次" },
   "photos.alt": {
     ja: "{n}回目に撮った写真",
@@ -4418,6 +4455,12 @@ export const DICT: Record<string, Record<UiLang, string>> = {
     "zh-TW": "現在就再試一次",
   },
   "capture.cancel": { ja: "やめる", en: "Cancel", "zh-TW": "取消" },
+  // 打った語の意味を引いている間（`CaptureLookupPanel`）。写真が無いので「分析」とは言わない。
+  "capture.lookingUp": {
+    ja: "意味を調べています",
+    en: "Looking up the meaning",
+    "zh-TW": "正在查詢意思",
+  },
   "capture.toHome": { ja: "ホームへ", en: "Go Home", "zh-TW": "回首頁" },
   "capture.oneMore": { ja: "もう一枚撮る", en: "Take another", "zh-TW": "再拍一張" },
   "capture.reunion": { ja: "再会！", en: "Reunion!", "zh-TW": "重逢！" },
