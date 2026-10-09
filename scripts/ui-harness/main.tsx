@@ -414,7 +414,7 @@ const q = new URLSearchParams(location.search);
  */
 const REVIEW_SCENES: Array<{ scene: string; label: string }> = [
   // 2026-10-09「aiのデータの送信の同意をずっと設定に表示してるの不自然だから、規約にまとめ」。
-  { scene: "settings-legal", label: "設定: 規約と表記に AI へ送る同意の1行（同意済み）" },
+  { scene: "settings-legal", label: "設定: 規約と表記（AI へ送る同意もほかと同じ下線リンク）" },
   { scene: "settings-legal&open=1", label: "設定: AI へ送る同意の小さな画面（取り消せる）" },
   // 2026-10-09「開発者の AI 設定が散らかっている。整理・削除・統合して」— 1枚にまとめた。
   { scene: "admin-ai-settings", label: "開発者設定: AI の設定（機能ごとの AI・画像・発音の声）" },

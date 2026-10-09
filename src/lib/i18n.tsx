@@ -1843,9 +1843,6 @@ export const DICT: Record<string, Record<UiLang, string>> = {
     en: "Review and agree",
     "zh-TW": "確認內容並同意",
   },
-  // 「規約と表記」の行の右に出す状態（2026-10-09 独立した束をやめて1行にした）。
-  "aiConsent.rowAgreed": { ja: "同意済み", en: "Agreed", "zh-TW": "已同意" },
-  "aiConsent.rowNone": { ja: "未同意", en: "Not agreed", "zh-TW": "未同意" },
   "aiConsent.withdraw": { ja: "同意を取り消す", en: "Withdraw consent", "zh-TW": "撤回同意" },
   "aiConsent.withdrawConfirm": {
     ja: "取り消すと、カメラ・スキャン・単語カードの作成・日記の添削など、AI を使う機能が使えなくなります。取り消しますか？",
@@ -2296,11 +2293,6 @@ export const DICT: Record<string, Record<UiLang, string>> = {
     ja: "毎回、音楽つきで大きく祝います。",
     en: "Every catch gets the full celebration with music.",
     "zh-TW": "每次都以音樂和完整動畫慶祝。",
-  },
-  "settings.catchAnimationShortDesc": {
-    ja: "ふだんは短く。1・10・50・100匹目などの節目は大きく祝います。",
-    en: "Short for everyday catches. Milestones like your 1st, 10th, 50th and 100th get the full celebration.",
-    "zh-TW": "平常簡短。第 1、10、50、100 個等重要時刻會盛大慶祝。",
   },
   "settings.catchAnimationOffDesc": {
     ja: "動きは出さず、発音だけ聞かせます。",
