@@ -1,6 +1,7 @@
 import { FirstCatchScene, TutorialHarnessFrame, embedsTutorial } from "./scenes/first-catch";
 import { HomeShelfScene } from "./scenes/home-shelf";
 import { HomeTabSwitchScene } from "./scenes/home-tab-switch";
+import { HomeEditScene } from "./scenes/home-edit";
 import { InstallAppScene } from "./scenes/install-app";
 import { ChunkDesignsScene } from "./scenes/chunk-designs";
 import { PeelStickerScene } from "./scenes/peel-sticker";
@@ -185,6 +186,7 @@ const SCENES: Record<string, ((p: { q: URLSearchParams }) => ReactNode) | undefi
   home: HomeScene,
   "home-shelf": HomeShelfScene,
   "home-tab-switch": HomeTabSwitchScene,
+  "home-edit": HomeEditScene,
   "install-app": InstallAppScene,
   "home-album": HomeAlbumScene,
   "home-memorial": HomeMemorialScene,
@@ -395,6 +397,8 @@ const BARE = new Set([
   "book-album-edit",
   // 枠（上の帯・下のバー）ごと自分で作り直す（本番のタブの行き来と同じ）。
   "home-tab-switch",
+  // 枠（上の帯・下のバー）を自分で持つ（下へ送った時の「完了」の位置を見るため）。
+  "home-edit",
 ]);
 
 const q = new URLSearchParams(location.search);
@@ -414,14 +418,18 @@ const q = new URLSearchParams(location.search);
  */
 const REVIEW_SCENES: Array<{ scene: string; label: string }> = [
   // 2026-10-09「aiのデータの送信の同意をずっと設定に表示してるの不自然だから、規約にまとめ」。
-  { scene: "settings-legal", label: "設定: 規約と表記に AI へ送る同意の1行（同意済み）" },
+  { scene: "settings-legal", label: "設定: 規約と表記（AI へ送る同意もほかと同じ下線リンク）" },
   { scene: "settings-legal&open=1", label: "設定: AI へ送る同意の小さな画面（取り消せる）" },
+  // 2026-10-09「その他になぜかいろんなものがそのままになってる。可頌は食べ物だし…」。
+  { scene: "dex-book&case=stuck", label: "図鑑: other のままの可頌・面膜などが棚へ" },
   // 2026-10-09「開発者の AI 設定が散らかっている。整理・削除・統合して」— 1枚にまとめた。
   { scene: "admin-ai-settings", label: "開発者設定: AI の設定（機能ごとの AI・画像・発音の声）" },
   { scene: "admin-ai-settings&lang=en", label: "開発者設定: AI の設定（English）" },
   // 2026-10-09 候補の違いを同じ物差しで（文体の札・場面・違い）。「豚の口の周りの肉」→ 嘴邊肉 / 豬頰肉。
   { scene: "text-candidates", label: "文字検索の候補: 「豚の口の周りの肉」（文体・場面・違い）" },
   { scene: "text-candidates&case=densha", label: "文字検索の候補: 「電車」（文体・場面・違い）" },
+  // 2026-10-09「文字を長押しすると青く文字のコピーになる」「編集の完了ボタンが必ず表示されるように」。
+  { scene: "home-edit", label: "ホームの誌面: 並べ替え中に下へ送っても「完了」が画面の下に出る" },
   // 2026-10-09「ホームのアイコン押すとカクカクする」「文字だけ移動できるように」。
   { scene: "home-tab-switch", label: "ホーム ⇄ 図鑑: タブを押しても棚・写真が抜けない" },
   {
@@ -477,7 +485,6 @@ const REVIEW_SCENES: Array<{ scene: string; label: string }> = [
   // 2026-10-03「アプリ内の広告が動く 機能するようにしたい」— Google AdSense のウェブ広告。
   // 見本は本物の広告の代わりに「広告」の箱を出す。`&fill=unfilled` で広告が来ない時（枠が閉じる）。
   { scene: "dex-ads", label: "広告: 図鑑の一覧の途中" },
-  { scene: "dex-ads&view=list", label: "広告: 図鑑のリスト表示" },
   { scene: "home-ads", label: "広告: ホームの日と日の間" },
   { scene: "review-end-ads", label: "広告: 復習の終わり（カード）" },
   { scene: "settings-ads", label: "開発者設定: 広告の ID と枠の番号" },
@@ -485,7 +492,6 @@ const REVIEW_SCENES: Array<{ scene: string; label: string }> = [
   { scene: "admin-beta", label: "管理: ベータの指標" },
   // 売り始める準備: 規約・プライバシー（広告の項を含む）・特商法の表記・値段と解約の口。
   { scene: "pro-plan", label: "Pro の案内: 値段・自動更新・解約の口（全部の状態）" },
-  { scene: "legal-tokushoho&legal=missing", label: "特商法の表記: 未設定（販売しない）" },
   { scene: "legal-tokushoho&legal=ready", label: "特商法の表記: 設定済み（見本の値）" },
   { scene: "legal-privacy&legal=ready", label: "プライバシーポリシー" },
 ];

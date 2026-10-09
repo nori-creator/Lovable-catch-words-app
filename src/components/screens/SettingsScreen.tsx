@@ -74,7 +74,7 @@ import {
 } from "@/lib/billing.functions";
 import { ProPlanCardView, type ProPlanBusy } from "@/components/ProPlanCardView";
 import { ProCheckoutConfirm } from "@/components/ProCheckoutConfirm";
-import { LegalLinks } from "@/components/legal/LegalShell";
+import { LEGAL_LINK_CLASS, LegalLinks } from "@/components/legal/LegalShell";
 import { billingSurface } from "@/lib/stripe-billing";
 import { normalizePublisherId, normalizeSlotId, type AdConfig } from "@/lib/ad-policy";
 import { adsTxtBody } from "@/lib/adsense";
@@ -89,7 +89,7 @@ import { Capacitor } from "@capacitor/core";
 import { WallpaperPicker } from "@/components/WallpaperPicker";
 import { downscaleDataUrl } from "@/lib/image-resize";
 import { supabase } from "@/integrations/supabase/client";
-import { ChevronRight, LogOut, Loader2, Plus, Trash2, User, X } from "lucide-react";
+import { LogOut, Loader2, Plus, Trash2, User, X } from "lucide-react";
 import {
   Sound,
   getLevel,
@@ -1409,15 +1409,16 @@ export function CatchAnimationRow({ initial }: { initial?: CatchAnimationChoice 
           { value: "off", label: t("settings.catchAnimationOff") },
         ]}
       />
-      <p className="mt-1.5 text-caption leading-snug text-muted-foreground">
-        {t(
-          choice === "full"
-            ? "settings.catchAnimationFullDesc"
-            : choice === "short"
-              ? "settings.catchAnimationShortDesc"
+      {/* 「短く」には説明を付けない（オーナー指示 2026-10-09：節目の説明文は消す）。 */}
+      {choice !== "short" && (
+        <p className="mt-1.5 text-caption leading-snug text-muted-foreground">
+          {t(
+            choice === "full"
+              ? "settings.catchAnimationFullDesc"
               : "settings.catchAnimationOffDesc",
-        )}
-      </p>
+          )}
+        </p>
+      )}
     </div>
   );
 }
@@ -1949,13 +1950,10 @@ export function AiConsentRowView({
         <button
           type="button"
           data-testid="ai-consent-row"
-          className="-mx-1 flex min-h-11 w-[calc(100%+0.5rem)] items-center gap-2 rounded-lg px-1 text-left text-body hover:bg-muted/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          data-agreed={loading ? undefined : agreed ? "1" : "0"}
+          className={`${LEGAL_LINK_CLASS} text-left`}
         >
-          <span className="min-w-0 flex-1 truncate">{t("aiConsent.settingsTitle")}</span>
-          <span className="shrink-0 text-footnote text-muted-foreground">
-            {loading ? "…" : agreed ? t("aiConsent.rowAgreed") : t("aiConsent.rowNone")}
-          </span>
-          <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
+          {t("aiConsent.settingsTitle")}
         </button>
       </DialogTrigger>
       <DialogContent
@@ -2024,7 +2022,9 @@ export function AiConsentRowView({
 }
 
 /**
- * **規約・プライバシー・特商法の表記・お問い合わせ**と、**AI へ送る同意の行**。
+ * **規約・プライバシー・特商法の表記・お問い合わせ**と、**AI へ送る同意**。
+ * 同意はほかのリンクと全く同じ見た目の1項目（オーナー指示 2026-10-09「AIを使う同意は
+ * 規約などのほかのもの全く同じにして。」）— 状態の文字・矢印・区切り線は付けない。
  * アプリの中からも、いつでも条件を読み返し、同意を取り消せるようにする。
  * 法務のリンクは設定ではここだけに置く（Pro を使っている時の札には重ねない。
  * 買う前の札と最終確認には、特商法の考え方どおりボタンのそばに残す）。
@@ -2033,12 +2033,7 @@ export function LegalLinksCard({ consent }: { consent?: ReactNode }) {
   const t = useT();
   return (
     <SettingsCard title={t("legal.sectionTitle")}>
-      <div className="space-y-2">
-        {consent ?? <AiConsentRow />}
-        <div className="border-t border-border pt-1">
-          <LegalLinks className="text-footnote" />
-        </div>
-      </div>
+      <LegalLinks className="text-footnote" extra={consent ?? <AiConsentRow />} />
     </SettingsCard>
   );
 }

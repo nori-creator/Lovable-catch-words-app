@@ -114,6 +114,13 @@ function mirror(c: Canvas): Canvas {
   return m;
 }
 
+/** 画面に手を返す（次のタスクへ）。`scheduler.yield` があればそれ、無ければ setTimeout。 */
+function yieldToMain(): Promise<void> {
+  const sch = (globalThis as { scheduler?: { yield?: () => Promise<void> } }).scheduler;
+  if (sch?.yield) return sch.yield();
+  return new Promise((ok) => setTimeout(ok, 0));
+}
+
 type Book = {
   group: THREE.Group;
   front: THREE.Object3D;
@@ -138,6 +145,13 @@ type Book = {
   data: MonthBook;
   shelfPos: THREE.Vector3;
   painted: boolean;
+  /** 棚に並んでいる時の表紙の材質（中を描いた後に、描く前へ戻すため）。 */
+  plain?: THREE.Material;
+  /** 中を描いた時に付けた物（表紙の材質・見返し・最後の白紙・紙）。描く前へ戻す時に外す。 */
+  coverMat?: THREE.Material;
+  insides?: THREE.Object3D[];
+  /** 中の絵が古いかもしれない（前のホームで描いた）。次に開く時に描き直す。 */
+  stale?: boolean;
 };
 
 export type ShelfEvents = {
@@ -317,10 +331,21 @@ export class ShelfWorld {
     this.setupScene();
   }
 
-  private setupScene() {
+  /**
+   * 光の下ごしらえ（PMREM。部屋の映り込み）。**重い**（立方体を描いてぼかすシェーダーを組む）ので、
+   * 作った瞬間ではなく `load` の始めに、画面に手を返してから行う。
+   */
+  private environmentReady = false;
+  private prepareEnvironment() {
+    if (this.environmentReady || this.disposed) return;
+    this.environmentReady = true;
     const pmrem = new THREE.PMREMGenerator(this.renderer);
     this.scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
     this.scene.environmentIntensity = 0.3;
+    pmrem.dispose();
+  }
+
+  private setupScene() {
     if (this.room) {
       // 部屋の壁・窓は画面側が描く。ここは光だけ（影は棚を置いた後に壁の位置へ）。
       addRoomLights(this.scene, this.room);
@@ -383,6 +408,10 @@ export class ShelfWorld {
   }
 
   async load(photoUrls: string[]) {
+    // 重い段の間で画面に手を返す（1 本の長い仕事にしない。押した指・下のバーの印が止まらない）。
+    await yieldToMain();
+    if (this.disposed) return;
+    this.prepareEnvironment();
     const loader = new GLTFLoader();
     const [bookGltf, shelfGltf, wood, ...photos] = await Promise.all([
       loader.loadAsync("/models/book.glb"),
@@ -450,7 +479,10 @@ export class ShelfWorld {
       color: "#fffaf0",
     });
     const bandMat = new THREE.MeshStandardMaterial({ color: "#8f2f2f", roughness: 0.7 });
-    this.months.forEach((data, i) => {
+    for (const [i, data] of this.months.entries()) {
+      // 背表紙の絵（布・箔・凹凸）は 1 冊ずつ描くので、冊の間で手を返す。
+      await yieldToMain();
+      if (this.disposed) return;
       const r = Math.floor(i / per);
       const c = i % per;
       const g = bookGltf.scene.clone(true);
@@ -505,8 +537,17 @@ export class ShelfWorld {
       // 少しだけ傾いた本・奥に引っ込んだ本（本物の棚は揃いすぎていない）
       group.position.z -= (i * 37) % 5 === 0 ? 0.004 : 0;
       this.scene.add(group);
-      this.books.push({ group, front, leaves: [], days: [], data, shelfPos, painted: false });
-    });
+      this.books.push({
+        group,
+        front,
+        leaves: [],
+        days: [],
+        data,
+        shelfPos,
+        painted: false,
+        plain: plainMat,
+      });
+    }
     // 本立て（真鍮の L 字）
     const brass = new THREE.MeshStandardMaterial({
       color: "#b08d57",
@@ -547,15 +588,34 @@ export class ShelfWorld {
       this.scene.add(decor);
       this.scene.add(shadowWall(box.min.z - 0.001, this.room));
     }
+    // **シェーダーは並行して組む**（`KHR_parallel_shader_compile`）。最初の描画で組むと、その
+    // 1 回が端末によっては 1 秒近い長い仕事になっていた。組み終わってから描く。
+    await yieldToMain();
+    if (this.disposed) return;
+    try {
+      await this.renderer.compileAsync(this.scene, this.camera);
+    } catch {
+      // 組めなくても、最初の描画が組む（前と同じ）。
+    }
+    if (this.disposed) return;
     this.resize();
     this.dirty = true;
   }
 
+  private plainCloth: Painted | null = null;
+
   /** 布装の材質。p があれば色・つや/金属・凹凸の絵を貼る（Blender の形の UV に合わせる）。 */
   private clothMaterial(p: Painted | null, color?: string, flipU = false) {
     if (!p) {
-      // 無地の布（裏表紙など）: 色＋織り目だけ
-      const c = paintSpine({ color: color ?? "#333", year: 0, month: 1, count: 0, seed: 99 });
+      // 無地の布（裏表紙など）: 色＋織り目だけ。織り目（凹凸）は色に依らないので 1 回だけ描く
+      // （前は冊ごとに 160×1024 の絵を描いて法線に変えていた）。
+      const c = (this.plainCloth ??= paintSpine({
+        color: "#333",
+        year: 0,
+        month: 1,
+        count: 0,
+        seed: 99,
+      }));
       const m = new THREE.MeshPhysicalMaterial({
         color: color,
         roughness: 0.86,
@@ -600,6 +660,54 @@ export class ShelfWorld {
     return this.books.some((b) => b.painted);
   }
 
+  /**
+   * 中を描いた本に「古いかもしれない」印を付ける（棚を次のホームへ預ける時。`HomeShelf`）。
+   * 写真の選び方・置き方・日記は、次に開く時には変わっているかもしれない。印の付いた本は
+   * 開く時に描く前へ戻してから描き直す（`openBook`）。棚そのもの（WebGL・形・背表紙）は
+   * そのまま使えるので、組み直さない。
+   */
+  markPaintStale() {
+    for (const b of this.books) if (b.painted && b !== this.active) b.stale = true;
+  }
+
+  /** 中を描く前へ戻す（表紙を棚の時の布へ、見返し・白紙・紙を外して捨てる）。 */
+  private unpaintBook(b: Book) {
+    if (!b.painted || b === this.active) return;
+    b.leaves.forEach((_, i) => this.unpaintLeaf(b, i));
+    const blanks = new Set(Object.values(this.blanks));
+    for (const o of b.insides ?? []) {
+      o.parent?.remove(o);
+      o.traverse((x: THREE.Object3D) => {
+        const mesh = x as THREE.Mesh;
+        if (!mesh.isMesh) return;
+        mesh.geometry.dispose();
+        for (const m of Array.isArray(mesh.material) ? mesh.material : [mesh.material]) {
+          const map = (m as THREE.MeshStandardMaterial).map;
+          if (map && !blanks.has(map)) map.dispose();
+          m.dispose();
+        }
+      });
+    }
+    const cover = b.coverMat as THREE.MeshPhysicalMaterial | undefined;
+    if (cover && b.plain) {
+      b.front.traverse((o: THREE.Object3D) => {
+        const mesh = o as THREE.Mesh;
+        if (mesh.isMesh && mesh.material === cover) mesh.material = b.plain!;
+      });
+      for (const t of [cover.map, cover.roughnessMap, cover.normalMap]) t?.dispose();
+      cover.dispose();
+    }
+    b.leaves = [];
+    b.days = [];
+    b.insides = [];
+    b.coverMat = undefined;
+    b.coverCanvas = undefined;
+    b.endFront = undefined;
+    b.endBack = undefined;
+    b.painted = false;
+    b.stale = false;
+  }
+
   /** 開く本にだけ、表紙・見返し・ページを描いて貼る（全冊ぶん先に描くと重い）。 */
   private paintInside(b: Book) {
     if (b.painted) return;
@@ -618,6 +726,9 @@ export class ShelfWorld {
     });
     b.coverCanvas = cover.color;
     const coverMat = this.clothMaterial(cover);
+    b.coverMat = coverMat;
+    const insides: THREE.Object3D[] = [];
+    b.insides = insides;
     b.front.traverse((o: THREE.Object3D) => {
       const mesh = o as THREE.Mesh;
       if (mesh.isMesh) mesh.material = coverMat;
@@ -634,6 +745,7 @@ export class ShelfWorld {
     end.rotation.y = Math.PI;
     end.receiveShadow = true;
     b.front.add(end);
+    insides.push(end);
     // 紙（めくれる葉）
     //
     // **1日＝1見開き**（`events.days` があるとき）。表紙を開いた最初の右ページは
@@ -656,6 +768,7 @@ export class ShelfWorld {
     lastPage.position.set(JOINT + LEAF_W / 2, 0, zTop + 0.00012);
     lastPage.receiveShadow = true;
     b.group.children[0].add(lastPage);
+    insides.push(lastPage);
     // **紙の絵は見ている辺りだけ描く**（1か月 31 日ぶん＝ 64 ページを全部描くと、
     // 1枚 720×1024 の絵が 64 枚になりスマホの記憶が足りない）。最初は白紙の絵を
     // 共有しておき、`ensurePages` が今の見開きの前後だけ描いて貼り、遠くは白紙へ戻す。
@@ -683,6 +796,7 @@ export class ShelfWorld {
       group.add(front, back);
       group.position.set(0.0015 + JOINT - 0.0015, 0, zTop + (n - i) * 0.00035);
       b.group.children[0].add(group);
+      insides.push(group);
       b.leaves.push({
         group,
         geo,
@@ -1307,6 +1421,7 @@ export class ShelfWorld {
     this.wake();
     if (this.active) return;
     void preloadSfx(["book-open"]);
+    if (b.stale) this.unpaintBook(b);
     this.paintInside(b);
     this.active = b;
     this.page = 0;
@@ -1369,9 +1484,22 @@ export class ShelfWorld {
       },
       this.reduce ? 0 : 900,
     );
+    // 棚へ戻り終えたら「開いている本」を外す。**戻り終えるまで待つ**: 前は 1.5 秒後に 1 回だけ
+    // 見て、まだ戻り切っていなければ（コマの遅い端末）外さないままだった。すると閉じたのに
+    // 開いている扱いが残り、次の本が開けず、ホームを離れても棚が毎コマ描き続けていた
+    // （2026-10-09 計測: 図鑑の画面で毎コマ 20〜40ms）。
+    const settle = () => {
+      if (this.disposed || this.active !== b || this.pull.target !== 0) return;
+      if (this.pull.x < 0.05) {
+        this.active = null;
+        this.emit();
+        return;
+      }
+      window.setTimeout(settle, 250);
+    };
     window.setTimeout(
       () => {
-        if (this.active === b && this.pull.x < 0.05) this.active = null;
+        settle();
         this.emit();
       },
       this.reduce ? 0 : 1500,

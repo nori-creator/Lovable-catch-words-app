@@ -414,6 +414,18 @@ describe("「その他」を日用品に寄せない（蘑菇・小豬・面膜�
     expect(dexPlaceOf(st("f", "面膜", { cat: "medicine" }), "zh-TW", none)).toBe(10);
   });
 
+  // 2026-10-09 オーナーの図鑑の画面: 「その他」に開關・刷子・健康餐・可頌・亮點・手背・面膜。
+  it("other のまま保存された語も、見出し語で正しい節へ（亮點だけ「その他」）", () => {
+    const at = (h: string) => dexPlaceOf(st(h, h, { cat: "other" }), "zh-TW", none);
+    expect(at("開關")).toBe(6); // 家具・インテリア（電燈・門と同じ）
+    expect(at("刷子")).toBe(10); // 洗面・日用品
+    expect(at("健康餐")).toBe(2); // 料理・屋台
+    expect(at("可頌")).toBe(4); // お菓子・パン
+    expect(at("手背")).toBe(20); // 人・体
+    expect(at("面膜")).toBe(10); // 洗面・日用品
+    expect(at("亮點")).toBe("other");
+  });
+
   it("表にも規則にも当たらない語は「その他」の節。知らない鍵も同じ", () => {
     expect(dexPlaceOf(st("u", "某個東西", { cat: "other" }), "zh-TW", none)).toBe("other");
     expect(dexPlaceOf(st("u2", "某個東西", { cat: "place" }), "zh-TW", none)).toBe("other");

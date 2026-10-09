@@ -77,6 +77,9 @@ export const DAILY_CAPS: Readonly<Record<string, number>> = {
   // 画像検索の意味を決める・候補の絵を確かめる（`image-sense.server.ts`。速いモデルの小さな
   // 呼び出し。説明で言い切れない検索だけ。1回の検索で最大2回）。枠に届いたら AI を使わずに探す。
   image_sense: 300,
+  // 「その他」のまま保存された語の分け直し（`category-backfill.functions.ts`。速いモデルの
+  // 小さな呼び出し1回で最大50語。図鑑を開いた時に1度だけ。ふつうは1〜2回で終わる）。
+  category_fix: 10,
 };
 
 /**
@@ -102,6 +105,7 @@ export const ANONYMOUS_DAILY_CAPS: Readonly<Record<string, number>> = {
   first_catch_ai: DAILY_CAPS.first_catch_ai,
   pro_image: 0, // Pro だけの機能
   image_sense: 20, // チュートリアルの文字検索でも絵の意味を確かめられるように少しだけ
+  category_fix: 1,
 };
 
 /** 呼ぶ人の種類。枠の大きさが変わる。 */

@@ -81,6 +81,7 @@ import { wasFlown } from "@/lib/catch-flight";
 import { CategoryMembersSheet } from "@/components/CategoryMembersSheet";
 import { categoryDisplay, isBuiltinCategory, stickerCategoryKey } from "@/lib/user-category";
 import { useCategories } from "@/lib/use-categories";
+import { useCategoryBackfill } from "@/lib/use-category-backfill";
 import { LoadFailed } from "@/components/LoadFailed";
 import { EmptyState } from "@/components/EmptyState";
 import { Sound } from "@/lib/sound-engine";
@@ -170,6 +171,8 @@ export function DexPage() {
   // and `groups` below recompute on every render (a new `[]`/array identity
   // invalidates their useMemo deps), re-filtering the whole gallery each time.
   const captured = useMemo(() => stickers?.items ?? [], [stickers]);
+  // 「その他」のまま保存された語を裏で1度だけ分け直す（2026-10-09 可頌・面膜などが残っていた）。
+  useCategoryBackfill(stickers?.items, stickers?.targetLanguage ?? null);
   /** 上限に達していて、この先が出せていない状態か。 */
   const truncated = stickers?.truncated ?? false;
   /** 本当の総数(サーバーが数えたもの)。取れなければ null。 */

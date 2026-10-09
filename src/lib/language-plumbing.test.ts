@@ -3224,7 +3224,9 @@ describe("N. 下のタブ帯と、札を開く動き", () => {
     expect(src).toMatch(/^const lastIndex = new Map<string, Carry>\(\);$/m);
     // 生まれるとき、前に居た所から始める。
     expect(src).toMatch(/lastIndex\.get\(persistKey\)/);
-    expect(src).toMatch(/start = \{ l: carry\.l \* k, r: carry\.r \* k \}/);
+    // 合成の糸で滑っている途中なら、その時刻に居る所から（`carriedEdges`。2026-10-09）。
+    expect(src).toMatch(/const at = carriedEdges\(carry, performance\.now\(\)\)/);
+    expect(src).toMatch(/start = \{ l: at\.l \* k, r: at\.r \* k \}/);
     /**
      * **控えるのは「行き先の番号」ではなく「いま画面に出ている px」。**
      * 番号だけだと、画面の入れ替わりで2回作り直されたとき
@@ -6059,8 +6061,11 @@ describe("ホームの一番上の本棚（2026-09-29「ホームのアルバム
     // 開いた瞬間に 3D が出るよう、ホームの塊を読んだ時点で 3D の塊と棚の 3 ファイルを並べて取りに行く（R19）。
     expect(shelf).toMatch(/^prewarmShelf\(\);$/m);
     expect(codeOnly(read("components/shelf3d/prewarm.ts"))).toMatch(/"\/models\/shelf\.glb"/);
-    // 手が空くのを待たない（アルバムの写真を読み込み中は手が空くのが遅れ、仮の棚が長く見えた）。
+    // 同梱の仮の棚しか無い人は、手が空くのを待たない（アルバムの写真を読み込み中は手が空くのが
+    // 遅れ、仮の棚が長く見えた）。その人の棚の絵が出ている時だけ手の空くのを待つ（2026-10-09
+    // 「ホームのアイコン押した時のカクツキ」: 押した直後に 3D を組まない）。
     expect(shelf).not.toMatch(/requestIdleCallback/);
+    expect(shelf).toMatch(/afterFirstPaint\(ok, \{ idle: hasShelfSnapshot\(\) \}\)/);
     // 押したページへ 3D の本のまま寄る（R19: 片ページのめくりも見開きと同じ紙）。
     expect(shelf).toMatch(/world\.current\?\.setFocus\(state\.open \? view : "spread"\);/);
     expect(codeOnly(read("lib/journal.functions.ts"))).toMatch(

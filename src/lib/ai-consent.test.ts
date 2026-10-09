@@ -202,6 +202,7 @@ describe("AI を呼ぶ関数は、どれも送る前に同意を確かめる", (
     "journal.functions.ts",
     "first-catch-ai.functions.ts",
     "images.functions.ts",
+    "category-backfill.functions.ts",
   ].map((f) => fs.readFileSync(path.join(__dirname, f), "utf8"));
   const bodyOf = (name: string) => {
     for (const src of files) {
@@ -259,7 +260,7 @@ describe("移行（ai_consents）", () => {
   });
 });
 
-describe("設定の中の同意（2026-10-09 規約と表記の1行にまとめた）", () => {
+describe("設定の中の同意（2026-10-09 規約と表記のリンクと同じ1項目にした）", () => {
   const read = (p: string) => fs.readFileSync(path.join(__dirname, p), "utf8");
   const settings = read("../components/screens/SettingsScreen.tsx");
   const pro = read("../components/ProPlanCardView.tsx");
@@ -267,9 +268,11 @@ describe("設定の中の同意（2026-10-09 規約と表記の1行にまとめ�
   it("独立した束は出さず、規約と表記の束に1行だけ置く", () => {
     expect(settings).not.toMatch(/<SafeSection name="ai-consent">/);
     expect(settings).not.toContain("AiConsentSettingsCard");
-    const legal = settings.slice(settings.indexOf("export function LegalLinksCard"));
-    expect(legal).toMatch(/<AiConsentRow \/>/);
-    expect(legal).toMatch(/<LegalLinks /);
+    const from = settings.indexOf("export function LegalLinksCard");
+    const legal = settings.slice(from, settings.indexOf("\n}\n", from));
+    // ほかの法務リンクと同じ並び・同じ見た目（状態の文字・矢印・区切り線なし）
+    expect(legal).toMatch(/<LegalLinks [^>]*extra=\{consent \?\? <AiConsentRow \/>\}/);
+    expect(legal).not.toMatch(/border-t/);
     expect(settings).toMatch(/<LegalLinksCard \/>/);
   });
 
@@ -284,8 +287,9 @@ describe("設定の中の同意（2026-10-09 規約と表記の1行にまとめ�
     expect(row).toMatch(/aiConsent\.withdrawYes/);
     expect(row).toMatch(/askAiConsent\("account"\)/);
     expect(row).toMatch(/PRIVACY_AI_SECTION_URL/);
-    expect(row).toMatch(/aiConsent\.rowAgreed/);
-    expect(row).toMatch(/aiConsent\.rowNone/);
+    expect(row).not.toMatch(/aiConsent\.row(Agreed|None)/);
+    expect(row).not.toMatch(/ChevronRight/);
+    expect(row).toMatch(/className=\{`\$\{LEGAL_LINK_CLASS\}/);
   });
 
   it("Pro を使っている間の札には法務のリンクを重ねない（買う前の札には残す）", () => {

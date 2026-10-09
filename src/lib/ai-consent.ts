@@ -46,6 +46,7 @@ export const AI_CONSENT_FUNCTIONS = [
   "firstCatchAI",
   "firstCatchMemberAI",
   "generateProWordImage",
+  "reclassifyOtherWords",
 ] as const;
 
 /**
