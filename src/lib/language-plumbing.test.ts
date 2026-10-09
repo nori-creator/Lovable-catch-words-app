@@ -2297,7 +2297,9 @@ describe("ホームのアルバムの長押し", () => {
     const home = codeOnly(read("components/screens/HomeScreen.tsx"));
     expect(home).toMatch(/function reseat\(place: Placement\)/);
     // 札の上で1本目を置いたとき / 台紙で2本目を足したとき / 1本離れたとき。
-    expect(home).toMatch(/reseat\(place\)/);
+    // 起点は**いま見えている置き方**（描いた `place` は掴んだ時のまま。指のずれは
+    // `translate` に直に書くので、`place` から取り直すと運んだぶん札が戻る。2026-10-09）。
+    expect(home).toMatch(/reseat\(pendingPlace\.current \?\? place\)/);
     expect(home).toMatch(/reseat\(pendingPlace\.current \?\? g\.startPlace\)/);
     expect(home).toMatch(/reseat\(now\)/);
   });
@@ -2309,12 +2311,37 @@ describe("ホームのアルバムの長押し", () => {
     expect(home).toMatch(/moveRafPlace\.current = requestAnimationFrame\(/);
   });
 
+  /**
+   * オーナー報告 2026-10-09「ホームの単語を移動させようとすると飛ぶ、滑らかにスライドできない」。
+   * 録画（9→10・25→26・36→37 コマ目）と計測（1 コマ 108px の跳びが 3 回）: 字だけの札の字は
+   * 枠の外側の端に寄せてあり、寄せる側（`data-col`）を**運んでいる最中の位置**で決めていたので、
+   * 誌面の真ん中をまたいだ瞬間に字が枠の端から端へ跳んだ。しかも 1 コマごとに誌面ぜんぶを
+   * 描き直していた。
+   */
+  it("**運んでいる間は字の寄せ方を変えず、指のずれは `translate` に直に書く**", () => {
+    const home = codeOnly(read("components/screens/HomeScreen.tsx"));
+    // 寄せる側は掴んだ時の位置で決める。
+    expect(home).toMatch(/const colX = lifted && live \? live\.grabX : place\.x;/);
+    expect(home).toMatch(/data-col=\{colX < 0\.5 \? "l" : "r"\}/);
+    expect(home).toMatch(/data-cap=\{captionAlign\(colX, px\.w, board\.w\)\}/);
+    // 1 コマに 1 回、React を通さずに書く（つまんで大きさ・傾きが変わる時だけ描き直す）。
+    expect(home).toMatch(/else writeOffset\(\);/);
+    expect(home).toMatch(/el\.style\.setProperty\("--drag-x"/);
+    // 離した時は、字を離した所に残す置き方を書き戻し、残りは滑らせる。
+    expect(home).toMatch(/function wordKeepingX\(/);
+    expect(home).toMatch(/el\.animate\(/);
+    const css = read("styles.css");
+    // 子へ受け継がせない（書くたびに札の中まで計算し直さない）。
+    expect(css).toMatch(/@property --drag-x \{\s*syntax: "<length>";\s*inherits: false;/);
+  });
+
   it("**書き戻すのは指を離したときだけ**（動かしている最中は `live` に置く）", () => {
     const home = codeOnly(read("components/screens/HomeScreen.tsx"));
     // 動かしている最中に配列ごと作り直すと、札の枚数ぶん描き直しになる。
     expect(home).toMatch(/function commitPlace\(id: string, p: Placement\)/);
     // まっすぐへの吸い付きも、書き戻しも、全部の指が離れたときだけ。
-    expect(home).toMatch(/if \(g\.moved\) commitPlace\(g\.id, settle\(now\)\)/);
+    expect(home).toMatch(/const settled = g\.moved \? settle\(now\) : now;/);
+    expect(home).toMatch(/if \(g\.moved\) commitPlace\(g\.id, final\)/);
   });
 
   it("**中心を軸に置く**（つまんで広げても掴んだ所が動かない）", () => {
@@ -2345,7 +2372,10 @@ describe("ホームのアルバムの長押し", () => {
     const home = codeOnly(read("components/screens/HomeScreen.tsx"));
     const style = home.slice(home.indexOf("left: `${place.x * 100}%`"));
     const block = style.slice(0, 900);
-    expect(block).toMatch(/translate: "-50% -50%"/);
+    // 中央合わせに、指で運んでいる間のずれ（`--drag-x/--drag-y`）を足す（2026-10-09）。
+    expect(block).toMatch(
+      /translate:\s*"calc\(-50% \+ var\(--drag-x, 0px\)\) calc\(-50% \+ var\(--drag-y, 0px\)\)"/,
+    );
     expect(block).toMatch(/rotate: `\$\{place\.rot\}deg`/);
     // ここに `transform:` が戻ると、また揺れに消される。
     expect(block).not.toMatch(/transform:/);
