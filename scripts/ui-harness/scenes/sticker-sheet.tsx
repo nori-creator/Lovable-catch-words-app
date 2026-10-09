@@ -79,6 +79,8 @@ const CANDIDATES = [
  * - `?variant=pro-ai` … Pro の人。候補の列と「AIで絵を作る」
  * - `?variant=pro-ai-generating` … 「AIで絵を作っています…」（回る印・ほかの候補は押せない）
  * - `?variant=image-failed` … 自動の1枚を入れられなかった（「画像を見つけられませんでした」）
+ * - `?variant=pro-ai-no-photo` … 写真が1枚も残らなかった Pro の人。「AIで絵を作る」を目立つ形で
+ *   （オーナー指示 2026-10-09）
  */
 const IMAGELESS = {
   ...(STICKER as object),
@@ -88,7 +90,12 @@ const IMAGELESS = {
   placeholder_url: null,
   placeholder_credit: null,
 } as never;
-const IMAGELESS_VARIANTS = new Set(["pro-ai", "pro-ai-generating", "image-failed"]);
+const IMAGELESS_VARIANTS = new Set([
+  "pro-ai",
+  "pro-ai-generating",
+  "image-failed",
+  "pro-ai-no-photo",
+]);
 
 /**
  * 覆いの面。実物と同じ `fixed inset-0` の箱に入れる —
@@ -101,6 +108,7 @@ export function StickerSheetScene({ q }: { q: URLSearchParams }) {
   const base = imageless ? IMAGELESS : STICKER;
   const sticker = q.get("word") === "en" ? ({ ...(base as object), word: FULL_EN } as never) : base;
   const generating = variant === "pro-ai-generating";
+  const noPhoto = variant === "pro-ai-no-photo";
   const [flipped, setFlipped] = useState(variant === "selfie");
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const longPressFired = useRef(false);
@@ -137,7 +145,7 @@ export function StickerSheetScene({ q }: { q: URLSearchParams }) {
                 }
               : null
           }
-          isPro={variant === "pro" || variant === "pro-ai" || generating}
+          isPro={variant === "pro" || variant === "pro-ai" || generating || noPhoto}
           flipped={flipped}
           setFlipped={setFlipped}
           hasSelfie={!imageless}
@@ -159,12 +167,12 @@ export function StickerSheetScene({ q }: { q: URLSearchParams }) {
           setEnrichError={() => {}}
           onEnrichRetry={() => {}}
           // ネット画像の候補は、自分の写真が無いときだけ出る。
-          webCandidates={variant === "candidates" || imageless ? CANDIDATES : []}
+          webCandidates={variant === "candidates" || (imageless && !noPhoto) ? CANDIDATES : []}
           // AI の絵を作っている間は `swapping` に印が入る（`useAutoHero` の `AI_IMAGE_KEY`）。
           swapping={generating ? "ai:generating" : null}
           swapWebImage={() => {}}
-          heroFailed={variant === "image-failed"}
-          onGenerateAi={variant === "pro-ai" || generating ? () => {} : undefined}
+          heroFailed={variant === "image-failed" || noPhoto}
+          onGenerateAi={variant === "pro-ai" || generating || noPhoto ? () => {} : undefined}
           generatingAi={generating}
           applyWebImage={() => {}}
           // 再会の写真。図鑑からこの面を開いた人が辿り着けるようになった所

@@ -1841,12 +1841,14 @@ describe("ネットの画像は、届いてから並べる", () => {
   it("鍵の要らない出所がある", () => {
     expect(fs.existsSync(path.join(root, "lib/commons-images.ts"))).toBe(true);
     const fn = codeOnly(read("lib/images.functions.ts"));
-    // 探すのは意味を決めた後の検索語（`query`。オーナー報告 2026-10-08 ②）。
-    expect(fn).toMatch(/commonsSearchUrl\(query[,)]/);
-    expect(fn).toMatch(/source: "commons"/);
-    // 写真の候補が無い時の最後の控え（AI の1枚）は、コモンズを探した後。
+    // 2026-10-09 から出所は `image-providers.ts` に並ぶ（学習言語の出所 → 英語の出所）。
+    const providers = codeOnly(read("lib/image-providers.ts"));
+    // 英語の出所のコモンズは、意味を決めた後の検索語（`query`。オーナー報告 2026-10-08 ②）。
+    expect(providers).toMatch(/commonsSearchUrl\(query[,)]/);
+    expect(providers).toMatch(/source: "commons"/);
+    // 写真の候補が無い時の最後の控え（AI の1枚）は、出所を探した後。
     // 2026-10-03 から控えの1枚は枠を確保してから作る（`optionalAiImage`）。
-    expect(fn.indexOf("commonsSearchUrl")).toBeLessThan(fn.lastIndexOf("optionalAiImage(query"));
+    expect(fn.indexOf("searchEnglish(")).toBeLessThan(fn.lastIndexOf("optionalAiImage(query"));
   });
 
   it("並べる側と描く側が**同じ問い合わせ**を読む", () => {
@@ -4888,6 +4890,7 @@ describe("ホームは今日の誌面", () => {
     // 2026-10-09: 先頭は候補の違い（文体の札・場面・違い。「豚の口の周りの肉」）。
     expect(list.slice(0, list.indexOf("},"))).toMatch(/scene: "text-candidates"/);
     expect(list).toContain(`scene: "text-candidates&case=densha"`);
+    expect(list).toContain(`scene: "text-peel-no-photo"`);
     expect(list).toContain(`scene: "text-searching"`);
     expect(list).toContain(`scene: "dex-book&case=all"`);
     for (const sc of [

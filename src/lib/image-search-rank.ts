@@ -248,3 +248,8 @@ export function selectImageCandidates<T extends RankableImage>(
     .sort((a, b) => b.s - a.s || a.i - b.i)
     .map((x) => x.c);
 }
+
+/** 違う物の手がかり（花・避ける語・食べ物なのに畑・道具なのに動物）が在るか。 */
+export function hasOffSenseSignals(text: string | undefined, ctx: RankContext): boolean {
+  return offSenseSignals((text ?? "").toLowerCase(), ctx) > 0;
+}

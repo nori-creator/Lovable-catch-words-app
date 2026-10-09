@@ -12,6 +12,9 @@ import type { WebImageCandidate } from "@/hooks/use-auto-hero";
  * - 自分で撮った写真（実物・切り抜き）がある札には出さない（#67。撮った物がその札の答え）。
  * - 見出しに絵が入らなかった時は、候補が1枚だけでも選べるように出す。
  * - Pro の人には「AIで絵を作る」も出す（候補が無くても）。
+ * - **写真が1枚も残らず、見出しにも絵が無い時**は、Pro の人には「AIで絵を作る」を
+ *   目立つ形で出す（オーナー指示 2026-10-09。外れの写真は出さなくなったので、絵を得る道はこれ）。
+ *   押した時だけ作る。Pro でない人には何も出さない（語の札のまま）。
  */
 export function HeroImageChoices({
   ownPhoto,
@@ -22,6 +25,7 @@ export function HeroImageChoices({
   isPro,
   onGenerateAi,
   generatingAi = false,
+  noPhotoFound = false,
 }: {
   /** 自分で撮った写真（実物・切り抜き）があるか。 */
   ownPhoto: boolean;
@@ -33,9 +37,31 @@ export function HeroImageChoices({
   isPro: boolean;
   onGenerateAi?: () => void;
   generatingAi?: boolean;
+  /** 探し終えて、出せる写真が1枚も無かった（探している間は偽 — 「見つからない」と早まらない）。 */
+  noPhotoFound?: boolean;
 }) {
   const t = useT();
   if (ownPhoto) return null;
+  if (noPhotoFound && candidates.length === 0 && !hasHero && isPro && onGenerateAi) {
+    return (
+      <section className="mb-4">
+        <button
+          type="button"
+          onClick={onGenerateAi}
+          disabled={!!swapping || generatingAi}
+          aria-busy={generatingAi}
+          className="inline-flex min-h-11 w-full items-center justify-center gap-1.5 rounded-full bg-primary px-4 text-body font-semibold text-primary-foreground transition active:scale-95 disabled:opacity-60"
+        >
+          {generatingAi ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : (
+            <Sparkles className="h-4 w-4" />
+          )}
+          {generatingAi ? t("card.aiImageMaking") : t("card.aiImage")}
+        </button>
+      </section>
+    );
+  }
   if (!(candidates.length > 1 || (!hasHero && candidates.length > 0) || (isPro && !!onGenerateAi)))
     return null;
   return (

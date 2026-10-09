@@ -25,10 +25,19 @@ import { MAX_PROXY_IMAGE_BYTES, readCappedBytes } from "./byte-cap";
 // **コモンズの置き場も許す**（2026-09-28 の点検で発見）。候補にコモンズの写真
 // （`upload.wikimedia.org`）を出しているのに、ここで断っていたので**選んでも保存
 // できなかった**。置き場は固定の1つなので、許可を1つ足すだけで SSRF 除けは保てる。
+//
+// **Openverse と Flickr も許す**（オーナー報告 2026-10-09「嘴邊肉の画像が英語で検索された画像」）。
+// 学習言語で探す出所に Openverse（CC の写真の索引）を足した。候補の縮小版は
+// `api.openverse.org/v1/images/<id>/thumb/`、Flickr の写真は `live.staticflickr.com`
+// （古い形の `farmN.staticflickr.com` は live へ回される）。どれも固定の置き場で、
+// 行き先は1段ずつ確かめ直すので SSRF 除けは保てる（API の JSON は画像の種類の確かめで断る）。
 export const ALLOWED_IMAGE_HOSTS: ReadonlySet<string> = new Set<string>([
   "images.unsplash.com",
   "plus.unsplash.com",
   "upload.wikimedia.org",
+  "api.openverse.org",
+  "live.staticflickr.com",
+  ...Array.from({ length: 9 }, (_, i) => `farm${i + 1}.staticflickr.com`),
 ]);
 
 export const ALLOWED_IMAGE_MIME = /^image\/(jpeg|jpg|png|webp|gif|avif)$/i;

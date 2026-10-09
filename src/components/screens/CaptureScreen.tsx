@@ -76,6 +76,7 @@ import { Reading, useReadingText } from "@/lib/phonetic";
 import { ScanEffect } from "@/components/ScanEffect";
 import { CatchLandingOverlay, runCatchLanding } from "@/components/CatchLanding";
 import { useCatchImages } from "@/hooks/use-catch-images";
+import { getMyProfile } from "@/lib/profile.functions";
 import { HeroImageChoices } from "@/components/HeroImageChoices";
 import { TextCandidateList } from "@/components/TextCandidateList";
 import { detectQueryLang } from "@/lib/text-query-lang";
@@ -261,6 +262,17 @@ export function CapturePage() {
    * 左下は「端末の写真を選ぶ」ボタンになった（2026-09-30）。
    */
   const fetchStickers = useServerFn(listMyStickers);
+  /**
+   * Pro か（写真が残らなかった札で「AIで絵を作る」を出すため。オーナー指示 2026-10-09）。
+   * 鍵は札のシートと同じ `["profile"]`。本当に Pro かはサーバが確かめる。
+   */
+  const fetchProfile = useServerFn(getMyProfile);
+  const { data: profile } = useQuery({
+    queryKey: ["profile"],
+    queryFn: () => fetchProfile(),
+    staleTime: 60_000,
+  });
+  const isPro = (profile as { plan?: string } | null | undefined)?.plan === "pro";
   useQuery({
     queryKey: ["stickers"],
     queryFn: stickerListQueryFn(queryClient, fetchStickers),
@@ -1723,7 +1735,22 @@ export function CapturePage() {
                 // 剥がしている・飛んでいる間は替えさせない。
                 swapping={saving || landing ? "busy" : webHero.swapping}
                 onSwap={(c) => void webHero.choose(c)}
-                isPro={false}
+                // 探し終えてから（写真が残らなかった時は目立つ形で）。押した時だけ作る。
+                isPro={isPro && webHero.settled}
+                onGenerateAi={
+                  saving || landing
+                    ? undefined
+                    : () =>
+                        void webHero.generateAi().catch((e) => {
+                          console.warn("Pro AI image (peel) failed", e);
+                          const why = readable(e, "");
+                          toast.error(
+                            why ? `${t("card.aiImageFailed")} ${why}` : t("card.aiImageFailed"),
+                          );
+                        })
+                }
+                generatingAi={webHero.generatingAi}
+                noPhotoFound={webHero.settled && webHero.candidates.length === 0}
               />
             )
           }
