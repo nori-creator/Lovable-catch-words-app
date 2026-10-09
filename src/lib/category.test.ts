@@ -136,6 +136,33 @@ describe("asCategoryKey", () => {
     expect(normalizeCategory("豬排", "food")).toBe("food");
     expect(normalizeCategory("斑馬線", "street")).toBe("street");
   });
+
+  // 2026-10-09 オーナー報告（図鑑の「その他」）:「可頌は食べ物だし、面膜は生活用品だよね。」
+  it("「その他」に残っていた語は、AI の答えが other でも見出し語で棚に入る", () => {
+    expect(normalizeCategory("可頌", "other")).toBe("dessert");
+    expect(normalizeCategory("貝果", "other")).toBe("dessert");
+    expect(normalizeCategory("吐司", "other")).toBe("dessert");
+    expect(normalizeCategory("麵包", "other")).toBe("dessert");
+    expect(normalizeCategory("面膜", "other")).toBe("medicine");
+    expect(normalizeCategory("刷子", "other")).toBe("tool");
+    expect(normalizeCategory("馬桶刷", "other")).toBe("tool");
+    expect(normalizeCategory("開關", "other")).toBe("home");
+    expect(normalizeCategory("電燈開關", "other")).toBe("home");
+    expect(normalizeCategory("手背", "other")).toBe("body");
+    expect(normalizeCategory("健康餐", "other")).toBe("food");
+    expect(normalizeCategory("便當", null)).toBe("food");
+    // 本当に分けられない語は「その他」のまま（無理に棚へ入れない）
+    expect(normalizeCategory("亮點", "other")).toBe("other");
+  });
+
+  it("新しい規則が隣の語を取り違えない", () => {
+    expect(normalizeCategory("牙刷", "other")).toBe("medicine");
+    expect(normalizeCategory("烤麵包機", "appliance")).toBe("appliance");
+    expect(normalizeCategory("餐具", "kitchenware")).toBe("kitchenware");
+    expect(normalizeCategory("早餐店", "shop")).toBe("shop");
+    expect(normalizeCategory("便當盒", "kitchenware")).toBe("kitchenware");
+    expect(normalizeCategory("手套", "clothes")).toBe("clothes");
+  });
 });
 
 /**
