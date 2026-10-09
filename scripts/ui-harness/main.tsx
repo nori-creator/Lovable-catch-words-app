@@ -492,7 +492,6 @@ const REVIEW_SCENES: Array<{ scene: string; label: string }> = [
   { scene: "admin-beta", label: "管理: ベータの指標" },
   // 売り始める準備: 規約・プライバシー（広告の項を含む）・特商法の表記・値段と解約の口。
   { scene: "pro-plan", label: "Pro の案内: 値段・自動更新・解約の口（全部の状態）" },
-  { scene: "legal-tokushoho&legal=missing", label: "特商法の表記: 未設定（販売しない）" },
   { scene: "legal-tokushoho&legal=ready", label: "特商法の表記: 設定済み（見本の値）" },
   { scene: "legal-privacy&legal=ready", label: "プライバシーポリシー" },
 ];
