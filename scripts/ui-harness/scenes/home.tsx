@@ -235,7 +235,24 @@ export function HomeAlbumScene({ q }: { q?: URLSearchParams }) {
               : s,
         )
       : today;
-  return <DayCollage stickers={stickers} onOpen={() => {}} />;
+  /**
+   * `?plain=1`: 字だけの札が3枚の日（オーナー録画 2026-10-09「蘑菇」「嘴邊肉」「狗」）。
+   * `?edit=1` で最初から並べ替え（掴むと、字だけが浮くか — 周りの大きな箱が出ないか）。
+   */
+  const plain = q?.get("plain") === "1";
+  const shown = plain
+    ? ["蘑菇", "嘴邊肉", "狗"].map((head, i) =>
+        makeSticker({ head, gloss: "", at: [11 - i * 4, 10 + i * 12] }, 50 + i, 0),
+      )
+    : stickers;
+  return (
+    <DayCollage
+      stickers={shown}
+      onOpen={() => {}}
+      heading={plain ? <DiaryDate date={new Date()} /> : undefined}
+      startEditing={q?.get("edit") === "1"}
+    />
+  );
 }
 
 /** 圏外で撮って預かっている写真の帯。**オフラインでしか出ない面。** */

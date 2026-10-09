@@ -79,7 +79,7 @@ import { toast } from "sonner";
 import { DexCategoryDrag } from "@/components/DexCategoryDrag";
 import { wasFlown } from "@/lib/catch-flight";
 import { CategoryMembersSheet } from "@/components/CategoryMembersSheet";
-import { categoryDisplay, stickerCategoryKey } from "@/lib/user-category";
+import { categoryDisplay, isBuiltinCategory, stickerCategoryKey } from "@/lib/user-category";
 import { useCategories } from "@/lib/use-categories";
 import { LoadFailed } from "@/components/LoadFailed";
 import { EmptyState } from "@/components/EmptyState";
@@ -757,7 +757,9 @@ export function DexSurface({
                         className="dex-cat__head text-body font-semibold tracking-tight"
                         // 名前を変えられるのはその人が作ったカテゴリーだけ（図鑑の20は iOS と同じ名前）。
                         data-dex-cat-head={
-                          onEditCategory && sec.dexNo == null ? sec.key : undefined
+                          onEditCategory && sec.dexNo == null && !isBuiltinCategory(sec.key)
+                            ? sec.key
+                            : undefined
                         }
                       >
                         {head.emoji} {head.label}

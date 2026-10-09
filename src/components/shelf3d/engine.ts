@@ -595,6 +595,11 @@ export class ShelfWorld {
     });
   }
 
+  /** 中を描いた（開いた）本があるか。あれば写真の選び方が変わっても古い絵のまま残る。 */
+  hasPaintedBooks(): boolean {
+    return this.books.some((b) => b.painted);
+  }
+
   /** 開く本にだけ、表紙・見返し・ページを描いて貼る（全冊ぶん先に描くと重い）。 */
   private paintInside(b: Book) {
     if (b.painted) return;

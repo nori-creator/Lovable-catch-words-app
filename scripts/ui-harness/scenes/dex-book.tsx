@@ -7,6 +7,8 @@
  * - `?scene=dex-book&case=all` … 379 の影を全部、カテゴリーごとに（項目ごとに別の形か見比べる）
  * - `?scene=dex-book&case=cycle` … 同じ言葉を何度も撮ったマス: 写真がゆっくり入れ替わり「×3」
  * - `?scene=dex-book&case=merge` … 文字で2回検索した「貓」が1マスにまとまる（前は2マス）
+ * - `?scene=dex-book&case=other` … 分類が「その他」の蘑菇・小豬が植物・花と動物に、面膜は洗面・
+ *   日用品に、どこにも当たらない語は最後の「その他」の節に（2026-10-09 オーナー報告）
  *
  * 写真は見本の色の板（通信しない）。番号は本番と同じく端末に覚える（`localStorage`）。
  */
@@ -91,6 +93,41 @@ const BOOK: Fx[] = [
   { id: "tree", head: "樹", cat: "plant", photo: board("#7fb27a", "樹"), day: 11 },
 ];
 
+/**
+ * 2026-10-09 オーナー報告: 野のキノコの「蘑菇」と子豚の「小豬」が「洗面・日用品」に並んでいた。
+ * どちらも AI の分類が other（札の表示は「その他」）で、図鑑は other を日用品に寄せていた。
+ */
+const OTHER: Fx[] = [
+  { id: "mushroom", head: "蘑菇", cat: "other", photo: board("#a0784f", "蘑菇"), day: 1 },
+  { id: "piglet", head: "小豬", cat: "other", photo: board("#f2b8b5", "小豬"), day: 2 },
+  { id: "mask", head: "面膜", cat: "medicine", photo: board("#f4f1ea", "面膜"), day: 3 },
+  { id: "unknown", head: "某個東西", cat: "other", photo: board("#cfcfd4", "?"), day: 4 },
+];
+
+function OtherCase() {
+  const [items] = useState(() => OTHER.map(make));
+  const [view, setView] = useState<ViewMode>("gallery");
+  const [filter, setFilter] = useState<DexFilter>(NO_FILTER);
+  const [search, setSearch] = useState("");
+  return (
+    <DexSurface
+      captured={items}
+      filtered={items}
+      view={view}
+      onView={setView}
+      filter={filter}
+      onFilter={setFilter}
+      search={search}
+      onSearch={setSearch}
+      categories={[]}
+      days={[]}
+      onOpen={() => {}}
+      memory={new Map()}
+      targetLanguage="zh-TW"
+    />
+  );
+}
+
 /** 再会の写真（本番は見えた時に `listStickerPhotos` で読む）。 */
 const ENCOUNTER_PHOTOS: Record<string, string[]> = {
   "cat-a": [board("#e0c48f", "貓 3")],
@@ -104,6 +141,7 @@ export function DexBookScene({ q }: { q: URLSearchParams }) {
   if (kase === "cycle") return <CycleCase />;
   if (kase === "merge") return <MergeCase />;
   if (kase === "all") return <AllCase />;
+  if (kase === "other") return <OtherCase />;
   return <BookCase />;
 }
 

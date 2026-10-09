@@ -28,7 +28,9 @@ import {
   CatchAnimationRow,
   MotionToggleRow,
   ToggleRow,
+  AiConsentRowView,
   AvatarRow,
+  LegalLinksCard,
   ChoiceRow,
   DangerZone,
   PhoneticRow,
@@ -284,6 +286,35 @@ export function SettingsNotifyScene({ q }: { q: URLSearchParams }) {
         <ReviewReminderSettings />
         <PlaceReminderToggle />
       </SettingsCard>
+    </div>
+  );
+}
+
+/**
+ * **規約と表記**（2026-10-09 オーナー指示「aiのデータの送信の同意をずっと設定に表示してるの
+ * 不自然だから、規約にまとめ…」）。AI へ送る同意は独立した束をやめ、この束の1行にした。
+ *
+ * `?consent=agreed|none`（既定は同意済み）・`&open=1` で押した後の小さな画面・
+ * `&confirm=1` で取り消しを確かめる段まで。
+ */
+export function SettingsLegalScene({ q }: { q: URLSearchParams }) {
+  const agreed = q.get("consent") !== "none";
+  const open = q.get("open") === "1" || q.get("confirm") === "1";
+  return (
+    <div className="space-y-7 pb-24">
+      <LegalLinksCard
+        consent={
+          <AiConsentRowView
+            loading={false}
+            agreed={agreed}
+            agreedAt={agreed ? "2026-10-07T03:00:00Z" : null}
+            onAgree={() => {}}
+            onWithdraw={async () => true}
+            defaultOpen={open}
+            defaultConfirming={q.get("confirm") === "1"}
+          />
+        }
+      />
     </div>
   );
 }

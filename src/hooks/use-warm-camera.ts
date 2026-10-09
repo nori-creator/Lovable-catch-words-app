@@ -28,16 +28,30 @@ import { useRouter } from "@tanstack/react-router";
  */
 let warmed = false;
 
+/** カメラの後に取っておく、下のバーの画面。 */
+const TAB_ROUTES = ["/home", "/dex", "/review", "/settings"] as const;
+
 export function useWarmCamera(): void {
   const router = useRouter();
   useEffect(() => {
     if (warmed) return;
     warmed = true;
+    /**
+     * カメラの次に、**下のバーのほかの画面**も1つずつ取っておく（オーナー報告 2026-10-09
+     * 「ホームのアイコン押すとカクカクする」）。`defaultPreload: "intent"` は指が触れてから
+     * なので、触れてから押し切るまでの数十msでは画面の塊が間に合わず、押した後に
+     * 塊の到着を待つコマが挟まる。どれも同じ暇な時間に、順に（同時に取り合わない）。
+     */
     const run = () => {
-      void router.preloadRoute({ to: "/capture" }).catch(() => {
-        // 取れなくても困らない。押した時に取りに行くだけ。
-        warmed = false;
-      });
+      void router
+        .preloadRoute({ to: "/capture" })
+        .catch(() => {
+          // 取れなくても困らない。押した時に取りに行くだけ。
+          warmed = false;
+        })
+        .then(async () => {
+          for (const to of TAB_ROUTES) await router.preloadRoute({ to }).catch(() => undefined);
+        });
     };
     const ric = (
       window as Window & {

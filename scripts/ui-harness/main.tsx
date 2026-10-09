@@ -1,5 +1,6 @@
 import { FirstCatchScene, TutorialHarnessFrame, embedsTutorial } from "./scenes/first-catch";
 import { HomeShelfScene } from "./scenes/home-shelf";
+import { HomeTabSwitchScene } from "./scenes/home-tab-switch";
 import { InstallAppScene } from "./scenes/install-app";
 import { ChunkDesignsScene } from "./scenes/chunk-designs";
 import { PeelStickerScene } from "./scenes/peel-sticker";
@@ -107,6 +108,7 @@ import {
   SettingsChoicesScene,
   SettingsDangerScene,
   SettingsNotifyScene,
+  SettingsLegalScene,
   SettingsSelectsScene,
   SettingsSourcesScene,
   SettingsTogglesScene,
@@ -182,6 +184,7 @@ const SCENES: Record<string, ((p: { q: URLSearchParams }) => ReactNode) | undefi
   "pro-plan": ProPlanScene,
   home: HomeScene,
   "home-shelf": HomeShelfScene,
+  "home-tab-switch": HomeTabSwitchScene,
   "install-app": InstallAppScene,
   "home-album": HomeAlbumScene,
   "home-memorial": HomeMemorialScene,
@@ -197,6 +200,7 @@ const SCENES: Record<string, ((p: { q: URLSearchParams }) => ReactNode) | undefi
   "settings-toggles": SettingsTogglesScene,
   "settings-danger": SettingsDangerScene,
   "settings-notify": SettingsNotifyScene,
+  "settings-legal": SettingsLegalScene,
   "word-card": WordCardScene,
   "word-card-en": WordCardEnScene,
   "sticker-detail": StickerDetailScene,
@@ -389,6 +393,8 @@ const BARE = new Set([
   "home-tap",
   // 本の左ページを長押しして開く面は全画面。
   "book-album-edit",
+  // 枠（上の帯・下のバー）ごと自分で作り直す（本番のタブの行き来と同じ）。
+  "home-tab-switch",
 ]);
 
 const q = new URLSearchParams(location.search);
@@ -407,12 +413,21 @@ const q = new URLSearchParams(location.search);
  * 「これを見てください」と差し出すことになる。
  */
 const REVIEW_SCENES: Array<{ scene: string; label: string }> = [
+  // 2026-10-09「aiのデータの送信の同意をずっと設定に表示してるの不自然だから、規約にまとめ」。
+  { scene: "settings-legal", label: "設定: 規約と表記に AI へ送る同意の1行（同意済み）" },
+  { scene: "settings-legal&open=1", label: "設定: AI へ送る同意の小さな画面（取り消せる）" },
   // 2026-10-09「開発者の AI 設定が散らかっている。整理・削除・統合して」— 1枚にまとめた。
   { scene: "admin-ai-settings", label: "開発者設定: AI の設定（機能ごとの AI・画像・発音の声）" },
   { scene: "admin-ai-settings&lang=en", label: "開発者設定: AI の設定（English）" },
   // 2026-10-09 候補の違いを同じ物差しで（文体の札・場面・違い）。「豚の口の周りの肉」→ 嘴邊肉 / 豬頰肉。
   { scene: "text-candidates", label: "文字検索の候補: 「豚の口の周りの肉」（文体・場面・違い）" },
   { scene: "text-candidates&case=densha", label: "文字検索の候補: 「電車」（文体・場面・違い）" },
+  // 2026-10-09「ホームのアイコン押すとカクカクする」「文字だけ移動できるように」。
+  { scene: "home-tab-switch", label: "ホーム ⇄ 図鑑: タブを押しても棚・写真が抜けない" },
+  {
+    scene: "home-album&plain=1&edit=1",
+    label: "ホームの誌面: 字だけの札を動かすと字だけが浮く",
+  },
   // 2026-10-09「嘴邊肉の画像が英語で検索された画像」: 外れの写真を出さなくなった後、写真が
   // 残らなかった札で Pro の人に「AIで絵を作る」を目立つ形で出す。
   { scene: "text-peel-no-photo", label: "写真が残らなかった札: Pro の「AIで絵を作る」" },
@@ -465,7 +480,6 @@ const REVIEW_SCENES: Array<{ scene: string; label: string }> = [
   { scene: "dex-ads&view=list", label: "広告: 図鑑のリスト表示" },
   { scene: "home-ads", label: "広告: ホームの日と日の間" },
   { scene: "review-end-ads", label: "広告: 復習の終わり（カード）" },
-  { scene: "dex-ads&fill=unfilled", label: "広告: 来ない時は枠が閉じる" },
   { scene: "settings-ads", label: "開発者設定: 広告の ID と枠の番号" },
   // 2026-10-03「続けて」— ベータで使う計測（ファネル・継続率・費用・解析の安定）。管理者だけ。
   { scene: "admin-beta", label: "管理: ベータの指標" },
@@ -474,8 +488,6 @@ const REVIEW_SCENES: Array<{ scene: string; label: string }> = [
   { scene: "legal-tokushoho&legal=missing", label: "特商法の表記: 未設定（販売しない）" },
   { scene: "legal-tokushoho&legal=ready", label: "特商法の表記: 設定済み（見本の値）" },
   { scene: "legal-privacy&legal=ready", label: "プライバシーポリシー" },
-  { scene: "legal-privacy&legal=ready&lang=zh-TW", label: "プライバシーポリシー（繁體中文）" },
-  { scene: "legal-terms&legal=ready", label: "利用規約" },
 ];
 
 /**

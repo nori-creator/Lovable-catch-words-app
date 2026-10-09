@@ -313,7 +313,7 @@ ${langRule}
 - 家具（椅子/机/ソファ） → "furniture"、家電（冷蔵庫/TV） → "appliance"
 - 服 → "clothes"、靴 → "shoes"、鞄 → "bag"
 - 果物 → "fruit"、野菜 → "vegetable"、飲み物 → "drink"、食べ物 → "food"、お菓子 → "dessert"
-- 動物 → "animal"、花 → "flower"、植物 → "plant"
+- 動物（子どもの動物も: 子豚・ひよこ） → "animal"、花 → "flower"、植物・キノコ → "plant"
 - 車・バイク・電車・バスなど → "transport"
 - 看板・標識 → "sign"、お店 → "shop"、建物 → "building"
 - 文房具 → "stationery"、本 → "book"、お金 → "money"、薬 → "medicine"
@@ -325,7 +325,7 @@ ${distinctionRule(profile.promptName, profile.capture.distinctionExamples)}
   候補の画面は横に動かないので、長い文は読まれない（オーナー指示 2026-09-28
   「単語の説明が長すぎて、横にスクロールしないと見れないことがある。長すぎる文はなしで」）。`;
 
-    const instruction = `${prompt}\n\n必ずJSONだけを返してください。**${profile.promptName}の語を出す。他の言語の語を混ぜない。**\n形式: {"suggestions":[{"headword":"${profile.capture.jsonHeadwordHint}",${profile.capture.jsonReadingHint},"meaning_ja":"意味(上で指定した解説の言語で)","distinction":"使い分けの一言","category_key":"${CATEGORY_KEYS.join("|のどれか: ")}","register":"common|casual|specific|proper のどれか","group":0}]}。**確からしい順に並べ**、物は3〜5つ返してください(無理に5つに埋めない — 写っていない物を足すぐらいなら少なくてよい)。同じ物の別の呼び方は同じ group で。`;
+    const instruction = `${prompt}\n\n必ずJSONだけを返してください。**${profile.promptName}の語を出す。他の言語の語を混ぜない。**\n形式: {"suggestions":[{"headword":"${profile.capture.jsonHeadwordHint}",${profile.capture.jsonReadingHint},"meaning_ja":"意味(上で指定した解説の言語で)","distinction":"使い分けの一言","category_key":"${CATEGORY_KEYS.join("|")} のどれか","register":"common|casual|specific|proper のどれか","group":0}]}。**確からしい順に並べ**、物は3〜5つ返してください(無理に5つに埋めない — 写っていない物を足すぐらいなら少なくてよい)。同じ物の別の呼び方は同じ group で。`;
     const correctTaiwanReading = await loadReadingCheck();
     /**
      * **1番手が遅い時は2番手を並べて追いかける**（`ai-attempts.ts`、チュートリアルと同じ）。
@@ -719,7 +719,8 @@ ${cardProfile.capture.readingRule}
 - category_key: ${CATEGORY_KEYS.join("/")} のどれか。
   **"other" は最終手段**。身体の部位→body、調理器具→kitchenware、日用品・洗剤・
   化粧品・薬→medicine、道具→tool、書類・証明書→document、人・職業→person/job、
-  横断歩道・道路・信号→street、店→shop、交通機関→transport を必ず使う。
+  横断歩道・道路・信号→street、店→shop、交通機関→transport、動物（子どもの動物も）→animal、
+  キノコ→plant を必ず使う。
 - new_shelf: **上の一覧のどれを選んでも「その語らしくない」ときだけ**、新しい棚を提案する。
   当てはまる棚が在るなら **null**(無理に作らない — 似た棚が乱立すると図鑑が壊れる)。
   形式: {key: 英小文字とアンダースコアのみ(例 "night_market_snack"), label: 棚の名前(${NL}・24字まで),

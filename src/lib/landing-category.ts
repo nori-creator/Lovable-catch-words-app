@@ -1,5 +1,6 @@
-import { dexCategoryKey, dexCategoryOf } from "./dex-catalog";
+import { DEX_OTHER_KEY, dexCategoryKey, dexCategoryOf } from "./dex-catalog";
 import { isBuiltinCategory } from "./user-category";
+import { wordCategoryKey } from "./category";
 
 /**
  * **着地の受け口にするカテゴリーの鍵**（`landing-target.ts` の3番目、`[data-dex-cat]`）。
@@ -23,5 +24,10 @@ export function landingCategoryKey(opts: {
   if (shelf && !isBuiltinCategory(shelf)) return shelf;
   // 既定の鍵の「新しい棚」は保存側が捨てる（`normalizeShelfProposal`）ので、語の分類で決める。
   if (!opts.categoryKey && !opts.headword) return null;
-  return dexCategoryKey(dexCategoryOf(opts.headword, opts.categoryKey, opts.lang));
+  // 分類の鍵は図鑑と同じく見出し語で直してから（`dexPlaceOf` — 蘑菇が other のままだと
+  // 図鑑は「植物・花」に置くのに、着地は「その他」へ向かう）。
+  const key = wordCategoryKey({ headword: opts.headword, category_key: opts.categoryKey });
+  const no = dexCategoryOf(opts.headword, key, opts.lang);
+  // どの20にも入らない語は図鑑の「その他」の節（`dexPlaceOf` と同じ決め方）。
+  return no == null ? DEX_OTHER_KEY : dexCategoryKey(no);
 }

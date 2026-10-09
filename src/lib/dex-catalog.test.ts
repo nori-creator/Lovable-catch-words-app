@@ -7,6 +7,7 @@ import {
   DEX_KEY_TO_CATEGORY,
   dexCategoryForKey,
   dexCategoryKey,
+  dexCatalogCategory,
   dexCategoryOf,
   dexHeadword,
   dexItemFor,
@@ -92,15 +93,20 @@ describe("図鑑の表は iOS と同じ", () => {
 });
 
 describe("分類の鍵 → 図鑑のカテゴリー", () => {
-  it("アプリの54の鍵が全部どこかのカテゴリーへ行く", () => {
-    for (const k of CATEGORY_KEYS) expect(DEX_KEY_TO_CATEGORY[k]).toBeGreaterThan(0);
-    expect(Object.keys(DEX_KEY_TO_CATEGORY).sort()).toEqual([...CATEGORY_KEYS].sort());
+  it("アプリの鍵は other を除いて全部どこかのカテゴリーへ行く", () => {
+    const named = CATEGORY_KEYS.filter((k) => k !== "other");
+    for (const k of named) expect(DEX_KEY_TO_CATEGORY[k]).toBeGreaterThan(0);
+    expect(Object.keys(DEX_KEY_TO_CATEGORY).sort()).toEqual([...named].sort());
   });
 
-  it("知らない鍵・鍵なしは 10（その他のカテゴリーは無い）", () => {
-    expect(dexCategoryForKey("place")).toBe(10);
-    expect(dexCategoryForKey(null)).toBe(10);
+  // 2026-10-09 オーナー報告: 札は「その他」の蘑菇・小豬が、図鑑では「洗面・日用品」に並んでいた。
+  it("other・知らない鍵・鍵なしは null（「その他」の節。日用品に黙って寄せない）", () => {
+    expect(dexCategoryForKey("other")).toBeNull();
+    expect(dexCategoryForKey("place")).toBeNull();
+    expect(dexCategoryForKey("constructor")).toBeNull();
+    expect(dexCategoryForKey(null)).toBeNull();
     expect(dexCategoryForKey("animal")).toBe(16);
+    expect(dexCategoryForKey("medicine")).toBe(10);
   });
 
   it("代表の鍵は、そのカテゴリーへ戻る", () => {
@@ -132,7 +138,17 @@ describe("見出し語で影を引く", () => {
   it("表に在る語は表のカテゴリー、無い語は分類の鍵から", () => {
     expect(dexCategoryOf("貓", "other", "zh-TW")).toBe(16);
     expect(dexCategoryOf("夜市", "shop", "zh-TW")).toBe(14);
-    expect(dexCategoryOf("某個字", null, "zh-TW")).toBe(10);
+    expect(dexCategoryOf("某個字", null, "zh-TW")).toBeNull();
+    expect(dexCategoryOf("某個字", "other", "zh-TW")).toBeNull();
+  });
+
+  it("表の物の言い方の揺れ（簡体字・小〜・〜仔）もカテゴリーは表から。番号は渡さない", () => {
+    expect(dexCatalogCategory("小貓", "zh-TW")).toBe(16);
+    expect(dexCatalogCategory("猫", "zh-TW")).toBe(16);
+    expect(dexCatalogCategory("狗仔", "zh-TW")).toBe(16);
+    expect(dexItemFor("小貓", "zh-TW")).toBeNull();
+    expect(dexCatalogCategory("面膜", "zh-TW")).toBeNull();
+    expect(dexCatalogCategory("小貓", "en")).toBeNull();
   });
 
   it("見出し語は学習言語で出す", () => {

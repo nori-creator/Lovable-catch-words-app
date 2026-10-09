@@ -66,8 +66,10 @@ export function dexCategoryLabelKey(no: number): string {
 }
 
 /**
- * アプリの54の分類の鍵 → 図鑑のカテゴリー（1〜20）。iOS `DexCatalog.keyToCategory` と同じ。
- * 「その他」のカテゴリーは無い — 知らない鍵は other と一緒に 10（洗面・日用品）へ。
+ * アプリの分類の鍵 → 図鑑のカテゴリー（1〜20）。iOS `DexCatalog.keyToCategory` と同じ、
+ * ただし **`other` は入れない**（2026-10-09 オーナー報告: 蘑菇・小豬が「洗面・日用品」に
+ * 並んでいた。札の分類は「その他」なのに、図鑑は other を 10 に寄せていた）。
+ * other・知らない鍵は、20 のどれにも入れず図鑑の最後の「その他」の節（`DEX_OTHER_KEY`）へ。
  */
 export const DEX_KEY_TO_CATEGORY: Readonly<Record<string, number>> = {
   drink: 1,
@@ -90,7 +92,6 @@ export const DEX_KEY_TO_CATEGORY: Readonly<Record<string, number>> = {
   money: 10,
   color: 10,
   shape: 10,
-  other: 10,
   clothes: 11,
   clothing_part: 11,
   accessory: 12,
@@ -126,10 +127,16 @@ export const DEX_KEY_TO_CATEGORY: Readonly<Record<string, number>> = {
   job: 20,
 };
 
-/** 分類の鍵の図鑑のカテゴリー。知らない鍵・鍵が無いときは 10。 */
-export function dexCategoryForKey(key: string | null | undefined): number {
-  if (!key) return 10;
-  return DEX_KEY_TO_CATEGORY[key] ?? 10;
+/** 20 のどれにも入らない語の節の鍵（図鑑の最後。見出しは `cat.other`「その他」）。 */
+export const DEX_OTHER_KEY = "other";
+
+/**
+ * 分類の鍵の図鑑のカテゴリー。other・知らない鍵・鍵が無いときは **null**（「その他」の節）。
+ * 前は 10（洗面・日用品）に黙って寄せていて、キノコや子豚が日用品の棚に並んでいた。
+ */
+export function dexCategoryForKey(key: string | null | undefined): number | null {
+  if (!key || !Object.prototype.hasOwnProperty.call(DEX_KEY_TO_CATEGORY, key)) return null;
+  return DEX_KEY_TO_CATEGORY[key];
 }
 
 /**
@@ -745,11 +752,59 @@ export function dexItemFor(
   return INDEX[l].get(normDexHeadword(headword, l)) ?? null;
 }
 
-/** 語の図鑑のカテゴリー: 表に在る見出し語ならその物のカテゴリー、無ければ分類の鍵から。 */
+/**
+ * 見出し語の**言い方の揺れ**（表の物と同じ物の言い方）。台湾華語だけ:
+ * - 簡体字で打った語（猫 → 貓）。表の見出し語に使う字だけの小さな対応表。
+ * - 「小〜」「〜仔」「〜兒」「〜咪」の付いた呼び方（小貓 → 貓、狗仔 → 狗）。
+ *
+ * 揺れは**カテゴリーを決めるためだけ**に使う。番号・影を埋めるのは見出し語が同じ時だけ
+ * （`dexItemFor`）— 言い方が違う語に基本の100の番号を渡すと、iOS と番号の意味がずれる。
+ */
+// prettier-ignore
+const SIMPLIFIED_TO_TRADITIONAL: Readonly<Record<string, string>> = {
+  猫: "貓", 鸟: "鳥", 鱼: "魚", 鸡: "雞", 鸭: "鴨", 龟: "龜", 鸽: "鴿", 蚁: "蟻",
+  树: "樹", 叶: "葉", 兰: "蘭", 莲: "蓮", 樱: "櫻", 种: "種", 苹: "蘋", 车: "車",
+  书: "書", 笔: "筆", 电: "電", 脑: "腦", 机: "機", 视: "視", 灯: "燈", 伞: "傘",
+  头: "頭", 脸: "臉", 云: "雲", 风: "風", 阳: "陽", 气: "氣", 饭: "飯", 汤: "湯",
+};
+
+function headwordVariants(h: string): string[] {
+  const out = new Set<string>();
+  const trad = [...h].map((c) => SIMPLIFIED_TO_TRADITIONAL[c] ?? c).join("");
+  for (const w of [h, trad]) {
+    out.add(w);
+    const core = w.replace(/^小(?=.)/, "").replace(/(?<=.)(仔|兒|咪)$/, "");
+    if (core) out.add(core);
+  }
+  out.delete(h);
+  return [...out];
+}
+
+/**
+ * 表から引いた図鑑のカテゴリー（見出し語 → 言い方の揺れ の順）。表に無ければ null。
+ */
+export function dexCatalogCategory(
+  headword: string | null | undefined,
+  lang: string | null | undefined,
+): number | null {
+  const exact = dexItemFor(headword, lang);
+  if (exact) return exact.category;
+  if (!headword || dexLang(lang) !== DEFAULT_TARGET_LANGUAGE) return null;
+  for (const v of headwordVariants(headword.trim())) {
+    const it = dexItemFor(v, lang);
+    if (it) return it.category;
+  }
+  return null;
+}
+
+/**
+ * 語の図鑑のカテゴリー: 表に在る見出し語（とその言い方の揺れ）ならその物のカテゴリー、
+ * 無ければ分類の鍵から。どれでもなければ null（図鑑の「その他」の節）。
+ */
 export function dexCategoryOf(
   headword: string | null | undefined,
   key: string | null | undefined,
   lang: string | null | undefined,
-): number {
-  return dexItemFor(headword, lang)?.category ?? dexCategoryForKey(key);
+): number | null {
+  return dexCatalogCategory(headword, lang) ?? dexCategoryForKey(key);
 }
