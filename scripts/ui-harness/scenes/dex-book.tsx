@@ -11,6 +11,9 @@
  *   日用品に、どこにも当たらない語は最後の「その他」の節に（2026-10-09 オーナー報告）
  * - `?scene=dex-book&case=stuck` … other のまま保存された開關・刷子・健康餐・可頌・亮點・手背・面膜。
  *   見出し語の規則で棚へ入り、「その他」には亮點だけが残る（2026-10-09 オーナーの図鑑の画面）
+ * - `?scene=dex-book&case=fruit` … AI が "nature" と答えて保存された桃・水蜜桃が「果物・野菜」に、
+ *   桃花は「植物・花」、桃園は「建物・お店」、淡水河・觀音山・女王頭・夕陽は「空・自然」に
+ *   （2026-10-09 オーナー報告「桃がなぜか景色に分類されてる」）
  *
  * 写真は見本の色の板（通信しない）。番号は本番と同じく端末に覚える（`localStorage`）。
  */
@@ -120,6 +123,22 @@ const STUCK: Fx[] = [
   { id: "facemask", head: "面膜", cat: "other", photo: board("#f4f1ea", "面膜"), day: 4 },
 ];
 
+/**
+ * 2026-10-09 オーナー報告「桃がなぜか景色に分類されてる」。保存された分類はどれも AI の答えのまま
+ * （桃・水蜜桃 = nature、桃子 = plant）。図鑑は表 → 見出し語の規則 → 保存された鍵の順に置く。
+ */
+const FRUIT: Fx[] = [
+  { id: "peach", head: "桃", cat: "nature", photo: board("#f7b7a3", "桃"), day: 1 },
+  { id: "peach-zi", head: "桃子", cat: "plant", photo: board("#f4a69a", "桃子"), day: 1 },
+  { id: "white-peach", head: "水蜜桃", cat: "nature", photo: board("#fbd3c4", "水蜜桃"), day: 2 },
+  { id: "blossom", head: "桃花", cat: "nature", photo: board("#f9c6d8", "桃花"), day: 2 },
+  { id: "taoyuan", head: "桃園", cat: "building", photo: board("#b9c4d0", "桃園"), day: 3 },
+  { id: "river", head: "淡水河", cat: "other", photo: board("#7fb3d5", "淡水河"), day: 3 },
+  { id: "guanyin", head: "觀音山", cat: "other", photo: board("#8fae8b", "觀音山"), day: 4 },
+  { id: "queen", head: "女王頭", cat: "nature", photo: board("#c9b18f", "女王頭"), day: 4 },
+  { id: "sunset", head: "夕陽", cat: "sky", photo: board("#f39c6b", "夕陽"), day: 5 },
+];
+
 function OtherCase({ fixtures = OTHER }: { fixtures?: Fx[] }) {
   const [items] = useState(() => fixtures.map(make));
   const [view, setView] = useState<ViewMode>("gallery");
@@ -159,6 +178,7 @@ export function DexBookScene({ q }: { q: URLSearchParams }) {
   if (kase === "all") return <AllCase />;
   if (kase === "other") return <OtherCase />;
   if (kase === "stuck") return <OtherCase fixtures={STUCK} />;
+  if (kase === "fruit") return <OtherCase fixtures={FRUIT} />;
   return <BookCase />;
 }
 
