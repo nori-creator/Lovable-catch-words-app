@@ -143,7 +143,9 @@ export function PrivacyEn({ info }: { info: LegalPublicInfo }) {
           </li>
           <li>
             <strong>Images</strong>: only the word (search term) is sent: Unsplash, Wikimedia
-            Commons, Higgsfield and Lovable AI Gateway (image generation)
+            Commons, Wikipedia, Openverse (WordPress.org; it indexes freely licensed photos such as
+            Flickr, and your device loads their thumbnails), Higgsfield and Lovable AI Gateway
+            (image generation)
           </li>
           <li>
             <strong>Maps</strong>: Google (Google Maps). When a map is shown on the web version,

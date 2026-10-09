@@ -8,6 +8,7 @@ import { CatchAnimationScene, HomeResurfaceScene, SettingsSavedScene } from "./s
 import {
   TextCandidatesScene,
   TextLandingScene,
+  TextPeelNoPhotoScene,
   TextPeelReadyScene,
   TextPeelScene,
   TextSearchingScene,
@@ -158,6 +159,7 @@ const SCENES: Record<string, ((p: { q: URLSearchParams }) => ReactNode) | undefi
   "text-peel-ready": TextPeelReadyScene,
   "text-peel-web": () => <TextPeelScene art="web" />,
   "text-peel-only": () => <TextPeelScene art="text" />,
+  "text-peel-no-photo": TextPeelNoPhotoScene,
   "text-landing": TextLandingScene,
   "settings-saved": SettingsSavedScene,
   "home-resurface": HomeResurfaceScene,
@@ -401,6 +403,17 @@ const q = new URLSearchParams(location.search);
  * 「これを見てください」と差し出すことになる。
  */
 const REVIEW_SCENES: Array<{ scene: string; label: string }> = [
+  // 2026-10-09「嘴邊肉の画像が英語で検索された画像」: 外れの写真を出さなくなった後、写真が
+  // 残らなかった札で Pro の人に「AIで絵を作る」を目立つ形で出す。
+  { scene: "text-peel-no-photo", label: "写真が残らなかった札: Pro の「AIで絵を作る」" },
+  {
+    scene: "text-peel-no-photo&plan=free",
+    label: "写真が残らなかった札: Pro でない人（語の札のまま）",
+  },
+  {
+    scene: "sticker-sheet&variant=pro-ai-no-photo",
+    label: "単語の詳細: 写真が残らなかった Pro の人",
+  },
   // 2026-10-08 文字検索の流れ（その場で回る → 学習言語ならそのまま札 / 割れたら候補）。
   { scene: "text-searching", label: "文字検索: 押したらその場で回る（別の待ち画面を出さない）" },
   { scene: "text-candidates", label: "文字検索: 母語の「電車」の候補（使われ方の札つき）" },

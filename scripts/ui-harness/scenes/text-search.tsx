@@ -14,6 +14,9 @@
  * 同日のオーナー報告（画面の録画、「貓」を打って調べた回）の札と着地:
  * - `?scene=text-peel-web` … ネットの画像が届いた札
  * - `?scene=text-peel-only` … 画像が届かなかった時の、語を組んだ札
+ * - `?scene=text-peel-no-photo` … 写真が1枚も残らなかった札。Pro の人には「AIで絵を作る」を
+ *   目立つ形で（押すと作って札に載せる。`&plan=free` は Pro でない人 — 何も出さない）。
+ *   オーナー報告 2026-10-09「嘴邊肉の画像が明らかに英語で検索された画像」の後、外れの写真は出さない
  * - `?scene=text-landing` … 札を剥がして図鑑のカテゴリーのマス目へ着地
  *   （`&art=web` でネットの画像の札、`&dest=header` でマス目がまだ無い回 → カテゴリーの見出しへ）
  *
@@ -358,3 +361,59 @@ function DemoDex({ noCell, art }: { noCell: boolean; art: string }) {
     </div>
   );
 }
+
+/** e) 写真が1枚も残らなかった札（嘴邊肉）。Pro の人は「AIで絵を作る」を押して絵を得る。 */
+export function TextPeelNoPhotoScene({ q }: { q: URLSearchParams }) {
+  const pro = q.get("plan") !== "free";
+  const [flipped, setFlipped] = useState(false);
+  const [caption, setCaption] = useState("");
+  const [made, setMade] = useState<string | null>(null);
+  const [making, setMaking] = useState(false);
+  return (
+    <CaptureCardPanel
+      card={PORK_CHEEK_CARD}
+      selectedHead="嘴邊肉"
+      objectImg={null}
+      art={made ?? textStickerDataUrl({ headword: "嘴邊肉", lang: "zh-TW" })}
+      selfieImg={null}
+      flipped={flipped}
+      setFlipped={setFlipped}
+      caption={caption}
+      setCaption={setCaption}
+      placeName={null}
+      onRedo={() => {}}
+      onSave={() => {}}
+      imageChoices={
+        <HeroImageChoices
+          ownPhoto={false}
+          hasHero={!!made}
+          candidates={[]}
+          swapping={null}
+          onSwap={() => {}}
+          isPro={pro}
+          onGenerateAi={() => {
+            setMaking(true);
+            // 見本は外へ出ない: 少し待って猫の絵を載せる。
+            window.setTimeout(() => {
+              setMade(WEB_CAT);
+              setMaking(false);
+            }, 1200);
+          }}
+          generatingAi={making}
+          noPhotoFound
+        />
+      }
+    />
+  );
+}
+
+const PORK_CHEEK_CARD = {
+  reading_zhuyin: "ㄗㄨㄟˇ ㄅㄧㄢ ㄖㄡˋ",
+  pinyin: "zuǐbiānròu",
+  meaning_ja: "豚の口の周りの肉",
+  part_of_speech: "名詞",
+  level: "",
+  category_key: "food",
+  example_sentence: "",
+  example_translation: "",
+} as never;

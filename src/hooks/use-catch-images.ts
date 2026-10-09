@@ -1,7 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { fetchImageAsDataUrl, searchImageCandidates } from "@/lib/images.functions";
+import {
+  fetchImageAsDataUrl,
+  generateProWordImage,
+  searchImageCandidates,
+} from "@/lib/images.functions";
 import { setStickerPlaceholder } from "@/lib/stickers.functions";
 import { textStickerImageSearch } from "@/lib/text-sticker";
 import { uploadWebImage, type WebImageCandidate } from "@/hooks/use-auto-hero";
@@ -41,6 +45,7 @@ export function useCatchImages(opts: {
   const searchImagesFn = useServerFn(searchImageCandidates);
   const fetchImageFn = useServerFn(fetchImageAsDataUrl);
   const setPlaceholderFn = useServerFn(setStickerPlaceholder);
+  const generateProImageFn = useServerFn(generateProWordImage);
   const [state, setState] = useState<{
     key: string | null;
     candidates: WebImageCandidate[];
@@ -144,6 +149,31 @@ export function useCatchImages(opts: {
   );
 
   /**
+   * **Pro の人が、まだ保存していない札の絵を AI で1枚作る**（オーナー指示 2026-10-09
+   * 「写真が残らなかった時、Pro の人には『AIで絵を作る』を」）。押した時だけ作る。
+   * Pro・同意・枠はサーバが確かめる（`generateProWordImage`）。できた絵を札に載せ、
+   * 保存の後は他の候補と同じ道（`attach`）で仮画像になる。失敗は投げる（呼ぶ側が知らせる）。
+   */
+  const [generatingAi, setGeneratingAi] = useState(false);
+  const generateAi = useCallback(async () => {
+    if (!key) return;
+    setGeneratingAi(true);
+    try {
+      const made = await generateProImageFn({
+        data: {
+          headword: key,
+          meaning: meaningRef.current ?? null,
+          image_query: imageQueryRef.current ?? null,
+        },
+      });
+      const c: WebImageCandidate = { url: made.url, thumb: made.url, source: made.source };
+      setState((s) => (s.key === key ? { ...s, chosen: c, shown: made.url, settled: true } : s));
+    } finally {
+      setGeneratingAi(false);
+    }
+  }, [key, generateProImageFn]);
+
+  /**
    * 保存できた札に、いま載っている1枚を仮画像として付ける（待たずに呼んでよい）。
    * 失敗しても札は保存済みなので黙って諦める（図鑑の詳細が `use-auto-hero` で探し直す）。
    */
@@ -190,6 +220,11 @@ export function useCatchImages(opts: {
     swapping,
     choose,
     attach,
+    /** Pro の「AIで絵を作る」（押した時だけ）。 */
+    generateAi,
+    generatingAi: mine && generatingAi,
+    /** いま札に載っているのが AI で作った絵か。 */
+    aiChosen: mine && state.chosen?.source === "ai",
   };
 }
 

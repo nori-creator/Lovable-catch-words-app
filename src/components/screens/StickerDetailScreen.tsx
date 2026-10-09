@@ -137,6 +137,7 @@ export function StickerDetailPage() {
             isPro,
             onGenerateAi: () => void autoHero.generateAi(),
             generatingAi: autoHero.generatingAi,
+            noPhotoFound: autoHero.failed,
           }}
         />
       )}

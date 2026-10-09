@@ -129,7 +129,9 @@ export function PrivacyJa({ info }: { info: LegalPublicInfo }) {
           </li>
           <li>
             <strong>画像</strong>: 単語（検索の言葉）だけを送ります。Unsplash、Wikimedia
-            Commons、Higgsfield、Lovable AI Gateway（画像の生成）
+            Commons、Wikipedia、Openverse（WordPress.org。Flickr
+            などの自由に使える写真の索引。小さな画像はお使いの端末が読み込みます）、Higgsfield、Lovable
+            AI Gateway（画像の生成）
           </li>
           <li>
             <strong>地図</strong>: Google（Google マップ）。Web 版で地図を表示するとき、端末は

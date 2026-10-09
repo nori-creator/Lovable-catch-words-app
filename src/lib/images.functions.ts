@@ -2,7 +2,6 @@ import { createServerFn } from "@tanstack/react-start";
 import { DEFAULT_TARGET_LANGUAGE } from "./target-lang";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { z } from "zod";
-import { commonsCandidates, commonsSearchUrl, type CommonsResponse } from "./commons-images";
 import {
   DEFAULT_LOVABLE_IMAGE_MODEL,
   higgsfieldImageInput,
@@ -14,23 +13,46 @@ import {
 import { MAX_PROXY_IMAGE_BYTES, readCappedBytes } from "./byte-cap";
 import { isAiCapError } from "./ai-cap";
 import { AI_CONSENT_CHECK_FAILED, isAiConsentError } from "./ai-consent";
-import { heroSearchQuery, imageQueryOf } from "./hero-image";
-import { isConfidentMatch, selectImageCandidates, type RankContext } from "./image-search-rank";
+import { cleanImageQuery, heroSearchQuery, imageQueryOf } from "./hero-image";
 import {
+  hasOffSenseSignals,
+  isConfidentMatch,
+  selectImageCandidates,
+  type RankContext,
+} from "./image-search-rank";
+import {
+  SEARCH_BUDGET_MS,
+  SOURCE_TIMEOUT_MS,
   VERIFY_MAX_IMAGES,
+  VERIFY_MIN_MS,
+  VERIFY_TIMEOUT_MS,
   applyVerdict,
   cleanAvoidTerms,
+  isStrictSense,
   needsSenseResolution,
-  shouldVerify,
+  needsVerification,
   type ImageSense,
 } from "./image-sense";
+import {
+  dedupeImages,
+  learningForms,
+  learningMatch,
+  mergeLanes,
+  wantsLearningLane,
+  type ImageSearchProvider,
+  type LaneHit,
+  type ProviderIO,
+  type RankedImage,
+} from "./image-sources";
+import { enabledProviders, searchLane } from "./image-providers";
 import type { ImageSenseDeps } from "./image-sense.server";
 import { ALLOWED_IMAGE_MIME, IMAGE_FETCH_USER_AGENT, fetchAllowedImage } from "./image-proxy";
 
 export type ImageCandidate = {
   url: string;
   thumb: string;
-  source: "unsplash" | "commons" | "ai";
+  /** 出所（`unsplash` `commons` `openverse` `ai`。画面は字のまま持つ）。 */
+  source: "unsplash" | "commons" | "openverse" | "ai" | (string & {});
   credit?: { name: string; link: string };
 };
 
@@ -142,6 +164,32 @@ export function verifyThumb(url: string): string {
   return url.replace(/\/\d+px-/, "/250px-");
 }
 
+/** 学習言語の見出し語そのものの写真がこれだけ在れば、学習言語で引き直さない。 */
+const ENOUGH_EXACT = 3;
+
+/**
+ * **英語の出所**（補い）。厳しい棚では全部を同時に引く（英語の題は信じないので、どの出所の写真も
+ * 絵を見て確かめる）。それ以外は今までどおり、Unsplash に説明で確かな写真が無い時だけコモンズも引く。
+ */
+async function searchEnglish(
+  ctx: RankContext,
+  providers: ReadonlyArray<ImageSearchProvider>,
+  strict: boolean,
+  io: () => ProviderIO,
+): Promise<TextCandidate[]> {
+  const english = providers.filter((p) => p.lane === "english");
+  const q = { terms: [ctx.query], language: "en", limit: FETCH_PER_SOURCE };
+  if (strict) return searchLane(english, q, io());
+  const fallback = english.filter((p) => p.id === "commons-en");
+  const first = await searchLane(
+    english.filter((p) => p.id !== "commons-en"),
+    q,
+    io(),
+  );
+  if (first.some((c) => isConfidentMatch(c.text, ctx)) || fallback.length === 0) return first;
+  return [...first, ...(await searchLane(fallback, q, io()))];
+}
+
 /**
  * 候補を集める本体（試験から `reserve` を差し替えて呼べるように分けてある）。
  * `reserve` は絵を作る直前に呼ぶ枠の確保（`imageGenReserver`）。
@@ -165,121 +213,170 @@ export async function searchImagesWith(
    * 古いカード）は、意味の欄の日本語で探すと別の物（蓮の花）に当たる。見出し語と意味から
    * 英語の検索語と避ける語を決める。決められなければ今までどおり（日本語で探す）。
    */
+  const started = Date.now();
+  const deadline = started + SEARCH_BUDGET_MS;
+  const remaining = () => deadline - Date.now();
   const word = data.headword?.trim()
     ? { headword: data.headword.trim(), meaning: data.meaning ?? null, language: data.language }
     : null;
+  /** 食べ物・料理（と棚の分からない語）は英語の題を信じない（オーナー報告 2026-10-09）。 */
+  const strict = !!word && isStrictSense(data.category);
   let sense: ImageSense = { query: data.query, avoid: cleanAvoidTerms(data.avoid ?? []) };
-  if (word && senseDeps && needsSenseResolution(data.query)) {
-    const resolved = await senseDeps.resolveSense(word).catch(() => null);
-    if (resolved?.query) {
+  const englishKnown = !needsSenseResolution(data.query);
+  const learning = word && wantsLearningLane(word) ? word : null;
+
+  /**
+   * **探す前に意味を決める**（オーナー報告 2026-10-08 ②「レンコンを調べたのに蓮の花」）。
+   * 英語の検索語（`extras.image_query`）がまだ無い時は、見出し語と意味から英語の検索語と
+   * 避ける語を決める。厳しい棚の学習言語の語では、英語の検索語が在っても学習言語の絞る語
+   * （`黑白切`）と写っているべき物の説明を聞く（覚えと共有の語の行に在れば AI は呼ばない）。
+   * 学習言語の出所は見出し語だけで引けるので、**決めるのを待たずに同時に始める**。
+   */
+  const wantResolve = !!word && !!senseDeps && (!englishKnown || (strict && !!learning));
+  const resolveP: Promise<ImageSense | null> =
+    wantResolve && word && senseDeps
+      ? senseDeps.resolveSense(word).catch(() => null)
+      : Promise.resolve(null);
+  const applyResolved = (resolved: ImageSense | null) => {
+    if (!resolved) return;
+    if (!englishKnown && resolved.query) {
+      sense = { ...resolved, avoid: cleanAvoidTerms([...resolved.avoid, ...sense.avoid]) };
+    } else {
+      // 英語の検索語は呼んだ側の物のまま。説明・絞る語・別の書き方・避ける語だけ足す。
       sense = {
-        ...resolved,
-        avoid: cleanAvoidTerms([...resolved.avoid, ...sense.avoid]),
+        ...sense,
+        avoid: cleanAvoidTerms([...sense.avoid, ...resolved.avoid]),
+        ...(resolved.sense ? { sense: resolved.sense } : {}),
+        ...(resolved.context ? { context: resolved.context } : {}),
+        ...(resolved.variants?.length ? { variants: resolved.variants } : {}),
       };
     }
-  }
-  const query = sense.query;
+  };
 
-  const key = process.env.UNSPLASH_ACCESS_KEY;
-  const candidates: TextCandidate[] = [];
-  const rankContext: RankContext = { query, category: data.category, avoid: sense.avoid };
-  const imageConfig = readImageConfig(process.env);
-
-  // **AI を先に**（`IMAGE_SEARCH_MODE=ai-first`）。1枚作って先頭に置き、
-  // 後ろに写真の候補も並べる（AI が失敗しても写真で選べる）。
-  if (imageConfig.mode === "ai-first") {
-    const ai = await optionalAiImage(query, reserve);
-    if (ai) candidates.push(ai);
-  }
-
-  const photos: TextCandidate[] = [];
-  if (key) {
-    try {
-      const url = new URL("https://api.unsplash.com/search/photos");
-      url.searchParams.set("query", query);
-      url.searchParams.set("per_page", String(FETCH_PER_SOURCE));
-      url.searchParams.set("content_filter", "high");
-      url.searchParams.set("orientation", "squarish");
-      const res = await fetch(url.toString(), {
-        headers: { Authorization: `Client-ID ${key}`, "Accept-Version": "v1" },
-      });
-      if (res.ok) {
-        const json = (await res.json()) as {
-          results?: Array<{
-            urls: { regular: string; small: string };
-            user: { name: string; links: { html: string } };
-            alt_description?: string | null;
-            description?: string | null;
-            tags?: Array<{ title?: string | null } | null> | null;
-          }>;
-        };
-        photos.push(
-          ...(json.results ?? []).map((r) => ({
-            url: r.urls.regular,
-            thumb: r.urls.small,
-            source: "unsplash" as const,
-            credit: { name: r.user.name, link: r.user.links.html },
-            text: [r.alt_description, r.description, ...(r.tags ?? []).map((t) => t?.title)]
-              .filter(Boolean)
-              .join(" "),
-          })),
-        );
-      }
-    } catch (e) {
-      console.warn("unsplash search failed", e);
-    }
-  }
+  const providers = enabledProviders(process.env);
+  const learningProviders = providers.filter((p) => p.lane === "learning");
+  const io = (ms: number): ProviderIO => ({
+    fetch: (u, init) => fetch(u, init),
+    timeoutMs: Math.max(300, Math.min(SOURCE_TIMEOUT_MS, ms)),
+    env: process.env,
+  });
 
   /**
-   * **鍵の要らない出所を1つ持つ**(オーナー報告 2026-08-27 ④
-   * 「単語の詳細のネットの画像がよく表示されない」)。読み替えは `commons-images.ts`。
-   *
-   * 前は Unsplash が1枚でも返せばコモンズを見なかった。Unsplash が蓮の花しか返さない語
-   * （`lotus root`）では、花しか並ばなかった（オーナー報告 2026-10-08 ②）。今は Unsplash に
-   * **説明で確かと言える写真**（`isConfidentMatch`）が無ければコモンズも探す。コモンズは
-   * 題と分類（`Lotus roots (food)`）が付いていて、食べる物の写真に強い。
+   * **学習言語で先に探す**（オーナー報告 2026-10-09「必ず学習言語で検索して」）。
+   * Wikipedia の記事の先頭の絵・Commons・Openverse を見出し語そのもので引く。
    */
-  const confident = (list: TextCandidate[]) =>
-    list.some((c) => isConfidentMatch(c.text, rankContext));
-  if (!confident(photos)) {
-    try {
-      const res = await fetch(commonsSearchUrl(query, FETCH_PER_SOURCE), {
-        // コモンズは名乗らない相手を弾くことがある。
-        headers: { "User-Agent": IMAGE_FETCH_USER_AGENT },
-      });
-      if (res.ok) {
-        const found = commonsCandidates((await res.json()) as CommonsResponse, FETCH_PER_SOURCE);
-        photos.push(...found.map((c) => ({ ...c, source: "commons" as const })));
-      }
-    } catch (e) {
-      console.warn("commons search failed", e);
-    }
+  const learningA: Promise<LaneHit[]> = learning
+    ? searchLane(
+        learningProviders,
+        { terms: [learning.headword], language: learning.language, limit: FETCH_PER_SOURCE },
+        io(remaining()),
+      )
+    : Promise.resolve([]);
+
+  // **英語の出所は補い**（並べる時は必ず後ろ）。英語の検索語が決まってから引く。
+  const englishP: Promise<TextCandidate[]> = (async () => {
+    if (!englishKnown) applyResolved(await resolveP);
+    return searchEnglish(
+      { query: sense.query, category: data.category, avoid: sense.avoid },
+      providers,
+      strict,
+      () => io(remaining()),
+    );
+  })();
+
+  const [hitsA, resolvedLate] = await Promise.all([learningA, resolveP]);
+  if (englishKnown) applyResolved(resolvedLate);
+  const forms = learning ? learningForms(learning.headword, sense.variants) : [];
+  const isExact = (h: LaneHit) => h.lead || learningMatch(h.text, forms, sense.context) === "exact";
+
+  /**
+   * 見出し語そのものの写真が足りず、意味を決める AI が別の書き方（簡体字）や絞る語（`黑白切`）を
+   * くれた時だけ、学習言語でもう1回引く（時間が残っている時だけ）。
+   */
+  let learningHits = hitsA;
+  const exactCount = hitsA.filter(isExact).length;
+  if (
+    learning &&
+    exactCount < ENOUGH_EXACT &&
+    (sense.variants?.length || sense.context) &&
+    remaining() > SOURCE_TIMEOUT_MS + VERIFY_MIN_MS
+  ) {
+    const more = await searchLane(
+      learningProviders,
+      {
+        terms: sense.variants?.length ? forms : [learning.headword],
+        context: sense.variants?.length ? null : sense.context,
+        language: learning.language,
+        limit: FETCH_PER_SOURCE,
+      },
+      io(remaining() - VERIFY_MIN_MS),
+    );
+    learningHits = [...hitsA, ...more];
   }
 
+  const rankContext: RankContext = {
+    query: sense.query,
+    category: data.category,
+    avoid: sense.avoid,
+  };
+  const english = await englishP;
   // 探した物に合う写真を前へ、**外れと分かる物（花・避ける語）は捨てる**（`image-search-rank.ts`）。
   // 同じ点なら Unsplash が先（写真がきれい）。
-  let ranked = selectImageCandidates(photos, rankContext);
+  const englishRanked = selectImageCandidates(english, rankContext);
+  let ranked: RankedImage[] = learning
+    ? mergeLanes({
+        learning: learningHits,
+        english: englishRanked,
+        forms,
+        context: sense.context,
+        dropLearning: (c) => hasOffSenseSignals(c.text, rankContext),
+      })
+    : dedupeImages(englishRanked);
 
   /**
-   * **説明で言い切れない時だけ、絵を見て確かめる**（`image-sense.ts`）。先頭が確かな写真なら
-   * AI を呼ばない。確かめられなければ（同意・枠・時間切れ・失敗）説明の順のまま。
+   * **絵を見て確かめる**（`image-sense.ts`）。上位が全部学習言語の見出し語そのものなら呼ばない。
+   * 厳しい棚では英語の題が合っていても確かめ、**確かめられなかった英語の写真は出さない**
+   * （外れの写真より、語の札・Pro の「AI で絵を作る」のほうがいい）。
    */
-  if (word && senseDeps && shouldVerify(ranked, rankContext)) {
+  if (word && needsVerification(ranked, rankContext, strict)) {
+    const left = remaining();
     const top = ranked.slice(0, VERIFY_MAX_IMAGES);
-    const result = await senseDeps
-      .verify({
-        word,
-        sense,
-        images: top.map((c) => ({ url: c.url, thumb: verifyThumb(c.thumb || c.url) })),
-      })
-      .catch(() => null);
-    if (result) ranked = applyVerdict(ranked, result.checked, result.matched);
+    const result =
+      senseDeps && left >= VERIFY_MIN_MS
+        ? await senseDeps
+            .verify({
+              word,
+              sense,
+              images: top.map((c) => ({ url: c.url, thumb: verifyThumb(c.thumb || c.url) })),
+              timeoutMs: Math.min(VERIFY_TIMEOUT_MS, left - 200),
+            })
+            .catch(() => null)
+        : null;
+    if (result) {
+      ranked = applyVerdict(ranked, result.checked, result.matched, {
+        duplicates: result.duplicates,
+        ...(strict ? { keepUnchecked: (c: RankedImage) => !!c.exact } : {}),
+      });
+    } else if (strict) {
+      // 確かめられない（同意・枠・時間切れ）: 見出し語そのものと、説明で確かな物だけ。
+      ranked = ranked.filter((c) => c.exact || isConfidentMatch(c.text, rankContext));
+    }
   }
-  candidates.push(...ranked);
+  const candidates: TextCandidate[] = [];
+  // **AI を先に**（`IMAGE_SEARCH_MODE=ai-first`）。1枚作って先頭に置き、
+  // 後ろに写真の候補も並べる（AI が失敗しても写真で選べる）。
+  if (readImageConfig(process.env).mode === "ai-first") {
+    const ai = await optionalAiImage(sense.query, reserve);
+    if (ai) candidates.push(ai);
+  }
+  candidates.push(...ranked.map(({ exact: _exact, ...c }) => c));
+  const query = sense.query;
 
   // Always offer at least one AI fallback option so user has a choice when
   // photo search returns nothing or is unconfigured.
-  if (candidates.length === 0) {
+  // **写真は在ったが全部外れだった時は作らない**（オーナー報告 2026-10-09）。画面は語の札にし、
+  // Pro の人は「AI で絵を作る」を押して作る（勝手に作らない）。
+  if (candidates.length === 0 && learningHits.length + english.length === 0) {
     const ai = await optionalAiImage(query, reserve);
     if (ai) candidates.push(ai);
   }
@@ -566,7 +663,19 @@ async function generateWithLovable(
  *
  * 判断の本体は `generateProImageWith`（試験から差し替えて呼べるように分けてある）。
  */
-const ProImageInput = z.object({ sticker_id: z.string().uuid() });
+export const ProImageInput = z.union([
+  z.object({ sticker_id: z.string().uuid() }),
+  /**
+   * **まだ保存していない札**（文字で調べた語の剥がす札。オーナー指示 2026-10-09「写真が
+   * 残らなかった時、Pro の人には AI で絵を作るを出す」）。語は利用者が送る物だが、
+   * Pro の確かめ・同意・枠（`pro_image`）は札の時と同じに通る。
+   */
+  z.object({
+    headword: z.string().trim().min(1).max(80),
+    meaning: z.string().max(200).nullish(),
+    image_query: z.string().max(120).nullish(),
+  }),
+]);
 
 export const PRO_ONLY_IMAGE_MESSAGE = "AI で絵を作るのは Pro 限定です";
 
@@ -589,6 +698,13 @@ export const generateProWordImage = createServerFn({ method: "POST" })
         return (row as { plan?: string } | null)?.plan === "pro";
       },
       readWord: async () => {
+        if (!("sticker_id" in data)) {
+          return {
+            headword: data.headword,
+            meaning: data.meaning ?? null,
+            imageQuery: cleanImageQuery(data.image_query) || null,
+          };
+        }
         // 自分の札だけ（他人の札の語で作らせない）。
         const { data: row } = await supabase
           .from("stickers")

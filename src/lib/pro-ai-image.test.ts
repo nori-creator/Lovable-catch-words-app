@@ -11,6 +11,7 @@ import { describe, expect, it, vi } from "vitest";
 vi.mock("@/integrations/supabase/auth-middleware", () => ({ requireSupabaseAuth: {} }));
 
 import {
+  ProImageInput,
   PRO_ONLY_IMAGE_MESSAGE,
   generateProImageWith,
   proImageQuery,
@@ -149,5 +150,37 @@ describe("枠と画面", () => {
     expect(detail).toMatch(/onGenerateAi: \(\) => void autoHero\.generateAi\(\)/);
     expect(detail).toMatch(/onSwap: \(c\) => void autoHero\.swap\(c\)/);
     expect(detail).toMatch(/<HeroImageChoices/);
+  });
+});
+
+describe("写真が残らなかった時の「AIで絵を作る」（オーナー指示 2026-10-09）", () => {
+  it("まだ保存していない札（剥がす札）は語で頼める。札の番号でも今までどおり", () => {
+    expect(ProImageInput.parse({ headword: "嘴邊肉", meaning: "豚の口の周りの肉" })).toMatchObject({
+      headword: "嘴邊肉",
+    });
+    expect(
+      ProImageInput.parse({ sticker_id: "00000000-0000-4000-8000-000000000000" }),
+    ).toHaveProperty("sticker_id");
+    expect(() => ProImageInput.parse({ headword: "" })).toThrow();
+  });
+
+  it("写真が1枚も無く見出しにも絵が無い時は、Pro の人にだけ目立つ形で出す（押した時だけ作る）", () => {
+    const read = (f: string) => fs.readFileSync(path.join(__dirname, f), "utf8");
+    const row = read("../components/HeroImageChoices.tsx");
+    expect(row).toMatch(
+      /noPhotoFound && candidates\.length === 0 && !hasHero && isPro && onGenerateAi/,
+    );
+    const capture = read("../components/screens/CaptureScreen.tsx");
+    expect(capture).toMatch(/isPro=\{isPro && webHero\.settled\}/);
+    expect(capture).toMatch(/webHero\.generateAi\(\)/);
+    expect(capture).toMatch(
+      /noPhotoFound=\{webHero\.settled && webHero\.candidates\.length === 0\}/,
+    );
+    const hook = read("../hooks/use-catch-images.ts");
+    expect(hook).toMatch(/generateProImageFn\(\{\s*data: \{\s*headword: key/);
+    expect(read("../components/StickerSheet.tsx")).toMatch(/noPhotoFound=\{heroFailed\}/);
+    expect(read("../components/screens/StickerDetailScreen.tsx")).toMatch(
+      /noPhotoFound: autoHero\.failed/,
+    );
   });
 });
