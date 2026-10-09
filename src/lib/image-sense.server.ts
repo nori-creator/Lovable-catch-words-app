@@ -12,6 +12,7 @@
 import { generateText } from "ai";
 import { imageQueryOf } from "./hero-image";
 import { fetchAllowedImage } from "./image-proxy";
+import { isWeakHeadword } from "./image-sources";
 import {
   RESOLVE_TIMEOUT_MS,
   SmallCache,
@@ -124,15 +125,20 @@ export function imageSenseDepsFor(userId: string): ImageSenseDeps {
       const key = senseKey(word);
       const hit = senseCache.get(key);
       if (hit) return hit.query ? hit : null;
-      const shared = await sharedWordSense(word);
+      // 1字の語（`桃`）は共有の行の英語だけでは足りない — 2字以上の言い方（`桃子` `水蜜桃`）で
+      // 学習言語の出所を引き直すので、AI に聞く（`image-sources.ts` の `isWeakHeadword`）。
+      const weak = isWeakHeadword(word.headword);
+      const shared = weak ? null : await sharedWordSense(word);
       if (shared) {
         senseCache.set(key, shared);
         return shared;
       }
-      if (!(await gate())) return null;
+      // AI を使えない時、1字の語も共有の行の英語だけは使う（覚えない — 次は AI に聞く）。
+      const fallback = () => (weak ? sharedWordSense(word) : Promise.resolve(null));
+      if (!(await gate())) return fallback();
       try {
         const model = await fastVisionModel();
-        if (!model) return null;
+        if (!model) return fallback();
         const { parseJsonFromAiText } = await import("./ai-provider.server");
         const res = await generateText({
           model,
@@ -146,7 +152,7 @@ export function imageSenseDepsFor(userId: string): ImageSenseDeps {
         return sense;
       } catch (e) {
         console.warn("image sense resolve failed", e instanceof Error ? e.message.slice(0, 80) : e);
-        return null;
+        return fallback();
       }
     },
 

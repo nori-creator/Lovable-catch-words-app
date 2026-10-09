@@ -77,6 +77,27 @@ export type ImageSearchProvider = {
 
 const HAN_OR_KANA = /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}]/u;
 
+const HAN_ONLY = /^\p{Script=Han}$/u;
+
+/** 漢字1字（`桃` `杯`）。 */
+function isSingleHan(s: string): boolean {
+  const chars = [...s.trim()];
+  return chars.length === 1 && HAN_ONLY.test(chars[0]);
+}
+
+/**
+ * **1字の見出し語**（オーナー報告 2026-10-09「桃の写真になぜか鳩の画像が出る」）。
+ *
+ * `桃` で引くと、学習言語の出所は `桃園市信鴿協會`（桃園の鳩の協会の貼り紙）や、`桃` という
+ * 名前の人の写真を返す。Openverse は漢字を1字ずつ引き、Commons の題・タグにも1字は
+ * 他の意味（地名・人の名前）でよく出てくる。1字の語は題・タグで「その語そのもの」と言えないので、
+ * どの写真も絵を見て確かめる（`images.functions.ts`）。意味を決める AI がくれた2字以上の
+ * 言い方（`桃子` `水蜜桃`）で引き直す。
+ */
+export function isWeakHeadword(headword: string): boolean {
+  return isSingleHan(headword);
+}
+
 /** 学習言語の語で探す意味がある（英語を学ぶ人の英語の見出しは、英語の出所で足りる）。 */
 export function wantsLearningLane(word: { headword: string; language?: string | null }): boolean {
   const lang = (word.language ?? "").toLowerCase();
@@ -118,6 +139,8 @@ export function learningForms(headword: string, variants?: ReadonlyArray<string>
  *   分類 `Category:嘴邊肉`・`台南 / 嘴邊肉`）。英字の語は語の切れ目で。
  * - `related`: 他の語の中に入っている（`臭豆腐` の `豆腐`）・意味を絞る語（`黑白切`）だけ出てくる
  * - `none`: 出てこない（Openverse は漢字を1字ずつ引くので `肉` だけ合った物も返る — それは捨てる）
+ *
+ * 1字の語（`桃`）は単独で出てきても `related` 止まり、長い語の中（`桃園`）なら `none`。
  */
 export function learningMatch(
   text: string | undefined,
@@ -133,14 +156,18 @@ export function learningMatch(
       if (new RegExp(`(^|[^a-z0-9])${escapeRe(f)}($|[^a-z0-9])`, "i").test(t)) return "exact";
       continue;
     }
+    // 1字の語（`桃`）は、題・タグに単独で出てきても「確か」と言わない（人の名前・地名の略・
+    // 1字ずつ切ったタグのことが多い）。長い語の中（`桃園`）に在る物は手がかりにもしない。
+    const single = isSingleHan(f);
     let from = 0;
     for (;;) {
       const i = t.indexOf(f, from);
       if (i < 0) break;
       const before = i > 0 ? t[i - 1] : "";
       const after = t.slice(i + f.length, i + f.length + 1);
-      if (!HAN_OR_KANA.test(before) && !HAN_OR_KANA.test(after)) return "exact";
-      related = true;
+      const bounded = !HAN_OR_KANA.test(before) && !HAN_OR_KANA.test(after);
+      if (bounded && !single) return "exact";
+      if (bounded || !single) related = true;
       from = i + 1;
     }
   }
