@@ -1,11 +1,5 @@
-import { ImageGenerationPanel } from "@/components/screens/SettingsScreen";
-
-const previewData = {
-  effective: { provider: "lovable" as const, model: "openai/gpt-image-1-mini" },
-  keys: { lovable: true, openrouter: false, google: false, openai: false, higgsfield: false },
-};
-
-/** Real settings panel with deterministic credentials status, no backend calls. */
-export function ImageSettingsScene() {
-  return <ImageGenerationPanel previewData={previewData} />;
-}
+/**
+ * 文字検索の AI 画像の設定は「AI の設定（開発者）」の1枚に入った（2026-10-09）。
+ * 古い見本の名前（`?scene=image-settings`）は、同じ1枚を開く。
+ */
+export { AdminAiSettingsScene as ImageSettingsScene } from "./admin-ai-settings";

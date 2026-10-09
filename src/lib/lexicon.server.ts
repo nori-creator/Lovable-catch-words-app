@@ -3,7 +3,7 @@ import { allowDismiss, allowEntryFix } from "./jev-tasks";
 import { entryJevOpinion } from "./jev-tasks.server";
 import { DEFAULT_TARGET_LANGUAGE } from "./target-lang";
 import { z } from "zod";
-import { generateStructured, getAi, getAiFor } from "./ai-provider.server";
+import { generateStructured, getAiFor } from "./ai-provider.server";
 import { taiwanUsageFrom, type TaiwanUsage } from "./taiwan-usage";
 
 /**
@@ -161,7 +161,7 @@ export async function runLexiconAudit(
   const rows = [...aiRows, ...verifiedRows];
   if (rows.length === 0) return { checked: 0, fixed: 0, flagged: 0 };
 
-  const ai = await getAiFor("audit");
+  const ai = await getAiFor("lexicon");
   const listing = rows
     .map(
       (r, i) =>
@@ -492,7 +492,7 @@ const SYNTH_SCENES = [
 export async function generateSyntheticCorpus(
   candidateWords: string[] = [],
 ): Promise<{ sentences: number; words: number; pairs: number; new_words: number }> {
-  const ai = getAi();
+  const ai = await getAiFor("lexicon");
   const dayIdx = Math.floor(Date.now() / 86400000);
   const scenes = [0, 1, 2].map((k) => SYNTH_SCENES[(dayIdx + k * 2) % SYNTH_SCENES.length]);
 
@@ -603,7 +603,7 @@ export async function triageEntryReports(
     })
     .join("\n");
 
-  const ai = await getAiFor("audit");
+  const ai = await getAiFor("lexicon");
   const audit = await generateStructured({
     model: ai.gateway(ai.modelRich),
     schema: AuditSchema,

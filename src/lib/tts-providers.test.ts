@@ -16,15 +16,8 @@ import {
 } from "./tts-providers";
 
 describe("発音の声の会社（開発者だけが選ぶ。オーナー指示 2026-09-23）", () => {
-  it("5社を並べる。仕様書を取れなかった VoAI と ATEN は未接続（推測で繋がない）", () => {
-    expect(TTS_PROVIDERS.map((p) => p.id)).toEqual([
-      "azure",
-      "gemini",
-      "elevenlabs",
-      "voai",
-      "aten",
-    ]);
-    expect(TTS_PROVIDERS.filter((p) => !p.implemented).map((p) => p.id)).toEqual(["voai", "aten"]);
+  it("繋いである3社だけを並べる（未接続の VoAI・ATEN は 2026-10-09 に外した）", () => {
+    expect(TTS_PROVIDERS.map((p) => p.id)).toEqual(["azure", "gemini", "elevenlabs"]);
   });
 
   it("外した会社（2026-10-03 オーナー決定）が保存済みの設定に残っていても選ばれない", () => {

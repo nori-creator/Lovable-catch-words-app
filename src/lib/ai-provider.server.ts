@@ -19,6 +19,7 @@ import {
   resolveGeminiModelId,
   withGeminiKeywords,
 } from "./gemini-latest.server";
+import { featureTier, parseFeatureValue, type AiFeature } from "./ai-features";
 
 /**
  * Single switch point for every AI call in the app.
@@ -31,19 +32,26 @@ import {
  * When AI_PROVIDER is unset we auto-detect from which key is present, keeping
  * the Lovable-hosted deployment working unchanged.
  *
- * Models can be overridden with AI_MODEL_FAST (vision/suggestions/distractors)
- * and AI_MODEL_RICH (card generation, journal correction).
+ * Every feature goes through `getAiFor(feature)` (feature list: `ai-features.ts`).
+ * Precedence, highest first — there is no hidden override:
+ *   1. per-feature admin setting `app_config.ai_models.features[feature]`
+ *      ("provider:model"; "auto"/empty falls through)
+ *   2. env AI_PROVIDER / AI_MODEL_FAST / AI_MODEL_RICH / AI_MODEL_RICH_PREMIUM
+ *   3. keyword defaults: scan → latest-flash-lite, everything else → latest-flash
+ *      (Pro section regeneration → latest-pro), resolved to the newest Gemini at runtime
  */
 
 const LOVABLE_BASE_URL = "https://ai.gateway.lovable.dev/v1";
 const GOOGLE_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/openai";
 
 const LOVABLE_DEFAULT_MODEL = "google/gemini-3-flash-preview";
+/** Lovable の口で動くと分かっているモデル（この口はモデルの一覧を出さない）。 */
+export const LOVABLE_MODELS = [LOVABLE_DEFAULT_MODEL, "google/gemini-2.5-flash"] as const;
 // 既定モデル。**OpenAI互換エンドポイントに実在するIDだけを書く**。
 // 2026-07-27の障害: `-latest` エイリアス(gemini-flash-latest 等)は
 // このエンドポイントでは解決されず 404 "Not Found" を返し、
 // カード生成とスピーキング添削が全滅した。最新版へ乗り換えたいときは
-// 設定の「使うAIを切り替える」から明示的に指定する(env でも可)。
+// 設定の「AI の設定（開発者）」から明示的に指定する(env でも可)。
 //
 // 2026-10-09「常に最新の Gemini を自動で使う」: 既定は**合言葉**
 // (`latest-flash-lite` / `latest-flash` / `latest-pro`)。`-latest` の別名とは違い、
@@ -93,49 +101,33 @@ export async function describeModel(ai: Pick<AiConfig, "name">, modelId: string)
 
 /**
  * 実行時のモデル切替(app_config.key='ai_models')。
- * 管理画面から provider / モデル名を書き換えられるので、ChatGPT・Claude・
- * DeepSeek・Kimi へ再デプロイなしで乗り換えられる。env はフォールバック。
+ *
+ * **機能ごとの割り当てだけ**を持つ(オーナー決定 2026-10-09)。値は `"auto"` か
+ * `"会社:モデル"`(形と機能の表は `ai-features.ts`)。鍵そのものは DB に置かない —
+ * 会社の名前から環境変数の鍵を引く(`findKey`)。
+ *
+ * 以前あった全体の上書き(`provider` / `base_url` / `api_key_env` / `fast` / `rich` /
+ * `rich_premium`)は**読まない**。画面の「詳しい設定」から書けたが、`provider` を入れると
+ * env の AI_MODEL_* が黙って無視される落とし穴になっていた。古い行に残っていても害は無い。
  */
 export type AiModelOverride = {
-  provider?: string;
-  base_url?: string;
-  /** APIキーは env 名で参照する(鍵そのものはDBに置かない)。 */
-  api_key_env?: string;
-  fast?: string;
-  rich?: string;
-  rich_premium?: string;
-  /**
-   * 機能ごとの上書き(βテスト〜ローンチで使い分けるための仕組み)。
-   * 例: スキャンは速い Gemini Flash、カード生成は Claude、
-   *     添削は GPT… のように機能単位で別のAIに振り分けられる。
-   * 各値は "provider:model"(例 "anthropic:claude-sonnet-4-5")または
-   * モデル名だけ(既定プロバイダを使う)。
-   */
   features?: Partial<Record<AiFeature, string>>;
 };
 
-/** モデルを割り当てられる機能の単位。 */
-export type AiFeature =
-  | "scan" // カメラのスキャン検出・候補提案(速さ最優先)
-  | "card" // 単語カードの生成・項目再生成
-  | "review" // スピーキング添削・ヒント
-  | "journal" // 日記の添削
-  | "audit"; // 自己改善の点検
-
-export const AI_FEATURES: { id: AiFeature; label: string }[] = [
-  { id: "scan", label: "スキャン(速さ優先)" },
-  { id: "card", label: "単語カード生成" },
-  { id: "review", label: "復習の添削・ヒント" },
-  { id: "journal", label: "日記の添削" },
-  { id: "audit", label: "自己改善の点検" },
-];
+export type { AiFeature } from "./ai-features";
+export { AI_FEATURES } from "./ai-features";
 
 let overrideCache: { at: number; value: AiModelOverride | null } = { at: 0, value: null };
+
+/** 保存した直後に、30秒待たずに新しい設定で動かす(管理の口から呼ぶ)。 */
+export function forgetAiModelOverride(): void {
+  overrideCache = { at: 0, value: null };
+}
 
 /** 30秒キャッシュ付きでモデル上書き設定を読む(呼び出しごとのDB往復を避ける)。 */
 export async function getAiModelOverride(): Promise<AiModelOverride | null> {
   const now = Date.now();
-  if (now - overrideCache.at < 30_000) return overrideCache.value;
+  if (overrideCache.at > 0 && now - overrideCache.at < 30_000) return overrideCache.value;
   try {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     // app_config は生成済みの型定義より新しいテーブル(マイグレーション
@@ -213,31 +205,6 @@ function providerHeaders(providerId: string, key: string): Record<string, string
 }
 
 /**
- * app_config の上書きがあればそれを使って AiConfig を組む。
- * 上書きが無い/キーが無いときは env ベースの getAi() に落ちる。
- */
-export async function getAiRuntime(): Promise<AiConfig> {
-  const ov = await getAiModelOverride();
-  if (!ov?.provider) return getAi();
-  const preset = PROVIDER_PRESETS[ov.provider];
-  const baseURL = ov.base_url ?? preset?.base_url;
-  const keyEnv = ov.api_key_env;
-  const key = keyEnv ? process.env[keyEnv] : findKey(ov.provider)?.value;
-  if (!baseURL || !key) return getAi(); // 設定が不完全なら安全に env 側へ
-  const isGoogle = ov.provider === "google";
-  const fast = ov.fast ?? (isGoogle ? GOOGLE_AUTO_FAST : GOOGLE_DEFAULT_FAST);
-  const rich = ov.rich ?? (isGoogle && !ov.fast ? GOOGLE_AUTO_RICH : fast);
-  return {
-    provider: "openai-compatible",
-    name: ov.provider,
-    gateway: gatewayFor(ov.provider, baseURL, key, providerHeaders(ov.provider, key)),
-    modelFast: fast,
-    modelRich: rich,
-    modelRichPremium: ov.rich_premium ?? (isGoogle && !ov.rich ? GOOGLE_AUTO_PREMIUM : rich),
-  };
-}
-
-/**
  * **速いモデル(Flash-Lite)はスキャンだけ**(オーナー決定 2026-10-09)。
  * スキャン(写真の物・文字の検出、単語の候補)は最新の Flash-Lite、解説・カード生成・
  * 添削・ヒント・日記・点検など**ほかの機能は全部**最新の Flash(丁寧な方)を使う。
@@ -245,47 +212,82 @@ export async function getAiRuntime(): Promise<AiConfig> {
  * 揃える(呼ぶ所を1つずつ直すと、新しく書いた所で漏れる)。
  */
 export function forFeature(ai: AiConfig, feature: AiFeature): AiConfig {
-  if (feature === "scan" || ai.modelFast === ai.modelRich) return ai;
+  if (featureTier(feature) === "flash-lite" || ai.modelFast === ai.modelRich) return ai;
   return { ...ai, modelFast: ai.modelRich };
 }
 
-/**
- * 機能ごとの AI を解決する。
- *
- * 優先順位: app_config.features[feature] → app_config の provider/model →
- * 環境変数(getAi)。"provider:model" 形式ならそのプロバイダへ丸ごと切り替える。
- * どこかが欠けていても必ず動く設定に落ちる — **設定ミスで機能を止めない**。
- */
-export async function getAiFor(feature: AiFeature): Promise<AiConfig> {
-  const base = forFeature(await getAiRuntime(), feature);
-  const ov = await getAiModelOverride();
-  const spec = ov?.features?.[feature];
-  if (!spec) return base;
-
-  const [maybeProvider, ...rest] = spec.split(":");
-  const model = rest.length > 0 ? rest.join(":") : spec;
-  const providerId = rest.length > 0 ? maybeProvider : null;
-
-  if (!providerId) {
-    // モデル名だけ: 現在のプロバイダのまま、モデルだけ差し替える。
-    return { ...base, modelFast: model, modelRich: model, modelRichPremium: model };
-  }
+/** 会社の名前から、その会社の AI を組む(鍵が無い・知らない会社は null)。 */
+export function providerConfig(providerId: string, model: string): AiConfig | null {
   const preset = PROVIDER_PRESETS[providerId];
   const key = findKey(providerId)?.value;
-  if (!preset || !key) {
-    console.warn(
-      `[ai] feature "${feature}" wants ${providerId} but no key — using the default provider`,
-    );
-    return base;
-  }
+  if (!preset || !key) return null;
+  const headers =
+    providerId === "lovable"
+      ? { "Lovable-API-Key": key, "X-Lovable-AIG-SDK": "vercel-ai-sdk" }
+      : providerHeaders(providerId, key);
   return {
     provider: "openai-compatible",
     name: providerId,
-    gateway: gatewayFor(providerId, preset.base_url, key, providerHeaders(providerId, key)),
+    gateway: gatewayFor(providerId, preset.base_url, key, headers),
     modelFast: model,
     modelRich: model,
     modelRichPremium: model,
   };
+}
+
+/**
+ * 機能ごとの AI を解決する。**アプリの AI は全部ここを通る**(機能の表は `ai-features.ts`)。
+ *
+ * ## 優先順位(上が勝つ。隠れた上書きは無い)
+ * 1. 開発者の設定 `app_config.ai_models.features[feature]`
+ *    - `"会社:モデル"` … その会社のそのモデル(鍵が無ければ 2 へ落ちる)
+ *    - `"auto"` / 空 / 未設定 … 2 へ
+ *    - 古い形の「モデル名だけ」… 2 の会社のまま、モデルだけ差し替え
+ * 2. 環境変数 `AI_PROVIDER` / `AI_MODEL_FAST` / `AI_MODEL_RICH` / `AI_MODEL_RICH_PREMIUM`
+ *    (`getAi`。どれも未設定なら 3)
+ * 3. 合言葉の既定: スキャンは `latest-flash-lite`、ほかは `latest-flash`、Pro の項目作り直しは
+ *    `latest-pro`(Google の最新の版へ実行時に置き換わる。`gemini-latest.server.ts`)
+ *
+ * どこかが欠けていても必ず動く設定に落ちる — **設定ミスで機能を止めない**。
+ * 呼ぶ所は `withModelFallback` で包み、モデルが無い(404)時は控えのモデルへ落とす。
+ */
+export async function getAiFor(feature: AiFeature): Promise<AiConfig> {
+  const ov = await getAiModelOverride();
+  const spec = parseFeatureValue(ov?.features?.[feature]);
+  if (spec?.provider) {
+    const cfg = providerConfig(spec.provider, spec.model);
+    if (cfg) return cfg;
+    console.warn(
+      `[ai] feature "${feature}" wants ${spec.provider} but no key — using the default provider`,
+    );
+  }
+  const base = forFeature(getAi(), feature);
+  if (spec && !spec.provider) {
+    // 古い形(モデル名だけ): 既定の会社のまま、モデルだけ差し替える。
+    return { ...base, modelFast: spec.model, modelRich: spec.model, modelRichPremium: spec.model };
+  }
+  return base;
+}
+
+/**
+ * 管理画面の確認用: その機能が**いま実際に使う**会社とモデル。
+ * 合言葉は Google の最新の版へ解いて返す(`resolved`)。鍵の値は含めない。
+ */
+export async function describeFeature(
+  feature: AiFeature,
+): Promise<{ provider: string; model: string; resolved: string } | { error: string }> {
+  try {
+    const ai = await getAiFor(feature);
+    const provider = ai.name ?? ai.provider;
+    const model = ai.modelFast;
+    let resolved = model;
+    if (provider === "google" && geminiKeywordTier(model)) {
+      resolved = await resolveGeminiModelId(model, { apiKey: findKey("google")?.value });
+    }
+    return { provider, model, resolved };
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : String(e) };
+  }
 }
 
 /**
@@ -359,9 +361,8 @@ const VISION_FAST_BACKUP: Record<string, string> = {
  *
  * 1番手は今までと同じ `getAiFor(feature)` の速いモデル（設定の開発者欄で選んだ物）。
  * 2番手は、**すでに設定・鍵のある物**から、1番手と違う最初の1つ:
- * 1. app_config の全体の設定（`getAiRuntime`）の速いモデル
- * 2. 環境変数の設定（`getAi`）の速いモデル
- * 3. 鍵のある会社の、写真を読める速い控え（`VISION_FAST_BACKUP`。別の会社を先に）
+ * 1. 環境変数の設定（`getAi`。未設定なら合言葉の既定）の速いモデル
+ * 2. 鍵のある会社の、写真を読める速い控え（`VISION_FAST_BACKUP`。別の会社を先に）
  * どれも1番手と同じなら、2番手は無し（1回だけ試す）。設定が欠けていても投げない。
  */
 export async function getAiAttemptChain(feature: AiFeature): Promise<AiTarget[]> {
@@ -383,21 +384,14 @@ export async function getAiAttemptChain(feature: AiFeature): Promise<AiTarget[]>
       // 鍵の無い設定は2番手にしない（1番手はもう決まっている）。
     }
   };
-  await tryConfig(getAiRuntime);
   await tryConfig(getAi);
   const backups = Object.keys(VISION_FAST_BACKUP).sort(
     (a, b) => Number(a === primaryName) - Number(b === primaryName),
   );
   for (const id of backups) {
     if (chain.length >= 2) break;
-    const key = findKey(id)?.value;
-    const preset = PROVIDER_PRESETS[id];
-    if (!key || !preset) continue;
-    const headers =
-      id === "lovable"
-        ? { "Lovable-API-Key": key, "X-Lovable-AIG-SDK": "vercel-ai-sdk" }
-        : providerHeaders(id, key);
-    add(id, gatewayFor(id, preset.base_url, key, headers), VISION_FAST_BACKUP[id]);
+    const cfg = providerConfig(id, VISION_FAST_BACKUP[id]);
+    if (cfg) add(id, cfg.gateway, VISION_FAST_BACKUP[id]);
   }
   return chain;
 }
