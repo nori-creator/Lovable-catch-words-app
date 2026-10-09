@@ -9,6 +9,7 @@ import {
   pickOpenRouterImage,
   readImageConfig,
   resolveImageConfig,
+  type ImageConfig,
 } from "./image-provider";
 import { MAX_PROXY_IMAGE_BYTES, readCappedBytes } from "./byte-cap";
 import { isAiCapError } from "./ai-cap";
@@ -413,8 +414,9 @@ async function readImageOverride(): Promise<{ provider?: string; model?: string 
 async function generateOneAiImage(
   query: string,
   reserve: () => Promise<void>,
+  given?: ImageConfig,
 ): Promise<ImageCandidate | null> {
-  const config = resolveImageConfig(process.env, await readImageOverride());
+  const config = given ?? resolveImageConfig(process.env, await readImageOverride());
   if (config.provider === "off") return null;
   await reserve();
   if (config.provider === "openrouter") return generateWithOpenRouter(query, config.model);
@@ -528,22 +530,23 @@ async function generateWithHiggsfield(
  * api を lovable で設定したから実際に検査して」）。
  *
  * 設定の開発者欄（Web・iOS）の「試しに1枚作る」から呼ぶ。**本当に1枚作る**（残高を使う）。
- * 使う会社・モデルは**本番と同じ**（開発者の設定 `app_config.image_generation` → 環境変数）。
+ * 使う会社・モデルは、`provider`（と `model`）を送ればその**まだ保存していない選び方**
+ * （保存と同じ確かめ。鍵の無い会社は 400）、送らなければ**本番と同じ**
+ * （開発者の設定 `app_config.image_generation` → 環境変数）。どちらも保存はしない。
  * 返すのは: どこで作ったか・鍵を見つけた名前（値は返さない）・結果・かかった時間。
  * 形は `docs/admin-ai-api.md`。
  */
 export const adminTestImage = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
-    z.object({ query: z.string().min(1).max(60).default("柚子") }).parse(input ?? {}),
+  .inputValidator(
+    (input: unknown) => (input ?? {}) as { query?: string; provider?: string; model?: string },
   )
-  .handler(async ({ context, data }) => {
-    const { data: isAdmin } = await context.supabase.rpc("has_role", {
-      _user_id: context.userId,
-      _role: "admin",
-    });
-    if (!isAdmin) throw new Error((await import("./admin-ai.server")).ADMIN_ONLY_MESSAGE);
-    const config = resolveImageConfig(process.env, await readImageOverride());
+  .handler(async ({ context, data: input }) => {
+    const mod = await import("./admin-ai.server");
+    await mod.loadAdminAiServerModules();
+    // 管理者か・形・鍵の有無を確かめる（管理者でなければ Forbidden → 403）。
+    const data = await mod.resolveAdminImageTest(mod.realAdminAiDeps(context), input);
+    const config = resolveImageConfig(process.env, data.draft ?? (await readImageOverride()));
     const { higgsfieldCredentialSource } = await import("./higgsfield.server");
     const credentialName = config.provider === "higgsfield" ? higgsfieldCredentialSource() : null;
     const started = Date.now();
@@ -560,7 +563,7 @@ export const adminTestImage = createServerFn({ method: "POST" })
       };
     }
     // 開発者の確かめ（管理者だけ）は利用者の枠に数えない。
-    const one = await generateOneAiImage(data.query, async () => {});
+    const one = await generateOneAiImage(data.query, async () => {}, config);
     return {
       provider: config.provider,
       model: config.model,

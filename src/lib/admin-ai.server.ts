@@ -82,6 +82,15 @@ export type AdminAiDeps = {
   afterWrite?: (key: AppConfigKey) => void;
 };
 
+/**
+ * **送った値が使えない**（知らない機能・会社、形の違う「会社:モデル」、鍵の無い会社、
+ * 写真を読めないモデルのスキャン、使えない声 等）。`native-fn.ts` が 400 にする
+ * （直せるのは送る側なので 500 にしない）。
+ */
+export class BadRequestError extends Error {
+  override name = "BadRequestError";
+}
+
 async function assertAdmin(deps: AdminAiDeps) {
   if (!(await deps.isAdmin())) throw new Error(ADMIN_ONLY_MESSAGE);
 }
@@ -315,19 +324,26 @@ export async function setAdminAiFeature(
 ): Promise<{ ok: true; feature: AiFeature; value: string }> {
   await assertAdmin(deps);
   const data = SetAiFeatureInput.parse(input);
-  if (!isAiFeature(data.feature)) throw new Error(`知らない機能です: ${data.feature}`);
+  if (!isAiFeature(data.feature)) throw new BadRequestError(`知らない機能です: ${data.feature}`);
   const feature = data.feature;
-  const value = normalizeFeatureValue(data.value);
+  let value: string;
+  try {
+    value = normalizeFeatureValue(data.value);
+  } catch (e) {
+    throw new BadRequestError(e instanceof Error ? e.message : String(e));
+  }
   if (value !== AUTO) {
     const spec = parseFeatureValue(value)!;
     const providers = await deps.aiProviders();
     const p = providers.find((x) => x.id === spec.provider);
-    if (!p) throw new Error(`知らない会社です: ${spec.provider}`);
+    if (!p) throw new BadRequestError(`知らない会社です: ${spec.provider}`);
     if (!p.hasKey)
-      throw new Error(`${p.name} の鍵がサーバにありません。先に Secrets に鍵を入れてください。`);
+      throw new BadRequestError(
+        `${p.name} の鍵がサーバにありません。先に Secrets に鍵を入れてください。`,
+      );
     const info = AI_FEATURES.find((f) => f.id === feature)!;
     if (info.needsVision && !canReadImages(spec.provider, spec.model))
-      throw new Error(`${spec.model} は写真を読めないため、スキャンには使えません。`);
+      throw new BadRequestError(`${spec.model} は写真を読めないため、スキャンには使えません。`);
   }
   // 機能ごとの割り当て**だけ**を残す（古い全体の上書きはここで消える）。
   const features = featureValues(await deps.readConfig("ai_models"));
@@ -355,14 +371,60 @@ export async function setAdminImageConfig(
   input: unknown,
 ): Promise<{ ok: true; provider: ImageProviderId; model: string }> {
   await assertAdmin(deps);
-  const data = SetImageConfigInput.parse(input);
+  const { provider, model } = checkImageChoice(deps, SetImageConfigInput.parse(input));
+  await deps.writeConfig("image_generation", { provider, model });
+  deps.afterWrite?.("image_generation");
+  return { ok: true, provider, model };
+}
+
+/** 画像の会社・モデルを確かめ、保存する形（モデルが空なら会社の既定）にする。 */
+function checkImageChoice(
+  deps: AdminAiDeps,
+  data: { provider: ImageProviderId; model: string },
+): { provider: ImageProviderId; model: string } {
   const info = IMAGE_PROVIDERS.find((p) => p.id === data.provider)!;
   if (data.provider !== "off" && !deps.imageKeys()[data.provider])
-    throw new Error(`${info.name} の鍵がサーバにありません。先に Secrets に鍵を入れてください。`);
-  const model = data.provider === "off" ? "" : data.model || info.defaultModel;
-  await deps.writeConfig("image_generation", { provider: data.provider, model });
-  deps.afterWrite?.("image_generation");
-  return { ok: true, provider: data.provider, model };
+    throw new BadRequestError(
+      `${info.name} の鍵がサーバにありません。先に Secrets に鍵を入れてください。`,
+    );
+  return {
+    provider: data.provider,
+    model: data.provider === "off" ? "" : data.model || info.defaultModel,
+  };
+}
+
+/** 「試しに1枚作る」が受け取る物。`provider` を付けると、保存せずにその選び方で試す。 */
+export const TestImageInput = z.object({
+  query: z.string().min(1).max(60).default("柚子"),
+  provider: SetImageConfigInput.shape.provider.optional(),
+  model: z
+    .string()
+    .trim()
+    .max(120)
+    .regex(/^[a-zA-Z0-9._/:-]*$/)
+    .optional(),
+});
+
+/**
+ * 「試しに1枚作る」で使う選び方を決める（管理者だけ）。`provider` が無ければ `draft: null`
+ * — 保存してある設定で試す（これまでの呼び方。iOS は `{ query? }` だけを送る）。
+ * `provider` があれば、保存と同じ確かめ（鍵があるか等）をして**保存せずに**返す。
+ */
+export async function resolveAdminImageTest(
+  deps: AdminAiDeps,
+  input: unknown,
+): Promise<{ query: string; draft: { provider: ImageProviderId; model: string } | null }> {
+  await assertAdmin(deps);
+  const data = TestImageInput.parse(input ?? {});
+  if (!data.provider) {
+    if (data.model)
+      throw new BadRequestError("model だけでは試せません。provider も送ってください。");
+    return { query: data.query, draft: null };
+  }
+  return {
+    query: data.query,
+    draft: checkImageChoice(deps, { provider: data.provider, model: data.model ?? "" }),
+  };
 }
 
 // ---- 書き込み: 発音の声 ------------------------------------------------------
@@ -388,7 +450,7 @@ export async function setAdminTtsVoice(
   const lang = data.language;
   if (data.provider !== "default" && !deps.ttsHasKey(data.provider)) {
     const p = TTS_PROVIDERS.find((x) => x.id === data.provider);
-    throw new Error(
+    throw new BadRequestError(
       `${p?.label ?? data.provider} の鍵がサーバにありません（${p?.keyEnvs.join(", ") ?? ""}）。`,
     );
   }
@@ -406,11 +468,13 @@ export async function setAdminTtsVoice(
         data.gender ??
         (data.provider === "azure" && TAIWAN_AZURE_VOICES.male.includes(voice) ? "male" : "female");
       if (data.provider === "azure" && voice && !TAIWAN_AZURE_VOICES[gender].includes(voice))
-        throw new Error(
+        throw new BadRequestError(
           `${voice} は台湾（zh-TW）の${gender === "male" ? "男性" : "女性"}の声ではありません。`,
         );
       if (data.provider === "gemini" && !voice)
-        throw new Error("Gemini の声を選んでください（「診断」で台湾の声の一覧が出ます）。");
+        throw new BadRequestError(
+          "Gemini の声を選んでください（「診断」で台湾の声の一覧が出ます）。",
+        );
       taiwan = {
         provider: data.provider,
         gender,
@@ -418,7 +482,7 @@ export async function setAdminTtsVoice(
         ...(voice ? { voices: { [gender]: voice } } : {}),
       };
     } else {
-      if (!voice) throw new Error("声の ID を入れてください。");
+      if (!voice) throw new BadRequestError("声の ID を入れてください。");
       languages[lang] = {
         provider: data.provider,
         voice,
@@ -432,7 +496,7 @@ export async function setAdminTtsVoice(
   });
   const row = ttsLanguageRows(next)[lang];
   if (data.provider !== "default" && row.provider === "default")
-    throw new Error("この声の ID・モデル名は使えません（英数字と _ . - : ( ) だけ）。");
+    throw new BadRequestError("この声の ID・モデル名は使えません（英数字と _ . - : ( ) だけ）。");
   await deps.writeConfig("tts_voice", next);
   deps.afterWrite?.("tts_voice");
   return { ok: true, language: lang, row };

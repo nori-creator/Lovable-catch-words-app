@@ -95,8 +95,21 @@ function gatewayFor(
  */
 export async function describeModel(ai: Pick<AiConfig, "name">, modelId: string): Promise<string> {
   if (ai.name !== "google" || !geminiKeywordTier(modelId)) return modelId;
-  const key = findKey("google")?.value;
-  return `${modelId} → ${await resolveGeminiModelId(modelId, { apiKey: key })}`;
+  return `${modelId} → ${await concreteModelId(ai, modelId)}`;
+}
+
+/**
+ * **記録（DB・`ai_runs`）に残すモデル名**。合言葉（`latest-flash` など）なら、いま実際に
+ * 呼ぶ版付きの ID（例 `gemini-3.8-flash`）へ解く。それ以外の ID はそのまま。
+ * 合言葉のまま残すと、後から「どの版で作ったか」が分からない（版は日々変わる）。
+ * 一覧は呼び出しと同じ覚え（`gemini-latest.server.ts`）を使うので、余計な往復は増えない。
+ */
+export async function concreteModelId(
+  ai: Pick<AiConfig, "name">,
+  modelId: string,
+): Promise<string> {
+  if (ai.name !== "google" || !geminiKeywordTier(modelId)) return modelId;
+  return resolveGeminiModelId(modelId, { apiKey: findKey("google")?.value });
 }
 
 /**
@@ -369,17 +382,21 @@ export async function getAiAttemptChain(feature: AiFeature): Promise<AiTarget[]>
   const primary = await getAiFor(feature);
   const primaryName = primary.name ?? primary.provider;
   const chain: AiTarget[] = [];
-  const add = (name: string, gateway: AiConfig["gateway"], model: string | undefined) => {
+  // 重ねないかは設定に書いた名前で見る（前と同じ）。記録の名前は版付きの ID（`concreteModelId`）。
+  const seen: string[] = [];
+  const add = async (name: string, gateway: AiConfig["gateway"], model: string | undefined) => {
     if (!model || chain.length >= 2) return;
-    const label = `${name}:${model}`;
-    if (chain.some((t) => t.label === label)) return;
+    const key = `${name}:${model}`;
+    if (seen.includes(key)) return;
+    seen.push(key);
+    const label = `${name}:${await concreteModelId({ name }, model)}`;
     chain.push({ label, model: gateway(model) });
   };
-  add(primaryName, primary.gateway, primary.modelFast); // getAiFor が機能の段に揃え済み
+  await add(primaryName, primary.gateway, primary.modelFast); // getAiFor が機能の段に揃え済み
   const tryConfig = async (make: () => AiConfig | Promise<AiConfig>) => {
     try {
       const ai = forFeature(await make(), feature);
-      add(ai.name ?? ai.provider, ai.gateway, ai.modelFast);
+      await add(ai.name ?? ai.provider, ai.gateway, ai.modelFast);
     } catch {
       // 鍵の無い設定は2番手にしない（1番手はもう決まっている）。
     }
@@ -391,7 +408,7 @@ export async function getAiAttemptChain(feature: AiFeature): Promise<AiTarget[]>
   for (const id of backups) {
     if (chain.length >= 2) break;
     const cfg = providerConfig(id, VISION_FAST_BACKUP[id]);
-    if (cfg) add(id, cfg.gateway, VISION_FAST_BACKUP[id]);
+    if (cfg) await add(id, cfg.gateway, VISION_FAST_BACKUP[id]);
   }
   return chain;
 }
