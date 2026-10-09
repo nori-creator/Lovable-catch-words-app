@@ -50,7 +50,7 @@ const LOVABLE_DEFAULT_MODEL = "google/gemini-3-flash-preview";
 // Google 公式のモデル一覧から**実在する版付きの ID** を実行時に選んで渡す
 // (`gemini-latest.server.ts`)。一覧が読めなければ下の固定の安定版に落ちる。
 /** 固定の安定版(どの会社の設定でも最後の退避先に使う)。 */
-const GOOGLE_DEFAULT_FAST = "gemini-2.5-flash";
+const GOOGLE_DEFAULT_FAST = "gemini-3.1-flash-lite";
 const GOOGLE_AUTO_FAST = "latest-flash-lite";
 const GOOGLE_AUTO_RICH = "latest-flash";
 /** 課金ユーザー向け: いちばん新しい Gemini Pro。 */

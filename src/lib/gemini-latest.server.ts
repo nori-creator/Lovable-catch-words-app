@@ -162,11 +162,15 @@ export const GEMINI_KEYWORDS: Record<string, GeminiTier> = {
   auto: "flash",
 };
 
-/** 一覧が読めないときの固定の安定版(OpenAI 互換の口に実在する ID)。 */
+/**
+ * 一覧が読めないときの固定の安定版(OpenAI 互換の口に実在する ID)。
+ * 本番で実際に動いていた gemini-3.1-flash-lite に揃える: 2.5 系は 2026-09-18 から
+ * 「過去に使ったことのある利用者だけ」に絞られたので、このプロジェクトでは 404 になりうる。
+ */
 export const GEMINI_STATIC_FALLBACK: Record<GeminiTier, string> = {
-  flash: "gemini-2.5-flash",
-  "flash-lite": "gemini-2.5-flash",
-  pro: "gemini-2.5-pro",
+  flash: "gemini-3.1-flash-lite",
+  "flash-lite": "gemini-3.1-flash-lite",
+  pro: "gemini-3.1-flash-lite",
 };
 
 /** 合言葉ならその段、そうでなければ null。 */
