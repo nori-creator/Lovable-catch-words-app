@@ -4606,7 +4606,9 @@ html[data-motion="reduce"] .chunk-set .chunk-pill:active {
 }
 .album-open {
   transform-origin: 50% 0%;
-  animation: album-stamp 420ms cubic-bezier(0.22, 0.9, 0.3, 1) both;
+  /* 終わった後に形を残さない（`backwards`）。`both` だと最後の `translate`/`scale` が残り、
+     誌面が中の `position: fixed`（並べ替えの「完了」など）の基準になっていた。 */
+  animation: album-stamp 420ms cubic-bezier(0.22, 0.9, 0.3, 1) backwards;
 }
 html[data-motion="reduce"] {
   .album-open {
@@ -6333,6 +6335,22 @@ html[data-motion="reduce"] .tabbar__lens--gone {
    ようにする（2026-09-17 に画面全体の紙でやったのと同じ考え方）。 */
 .collage {
   margin-block: 0 1.25rem;
+}
+/* **誌面の上では、長押しで字を選ばせない**（オーナー報告 2026-10-09「ホーム画面で文字を
+   長押しすると青く文字のコピーになって文字を移動しにくい」）。札は長押しで掴む物なので、
+   ブラウザの字の選択（青い範囲）・コピーの吹き出し（iOS の callout）・画像の保存の
+   メニューを出さない。メニューは `DayCollage` の `onContextMenu` でも止める。
+   字を打つ欄（一言の編集・日記）は選べるまま。 */
+.collage-board,
+.collage-board * {
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+.collage-board :is(input, textarea, [contenteditable="true"]) {
+  -webkit-user-select: text;
+  user-select: text;
+  -webkit-touch-callout: default;
 }
 .collage-board {
   --foreground: var(--album-ink);
