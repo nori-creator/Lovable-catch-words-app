@@ -4888,7 +4888,9 @@ describe("ホームは今日の誌面", () => {
     // 入れ替わる写真・同じ言葉は1マス）。ウェルカムのログイン導線はまだ見てもらう途中なので後ろに残す。
     // 2026-10-08（2回目）: 文字検索の流れ（その場で回る → 候補 → 絵と発音のそろった札）。
     // 2026-10-09: 先頭は候補の違い（文体の札・場面・違い。「豚の口の周りの肉」）。
-    expect(list.slice(0, list.indexOf("},"))).toMatch(/scene: "text-candidates"/);
+    // 2026-10-09（2回目）: 先頭は設定の「規約と表記」（AI へ送る同意を1行にまとめた）。
+    expect(list.slice(0, list.indexOf("},"))).toMatch(/scene: "settings-legal"/);
+    expect(list).toContain(`scene: "text-candidates"`);
     expect(list).toContain(`scene: "text-candidates&case=densha"`);
     expect(list).toContain(`scene: "text-peel-no-photo"`);
     expect(list).toContain(`scene: "text-searching"`);

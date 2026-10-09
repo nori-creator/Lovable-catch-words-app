@@ -258,3 +258,40 @@ describe("移行（ai_consents）", () => {
     expect(sql).toMatch(/on delete cascade/);
   });
 });
+
+describe("設定の中の同意（2026-10-09 規約と表記の1行にまとめた）", () => {
+  const read = (p: string) => fs.readFileSync(path.join(__dirname, p), "utf8");
+  const settings = read("../components/screens/SettingsScreen.tsx");
+  const pro = read("../components/ProPlanCardView.tsx");
+
+  it("独立した束は出さず、規約と表記の束に1行だけ置く", () => {
+    expect(settings).not.toMatch(/<SafeSection name="ai-consent">/);
+    expect(settings).not.toContain("AiConsentSettingsCard");
+    const legal = settings.slice(settings.indexOf("export function LegalLinksCard"));
+    expect(legal).toMatch(/<AiConsentRow \/>/);
+    expect(legal).toMatch(/<LegalLinks /);
+    expect(settings).toMatch(/<LegalLinksCard \/>/);
+  });
+
+  it("取り消しの口は残す（確かめる一段・サーバへ agreed:false を記録・端末にも覚える）", () => {
+    const row = settings.slice(
+      settings.indexOf("export function AiConsentRow()"),
+      settings.indexOf("export function LegalLinksCard"),
+    );
+    expect(row).toMatch(/agreed: false/);
+    expect(row).toMatch(/writeLocalConsent\(`user:\$\{uid\}`, "declined"\)/);
+    expect(row).toMatch(/aiConsent\.withdrawConfirm/);
+    expect(row).toMatch(/aiConsent\.withdrawYes/);
+    expect(row).toMatch(/askAiConsent\("account"\)/);
+    expect(row).toMatch(/PRIVACY_AI_SECTION_URL/);
+    expect(row).toMatch(/aiConsent\.rowAgreed/);
+    expect(row).toMatch(/aiConsent\.rowNone/);
+  });
+
+  it("Pro を使っている間の札には法務のリンクを重ねない（買う前の札には残す）", () => {
+    const active = pro.slice(pro.indexOf("if (s.isPro)"), pro.indexOf("if (!s.configured)"));
+    expect(active).not.toMatch(/<LegalLinks /);
+    const buy = pro.slice(pro.indexOf('data-testid="pro-disclosure"'));
+    expect(buy).toMatch(/<LegalLinks /);
+  });
+});

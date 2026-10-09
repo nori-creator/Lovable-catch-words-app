@@ -33,6 +33,13 @@ import {
 } from "@/lib/tts.functions";
 import { TtsVoiceForm } from "@/components/TtsVoiceForm";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useEffect, useId, useLayoutEffect, useRef, useState, type ReactNode } from "react";
@@ -102,7 +109,7 @@ import { Capacitor } from "@capacitor/core";
 import { WallpaperPicker } from "@/components/WallpaperPicker";
 import { downscaleDataUrl } from "@/lib/image-resize";
 import { supabase } from "@/integrations/supabase/client";
-import { LogOut, Loader2, Plus, Trash2, User, X } from "lucide-react";
+import { ChevronRight, LogOut, Loader2, Plus, Trash2, User, X } from "lucide-react";
 import {
   Sound,
   getLevel,
@@ -1012,10 +1019,6 @@ export function SettingsPage() {
 
         <SafeSection name="pro">
           <ProPlanCard />
-        </SafeSection>
-
-        <SafeSection name="ai-consent">
-          <AiConsentSettingsCard />
         </SafeSection>
 
         <SafeSection name="legal">
@@ -2026,20 +2029,21 @@ function ProPlanCard() {
 }
 
 /**
- * **外部の AI へ送る同意を見る・取り消す**（iOS の 設定 > プライバシー と同じ。`ai-consent.ts`）。
- * 同意していなければ確認の画面を開ける。取り消すと、AI を使う機能はサーバで止まる。
+ * **外部の AI へ送る同意の行**（「規約と表記」の束の中の1行。2026-10-09 オーナー指示
+ * 「aiのデータの送信の同意をずっと設定に表示してるの不自然だから、規約にまとめ…」）。
+ *
+ * 前は独立した束で、同意の日付・説明・大きな「同意を取り消す」を常に出していた。
+ * **取り消しの口は残す**（同意と同じくらい簡単に取り消せること — GDPR 7条3項、個人情報
+ * 保護法の望ましい扱い、ストアの審査）が、目立たせる必要は無い。行には状態（同意済み・
+ * 未同意）だけ出し、押すと小さな画面で説明・日付・プライバシーポリシー（第4条・第5条）・
+ * 取り消し（確かめる一段つき）か同意を出す。サーバへの記録は前と同じ（`recordAiConsent`）。
  */
-export function AiConsentSettingsCard() {
+export function AiConsentRow() {
   const t = useT();
-  const lang = useUiLang();
   const qc = useQueryClient();
   const record = useServerFn(recordAiConsent);
   const { data: status, isLoading } = useAiConsentStatus();
-  const [confirming, setConfirming] = useState(false);
-  const [busy, setBusy] = useState(false);
-  const agreed = !!status?.agreed;
   const withdraw = async () => {
-    setBusy(true);
     try {
       await record({ data: { version: AI_CONSENT_VERSION, agreed: false } });
       const { data } = await supabase.auth.getSession();
@@ -2047,28 +2051,111 @@ export function AiConsentSettingsCard() {
       if (uid) writeLocalConsent(`user:${uid}`, "declined");
       await qc.invalidateQueries({ queryKey: ["ai-consent"] });
       toast.success(t("aiConsent.withdrawn"));
-      setConfirming(false);
+      return true;
     } catch {
       toast.error(t("aiConsent.saveFailed"));
+      return false;
+    }
+  };
+  return (
+    <AiConsentRowView
+      loading={isLoading}
+      agreed={!!status?.agreed}
+      agreedAt={status?.agreedAt ?? null}
+      onAgree={() => void askAiConsent("account")}
+      onWithdraw={withdraw}
+    />
+  );
+}
+
+/**
+ * 同意の行と、押すと開く小さな画面（通信はしない — 確認用ページでも同じ絵を描くため）。
+ * `onWithdraw` が true を返したら確かめる段を閉じる。
+ */
+export function AiConsentRowView({
+  loading,
+  agreed,
+  agreedAt,
+  onAgree,
+  onWithdraw,
+  defaultOpen = false,
+  defaultConfirming = false,
+}: {
+  loading: boolean;
+  agreed: boolean;
+  agreedAt: string | null;
+  onAgree: () => void;
+  onWithdraw: () => Promise<boolean>;
+  defaultOpen?: boolean;
+  defaultConfirming?: boolean;
+}) {
+  const t = useT();
+  const lang = useUiLang();
+  const [open, setOpen] = useState(defaultOpen);
+  const [confirming, setConfirming] = useState(defaultConfirming);
+  const [busy, setBusy] = useState(false);
+  const withdraw = async () => {
+    setBusy(true);
+    try {
+      if (await onWithdraw()) setConfirming(false);
     } finally {
       setBusy(false);
     }
   };
   return (
-    <SettingsCard title={t("aiConsent.settingsTitle")}>
-      <div className="space-y-3" data-testid="ai-consent-settings">
+    <Dialog
+      open={open}
+      onOpenChange={(v) => {
+        setOpen(v);
+        if (!v) setConfirming(false);
+      }}
+    >
+      <DialogTrigger asChild>
+        <button
+          type="button"
+          data-testid="ai-consent-row"
+          className="-mx-1 flex min-h-11 w-[calc(100%+0.5rem)] items-center gap-2 rounded-lg px-1 text-left text-body hover:bg-muted/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          <span className="min-w-0 flex-1 truncate">{t("aiConsent.settingsTitle")}</span>
+          <span className="shrink-0 text-footnote text-muted-foreground">
+            {loading ? "…" : agreed ? t("aiConsent.rowAgreed") : t("aiConsent.rowNone")}
+          </span>
+          <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
+        </button>
+      </DialogTrigger>
+      <DialogContent
+        data-testid="ai-consent-settings"
+        className="w-[calc(100%-2rem)] max-w-md gap-3 rounded-2xl p-5 sm:rounded-2xl"
+      >
+        <DialogTitle className="pr-6 text-headline font-semibold">
+          {t("aiConsent.settingsTitle")}
+        </DialogTitle>
+        <DialogDescription className="text-footnote">
+          {t("aiConsent.settingsHint")}
+        </DialogDescription>
         <p className="text-body">
-          {isLoading
+          {loading
             ? t("common.loading")
-            : agreed && status?.agreedAt
+            : agreed && agreedAt
               ? t("aiConsent.statusAgreed", {
-                  date: new Date(status.agreedAt).toLocaleDateString(localeOf(lang)),
+                  date: new Date(agreedAt).toLocaleDateString(localeOf(lang)),
                 })
               : t("aiConsent.statusNone")}
         </p>
-        <p className="text-caption text-muted-foreground">{t("aiConsent.settingsHint")}</p>
-        {!agreed && !isLoading && (
-          <Button className="w-full" onClick={() => void askAiConsent("account")}>
+        <a
+          href={PRIVACY_AI_SECTION_URL}
+          className="block text-footnote font-semibold text-primary underline underline-offset-2"
+        >
+          {t("aiConsent.detailsLink")}
+        </a>
+        {!agreed && !loading && (
+          <Button
+            className="w-full"
+            onClick={() => {
+              setOpen(false);
+              onAgree();
+            }}
+          >
             {t("aiConsent.review")}
           </Button>
         )}
@@ -2096,26 +2183,27 @@ export function AiConsentSettingsCard() {
             </div>
           </div>
         )}
-        <a
-          href={PRIVACY_AI_SECTION_URL}
-          className="block text-footnote font-semibold text-primary underline underline-offset-2"
-        >
-          {t("aiConsent.detailsLink")}
-        </a>
-      </div>
-    </SettingsCard>
+      </DialogContent>
+    </Dialog>
   );
 }
 
 /**
- * **規約・プライバシー・特商法の表記へのリンク**（ログインの画面と同じ3つ）。
- * アプリの中からも、いつでも条件を読み返せるようにする。
+ * **規約・プライバシー・特商法の表記・お問い合わせ**と、**AI へ送る同意の行**。
+ * アプリの中からも、いつでも条件を読み返し、同意を取り消せるようにする。
+ * 法務のリンクは設定ではここだけに置く（Pro を使っている時の札には重ねない。
+ * 買う前の札と最終確認には、特商法の考え方どおりボタンのそばに残す）。
  */
-export function LegalLinksCard() {
+export function LegalLinksCard({ consent }: { consent?: ReactNode }) {
   const t = useT();
   return (
     <SettingsCard title={t("legal.sectionTitle")}>
-      <LegalLinks className="text-footnote" />
+      <div className="space-y-2">
+        {consent ?? <AiConsentRow />}
+        <div className="border-t border-border pt-1">
+          <LegalLinks className="text-footnote" />
+        </div>
+      </div>
     </SettingsCard>
   );
 }

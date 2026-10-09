@@ -106,6 +106,7 @@ import {
   SettingsChoicesScene,
   SettingsDangerScene,
   SettingsNotifyScene,
+  SettingsLegalScene,
   SettingsSelectsScene,
   SettingsSourcesScene,
   SettingsTogglesScene,
@@ -196,6 +197,7 @@ const SCENES: Record<string, ((p: { q: URLSearchParams }) => ReactNode) | undefi
   "settings-toggles": SettingsTogglesScene,
   "settings-danger": SettingsDangerScene,
   "settings-notify": SettingsNotifyScene,
+  "settings-legal": SettingsLegalScene,
   "word-card": WordCardScene,
   "word-card-en": WordCardEnScene,
   "sticker-detail": StickerDetailScene,
@@ -403,6 +405,9 @@ const q = new URLSearchParams(location.search);
  * 「これを見てください」と差し出すことになる。
  */
 const REVIEW_SCENES: Array<{ scene: string; label: string }> = [
+  // 2026-10-09「aiのデータの送信の同意をずっと設定に表示してるの不自然だから、規約にまとめ」。
+  { scene: "settings-legal", label: "設定: 規約と表記に AI へ送る同意の1行（同意済み）" },
+  { scene: "settings-legal&open=1", label: "設定: AI へ送る同意の小さな画面（取り消せる）" },
   // 2026-10-09 候補の違いを同じ物差しで（文体の札・場面・違い）。「豚の口の周りの肉」→ 嘴邊肉 / 豬頰肉。
   { scene: "text-candidates", label: "文字検索の候補: 「豚の口の周りの肉」（文体・場面・違い）" },
   { scene: "text-candidates&case=densha", label: "文字検索の候補: 「電車」（文体・場面・違い）" },

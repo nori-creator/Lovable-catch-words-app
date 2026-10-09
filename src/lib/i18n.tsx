@@ -1877,6 +1877,9 @@ export const DICT: Record<string, Record<UiLang, string>> = {
     en: "Review and agree",
     "zh-TW": "確認內容並同意",
   },
+  // 「規約と表記」の行の右に出す状態（2026-10-09 独立した束をやめて1行にした）。
+  "aiConsent.rowAgreed": { ja: "同意済み", en: "Agreed", "zh-TW": "已同意" },
+  "aiConsent.rowNone": { ja: "未同意", en: "Not agreed", "zh-TW": "未同意" },
   "aiConsent.withdraw": { ja: "同意を取り消す", en: "Withdraw consent", "zh-TW": "撤回同意" },
   "aiConsent.withdrawConfirm": {
     ja: "取り消すと、カメラ・スキャン・単語カードの作成・日記の添削など、AI を使う機能が使えなくなります。取り消しますか？",

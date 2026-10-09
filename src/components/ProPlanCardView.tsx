@@ -14,7 +14,8 @@ export type ProPlanBusy = null | "monthly" | "yearly" | "manage";
  * 出す物（特定商取引法の「最終確認」の考え方に合わせて、ボタンの**すぐそば**に置く）:
  * - Stripe から読んだ値段と通貨、年ごとの月あたりと割引
  * - 自動更新・解約の方法・返金の扱い・無料体験（設定があるときだけ）
- * - 利用規約・特商法の表記・プライバシーポリシーへのリンク
+ * - 利用規約・特商法の表記・プライバシーポリシーへのリンク（買う前だけ。Pro を使っている間は
+ *   設定の「規約と表記」にだけ置く）
  *
  * 値段が読めない、または運営者の表記（特商法）がそろっていないときは買えない。
  * 開発者には、足りない設定の名前を出す。
@@ -59,7 +60,8 @@ export function ProPlanCardView({
             <p className="text-caption text-muted-foreground">{t("pro.manageHint")}</p>
           </>
         )}
-        <LegalLinks className="text-caption text-muted-foreground" />
+        {/* 法務のリンクは重ねない — 使っている間の札は買う画面ではないので、設定の
+            「規約と表記」だけに置く（2026-10-09）。買う前の札と最終確認には残す。 */}
         {s.isAdmin && <p className="text-caption text-muted-foreground">{t("pro.devOnly")}</p>}
       </div>
     );
