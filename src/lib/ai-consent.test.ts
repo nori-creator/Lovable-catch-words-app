@@ -202,6 +202,7 @@ describe("AI を呼ぶ関数は、どれも送る前に同意を確かめる", (
     "journal.functions.ts",
     "first-catch-ai.functions.ts",
     "images.functions.ts",
+    "category-backfill.functions.ts",
   ].map((f) => fs.readFileSync(path.join(__dirname, f), "utf8"));
   const bodyOf = (name: string) => {
     for (const src of files) {

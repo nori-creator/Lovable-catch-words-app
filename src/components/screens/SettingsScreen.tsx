@@ -1413,7 +1413,9 @@ export function CatchAnimationRow({ initial }: { initial?: CatchAnimationChoice 
       {choice !== "short" && (
         <p className="mt-1.5 text-caption leading-snug text-muted-foreground">
           {t(
-            choice === "full" ? "settings.catchAnimationFullDesc" : "settings.catchAnimationOffDesc",
+            choice === "full"
+              ? "settings.catchAnimationFullDesc"
+              : "settings.catchAnimationOffDesc",
           )}
         </p>
       )}

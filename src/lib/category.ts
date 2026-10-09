@@ -71,6 +71,19 @@ export const CATEGORY_KEYS = [
 
 export type CategoryKey = (typeof CATEGORY_KEYS)[number];
 
+/**
+ * **AI に分類を選ばせる時の決まり**（カードの生成と、「その他」の語の分け直し
+ * `category-backfill.server.ts` で同じ文を使う）。"other" に逃げやすい語の行き先を
+ * 先に書く — 2026-10-09 の図鑑で、可頌・面膜・刷子・開關・手背・健康餐が other で保存されていた。
+ */
+export const CATEGORY_CHOICE_RULES_JA =
+  `**"other" は最終手段**。身体の部位（手の甲なども）→body、調理器具→kitchenware、日用品・洗剤・\n` +
+  `化粧品・顔の手入れ（パックなど）・薬→medicine、道具・掃除の道具（ブラシなど）→tool、` +
+  `書類・証明書→document、人・職業→person/job、\n` +
+  `横断歩道・道路・信号→street、店→shop、交通機関→transport、動物（子どもの動物も）→animal、\n` +
+  `キノコ→plant、パン（クロワッサンなど）・お菓子→dessert、料理・弁当・定食→food、` +
+  `家の設備（スイッチ・コンセント・ドア・窓）→home を必ず使う。`;
+
 /** 完全一致(1字語や、部分一致だと誤爆する語はここに置く)。 */
 const EXACT: Record<string, CategoryKey> = {
   // 体 — 1字語が多く、部分一致にすると「斑馬線」「手機」等を誤分類する

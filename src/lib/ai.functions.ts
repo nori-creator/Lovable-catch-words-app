@@ -13,7 +13,7 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { generateText } from "ai";
 import { z } from "zod";
 import { pickReportedItem, reportContext } from "@/lib/report-locate";
-import { CATEGORY_KEYS, ROOM_KEYS, normalizeCategory } from "./category";
+import { CATEGORY_CHOICE_RULES_JA, CATEGORY_KEYS, ROOM_KEYS, normalizeCategory } from "./category";
 import { orderByRegister } from "./candidate-order";
 import {
   ConjugationRowSchema,
@@ -717,10 +717,7 @@ ${cardProfile.capture.readingRule}
   検定の語彙表に無い語に級を付けると、公式の級と見分けが付かなくなる
   （オーナー指摘 2026-08-27 ⑭）。当てずっぽうで級を付けるより、級外のほうが正しい。
 - category_key: ${CATEGORY_KEYS.join("/")} のどれか。
-  **"other" は最終手段**。身体の部位→body、調理器具→kitchenware、日用品・洗剤・
-  化粧品・薬→medicine、道具→tool、書類・証明書→document、人・職業→person/job、
-  横断歩道・道路・信号→street、店→shop、交通機関→transport、動物（子どもの動物も）→animal、
-  キノコ→plant を必ず使う。
+  ${CATEGORY_CHOICE_RULES_JA.replace(/\n/g, "\n  ")}
 - new_shelf: **上の一覧のどれを選んでも「その語らしくない」ときだけ**、新しい棚を提案する。
   当てはまる棚が在るなら **null**(無理に作らない — 似た棚が乱立すると図鑑が壊れる)。
   形式: {key: 英小文字とアンダースコアのみ(例 "night_market_snack"), label: 棚の名前(${NL}・24字まで),
