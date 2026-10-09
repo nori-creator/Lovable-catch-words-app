@@ -216,11 +216,11 @@ export function useFixtureActions(
         image: { ...data.image, provider: provider as Ready["image"]["provider"], model },
       });
     },
-    testImage: async (): Promise<ImageTestResult> => {
+    testImage: async (draft): Promise<ImageTestResult> => {
       await wait();
       return {
-        provider: data.image.provider,
-        model: data.image.model,
+        provider: draft.provider,
+        model: draft.model,
         credentialName: null,
         ok: true,
         image:

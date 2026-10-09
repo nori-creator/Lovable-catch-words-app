@@ -158,6 +158,8 @@ export function statusForError(e: unknown): number {
   // 利用回数を数えられない（閉じる側に倒した）— 少し待てば通る。
   if (msg.includes("AI_USAGE_CHECK_FAILED")) return 503;
   if (name === "ZodError") return 400;
+  // 送った値が使えない（`admin-ai.server.ts` の BadRequestError。知らない会社・鍵の無い会社 等）。
+  if (name === "BadRequestError") return 400;
   return 500;
 }
 
