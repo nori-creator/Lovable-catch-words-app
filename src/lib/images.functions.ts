@@ -16,7 +16,9 @@ import { isAiCapError } from "./ai-cap";
 import { AI_CONSENT_CHECK_FAILED, isAiConsentError } from "./ai-consent";
 import { cleanImageQuery, heroSearchQuery, imageQueryOf } from "./hero-image";
 import {
+  hasNonSubjectSignals,
   hasOffSenseSignals,
+  hasPosterSignals,
   isConfidentMatch,
   selectImageCandidates,
   type RankContext,
@@ -36,6 +38,7 @@ import {
 } from "./image-sense";
 import {
   dedupeImages,
+  isWeakHeadword,
   learningForms,
   learningMatch,
   mergeLanes,
@@ -220,8 +223,14 @@ export async function searchImagesWith(
   const word = data.headword?.trim()
     ? { headword: data.headword.trim(), meaning: data.meaning ?? null, language: data.language }
     : null;
+  /**
+   * 1字の見出し語（`桃`）は題・タグで「その語そのもの」と言えない（オーナー報告 2026-10-09
+   * 「桃の写真になぜか鳩の画像が出る」— `桃園市信鴿協會` の貼り紙・`桃` という名前の人）。
+   * どの写真も絵を見て確かめ、確かめられない写真は出さない（`isWeakHeadword`）。
+   */
+  const weak = !!word && isWeakHeadword(word.headword);
   /** 食べ物・料理（と棚の分からない語）は英語の題を信じない（オーナー報告 2026-10-09）。 */
-  const strict = !!word && isStrictSense(data.category);
+  const strict = !!word && (isStrictSense(data.category) || weak);
   let sense: ImageSense = { query: data.query, avoid: cleanAvoidTerms(data.avoid ?? []) };
   const englishKnown = !needsSenseResolution(data.query);
   const learning = word && wantsLearningLane(word) ? word : null;
@@ -268,7 +277,8 @@ export async function searchImagesWith(
    */
   const learningA: Promise<LaneHit[]> = learning
     ? searchLane(
-        learningProviders,
+        // 1字の語は記事の先頭の絵だけ先に引く（Commons・Openverse を `桃` で引くと `桃園` ばかり）。
+        weak ? learningProviders.filter((p) => p.id === "wikipedia") : learningProviders,
         { terms: [learning.headword], language: learning.language, limit: FETCH_PER_SOURCE },
         io(remaining()),
       )
@@ -296,17 +306,24 @@ export async function searchImagesWith(
    */
   let learningHits = hitsA;
   const exactCount = hitsA.filter(isExact).length;
+  /** 1字の語は、意味を決める AI がくれた2字以上の言い方（`桃子` `水蜜桃`）で引く。 */
+  const longForms = weak ? forms.filter((f) => !isWeakHeadword(f)) : [];
   if (
     learning &&
-    exactCount < ENOUGH_EXACT &&
-    (sense.variants?.length || sense.context) &&
+    (weak || (exactCount < ENOUGH_EXACT && (sense.variants?.length || sense.context))) &&
     remaining() > SOURCE_TIMEOUT_MS + VERIFY_MIN_MS
   ) {
     const more = await searchLane(
-      learningProviders,
+      weak ? learningProviders.filter((p) => p.id !== "wikipedia") : learningProviders,
       {
-        terms: sense.variants?.length ? forms : [learning.headword],
-        context: sense.variants?.length ? null : sense.context,
+        terms: weak
+          ? longForms.length
+            ? longForms
+            : [learning.headword]
+          : sense.variants?.length
+            ? forms
+            : [learning.headword],
+        context: weak || sense.variants?.length ? null : sense.context,
         language: learning.language,
         limit: FETCH_PER_SOURCE,
       },
@@ -330,9 +347,28 @@ export async function searchImagesWith(
         english: englishRanked,
         forms,
         context: sense.context,
-        dropLearning: (c) => hasOffSenseSignals(c.text, rankContext),
+        // 違う物・貼り紙・人の写真の手がかりが在る学習言語の写真は捨てる。
+        dropLearning: (c) =>
+          hasOffSenseSignals(c.text, rankContext) || hasNonSubjectSignals(c.text, rankContext),
       })
     : dedupeImages(englishRanked);
+  if (weak) {
+    /**
+     * 1字の語: 題・タグの一致は「確か」と見なさない（全部、絵を見て確かめる）。説明で確かな写真
+     * （記事の先頭の絵・`水蜜桃` の題・`peach` の説明）を先に、学習言語の近い物を後ろへ —
+     * 確かめる上位（`VERIFY_MAX_IMAGES` 枚）に、当たりそうな写真が入るように。
+     */
+    const likely = (c: RankedImage) => !!c.exact || isConfidentMatch(c.text, rankContext);
+    // 人の写真の手がかりは学習言語の題・タグだけで見る（英語の `a woman running` は 跑 の正しい写真）。
+    const fromEnglish = new Set(englishRanked.map((c) => c.url));
+    ranked = [...ranked.filter(likely), ...ranked.filter((c) => !likely(c))]
+      .filter((c) =>
+        fromEnglish.has(c.url)
+          ? !hasPosterSignals(c.text, rankContext)
+          : !hasNonSubjectSignals(c.text, rankContext),
+      )
+      .map(({ exact: _exact, ...c }) => c);
+  }
 
   /**
    * **絵を見て確かめる**（`image-sense.ts`）。上位が全部学習言語の見出し語そのものなら呼ばない。

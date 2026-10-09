@@ -67,7 +67,7 @@ export function dexCategoryLabelKey(no: number): string {
 
 /**
  * アプリの分類の鍵 → 図鑑のカテゴリー（1〜20）。iOS `DexCatalog.keyToCategory` と同じ、
- * ただし **`other` は入れない**（2026-10-09 オーナー報告: 蘑菇・小豬が「洗面・日用品」に
+ * ただし color・shape は 9（iOS は 10）、そして **`other` は入れない**（2026-10-09 オーナー報告: 蘑菇・小豬が「洗面・日用品」に
  * 並んでいた。札の分類は「その他」なのに、図鑑は other を 10 に寄せていた）。
  * other・知らない鍵は、20 のどれにも入れず図鑑の最後の「その他」の節（`DEX_OTHER_KEY`）へ。
  */
@@ -87,11 +87,13 @@ export const DEX_KEY_TO_CATEGORY: Readonly<Record<string, number>> = {
   stationery: 9,
   book: 9,
   document: 9,
+  // 色・形の言葉（紅色・圓形）。iOS は 10（洗面・日用品）に置くが、日用品ではない —
+  // 「学ぶ物」の棚に寄せる（2026-10-09 オーナー指示「ios版の２０種類を徹底して」で見直し）。
+  color: 9,
+  shape: 9,
   tool: 10,
   medicine: 10,
   money: 10,
-  color: 10,
-  shape: 10,
   clothes: 11,
   clothing_part: 11,
   accessory: 12,

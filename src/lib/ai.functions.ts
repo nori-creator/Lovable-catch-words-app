@@ -308,17 +308,7 @@ ${langRule}
   ふだん使う呼び方と、上位の分類語は別物。
 
 **カテゴリ分類ルール（厳守）:**
-- 手・足・顔・目・耳・鼻・口・髪・指・肩・膝など人体部位 → "body"
-- マウス・キーボード・PC・スマホ・タブレット・ヘッドホンなど電子機器 → "tech"
-- 家具（椅子/机/ソファ） → "furniture"、家電（冷蔵庫/TV） → "appliance"
-- 服 → "clothes"、靴 → "shoes"、鞄 → "bag"
-- 果物 → "fruit"、野菜 → "vegetable"、飲み物 → "drink"、食べ物 → "food"、お菓子 → "dessert"
-- 動物（子どもの動物も: 子豚・ひよこ） → "animal"、花 → "flower"、植物・キノコ → "plant"
-- 車・バイク・電車・バスなど → "transport"
-- 看板・標識 → "sign"、お店 → "shop"、建物 → "building"
-- 文房具 → "stationery"、本 → "book"、お金 → "money"、薬 → "medicine"
-
-**"other" は本当にどのカテゴリにも当てはまらないときの最終手段。手やマウスを "other" にするのは間違い。**
+${CATEGORY_CHOICE_RULES_JA}
 
 ${distinctionRule(profile.promptName, profile.capture.distinctionExamples)}
 - **distinction は15文字以内**。meaning_ja も**短く**（言い換え1つ。説明文にしない）。
@@ -520,7 +510,14 @@ export const suggestWordCandidates = createServerFn({ method: "POST" })
         ? `「${data.query}」はすでに${candProfile.promptName}の語として打たれている。query_is_target は true。candidates にはその語1つだけ（読み・意味）を返す。`
         : data.queryLang === "native"
           ? `「${data.query}」は学習者の母語（または別の言語）で打たれている。query_is_target は false。`
-          : `「${data.query}」が**${candProfile.promptName}としてそのまま通じる語か**を先に判断し、query_is_target に true / false で書く（漢字だけの語は日本語とも${candProfile.promptName}とも読めるので、${candProfile.promptName}で実際にその意味でふつうに使う語なら true。日本語の字形・日本語にしか無い言い方なら false）。true なら candidates にはその語1つだけを返す。`;
+          : /**
+             * 漢字だけで決まらない語（「桃」「電車」「杯」）は**母語で打った語として引く**
+             * （オーナー指摘 2026-10-09「桃と日本語で検索したら、そのまま表示された。台湾華語では
+             * 水蜜桃とか、桃子っていう言い方もあるよね？」）。学習者は日本語を母語にするので、
+             * 漢字だけの語は日本語の語でもある。台湾での言い方が割れるなら全部並べる
+             * （打った字そのものが通じるなら、その語も候補の1つに入れる）。
+             */
+            `「${data.query}」は漢字だけなので、学習者の母語（日本語）の語として打たれたと考える。この語が指す物・意味を${candProfile.promptName}で**実際にどう言うか**を候補に並べる。打った字がそのまま${candProfile.promptName}でも通じるなら、その語も候補の1つに入れる（ただし会話でふつうに言う形が別にあれば、それも必ず並べる）。query_is_target は「${data.query}」が${candProfile.promptName}でもその意味でそのまま使え、しかも言い方が他に割れない（候補がその語1つだけ）時だけ true、それ以外は false。`;
     const prompt = `学習者が「${data.query}」と書いた。これが指す${candProfile.promptName}の語を挙げてください。
 
 ${queryLine}
@@ -538,6 +535,10 @@ ${langRule}
   (オーナー指摘 2026-08-20「単語の文字入力がエラーが出て、機能してない」)。
 - **一対一なら1つだけ。** 母語の語と${candProfile.promptName}の語がほぼ一対一に対応するなら、
   候補は1つだけ返す。**候補を水増ししない**（同じ物の言い換え・ほとんど使わない語・作った語を足さない）。
+- **1文字の語・単独では使いにくい字は、単独で言う形に直す。** 学習者が1文字（「桃」「杯」「桌」）を
+  打ったら、${candProfile.promptName}の会話で**単独で口にする形**（桃子・杯子・桌子）を必ず入れ、
+  よく使う具体的な形（桃なら 水蜜桃）も並べる。1文字のままの形（桃）を挙げるなら
+  「書き言葉・複合語（桃花・桃園）で使う」と違いを書く。
 - **本当に割れる時だけ複数。** 母語の1語が${candProfile.promptName}では別々の語に分かれる時
   （指す物が違う・会話の言い方と書き言葉/専門用語/表示の言い方）だけ、
   2〜5個を**よく使う順**に並べる。
@@ -624,14 +625,21 @@ ${langRule}
       }));
     await recordCandidateReceipts(candProfile.code, candidates);
     // 手元で分かった時はそれを返す（AI の判定より確か）。
+    /**
+     * 漢字だけで決まらない語は、候補が2つ以上に割れたら学習言語とは言わない
+     * （「桃」→ 桃子・水蜜桃・桃）。古い画面もこの値で「そのまま剥がす」を決めるので、
+     * ここで直すと古い画面も候補を出す。
+     */
     const query_is_target =
       data.queryLang === "target"
         ? true
         : data.queryLang === "native"
           ? false
-          : typeof raw.query_is_target === "boolean"
-            ? raw.query_is_target
-            : null;
+          : candidates.length > 1
+            ? false
+            : typeof raw.query_is_target === "boolean"
+              ? raw.query_is_target
+              : null;
     return { candidates, query_is_target };
   });
 
@@ -716,9 +724,10 @@ ${cardProfile.capture.readingRule}
   **公式の語彙表に載っていると確信できないときは "${cardProfile.levels.outStored}"（級外）と答える。**
   検定の語彙表に無い語に級を付けると、公式の級と見分けが付かなくなる
   （オーナー指摘 2026-08-27 ⑭）。当てずっぽうで級を付けるより、級外のほうが正しい。
-- category_key: ${CATEGORY_KEYS.join("/")} のどれか。
+- category_key: 下の図鑑の20のカテゴリーで決め、${CATEGORY_KEYS.join("/")} のどれかを答える。
   ${CATEGORY_CHOICE_RULES_JA.replace(/\n/g, "\n  ")}
 - new_shelf: **上の一覧のどれを選んでも「その語らしくない」ときだけ**、新しい棚を提案する。
+  図鑑の20のカテゴリーのどれかに入る物（果物・料理・動物・植物など）なら必ず **null**。
   当てはまる棚が在るなら **null**(無理に作らない — 似た棚が乱立すると図鑑が壊れる)。
   形式: {key: 英小文字とアンダースコアのみ(例 "night_market_snack"), label: 棚の名前(${NL}・24字まで),
   emoji: 絵文字1つ, room_key: ${ROOM_KEYS.join("/")} のどれか、または新しい部屋の英小文字の鍵,

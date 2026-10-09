@@ -168,9 +168,15 @@ export const MAX_TEXT_CANDIDATES = 5;
 /**
  * 語を引いた返事から、次に何をするかを決める。
  *
- * - 打った語が**学習言語**（手元の判定が `target`、または `ambiguous` で AI が「学習言語」と言った）
+ * - 打った語が**はっきり学習言語**（手元の判定が `target` — 台湾の字にしか無い形が在る）
  *   → 候補を並べず、**打った語そのもの**を剥がす札へ（読み・意味は同じ語の候補から借りる）。
- *   手元で `native` と分かった語（かな・新字体）は、AI が何と言っても母語として扱う。
+ * - 漢字だけで決まらない語（`ambiguous`）は**母語で打った語として**扱う
+ *   （オーナー指摘 2026-10-09「桃と日本語で検索したら、そのまま表示された。台湾華語では
+ *   水蜜桃とか、桃子っていう言い方もあるよね？…一対一の訳ではないよね？」）。日本語を母語に
+ *   する人が「桃」「電車」と打ったら、それは日本語の語でもある。AI が「台湾華語でも通じる」と
+ *   言っても、台湾での言い方が割れる（桃子・水蜜桃・桃）なら選ばせる。
+ *   候補が無い時だけ、AI が「学習言語」と言った打った語のまま剥がす（読みはカードが補う）。
+ * - 手元で `native` と分かった語（かな・新字体）は、AI が何と言っても母語として扱う。
  * - 母語で、使える候補が1つ → そのまま剥がす札へ（選ぶ物が1つの画面は出さない）。
  * - 2つ以上 → 選ばせる（最大 `MAX_TEXT_CANDIDATES`）。
  * - 0 → 見つからない（打った語のまま札を作らない — 見出しが母語のまま残る）。
@@ -184,9 +190,10 @@ export function decideTextSearch(input: {
 }): TextSearchDecision {
   const query = input.query.trim();
   const usable = dedupeCandidates(input.candidates, input.targetLanguage);
-  const isTarget =
-    input.local === "target" || (input.local === "ambiguous" && input.queryIsTarget === true);
-  if (isTarget && isTargetHeadword(query, input.targetLanguage)) {
+  const asTyped =
+    input.local === "target" ||
+    (input.local === "ambiguous" && input.queryIsTarget === true && usable.length === 0);
+  if (asTyped && isTargetHeadword(query, input.targetLanguage)) {
     const same = usable.find((c) => c.headword === query);
     return {
       kind: "peel",

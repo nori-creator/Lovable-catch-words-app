@@ -90,6 +90,39 @@ const FLOWER_WORDS =
 const NOT_A_PHOTO_WORDS =
   /\b(herbarium|specimens?|illustrations?|engravings?|drawings?|diagrams?|lithographs?|botanical art)\b|標本|挿絵|図譜|植物画/iu;
 
+/**
+ * **主役が物ではない写真**の手がかり（オーナー報告 2026-10-09「桃の写真になぜか鳩の画像が出る」）。
+ * 貼り紙・チラシ・看板・催し・団体の告知（`桃園市信鴿協會`）と、人を写した写真（人物・少女）。
+ * 語そのものが人・表示・文書の語（棚・検索語）なら数えない。
+ */
+const POSTER_WORDS =
+  /\b(posters?|flyers?|leaflets?|banners?|logos?|screenshots?|signboards?|billboards?|announcements?|association|competition|racing)\b|海報|傳單|宣傳|協會|協会|公告|告示|比賽|大會|大会|活動|ポスター|チラシ|看板/iu;
+const PEOPLE_WORDS =
+  /\b(portraits?|girls?|boys?|wom[ae]n|m[ae]n|lady|ladies|people|persons?|selfies?|cosplay|cosplayer|models?|actress|actor|idol)\b|少女|女孩|女生|男孩|美女|人物|肖像|寫真|写真集|自拍|模特|コスプレ|女の子|男の子/iu;
+const PEOPLE_CATEGORIES = new Set(["person", "family", "job", "face", "body", "hand", "character"]);
+const TEXT_CATEGORIES = new Set(["sign", "document", "book", "symbol", "shop", "art"]);
+
+/** 貼り紙・催し・団体の告知の手がかりが在るか。語が表示・文書の語なら数えない。 */
+export function hasPosterSignals(text: string | undefined, ctx: RankContext): boolean {
+  const t = (text ?? "").toLowerCase();
+  if (!t.trim()) return false;
+  const category = (ctx.category ?? "").trim().toLowerCase();
+  return !TEXT_CATEGORIES.has(category) && !POSTER_WORDS.test(ctx.query) && POSTER_WORDS.test(t);
+}
+
+/**
+ * 主役が物ではない（貼り紙・催し・人の写真）手がかりが在るか。語がそれ自体を指す時は数えない。
+ * 人の写真の手がかりは**学習言語の題・タグ**に使う（`桃` という名前の人の写真）。英語の写真の
+ * 説明（`a woman jogging`）は動作の語の正しい写真のことがあるので、そちらは絵を見て確かめる。
+ */
+export function hasNonSubjectSignals(text: string | undefined, ctx: RankContext): boolean {
+  if (hasPosterSignals(text, ctx)) return true;
+  const t = (text ?? "").toLowerCase();
+  if (!t.trim()) return false;
+  const category = (ctx.category ?? "").trim().toLowerCase();
+  return !PEOPLE_CATEGORIES.has(category) && !PEOPLE_WORDS.test(ctx.query) && PEOPLE_WORDS.test(t);
+}
+
 /** 点に数えない短い語・つなぎの語。 */
 const STOP = new Set(["the", "and", "with", "for", "from", "of", "a", "an", "in", "on", "photo"]);
 
@@ -214,6 +247,8 @@ export function isConfidentMatch(text: string | undefined, ctx: RankContext): bo
   if (core.length === 0) return false;
   if (!core.every((term) => hasWord(t, term))) return false;
   if (offSenseSignals(t, ctx) > 0) return false;
+  // 「peach」と書いてあっても、貼り紙・催しの写真は説明だけでは確かと言わない（絵を見て確かめる）。
+  if (hasPosterSignals(t, ctx)) return false;
   return !(NOT_A_PHOTO_WORDS.test(t) && !NOT_A_PHOTO_WORDS.test(ctx.query.toLowerCase()));
 }
 

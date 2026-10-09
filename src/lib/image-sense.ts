@@ -168,12 +168,13 @@ export function imageSensePrompt(word: {
     `Word: "${word.headword}" (language: ${word.language || "unknown"}).`,
     meaning ? `The learner's own gloss of the word: "${meaning}".` : "",
     "Decide the exact everyday sense the learner means (for plants eaten as food, the edible part as it is sold or cooked — e.g. レンコン/蓮藕 → lotus root, not the lotus flower; 牛蒡 → burdock root; 竹筍 → bamboo shoot; 落花生 → peanuts; マウス meaning a computer device → computer mouse).",
+    "The gloss may be written with the same characters as the word (Japanese 桃 for Chinese 桃) — that is not a hint about the sense. A single-character word means its most common everyday concrete thing (桃 → peach fruit; 杯 → cup), never a place name that contains it (桃園 Taoyuan), a person's name or an organisation.",
     "Return ONLY one JSON object:",
     '{"query": "English photo search terms, 1-4 words, naming that exact thing", ' +
       '"avoid": ["up to 6 lowercase English words that describe look-alike WRONG photos a search would return, e.g. flower, blossom, pond, petal"], ' +
       '"sense": "one short English sentence: what the photo must show (for a dish or food, how it is typically served where the word is used)", ' +
       `"context": "optional: one short term IN THE WORD'S OWN LANGUAGE naming the cuisine/category it belongs to, only if it helps tell it apart in a photo search (e.g. 嘴邊肉 → 黑白切, 滷肉飯 → 小吃); otherwise empty", ` +
-      `"variants": ["optional: up to 2 other spellings of the same word in its own language (e.g. simplified 嘴边肉 for traditional 嘴邊肉)"]}`,
+      `"variants": ["optional: up to 2 other spellings of the same word in its own language (e.g. simplified 嘴边肉 for traditional 嘴邊肉). If the word is a single character, instead give the everyday multi-character word(s) for this sense in the same language (桃 → 桃子, 水蜜桃; 杯 → 杯子)"]}`,
     'If the word cannot be shown in a photo (abstract or grammatical), return {"query": "", "avoid": [], "sense": ""}.',
   ]
     .filter(Boolean)
@@ -204,7 +205,9 @@ export function imageVerifyPrompt(word: {
     "An image matches ONLY if its MAIN subject is exactly this target, as a learner of that word would picture it. " +
       "Reject it if the target is merely an ingredient or a small part of a different dish or thing " +
       "(e.g. a paella, stew, sandwich or platter that happens to contain it), if it shows a different dish or a similar-looking but different thing, " +
-      "if it is a menu, sign or text only, a drawing or diagram, or anything unrelated.",
+      "if it is a menu, sign or text only, a drawing or diagram, or anything unrelated. " +
+      "Also reject posters, flyers, banners, notices and event or association pictures (even when the word appears in a place or organisation name, e.g. 桃 in 桃園), " +
+      "and photos whose main subject is a person or people (portraits, models, a girl holding something) unless the target is a person, a body part or an action people do.",
     'If two matching images are the same photo or near-identical, put only the first in "match" and the others in "duplicate".',
     'Return ONLY JSON: {"match": [indices of matching images], "duplicate": [indices]}',
   ]
