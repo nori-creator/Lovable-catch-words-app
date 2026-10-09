@@ -1,5 +1,6 @@
 import { FirstCatchScene, TutorialHarnessFrame, embedsTutorial } from "./scenes/first-catch";
 import { HomeShelfScene } from "./scenes/home-shelf";
+import { HomeTabSwitchScene } from "./scenes/home-tab-switch";
 import { InstallAppScene } from "./scenes/install-app";
 import { ChunkDesignsScene } from "./scenes/chunk-designs";
 import { PeelStickerScene } from "./scenes/peel-sticker";
@@ -181,6 +182,7 @@ const SCENES: Record<string, ((p: { q: URLSearchParams }) => ReactNode) | undefi
   "pro-plan": ProPlanScene,
   home: HomeScene,
   "home-shelf": HomeShelfScene,
+  "home-tab-switch": HomeTabSwitchScene,
   "install-app": InstallAppScene,
   "home-album": HomeAlbumScene,
   "home-memorial": HomeMemorialScene,
@@ -385,6 +387,8 @@ const BARE = new Set([
   "home-tap",
   // 本の左ページを長押しして開く面は全画面。
   "book-album-edit",
+  // 枠（上の帯・下のバー）ごと自分で作り直す（本番のタブの行き来と同じ）。
+  "home-tab-switch",
 ]);
 
 const q = new URLSearchParams(location.search);
@@ -406,6 +410,12 @@ const REVIEW_SCENES: Array<{ scene: string; label: string }> = [
   // 2026-10-09 候補の違いを同じ物差しで（文体の札・場面・違い）。「豚の口の周りの肉」→ 嘴邊肉 / 豬頰肉。
   { scene: "text-candidates", label: "文字検索の候補: 「豚の口の周りの肉」（文体・場面・違い）" },
   { scene: "text-candidates&case=densha", label: "文字検索の候補: 「電車」（文体・場面・違い）" },
+  // 2026-10-09「ホームのアイコン押すとカクカクする」「文字だけ移動できるように」。
+  { scene: "home-tab-switch", label: "ホーム ⇄ 図鑑: タブを押しても棚・写真が抜けない" },
+  {
+    scene: "home-album&plain=1&edit=1",
+    label: "ホームの誌面: 字だけの札を動かすと字だけが浮く",
+  },
   // 2026-10-09「嘴邊肉の画像が英語で検索された画像」: 外れの写真を出さなくなった後、写真が
   // 残らなかった札で Pro の人に「AIで絵を作る」を目立つ形で出す。
   { scene: "text-peel-no-photo", label: "写真が残らなかった札: Pro の「AIで絵を作る」" },

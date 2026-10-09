@@ -19,6 +19,9 @@ import {
   type ResurfaceState,
 } from "@/lib/resurface";
 
+/** このアプリの起動中に、もう出した札（同じ札をホームへ戻るたびに動かさない）。 */
+let resurfaceShownId: string | null = null;
+
 /** 押した時に、用意の途中の束を待つ上限（これより遅ければ用意を待たずに開く）。 */
 const TAP_WAIT_MS = 1500;
 
@@ -43,9 +46,9 @@ export function ResurfaceCard({
 }) {
   const navigate = useNavigate();
   const fetchReview = useServerFn(getDueReviews);
-  const [pick, setPick] = useState<ResurfacePick | null>(null);
   const stateRef = useRef<ResurfaceState>({});
-  const decided = useRef(false);
+  /** 決めた結果（決めていなければ undefined）。何度呼んでも同じ答え（開発時の2度描きでも）。 */
+  const decided = useRef<ResurfacePick | null | undefined>(undefined);
   const candidates = useMemo(
     () =>
       items.map((s) => ({
@@ -55,10 +58,10 @@ export function ResurfaceCard({
       })),
     [items],
   );
-  // 端末の記録（localStorage）を読むのは描いた後。記憶の数が届いてから1回だけ決める。
-  useEffect(() => {
-    if (decided.current || recall.size === 0 || candidates.length === 0) return;
-    decided.current = true;
+  /** 記憶の数が届いていれば、端末の記録を読んで今日の1枚を決める（届いていなければ null）。 */
+  const decide = (): ResurfacePick | null => {
+    if (decided.current !== undefined) return decided.current;
+    if (recall.size === 0 || candidates.length === 0) return null;
     let state: ResurfaceState = {};
     try {
       state = parseResurfaceState(localStorage.getItem(RESURFACE_STORAGE_KEY));
@@ -80,7 +83,24 @@ export function ResurfaceCard({
         /* 覚えられなくても出すのは出す */
       }
     }
-    setPick(chosen);
+    decided.current = chosen;
+    return chosen;
+  };
+  /**
+   * **最初の描画で決める**（オーナー報告 2026-10-09「ホームのアイコン押すとカクカクする」）。
+   * 前は描いた後の effect で決めていたので、タブで戻るたびに札の無いホームが 1 コマ描かれ、
+   * 次のコマで札が差し込まれて日付と誌面が下へずれていた。記憶の数（`["memory-overview"]`）は
+   * 2 回目からは手元にあるので、ここで決まる。今日の分は端末に覚えてあるので、同じ1枚になる。
+   */
+  const [pick, setPick] = useState<ResurfacePick | null>(() =>
+    typeof window === "undefined" ? null : decide(),
+  );
+  // 初めて開いた時など、記憶の数が後から届いた時だけ、届いてから1回決める。
+  useEffect(() => {
+    if (decided.current !== undefined) return;
+    const chosen = decide();
+    if (chosen) setPick(chosen);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [candidates, recall]);
 
   /**
@@ -109,11 +129,20 @@ export function ResurfaceCard({
   };
 
   const sticker = pick ? items.find((s) => s.id === pick.id) : undefined;
+  /**
+   * 札がふわっと出る動きは、その札を**初めて**出す時だけ（下のバーでホームへ戻るたびに
+   * 出直すと、戻るたびに誌面の上がちらついて見えた。2026-10-09）。
+   */
+  const [enter] = useState(() => !pick || resurfaceShownId !== pick.id);
+  useEffect(() => {
+    if (pick) resurfaceShownId = pick.id;
+  }, [pick]);
   if (!pick || !sticker) return null;
   return (
     <ResurfaceCardView
       sticker={sticker}
       pick={pick}
+      enter={enter}
       onStart={(id) => void start(id)}
       onDismiss={() => {
         const next = dismissResurface(stateRef.current, taipeiDay());
@@ -135,9 +164,12 @@ export function ResurfaceCardView({
   pick,
   onStart,
   onDismiss,
+  enter = true,
 }: {
   sticker: StickerWithWord;
   pick: ResurfacePick;
+  /** 出る時の動き（初めて出す時だけ。戻ってきたホームでは動かさない）。 */
+  enter?: boolean;
   /** 押した時。その語から復習を始める。 */
   onStart: (id: string) => void;
   onDismiss: () => void;
@@ -151,7 +183,10 @@ export function ResurfaceCardView({
     : "";
   const sub = [dateLabel, sticker.location_name].filter(Boolean).join(" · ");
   return (
-    <div className="resurface-card relative mb-4 flex items-center gap-3 rounded-3xl border border-border bg-card p-3 shadow-sm">
+    <div
+      data-settled={enter ? undefined : ""}
+      className="resurface-card relative mb-4 flex items-center gap-3 rounded-3xl border border-border bg-card p-3 shadow-sm"
+    >
       <button
         type="button"
         onClick={() => onStart(sticker.id)}

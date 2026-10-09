@@ -171,11 +171,15 @@ async function resolveSrc(signedUrl: string): Promise<string> {
  */
 export function CachedImg({
   src,
+  onLoad,
   ...rest
 }: { src: string } & Omit<React.ImgHTMLAttributes<HTMLImageElement>, "src">) {
   const [resolved, setResolved] = useState<string | null>(() => {
     const p = pathFromSignedUrl(src);
-    return (p && objectUrls.get(p)) || null;
+    // 署名付きでない URL（同梱の絵・ネットの絵）は端末に貯めないので、そのまま最初から描く。
+    // 前は解決（非同期）を待つ間、空の箱を1コマ描いていた。
+    if (!p) return src;
+    return objectUrls.get(p) || null;
   });
   const srcRef = useRef(src);
   srcRef.current = src;
@@ -200,9 +204,20 @@ export function CachedImg({
   // Until the cache answers, render nothing rather than kicking off a
   // duplicate network request for the signed URL.
   if (!resolved) return <span className={rest.className} aria-hidden="true" />;
+  /**
+   * **一度読み解いた絵は、その場で描く**（オーナー報告 2026-10-09 図鑑へ戻ると下の写真の列が
+   * 一瞬空になる）。画面は押すたびに作り直されるので、同じ絵でも新しい `<img>` になる。
+   * `loading="lazy"` / `decoding="async"` のままだと、手元（メモリ）にある絵でも
+   * 1〜数コマ空の枠が描かれる。この画面で読み終えたことのある絵だけ、すぐ・同期で描く。
+   */
+  const seen = shownUrls.has(resolved);
   return (
     <img
       src={resolved}
+      onLoad={(e) => {
+        markShown(resolved);
+        onLoad?.(e);
+      }}
       // blob: の解放とすれ違って読み込みに失敗することは起こりうる
       // (別のタブが同じパスを解放した直後など)。**黙って白いままに
       // しない** — 一度だけ解決からやり直す。端末内のキャッシュから
@@ -216,8 +231,22 @@ export function CachedImg({
         }
       }}
       {...rest}
+      // 呼ぶ側の `loading` / `decoding` より後に置く（読み終えた絵は必ずすぐ描く）。
+      {...(seen ? { loading: "eager" as const, decoding: "sync" as const } : null)}
     />
   );
+}
+
+/** この画面（タブ）で一度読み終えた絵の URL。上限を超えたら古い物から忘れる。 */
+const shownUrls = new Set<string>();
+const MAX_SHOWN_URLS = 600;
+function markShown(url: string) {
+  if (shownUrls.has(url)) return;
+  shownUrls.add(url);
+  if (shownUrls.size > MAX_SHOWN_URLS) {
+    const first = shownUrls.values().next().value;
+    if (first !== undefined) shownUrls.delete(first);
+  }
 }
 
 /**
