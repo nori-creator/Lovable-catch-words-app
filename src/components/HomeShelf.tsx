@@ -63,8 +63,33 @@ function dropKeptShelf() {
   keptShelf = null;
 }
 
+/**
+ * 預けた棚は**その人の物**（写真立ての写真・本の中身）。ページを読み直さずに別の人が
+ * 入った時に、前の人の棚を差し戻さないよう、ログインしている人が変わったら捨てる。
+ */
+let keptUserId: string | null | undefined;
+let authWatched = false;
+function watchAuthForKeptShelf() {
+  if (authWatched) return;
+  authWatched = true;
+  void import("@/integrations/supabase/client").then(({ supabase }) => {
+    supabase.auth.onAuthStateChange((_event, session) => {
+      const id = session?.user?.id ?? null;
+      if (keptUserId !== undefined && id !== keptUserId) dropKeptShelf();
+      keptUserId = id;
+    });
+  });
+}
+
 function keepShelf(k: KeptShelf) {
+  watchAuthForKeptShelf();
   if (keptShelf && keptShelf.world !== k.world) dropKeptShelf();
+  // 開いた本は中の絵を描き終えている。写真の選び方（設定）が変わっても描き直されないので、
+  // 預けずに次は組み直す（開かずに離れた時だけ預ける）。
+  if (k.world.hasPaintedBooks()) {
+    k.world.dispose();
+    return;
+  }
   keptShelf = k;
   window.clearTimeout(keptTimer);
   keptTimer = window.setTimeout(dropKeptShelf, KEEP_SHELF_MS);
@@ -514,7 +539,8 @@ export function HomeShelf({
     if (!months.length) return;
     const slot = canvasSlot.current;
     if (!slot) return;
-    const key = `${room}:${monthSig}`;
+    // 写真立ての写真も鍵に入れる（その人の写真が変われば組み直す）。
+    const key = `${room}:${monthSig}:${framePhoto ?? ""}`;
     let alive = true;
     let w: ShelfWorld | null = null;
     let ro: ResizeObserver | null = null;
