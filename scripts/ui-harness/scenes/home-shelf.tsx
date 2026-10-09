@@ -23,7 +23,7 @@ const PHOTOS = [
 const NOTES = ["並んでも飲みたかった！", "猫が店番してた", undefined, "本屋さんで見つけた"];
 
 /** 今日から遡って、1か月に数日ずつ、1日1〜3枚。 */
-const ITEMS = Array.from({ length: 7 }, (_, month) =>
+export const SHELF_ITEMS = Array.from({ length: 7 }, (_, month) =>
   Array.from({ length: 3 + (month % 3) }, (_, k) => {
     const back = month * 30 + k * 6 + (month === 0 ? 0 : 2);
     return Array.from({ length: 1 + ((month + k) % 3) }, (_, j) => {
@@ -59,8 +59,8 @@ export function HomeShelfScene({ q }: { q: URLSearchParams }) {
   const open = (q.get("open") ?? "spread") as "spread" | "left" | "right";
   const items =
     months >= 7
-      ? ITEMS
-      : ITEMS.filter((s) => Date.now() - Date.parse(s.created_at) < months * 30 * 864e5);
+      ? SHELF_ITEMS
+      : SHELF_ITEMS.filter((s) => Date.now() - Date.parse(s.created_at) < months * 30 * 864e5);
   // 本の左ページを長押し → その日の並べ替えの面（本番の `HomeSurface` と同じ繋ぎ方）。
   const [edit, setEdit] = useState<{ y: number; m: number; d: number } | null>(null);
   const editStickers = edit
@@ -76,7 +76,7 @@ export function HomeShelfScene({ q }: { q: URLSearchParams }) {
           diary: async (month) => {
             const [y, m] = month.split("-").map(Number);
             const days = new Set(
-              ITEMS.map((s) => new Date(s.created_at))
+              SHELF_ITEMS.map((s) => new Date(s.created_at))
                 .filter((d) => d.getFullYear() === y && d.getMonth() + 1 === m)
                 .map((d) => d.getDate()),
             );

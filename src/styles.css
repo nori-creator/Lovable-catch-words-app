@@ -8972,6 +8972,50 @@ html[data-motion="reduce"] .memorial-reveal * {
 .album-caption-edit::before {
   background: var(--primary, #2f6bff);
 }
+/* 字だけの札: 印は**字の角**に付ける（オーナー報告 2026-10-09「文字だけ…移動できるように」）。
+   札と同じ組み方の見えない写し（`.album-remove-ghost`）が字の大きさの箱を作り、印はその角。 */
+.album-remove-hug {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.15rem;
+  max-width: 100%;
+}
+[data-col="r"] .album-remove-hug {
+  align-items: flex-end;
+}
+.album-remove-ghost {
+  display: contents;
+}
+/* 印は字の角から少し外へ出す。44px の当たりが字に深く掛かると、字を掴もうとした指が
+   バツを押してしまう（写真の札と違い、字は小さい）。 */
+.album-remove-hug > .album-remove {
+  translate: calc(50% + 10px) -50%;
+}
+.album-remove-hug > .album-caption-edit {
+  translate: calc(-50% - 10px) -50%;
+}
+.album-remove-ghost > * {
+  visibility: hidden;
+}
+/* 持ち上げた字だけの札は、**字そのもの**が少し浮く（枠に影を付けると字より広い箱が見える）。
+   影は字の形に沿う `drop-shadow`。大きくするのは字の側の端を軸に（外側の端は動かさない）。 */
+.album-lifted .collage__plain {
+  scale: 1.06;
+  transform-origin: left top;
+  filter: drop-shadow(0 3px 4px rgb(60 42 18 / 0.28));
+  transition:
+    scale 0.14s var(--ease-out, ease-out),
+    filter 0.14s var(--ease-out, ease-out);
+}
+[data-col="r"].album-lifted .collage__plain {
+  transform-origin: right top;
+}
+html[data-motion="reduce"] .album-lifted .collage__plain {
+  scale: none;
+  transition: none;
+}
 @keyframes album-remove-in {
   from {
     opacity: 0;
@@ -9630,7 +9674,8 @@ html[data-motion="reduce"] .save-status {
     transform: none;
   }
 }
-html[data-motion="reduce"] .resurface-card {
+html[data-motion="reduce"] .resurface-card,
+.resurface-card[data-settled] {
   animation: none;
 }
 

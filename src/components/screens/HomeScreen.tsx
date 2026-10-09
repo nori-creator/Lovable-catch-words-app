@@ -49,7 +49,7 @@ import type { HeroOrigin as FlightOrigin } from "@/components/use-hero-reveal";
 import { listMyStickers, saveAlbumLayout, type StickerWithWord } from "@/lib/stickers.functions";
 import { stickerListQueryFn } from "@/lib/sticker-pages";
 import { getMyProfile } from "@/lib/profile.functions";
-import { CachedImg, warmCachedImages } from "@/lib/image-cache";
+import { CachedImg, pathFromSignedUrl, warmCachedImages } from "@/lib/image-cache";
 import { CaptionEditDialog, type CaptionTarget } from "@/components/CaptionEditDialog";
 import { Term } from "@/components/Term";
 import {
@@ -57,7 +57,15 @@ import {
   removePendingCapture,
   type PendingCapture,
 } from "@/lib/offline-queue";
-import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import {
+  Fragment,
+  startTransition,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import {
   dismissMemorial,
   milestoneToday,
@@ -474,6 +482,9 @@ export function HomePage() {
  *
  * データの取り方・詳細の開き方・案内の帯は呼ぶ側が持つ。ここは**描くだけ**。
  */
+/** 今日の誌面の「表紙が開く」演出を、このアプリの起動中にもう見せたか（`HomeSurface`）。 */
+let homeOpeningPlayed = false;
+
 export function HomeSurface({
   albumItems,
   today,
@@ -542,6 +553,16 @@ export function HomeSurface({
     return groupBySpan(past, (s) => new Date(s.created_at), "day");
   }, [albumItems, todayKey]);
   const ready = !loading && !failed && albumItems.length > 0;
+  /**
+   * **表紙が開く演出は、アプリを開いて最初の1回だけ**（オーナー報告 2026-10-09「ホームの
+   * アイコン押すとカクカクする」）。ホームは下のバーで戻るたびに作り直されるので、前は戻る
+   * たびに今日の誌面が透明から落ちてきた（録画: 日付だけが先に出て、誌面が後から現れる）。
+   * 押して戻った画面は、離れた時のまま、すぐそこに在るのが自然。
+   */
+  const [playOpening] = useState(() => opening && !homeOpeningPlayed);
+  useEffect(() => {
+    if (playOpening) homeOpeningPlayed = true;
+  }, [playOpening]);
   const albumHidden = useAlbumHidden();
   /**
    * **本の左ページを長押し → ホームと同じ並べ替えの画面**（オーナー指示 2026-10-02「ホームの
@@ -607,7 +628,7 @@ export function HomeSurface({
           stickers={todayStickers}
           surface={surfaceClass}
           heading={<DiaryDate date={today} />}
-          opening={opening}
+          opening={playOpening}
           onOpen={onOpen}
           onLongPress={onLongPress}
         />
@@ -756,6 +777,13 @@ export function DiaryDate({
 }
 
 /** 今日より前の日。区切り・打ち切りの断り・日ごとのアルバム。 */
+/** 過去の日を、ホームを開いた時に最初に描く日数（残りは手の空いた時に足す。`PastDays`）。 */
+const PAST_DAYS_FIRST = 2;
+/** 手の空いた時に1日ずつ足していく上限（それより先は下へ送って近づいた時に足す）。 */
+const PAST_DAYS_IDLE = 6;
+/** 下へ送って近づいた時に1回で足す日数。 */
+const PAST_DAYS_STEP = 3;
+
 export function PastDays({
   days,
   onOpen,
@@ -782,6 +810,47 @@ export function PastDays({
 }) {
   const t = useT();
   const dateLocale = localeOf(useUiLang());
+  /**
+   * **過去の日は、少しずつ描き足す**（オーナー報告 2026-10-09「ホームのアイコン押すと
+   * カクカクする」）。ホームは押すたびに作り直されるので、前は押した瞬間に**全部の日の誌面**
+   * （写真・置き方の計算・留め具）を一度に組み、その間の 0.5〜1 秒は画面が止まっていた
+   * （CPU を 4 倍遅くした計測で、組み立て 440ms ＋ 配置 370ms の長い仕事 1 本）。
+   * 過去の日は画面の下（今日の誌面の後）にあり、押した瞬間には見えていない。最初は
+   * `PAST_DAYS_FIRST` 日だけ描き、手の空いた時に1日ずつ `PAST_DAYS_IDLE` 日まで足す。
+   * その先は下へ送って近づいた時に `PAST_DAYS_STEP` 日ずつ足す（`sentinel`）。足すのは見えている物より下なので、
+   * 見ている物は動かない。
+   */
+  const [limit, setLimit] = useState(() => Math.min(days.length, PAST_DAYS_FIRST));
+  const more = limit < days.length;
+  useEffect(() => {
+    // 手の空いた時に足すのは `PAST_DAYS_IDLE` 日まで。その先は下へ送って近づいた時だけ
+    // （何百日ぶんを毎回組むと、それだけでホームが重くなる）。
+    if (!more || limit >= PAST_DAYS_IDLE) return;
+    const w = window as Window & {
+      requestIdleCallback?: (cb: () => void, o?: { timeout: number }) => number;
+      cancelIdleCallback?: (id: number) => void;
+    };
+    const grow = () => startTransition(() => setLimit((n) => n + 1));
+    if (w.requestIdleCallback) {
+      const id = w.requestIdleCallback(grow, { timeout: 1200 });
+      return () => w.cancelIdleCallback?.(id);
+    }
+    const id = window.setTimeout(grow, 120);
+    return () => window.clearTimeout(id);
+  }, [more, limit]);
+  const sentinel = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const el = sentinel.current;
+    if (!more || !el || typeof IntersectionObserver === "undefined") return;
+    const io = new IntersectionObserver(
+      ([e]) => {
+        if (e.isIntersecting) setLimit((n) => n + PAST_DAYS_STEP);
+      },
+      { rootMargin: "1200px 0px" },
+    );
+    io.observe(el);
+    return () => io.disconnect();
+  }, [more, limit]);
   return (
     <section className="mt-12 space-y-10">
       <div className="flex items-center gap-3">
@@ -801,7 +870,7 @@ export function PastDays({
           {t("dex.truncated", { n: formatCount(shown), total: formatCount(total) })}
         </p>
       )}
-      {days.map(([k, items], i) => (
+      {days.slice(0, limit).map(([k, items], i) => (
         <div key={k}>
           {/* k is a local YYYY-MM-DD; append time so it parses as LOCAL
               midnight (bare `new Date("YYYY-MM-DD")` is UTC → off-by-one
@@ -820,6 +889,7 @@ export function PastDays({
           )}
         </div>
       ))}
+      {more && <div ref={sentinel} aria-hidden className="h-px" />}
     </section>
   );
 }
@@ -1036,6 +1106,13 @@ export function dayTagline(
  * ので、並びそのものは自由に崩せる。
  */
 
+/**
+ * 読めた写真の縦横比（札と写真の組ごと）。ホームが作り直されても、次の誌面が最初から使う
+ * （`DayCollage` の `ratios`）。写真の差し替えで URL の署名だけ変わっても同じ写真と見る。
+ */
+const knownPhotoRatio = new Map<string, number>();
+const photoRatioKey = (id: string, url: string) => `${id}|${pathFromSignedUrl(url) ?? url}`;
+
 export function DayCollage({
   stickers: allStickers,
   onOpen,
@@ -1244,15 +1321,29 @@ export function DayCollage({
    * 見るのは表から届いた並び（`stickers`）で、重なり順のために入れ替える `ordered` では
    * ない（`ordered` で決めると、触っていない札まで置き場所が動く）。
    */
+  /**
+   * **前に読んだ写真の比は、最初の描画から使う**（オーナー報告 2026-10-09「ホームのアイコン
+   * 押すとカクカクする」）。ホームは押すたびに作り直されるので、比を画面の中だけに持つと、
+   * 戻るたびに「比の分からない形」で一度描き、写真が読めた瞬間に置き直して札が 15〜35px
+   * 跳ねていた（計測で CLS 0.015）。読めた比は `knownPhotoRatio` に覚え、次からはそれで組む。
+   */
+  const ratios = useMemo(() => {
+    const out: Record<string, number> = {};
+    for (const [id, url] of heroById) {
+      const r = url ? knownPhotoRatio.get(photoRatioKey(id, url)) : undefined;
+      if (r) out[id] = r;
+    }
+    return { ...out, ...photoRatio };
+  }, [heroById, photoRatio]);
   const { frameRatio, settledById } = useMemo(
     () =>
       settleDayAlbum({
         stickers,
         hasHero: (id) => Boolean(heroById.get(id)),
-        photoRatio,
+        photoRatio: ratios,
         boardW: board.w,
       }),
-    [stickers, heroById, photoRatio, board.w],
+    [stickers, heroById, ratios, board.w],
   );
   const items = useMemo(
     () =>
@@ -1667,6 +1758,52 @@ export function DayCollage({
                     hour12: false,
                   });
 
+            /** 字だけの札の中身（札そのものと、編集の印の位置合わせの写しで同じ物を使う）。 */
+            const plainLines = heroUrl ? null : (
+              <>
+                <span className="collage__cap-row">
+                  <span className="collage__time">{time}</span>
+                  <Term lang={s.word.language} className="collage__plain-word">
+                    {s.word.headword}
+                  </Term>
+                </span>
+                {s.caption && (
+                  <span className="collage__note handwritten-ja ja-phrase">{s.caption}</span>
+                )}
+              </>
+            );
+            const lifted = live?.id === s.id;
+            /** 編集中の印（赤いバツ＝アルバムから外す・青い鉛筆＝ひと言を直す）。 */
+            const editMarks = (
+              <>
+                <button
+                  type="button"
+                  className="album-remove"
+                  aria-label={t("album.hide", { word: s.word.headword })}
+                  onPointerDown={(e) => e.stopPropagation()}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    hideFromAlbum(s.id, s.word.headword);
+                  }}
+                >
+                  <X className="h-3.5 w-3.5" strokeWidth={3} aria-hidden />
+                </button>
+                {/* **ひと言を直す鉛筆**（オーナー指示 2026-09-30）。左上の角。 */}
+                <button
+                  type="button"
+                  className="album-remove album-caption-edit"
+                  aria-label={t("caption.edit")}
+                  onPointerDown={(e) => e.stopPropagation()}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setCaptionTarget({ id: s.id, caption: s.caption ?? null });
+                  }}
+                >
+                  <Pencil className="h-3.5 w-3.5" strokeWidth={2.5} aria-hidden />
+                </button>
+              </>
+            );
+
             return (
               <Fragment key={s.id}>
                 <button
@@ -1770,7 +1907,7 @@ export function DayCollage({
                     editing ? "touch-none" : "touch-pan-y"
                   } text-left ${
                     editing ? "album-editing cursor-grab active:cursor-grabbing" : ""
-                  } ${live?.id === s.id ? "album-lifted" : ""}`}
+                  } ${lifted ? "album-lifted" : ""}`}
                   style={
                     {
                       /**
@@ -1839,10 +1976,21 @@ export function DayCollage({
                        */
                       translate: "-50% -50%",
                       rotate: `${place.rot}deg`,
-                      scale: live?.id === s.id ? `${LIFTED.scale}` : undefined,
-                      zIndex: live?.id === s.id ? 60 : z,
+                      /**
+                       * **持ち上げた時の大きさと影は、写真の札だけ札ごと。**（オーナー報告
+                       * 2026-10-09「ホームの文字を移動させたい時に、文字だけでなく、周りの変な
+                       * 箱ごと移動するのが変だから文字だけ…移動できるようにして」）
+                       *
+                       * 字だけの札の枠は、指が当たる広さ（写真の札と同じ幅・44px 以上の高さ）を
+                       * 取ってあるだけで、目に見える物は字しか無い。その枠に影を付けると、字より
+                       * ずっと広い白い箱が影ごと持ち上がって見えた。字だけの札は、浮かせる・影を
+                       * 落とすのを**字そのもの**にする（`.album-lifted .collage__plain`）。
+                       * 当たる広さはそのまま、見えないまま。
+                       */
+                      scale: lifted && heroUrl ? `${LIFTED.scale}` : undefined,
+                      zIndex: lifted ? 60 : z,
                       boxShadow:
-                        live?.id === s.id
+                        lifted && heroUrl
                           ? `0 ${LIFTED.shadowBlurPx / 2}px ${LIFTED.shadowBlurPx}px rgba(0,0,0,${LIFTED.shadowAlpha})`
                           : undefined,
                       // 揺れの位相と周期は札ごと（`lib/album-drag.ts`）。
@@ -1872,6 +2020,7 @@ export function DayCollage({
                             const img = e.currentTarget;
                             if (!img.naturalWidth || !img.naturalHeight) return;
                             const r = img.naturalHeight / img.naturalWidth;
+                            knownPhotoRatio.set(photoRatioKey(s.id, heroUrl), r);
                             setPhotoRatio((m) => (m[s.id] === r ? m : { ...m, [s.id]: r }));
                           }}
                           src={heroUrl}
@@ -1904,17 +2053,7 @@ export function DayCollage({
                      * 出すと、枠のぶんの空白が字の上に残り、時刻が語から1行
                      * 離れて別々の物に見えた。
                      */
-                    <span className="collage__plain">
-                      <span className="collage__cap-row">
-                        <span className="collage__time">{time}</span>
-                        <Term lang={s.word.language} className="collage__plain-word">
-                          {s.word.headword}
-                        </Term>
-                      </span>
-                      {s.caption && (
-                        <span className="collage__note handwritten-ja ja-phrase">{s.caption}</span>
-                      )}
-                    </span>
+                    <span className="collage__plain">{plainLines}</span>
                   )}
 
                   {/* 留め具（テープか四隅）。**写真の札だけ** — 字だけの札は
@@ -1937,10 +2076,16 @@ export function DayCollage({
                   （同じ `album-editing` と同じ位相の変数）を持つ透明な枠を重ね、
                   バツはその枠の右上の角に付ける。枠自体は押せない（下の札を塞がない）。
                   図鑑からは消えない（下の「外した写真」から戻せる）。 */}
-                {editing && live?.id !== s.id && (
+                {editing && !lifted && (
                   <span
                     aria-hidden={false}
                     className="album-remove-frame album-editing"
+                    // 字だけの札は、印を字の角に付ける（下の `album-remove-hug`）。字の寄せ方は
+                    // 札と同じ属性で決まる。
+                    data-col={place.x < 0.5 ? "l" : "r"}
+                    data-cap={captionAlign(place.x, px.w, board.w)}
+                    // 札と同じ高さの下限（44px）。無いと札と枠の真ん中がずれる。
+                    data-plain={heroUrl ? undefined : ""}
                     style={
                       {
                         left: `${place.x * 100}%`,
@@ -1959,31 +2104,24 @@ export function DayCollage({
                       } as React.CSSProperties
                     }
                   >
-                    <button
-                      type="button"
-                      className="album-remove"
-                      aria-label={t("album.hide", { word: s.word.headword })}
-                      onPointerDown={(e) => e.stopPropagation()}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        hideFromAlbum(s.id, s.word.headword);
-                      }}
-                    >
-                      <X className="h-3.5 w-3.5" strokeWidth={3} aria-hidden />
-                    </button>
-                    {/* **ひと言を直す鉛筆**（オーナー指示 2026-09-30）。左上の角。 */}
-                    <button
-                      type="button"
-                      className="album-remove album-caption-edit"
-                      aria-label={t("caption.edit")}
-                      onPointerDown={(e) => e.stopPropagation()}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setCaptionTarget({ id: s.id, caption: s.caption ?? null });
-                      }}
-                    >
-                      <Pencil className="h-3.5 w-3.5" strokeWidth={2.5} aria-hidden />
-                    </button>
+                    {heroUrl ? (
+                      editMarks
+                    ) : (
+                      /**
+                       * **字だけの札は、印を字の角に付ける**（2026-10-09）。枠は指の当たる広さで
+                       * 字よりずっと広いので、枠の角に付けると鉛筆が字から離れて浮いていた。
+                       * 札と同じ組み方の見えない写しを置き、その字の大きさの箱の角に付ける
+                       * （字の大きさを測らない — 同じ CSS で同じ所に並ぶ）。
+                       */
+                      <span className="collage__plain">
+                        <span className="album-remove-hug">
+                          <span className="album-remove-ghost" aria-hidden>
+                            {plainLines}
+                          </span>
+                          {editMarks}
+                        </span>
+                      </span>
+                    )}
                   </span>
                 )}
               </Fragment>

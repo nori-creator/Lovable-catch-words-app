@@ -2230,7 +2230,9 @@ describe("ホームのアルバムの長押し", () => {
     const home = codeOnly(read("components/screens/HomeScreen.tsx"));
     expect(home).toMatch(/album-lifted/);
     // 掴んでいる間は `live` が立ち、その札だけ持ち上がって見える。
-    expect(home).toMatch(/live\?\.id === s\.id \? "album-lifted"/);
+    // （2026-10-09 から `lifted` の名で持つ。字だけの札は字そのものが浮く。）
+    expect(home).toMatch(/const lifted = live\?\.id === s\.id/);
+    expect(home).toMatch(/lifted \? "album-lifted"/);
     // 掴んだ物がぐらついていると、指に付いてきているのか揺れているのか
     // 見分けが付かない。CSS 側で止める。
     const css = read("styles.css");
@@ -2481,7 +2483,8 @@ describe("ホームのアルバムの長押し", () => {
     const memoAt = home.indexOf("const { frameRatio, settledById } = useMemo");
     const memo = home.slice(memoAt, home.indexOf("const items = useMemo", memoAt));
     // `ordered`（触った順で入れ替わる）が依存に入っていないこと。
-    expect(memo).toMatch(/\[stickers, heroById, photoRatio, board\.w\]/);
+    // （2026-10-09 から写真の比は前に読めた物と合わせた `ratios`。）
+    expect(memo).toMatch(/\[stickers, heroById, ratios, board\.w\]/);
     expect(memo).not.toMatch(/ordered/);
   });
 
@@ -4725,8 +4728,10 @@ describe("ホームは今日の誌面", () => {
     expect(plain).not.toMatch(/background|box-shadow|border/);
     // 時刻も一言も**枠の中に**書く。写真と同じに外へ出すと、枠のぶんの
     // 空白が字の上に残り、時刻が語から1行離れて別々の物に見えた。
+    // （2026-10-09 から中身は `plainLines` に1つだけ書き、札と編集の印の位置合わせの写しで使う。）
     const cl = collageOnly();
-    const frame = cl.slice(cl.indexOf('<span className="collage__plain">'));
+    expect(cl).toMatch(/<span className="collage__plain">\{plainLines\}<\/span>/);
+    const frame = cl.slice(cl.indexOf("const plainLines"));
     expect(frame.slice(0, 600)).toMatch(/collage__cap-row/);
     expect(frame.slice(0, 600)).toMatch(/collage__plain-word/);
   });

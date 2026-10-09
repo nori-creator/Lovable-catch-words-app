@@ -23,7 +23,7 @@ import {
 } from "@/lib/diary-fonts";
 import { localeOf, useT, useUiLang } from "@/lib/i18n";
 import { motionReducedNow } from "@/hooks/use-reduced-motion";
-import type { MonthBook, ShelfWorld } from "@/components/shelf3d/engine";
+import type { MonthBook, ShelfEvents, ShelfWorld } from "@/components/shelf3d/engine";
 import type { DaySpread } from "@/components/shelf3d/textures";
 import type { RoomId } from "@/components/shelf3d/room";
 import type { PencilDiary } from "@/components/diary-pencil/engine";
@@ -39,6 +39,74 @@ import {
 
 // ホームの塊を読んだ瞬間に、3D の塊と棚の 3 ファイルを並べて取りに行く（`prewarm.ts`）。
 prewarmShelf();
+
+/**
+ * **前のホームで組んだ棚**（canvas と WebGL ごと。`HomeShelf` の組み立ての注）。タブを移って
+ * ホームが作り直されても、次のホームがこれを差し戻す。1 つだけ持つ。
+ */
+type KeptShelf = {
+  /** 部屋と月の並び（`room:monthSig`）。違えば使わない（組み直す）。 */
+  key: string;
+  world: ShelfWorld;
+  canvas: HTMLCanvasElement;
+  /** 棚が呼ぶ関数の差し替え口（次の画面が自分の関数を入れる）。 */
+  handlers: { current: ShelfEvents };
+};
+let keptShelf: KeptShelf | null = null;
+let keptTimer = 0;
+/** これより長く戻らなければ棚を捨てる（WebGL と影の絵が端末の記憶を使い続けないように）。 */
+const KEEP_SHELF_MS = 10 * 60_000;
+
+function dropKeptShelf() {
+  window.clearTimeout(keptTimer);
+  keptShelf?.world.dispose();
+  keptShelf = null;
+}
+
+function keepShelf(k: KeptShelf) {
+  if (keptShelf && keptShelf.world !== k.world) dropKeptShelf();
+  keptShelf = k;
+  window.clearTimeout(keptTimer);
+  keptTimer = window.setTimeout(dropKeptShelf, KEEP_SHELF_MS);
+  // 裏に回った端末で WebGL が失われたら、預けた棚は描けない。次は組み直す。
+  k.canvas.addEventListener(
+    "webglcontextlost",
+    () => {
+      if (keptShelf?.canvas === k.canvas) dropKeptShelf();
+    },
+    { once: true },
+  );
+}
+
+/** 一度読んだ（または撮った）棚の絵。読み解き済み。 */
+let snapInMemory: string | undefined;
+
+function rememberSnap(url: string) {
+  const prev = snapInMemory;
+  void decodeImage(url).then(() => {
+    snapInMemory = url;
+    // 前の絵の <img> が消えるまで少し待ってから放す。
+    if (prev && prev !== url) window.setTimeout(() => URL.revokeObjectURL(prev), 10_000);
+  });
+}
+
+function decodeImage(url: string): Promise<void> {
+  const img = new Image();
+  img.src = url;
+  return img.decode().catch(() => undefined);
+}
+
+function takeKeptShelf(key: string): KeptShelf | null {
+  const k = keptShelf;
+  if (!k) return null;
+  keptShelf = null;
+  window.clearTimeout(keptTimer);
+  if (k.key !== key) {
+    k.world.dispose();
+    return null;
+  }
+  return k;
+}
 
 /**
  * **ホームの一番上の本棚**（部屋に置いた大きな 3D の棚）。
@@ -147,13 +215,17 @@ export function HomeShelf({
 
   const box = useRef<HTMLDivElement>(null);
   const stage = useRef<HTMLDivElement>(null);
-  const canvasRef = useRef<HTMLCanvasElement>(null);
+  /** canvas を差し込む場所（React は canvas を持たない — 次のホームへ持ち越すため）。 */
+  const canvasSlot = useRef<HTMLDivElement>(null);
   const world = useRef<ShelfWorld | null>(null);
   const daysOf = useRef(new Map<MonthBook, DaySpread[]>());
   const [ready, setReady] = useState(false);
+  const readyRef = useRef(false);
+  readyRef.current = ready;
   const [failed, setFailed] = useState(false);
   /** 端末に置いた棚の絵（undefined = まだ読んでいる、null = 無い）。 */
-  const [snap, setSnap] = useState<string | null | undefined>(undefined);
+  // 一度読んだ絵は手元（`snapInMemory`）から最初の描画で出す（タブを移って戻った時に空かない）。
+  const [snap, setSnap] = useState<string | null | undefined>(() => snapInMemory);
   const [busy, setBusy] = useState(false);
   const [full, setFull] = useState(false);
   const fullRef = useRef(false);
@@ -165,6 +237,8 @@ export function HomeShelf({
     pages: number;
     cover?: boolean;
   }>({ open: null, page: 0, pages: 0 });
+  const openRef = useRef(false);
+  openRef.current = !!state.open;
   const [view, setView] = useState<View>("spread");
   const [font, setFont] = useState<DiaryFontId>(() => getDiaryFont());
   const fontRef = useRef(font);
@@ -377,17 +451,27 @@ export function HomeShelf({
 
   // 端末に置いた棚の絵を読む（ふつう数十ミリ秒）。
   useLayoutEffect(() => {
+    // 前のホームで読んだ絵がある（読み解きも済んでいる）: 読み直さない。
+    if (snapInMemory) return;
     let alive = true;
     // 絵が無い人は同梱の絵をすぐ。ある人は読み終えるまで待つ（遅い端末でも 400ms まで）。
     const fallback = window.setTimeout(
       () => alive && setSnap((v) => (v === undefined ? null : v)),
       hasShelfSnapshot() ? 400 : 0,
     );
-    void readShelfSnapshot().then((url) => {
-      if (!alive) return;
-      window.clearTimeout(fallback);
-      setSnap((v) => (v === undefined || url ? url : v));
-    });
+    void readShelfSnapshot()
+      .then(async (url) => {
+        if (!url) return url;
+        // 出す前に絵を読み解いておく（読み解き前の <img> は 1〜数コマ空のまま描かれる）。
+        await decodeImage(url);
+        snapInMemory = url;
+        return url;
+      })
+      .then((url) => {
+        if (!alive) return;
+        window.clearTimeout(fallback);
+        setSnap((v) => (v === undefined || url ? url : v));
+      });
     return () => {
       alive = false;
       window.clearTimeout(fallback);
@@ -401,111 +485,165 @@ export function HomeShelf({
     if (!ready) return;
     if (hasShelfSnapshot() && shelfSnapshotSig() === `${room}:${monthSig}`) return;
     const id = window.setTimeout(() => {
-      void world.current
-        ?.snapshotBlob()
-        .then((blob) => blob && saveShelfSnapshot(blob, `${room}:${monthSig}`));
+      void world.current?.snapshotBlob().then((blob) => {
+        if (!blob) return;
+        // 次のホームは、この絵を手元から最初のコマで出す（端末から読み直さない）。
+        rememberSnap(URL.createObjectURL(blob));
+        return saveShelfSnapshot(blob, `${room}:${monthSig}`);
+      });
     }, 1200);
     return () => window.clearTimeout(id);
   }, [ready, monthSig, room]);
 
   // ---- 3D の棚を組み立てる（ホームを描いた後の手の空いた時に） -----------------
-  useEffect(() => {
+  /**
+   * **一度組んだ棚は、タブを移っても捨てない**（オーナー報告 2026-10-09「ホームのアイコン
+   * 押すとカクカクする。このようなラグはなくす」）。
+   *
+   * ホームは押すたびに画面ごと作り直される（route ごとに `AppShell`）。前はそのたびに
+   * WebGL を作り直し、影・光の下ごしらえ（PMREM）・形の読み込み・**シェーダーの組み立て**を
+   * 毎回やっていた。測ると CPU を 4 倍遅くした Chromium で 1 回 4 秒超の止まり（長い仕事
+   * 1 本）。その間は画面が固まり、棚の所は空 → 遅れて棚が「ポン」と出ていた（録画の 3〜4 コマ）。
+   *
+   * 今は組んだ棚（canvas と WebGL ごと）を `keptShelf` に預け、次のホームでその canvas を
+   * 差し戻すだけにする（`attachShelfCanvas`）。差し戻した瞬間に 1 回描くので、最初のコマから
+   * 棚が出ている。本を開いたまま離れた時・月の並び（冊数）や部屋が変わった時・しばらく
+   * 戻らなかった時（`KEEP_SHELF_MS`）・WebGL が失われた時は、前と同じに組み直す。
+   */
+  useLayoutEffect(() => {
     if (!months.length) return;
-    const el = canvasRef.current;
-    if (!el) return;
+    const slot = canvasSlot.current;
+    if (!slot) return;
+    const key = `${room}:${monthSig}`;
     let alive = true;
     let w: ShelfWorld | null = null;
     let ro: ResizeObserver | null = null;
     let io: IntersectionObserver | null = null;
     const off: Array<() => void> = [];
-    const books: MonthBook[] = months.map((m) => ({
-      y: m.y,
-      m: m.m,
-      count: m.count,
-      color: m.color,
-    }));
-    /** 写真立ての写真。遅ければ待たずに空の額で先に組む（棚が出るほうを優先）。 */
-    const frameSrc = async (): Promise<string | null> => {
-      if (!framePhoto) return null;
-      const slow = new Promise<null>((ok) => window.setTimeout(() => ok(null), 500));
-      return Promise.race([resolveCachedSrc(framePhoto).catch(() => framePhoto), slow]);
+    // 前のホームの棚がそのまま使えるなら、それを差し戻す（組み立ても読み込みもしない）。
+    const reuse = takeKeptShelf(key);
+    const el = reuse?.canvas ?? document.createElement("canvas");
+    el.className = "home-shelf__canvas";
+    el.dataset.homeShelf = "";
+    slot.appendChild(el);
+    /** 棚が受け取る知らせ。**この画面の**状態へ繋ぐ（預けた棚は前の画面の関数を持っている）。 */
+    const handlers = reuse?.handlers ?? { current: {} as ShelfEvents };
+    handlers.current = {
+      onState: (st) => {
+        setState(st);
+        if (!st.open) setView("spread");
+      },
+      // 見開きで押した側のページへ寄る。寄っている時に押したら見開きへ戻る。
+      onPageTap: (side) => setView(viewRef.current === "spread" ? side : "spread"),
+      // 左ページ（その日のアルバム）の長押し → ホームと同じ並べ替えの面（右の日記は対象外）。
+      onPageLongPress: (side) => {
+        const d = dayRef.current;
+        if (side !== "left" || !d || !longPressRef.current) return;
+        longPressRef.current({ y: d.y, m: d.m, d: d.d });
+      },
+      // 片ページで払って、同じ見開きの反対のページへ横に移った（R20）。
+      onFocusSide: (side) => setView(side),
+      onBookTap: (b, open) => {
+        setBusy(true);
+        void prepare(b)
+          .then(() => {
+            if (!alive) return;
+            if (!fullRef.current) expand();
+            // 広がり始めた次の描画で開く（寄ってくる本が広がる画面の中に来る）。
+            requestAnimationFrame(() => requestAnimationFrame(open));
+          })
+          .finally(() => alive && setBusy(false));
+      },
+      days: (b) => daysOf.current.get(b) ?? [],
+      diaryFont: () => fontRef.current,
+      titlePage: (b, n) => [
+        labelsRef.current.monthTitle(b.y, b.m),
+        labelsRef.current.t("shelf.home.titlePage").replace("{n}", String(n)),
+      ],
     };
-    void Promise.all([import("@/components/shelf3d/engine"), frameSrc()])
-      .then(async ([{ ShelfWorld }, frame]) => {
-        if (!alive) return;
-        w = new ShelfWorld(
-          el,
-          books,
-          {
-            onState: (st) => {
-              setState(st);
-              if (!st.open) setView("spread");
-            },
-            // 見開きで押した側のページへ寄る。寄っている時に押したら見開きへ戻る。
-            onPageTap: (side) => setView(viewRef.current === "spread" ? side : "spread"),
-            // 左ページ（その日のアルバム）の長押し → ホームと同じ並べ替えの面（右の日記は対象外）。
-            onPageLongPress: (side) => {
-              const d = dayRef.current;
-              if (side !== "left" || !d || !longPressRef.current) return;
-              longPressRef.current({ y: d.y, m: d.m, d: d.d });
-            },
-            // 片ページで払って、同じ見開きの反対のページへ横に移った（R20）。
-            onFocusSide: (side) => setView(side),
-            onBookTap: (b, open) => {
-              setBusy(true);
-              void prepare(b)
-                .then(() => {
-                  if (!alive) return;
-                  if (!fullRef.current) expand();
-                  // 広がり始めた次の描画で開く（寄ってくる本が広がる画面の中に来る）。
-                  requestAnimationFrame(() => requestAnimationFrame(open));
-                })
-                .finally(() => alive && setBusy(false));
-            },
-            days: (b) => daysOf.current.get(b) ?? [],
-            diaryFont: () => fontRef.current,
-            titlePage: (b, n) => [
-              labelsRef.current.monthTitle(b.y, b.m),
-              labelsRef.current.t("shelf.home.titlePage").replace("{n}", String(n)),
-            ],
-          },
-          { rows: 1, openAt: "first", room },
-        );
-        world.current = w;
-        const world3d = w;
-        ro = new ResizeObserver(() => world3d.resize());
-        ro.observe(el);
-        io = new IntersectionObserver(([e]) => world3d.setPaused(!e.isIntersecting));
-        io.observe(el);
-        // 帯の上でも本はそのまま押せる（大きくなったので背表紙を指で狙える）。縦に払えば
-        // ホームが送られる（`touch-action: pan-y`、その時は押したと数えない）。
-        const down = (e: PointerEvent) => {
-          if (fullRef.current) el.setPointerCapture(e.pointerId);
-          world3d.pointerDown(e);
-        };
-        const move = (e: PointerEvent) => world3d.pointerMove(e);
-        const up = (e: PointerEvent) => world3d.pointerUp(e);
-        const cancel = () => world3d.pointerCancel();
-        el.addEventListener("pointerdown", down);
-        el.addEventListener("pointermove", move);
-        el.addEventListener("pointerup", up);
-        el.addEventListener("pointercancel", cancel);
-        off.push(() => {
-          el.removeEventListener("pointerdown", down);
-          el.removeEventListener("pointermove", move);
-          el.removeEventListener("pointerup", up);
-          el.removeEventListener("pointercancel", cancel);
-        });
-        world3d.start();
-        return world3d.load(frame ? [frame] : []).then(() => alive && setReady(true));
-      })
-      .catch(() => alive && setFailed(true));
+    /** 組めた（または差し戻した）棚に、指と大きさと見え隠れを繋ぐ。 */
+    const wire = (world3d: ShelfWorld) => {
+      world.current = world3d;
+      w = world3d;
+      ro = new ResizeObserver(() => world3d.resize());
+      ro.observe(el);
+      io = new IntersectionObserver(([e]) => world3d.setPaused(!e.isIntersecting));
+      io.observe(el);
+      // 帯の上でも本はそのまま押せる（大きくなったので背表紙を指で狙える）。縦に払えば
+      // ホームが送られる（`touch-action: pan-y`、その時は押したと数えない）。
+      const down = (e: PointerEvent) => {
+        if (fullRef.current) el.setPointerCapture(e.pointerId);
+        world3d.pointerDown(e);
+      };
+      const move = (e: PointerEvent) => world3d.pointerMove(e);
+      const up = (e: PointerEvent) => world3d.pointerUp(e);
+      const cancel = () => world3d.pointerCancel();
+      el.addEventListener("pointerdown", down);
+      el.addEventListener("pointermove", move);
+      el.addEventListener("pointerup", up);
+      el.addEventListener("pointercancel", cancel);
+      off.push(() => {
+        el.removeEventListener("pointerdown", down);
+        el.removeEventListener("pointermove", move);
+        el.removeEventListener("pointerup", up);
+        el.removeEventListener("pointercancel", cancel);
+      });
+    };
+    if (reuse) {
+      wire(reuse.world);
+      reuse.world.setPaused(false);
+      // 差し戻した canvas は大きさが変わっていなくても描き直す（このコマのうちに棚を出す）。
+      reuse.world.resize();
+      setReady(true);
+    } else {
+      const books: MonthBook[] = months.map((m) => ({
+        y: m.y,
+        m: m.m,
+        count: m.count,
+        color: m.color,
+      }));
+      /** 写真立ての写真。遅ければ待たずに空の額で先に組む（棚が出るほうを優先）。 */
+      const frameSrc = async (): Promise<string | null> => {
+        if (!framePhoto) return null;
+        const slow = new Promise<null>((ok) => window.setTimeout(() => ok(null), 500));
+        return Promise.race([resolveCachedSrc(framePhoto).catch(() => framePhoto), slow]);
+      };
+      // 預けた棚の知らせ口。いま描いている画面の関数へ渡すだけ（`handlers` を差し替える）。
+      const events: ShelfEvents = {
+        onState: (st) => handlers.current.onState?.(st),
+        onPageTap: (side) => handlers.current.onPageTap?.(side),
+        onPageLongPress: (side) => handlers.current.onPageLongPress?.(side),
+        onFocusSide: (side) => handlers.current.onFocusSide?.(side),
+        onBookTap: (b, open) => handlers.current.onBookTap?.(b, open),
+        days: (b) => handlers.current.days?.(b) ?? [],
+        diaryFont: () => handlers.current.diaryFont?.() ?? fontRef.current,
+        titlePage: (b, n) => handlers.current.titlePage?.(b, n) ?? ["", ""],
+      };
+      void Promise.all([import("@/components/shelf3d/engine"), frameSrc()])
+        .then(async ([{ ShelfWorld }, frame]) => {
+          if (!alive) return;
+          const world3d = new ShelfWorld(el, books, events, { rows: 1, openAt: "first", room });
+          wire(world3d);
+          world3d.start();
+          await world3d.load(frame ? [frame] : []);
+          // 待つ間に画面が閉じた時は、閉じた側（下の後片付け）が捨てている。
+          if (alive) setReady(true);
+        })
+        .catch(() => alive && setFailed(true));
+    }
     return () => {
       alive = false;
       ro?.disconnect();
       io?.disconnect();
       off.forEach((f) => f());
-      w?.dispose();
+      el.remove();
+      // 本を閉じて棚に戻っている、描き終えた棚だけを預ける（開いたままの本は次に持ち越さない）。
+      if (w && readyRef.current && !openRef.current && !fullRef.current) {
+        w.setPaused(true);
+        keepShelf({ key, world: w, canvas: el, handlers });
+      } else {
+        w?.dispose();
+      }
       world.current = null;
       daysOf.current.clear();
       setReady(false);
@@ -645,7 +783,8 @@ export function HomeShelf({
           data-open={state.open ? "" : undefined}
         >
           <span aria-hidden className="home-shelf__room" />
-          <canvas ref={canvasRef} data-home-shelf className="home-shelf__canvas" />
+          {/* 3D の canvas はここに差し込まれる（`.home-shelf__canvas`。組み立ての effect）。 */}
+          <div ref={canvasSlot} className="contents" />
           {/* **3D より先に出す棚の絵**（R20）。前に開いた時にこの端末で撮った絵、無ければ
               アプリに同梱の空の棚。3D が描けたら、同じ位置のまま消える（絵と 3D はほぼ同じ）。 */}
           {snap !== undefined && !state.open && (
@@ -654,6 +793,8 @@ export function HomeShelf({
               alt=""
               aria-hidden
               draggable={false}
+              // 読み解き済みの絵なので、最初のコマで描く（空の 1 コマを挟まない）。
+              decoding="sync"
               className="home-shelf__snap"
               data-gone={ready || undefined}
             />

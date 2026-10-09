@@ -521,6 +521,8 @@ const BARE_SCENES = new Set([
   "home-tap",
   // 本の左ページを長押しして開く面は全画面。
   "book-album-edit",
+  // 図鑑 ⇄ ホームの行き来。枠（上の帯・下のバー）ごと自分で作り直す（2026-10-09）。
+  "home-tab-switch",
 ]);
 
 /**
