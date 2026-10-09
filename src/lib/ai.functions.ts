@@ -520,7 +520,14 @@ export const suggestWordCandidates = createServerFn({ method: "POST" })
         ? `「${data.query}」はすでに${candProfile.promptName}の語として打たれている。query_is_target は true。candidates にはその語1つだけ（読み・意味）を返す。`
         : data.queryLang === "native"
           ? `「${data.query}」は学習者の母語（または別の言語）で打たれている。query_is_target は false。`
-          : `「${data.query}」が**${candProfile.promptName}としてそのまま通じる語か**を先に判断し、query_is_target に true / false で書く（漢字だけの語は日本語とも${candProfile.promptName}とも読めるので、${candProfile.promptName}で実際にその意味でふつうに使う語なら true。日本語の字形・日本語にしか無い言い方なら false）。true なら candidates にはその語1つだけを返す。`;
+          : /**
+             * 漢字だけで決まらない語（「桃」「電車」「杯」）は**母語で打った語として引く**
+             * （オーナー指摘 2026-10-09「桃と日本語で検索したら、そのまま表示された。台湾華語では
+             * 水蜜桃とか、桃子っていう言い方もあるよね？」）。学習者は日本語を母語にするので、
+             * 漢字だけの語は日本語の語でもある。台湾での言い方が割れるなら全部並べる
+             * （打った字そのものが通じるなら、その語も候補の1つに入れる）。
+             */
+            `「${data.query}」は漢字だけなので、学習者の母語（日本語）の語として打たれたと考える。この語が指す物・意味を${candProfile.promptName}で**実際にどう言うか**を候補に並べる。打った字がそのまま${candProfile.promptName}でも通じるなら、その語も候補の1つに入れる（ただし会話でふつうに言う形が別にあれば、それも必ず並べる）。query_is_target は「${data.query}」が${candProfile.promptName}でもその意味でそのまま使え、しかも言い方が他に割れない（候補がその語1つだけ）時だけ true、それ以外は false。`;
     const prompt = `学習者が「${data.query}」と書いた。これが指す${candProfile.promptName}の語を挙げてください。
 
 ${queryLine}
@@ -538,6 +545,10 @@ ${langRule}
   (オーナー指摘 2026-08-20「単語の文字入力がエラーが出て、機能してない」)。
 - **一対一なら1つだけ。** 母語の語と${candProfile.promptName}の語がほぼ一対一に対応するなら、
   候補は1つだけ返す。**候補を水増ししない**（同じ物の言い換え・ほとんど使わない語・作った語を足さない）。
+- **1文字の語・単独では使いにくい字は、単独で言う形に直す。** 学習者が1文字（「桃」「杯」「桌」）を
+  打ったら、${candProfile.promptName}の会話で**単独で口にする形**（桃子・杯子・桌子）を必ず入れ、
+  よく使う具体的な形（桃なら 水蜜桃）も並べる。1文字のままの形（桃）を挙げるなら
+  「書き言葉・複合語（桃花・桃園）で使う」と違いを書く。
 - **本当に割れる時だけ複数。** 母語の1語が${candProfile.promptName}では別々の語に分かれる時
   （指す物が違う・会話の言い方と書き言葉/専門用語/表示の言い方）だけ、
   2〜5個を**よく使う順**に並べる。
@@ -624,14 +635,21 @@ ${langRule}
       }));
     await recordCandidateReceipts(candProfile.code, candidates);
     // 手元で分かった時はそれを返す（AI の判定より確か）。
+    /**
+     * 漢字だけで決まらない語は、候補が2つ以上に割れたら学習言語とは言わない
+     * （「桃」→ 桃子・水蜜桃・桃）。古い画面もこの値で「そのまま剥がす」を決めるので、
+     * ここで直すと古い画面も候補を出す。
+     */
     const query_is_target =
       data.queryLang === "target"
         ? true
         : data.queryLang === "native"
           ? false
-          : typeof raw.query_is_target === "boolean"
-            ? raw.query_is_target
-            : null;
+          : candidates.length > 1
+            ? false
+            : typeof raw.query_is_target === "boolean"
+              ? raw.query_is_target
+              : null;
     return { candidates, query_is_target };
   });
 

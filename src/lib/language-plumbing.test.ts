@@ -1499,7 +1499,7 @@ describe("2026-08-26: 打つのは何語でもよいが、見出しは学習言�
     // 学習言語の語として通る候補だけを使う（`dedupeCandidates`）。
     const flow = codeOnly(read("lib/text-search-flow.ts"));
     expect(flow).toMatch(/coerceTargetHeadword\(c\.headword, targetLanguage\)/);
-    expect(flow).toMatch(/isTarget && isTargetHeadword\(query, input\.targetLanguage\)/);
+    expect(flow).toMatch(/asTyped && isTargetHeadword\(query, input\.targetLanguage\)/);
   });
 
   it("**手で打つ所も同じ道を通る**（片方だけ直る事故を防ぐ）", () => {

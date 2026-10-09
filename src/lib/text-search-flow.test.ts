@@ -133,6 +133,86 @@ describe("normalizeRegister（どの候補も同じ物差しの文体で — 202
   });
 });
 
+describe("2026-10-09: 漢字だけの語は母語として引く（「桃」をそのまま剥がさない）", () => {
+  /**
+   * オーナー報告: 「桃と日本語で検索したら、そのまま表示された。台湾華語では水蜜桃とか、
+   * 桃子っていう言い方もあるよね？なぜ単語の候補を出さずに直接そのまま表示したの？」
+   * AI が `query_is_target: true` と言い、その語1つで剥がしていた。
+   */
+  const peach = [
+    cand("桃子", { register: "spoken" }),
+    cand("水蜜桃", { register: "both" }),
+    cand("桃", { register: "written" }),
+  ];
+  it("桃・杯・電車は手元では決まらない", () => {
+    expect(detectQueryLang("桃", "zh-TW")).toBe("ambiguous");
+    expect(detectQueryLang("杯", "zh-TW")).toBe("ambiguous");
+    expect(detectQueryLang("電車", "zh-TW")).toBe("ambiguous");
+  });
+  it("桃: AI が「学習言語」と言っても、言い方が割れたら選ばせる", () => {
+    const d = decideTextSearch({
+      query: "桃",
+      local: detectQueryLang("桃", "zh-TW"),
+      queryIsTarget: true,
+      candidates: peach,
+      targetLanguage: "zh-TW",
+    });
+    expect(d.kind).toBe("choose");
+    if (d.kind === "choose")
+      expect(d.candidates.map((c) => c.headword)).toEqual(["桃子", "水蜜桃", "桃"]);
+  });
+  it("杯: 杯子（単独で言う形）と並べて選ばせる", () => {
+    const d = decideTextSearch({
+      query: "杯",
+      local: detectQueryLang("杯", "zh-TW"),
+      queryIsTarget: true,
+      candidates: [cand("杯子"), cand("杯")],
+      targetLanguage: "zh-TW",
+    });
+    expect(d.kind).toBe("choose");
+  });
+  it("電車: AI が「学習言語」と言っても、電車・捷運・火車を並べる", () => {
+    const d = decideTextSearch({
+      query: "電車",
+      local: detectQueryLang("電車", "zh-TW"),
+      queryIsTarget: true,
+      candidates: [cand("電車"), cand("捷運"), cand("火車")],
+      targetLanguage: "zh-TW",
+    });
+    expect(d.kind).toBe("choose");
+  });
+  it("漢字だけの語でも、候補が1つならそのまま剥がす", () => {
+    const d = decideTextSearch({
+      query: "蓮藕",
+      local: "ambiguous",
+      queryIsTarget: true,
+      candidates: [cand("蓮藕", { pinyin: "liánǒu" })],
+      targetLanguage: "zh-TW",
+    });
+    expect(d).toMatchObject({ kind: "peel", pick: { headword: "蓮藕", pinyin: "liánǒu" } });
+  });
+  it("貓（台湾の字）は候補が割れてもそのまま", () => {
+    const d = decideTextSearch({
+      query: "貓",
+      local: detectQueryLang("貓", "zh-TW"),
+      queryIsTarget: null,
+      candidates: [cand("貓"), cand("貓咪")],
+      targetLanguage: "zh-TW",
+    });
+    expect(d).toMatchObject({ kind: "peel", via: "target", pick: { headword: "貓" } });
+  });
+  it("ねこ（かな）は母語: 候補が割れたら選ばせる", () => {
+    const d = decideTextSearch({
+      query: "ねこ",
+      local: detectQueryLang("ねこ", "zh-TW"),
+      queryIsTarget: true,
+      candidates: [cand("貓"), cand("貓咪")],
+      targetLanguage: "zh-TW",
+    });
+    expect(d.kind).toBe("choose");
+  });
+});
+
 describe("decideTextSearch（そのまま剥がす / 選ばせる / 見つからない）", () => {
   it("学習言語で打った語は、候補が割れても選ばせずにその語で剥がす", () => {
     const d = decideTextSearch({
