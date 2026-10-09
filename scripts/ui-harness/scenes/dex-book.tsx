@@ -9,6 +9,8 @@
  * - `?scene=dex-book&case=merge` … 文字で2回検索した「貓」が1マスにまとまる（前は2マス）
  * - `?scene=dex-book&case=other` … 分類が「その他」の蘑菇・小豬が植物・花と動物に、面膜は洗面・
  *   日用品に、どこにも当たらない語は最後の「その他」の節に（2026-10-09 オーナー報告）
+ * - `?scene=dex-book&case=stuck` … other のまま保存された開關・刷子・健康餐・可頌・亮點・手背・面膜。
+ *   見出し語の規則で棚へ入り、「その他」には亮點だけが残る（2026-10-09 オーナーの図鑑の画面）
  *
  * 写真は見本の色の板（通信しない）。番号は本番と同じく端末に覚える（`localStorage`）。
  */
@@ -104,8 +106,22 @@ const OTHER: Fx[] = [
   { id: "unknown", head: "某個東西", cat: "other", photo: board("#cfcfd4", "?"), day: 4 },
 ];
 
-function OtherCase() {
-  const [items] = useState(() => OTHER.map(make));
+/**
+ * 2026-10-09 オーナーの図鑑の画面:「その他になぜかいろんなものがそのままになってる。
+ * 可頌は食べ物だし、面膜は生活用品だよね。」— どれも保存された分類は other。
+ */
+const STUCK: Fx[] = [
+  { id: "switch", head: "開關", cat: "other", photo: board("#e8e4da", "開關"), day: 1 },
+  { id: "brush", head: "刷子", cat: "other", photo: board("#c9a77a", "刷子"), day: 1 },
+  { id: "mealbox", head: "健康餐", cat: "other", photo: board("#9cc58a", "健康餐"), day: 2 },
+  { id: "croissant", head: "可頌", cat: "other", photo: board("#d9a45b", "可頌"), day: 2 },
+  { id: "highlight", head: "亮點", cat: "other", photo: board("#f3e27a", "亮點"), day: 3 },
+  { id: "backhand", head: "手背", cat: "other", photo: board("#f0c9a8", "手背"), day: 3 },
+  { id: "facemask", head: "面膜", cat: "other", photo: board("#f4f1ea", "面膜"), day: 4 },
+];
+
+function OtherCase({ fixtures = OTHER }: { fixtures?: Fx[] }) {
+  const [items] = useState(() => fixtures.map(make));
   const [view, setView] = useState<ViewMode>("gallery");
   const [filter, setFilter] = useState<DexFilter>(NO_FILTER);
   const [search, setSearch] = useState("");
@@ -142,6 +158,7 @@ export function DexBookScene({ q }: { q: URLSearchParams }) {
   if (kase === "merge") return <MergeCase />;
   if (kase === "all") return <AllCase />;
   if (kase === "other") return <OtherCase />;
+  if (kase === "stuck") return <OtherCase fixtures={STUCK} />;
   return <BookCase />;
 }
 

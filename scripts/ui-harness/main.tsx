@@ -416,6 +416,8 @@ const REVIEW_SCENES: Array<{ scene: string; label: string }> = [
   // 2026-10-09「aiのデータの送信の同意をずっと設定に表示してるの不自然だから、規約にまとめ」。
   { scene: "settings-legal", label: "設定: 規約と表記（AI へ送る同意もほかと同じ下線リンク）" },
   { scene: "settings-legal&open=1", label: "設定: AI へ送る同意の小さな画面（取り消せる）" },
+  // 2026-10-09「その他になぜかいろんなものがそのままになってる。可頌は食べ物だし…」。
+  { scene: "dex-book&case=stuck", label: "図鑑: other のままの可頌・面膜などが棚へ" },
   // 2026-10-09「開発者の AI 設定が散らかっている。整理・削除・統合して」— 1枚にまとめた。
   { scene: "admin-ai-settings", label: "開発者設定: AI の設定（機能ごとの AI・画像・発音の声）" },
   { scene: "admin-ai-settings&lang=en", label: "開発者設定: AI の設定（English）" },
@@ -477,7 +479,6 @@ const REVIEW_SCENES: Array<{ scene: string; label: string }> = [
   // 2026-10-03「アプリ内の広告が動く 機能するようにしたい」— Google AdSense のウェブ広告。
   // 見本は本物の広告の代わりに「広告」の箱を出す。`&fill=unfilled` で広告が来ない時（枠が閉じる）。
   { scene: "dex-ads", label: "広告: 図鑑の一覧の途中" },
-  { scene: "dex-ads&view=list", label: "広告: 図鑑のリスト表示" },
   { scene: "home-ads", label: "広告: ホームの日と日の間" },
   { scene: "review-end-ads", label: "広告: 復習の終わり（カード）" },
   { scene: "settings-ads", label: "開発者設定: 広告の ID と枠の番号" },
