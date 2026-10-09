@@ -1,3 +1,4 @@
+import { createPortal } from "react-dom";
 import { MemorialReveal } from "@/components/MemorialReveal";
 import { ResurfaceCard } from "@/components/ResurfaceCard";
 import { useMemoryBadges } from "@/lib/use-memory-map";
@@ -255,7 +256,12 @@ export function HomePage() {
   const [homeSnapshot] = useState(() =>
     readHomeSnapshot<Awaited<ReturnType<typeof listMyStickers>>>(),
   );
-  const { data: profile } = useQuery({ queryKey: ["profile"], queryFn: () => fetchProfile() });
+  // 上の帯（`BrandMenu`）と同じ鍵・同じ新しさ。無いと、ホームへ戻るたびに読み直していた。
+  const { data: profile } = useQuery({
+    queryKey: ["profile"],
+    queryFn: () => fetchProfile(),
+    staleTime: 5 * 60 * 1000,
+  });
   const webAds = useWebAds();
   const {
     data: stickers,
@@ -1663,7 +1669,16 @@ export function DayCollage({
       {/* **日付はアルバムの上に大きく**（オーナー指示 2026-09-23 改「やっぱり
           ホームのアルバムの上に大きく日付を書いて。手書きではなくアプリの字体に」）。 */}
       {heading && <div className="album-date">{heading}</div>}
-      <div className={`collage collage-board relative ${surface} ${opening ? "album-open" : ""}`}>
+      <div
+        className={`collage collage-board relative ${surface} ${opening ? "album-open" : ""}`}
+        // 長押しで札を掴む面。ブラウザの長押し（字の選択・コピーの吹き出し・メニュー）を
+        // 出さない（`.collage-board` の CSS と対。オーナー報告 2026-10-09「文字を長押しすると
+        // 青く文字のコピーになって文字を移動しにくい」）。
+        onContextMenu={(e) => {
+          if (!(e.target instanceof HTMLElement) || !e.target.closest("input, textarea"))
+            e.preventDefault();
+        }}
+      >
         {editing && (
           /**
            * **画面に貼り付ける。台紙に貼らない。**（オーナー報告 2026-09-15
@@ -1676,14 +1691,14 @@ export function DayCollage({
            * 触っている所の近くに常に在るよう、画面の下に固定する
            * （下のタブ帯のすぐ上。親指がいちばん届く所）。
            */
-          <button
-            type="button"
-            onClick={finishEditing}
-            className="lift fixed bottom-[calc(5rem+env(safe-area-inset-bottom))] left-1/2 z-50 inline-flex min-h-11 -translate-x-1/2 items-center gap-1.5 rounded-full bg-primary px-5 text-footnote font-semibold text-primary-foreground shadow-xl"
-          >
-            <Check className="h-4 w-4" />
-            {t("album.done")}
-          </button>
+          /**
+           * **body に直に置く**（オーナー報告 2026-10-09「編集の完了ボタンが必ず表示される
+           * ようにして」）。`fixed` でも、祖先に `transform`・`translate`・`filter` などが
+           * 1 つでもあると、画面ではなく**その祖先**に貼り付く。今日の誌面は表紙が開く動き
+           * （`.album-open`、`translate`/`scale` を最後の形のまま持つ）の中に居たので、
+           * ボタンは誌面の下端に付き、下へ伸びた誌面では画面の外に出ていた。
+           */
+          <DoneEditingButton onClick={finishEditing} label={t("album.done")} />
         )}
         {/* **升目をやめて、1枚の紙にした**（オーナー指示 2026-09-15）。
           形を決め打ちにするのは、縦位置を割合で持てるようにするため。
@@ -2369,5 +2384,28 @@ export function MemorialAlbum({
         )}
       </div>
     </div>
+  );
+}
+
+/**
+ * 並べ替えの「完了」。**いつも画面の下（下のタブ帯と端末の下の余白の上）に出る**。
+ * `document.body` に置くので、誌面の祖先の `transform` などに引っ張られない
+ * （`DayCollage` の注）。読み込み前（サーバで描く時）は何も出さない。
+ */
+function DoneEditingButton({ onClick, label }: { onClick: () => void; label: string }) {
+  const [host, setHost] = useState<HTMLElement | null>(null);
+  useEffect(() => setHost(document.body), []);
+  if (!host) return null;
+  return createPortal(
+    <button
+      type="button"
+      data-album-done=""
+      onClick={onClick}
+      className="lift fixed bottom-[calc(5rem+env(safe-area-inset-bottom))] left-1/2 z-[60] inline-flex min-h-11 -translate-x-1/2 items-center gap-1.5 rounded-full bg-primary px-5 text-footnote font-semibold text-primary-foreground shadow-xl"
+    >
+      <Check className="h-4 w-4" />
+      {label}
+    </button>,
+    host,
   );
 }

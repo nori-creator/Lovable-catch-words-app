@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 import { createSpring, type Spring } from "@/lib/spring";
-import { usePrefersReducedMotion } from "@/hooks/use-reduced-motion";
+import { motionReducedNow, usePrefersReducedMotion } from "@/hooks/use-reduced-motion";
 
 /**
  * 直前に居た所。**画面をまたいでも憶えておく**ための控え。
@@ -47,8 +47,44 @@ type Carry = {
   l: number;
   r: number;
   trackW: number;
+  /**
+   * 合成の糸で滑らせている最中（`glideIndicator`）。作り直された印は、**いま滑っている
+   * 所**から続ける（書いた値ではなく、時刻から出す）。
+   */
+  glide?: { toL: number; toR: number; t0: number; dur: number };
 };
 const lastIndex = new Map<string, Carry>();
+
+/** 滑らせ方（合成の糸で走る動き。`glideIndicator`）。 */
+const GLIDE_MS = 280;
+/** `cubic-bezier(.2,.8,.2,1)` に近い減速（作り直された印が続きを出す時の近似）。 */
+const glideEase = (t: number) => 1 - Math.pow(1 - Math.max(0, Math.min(1, t)), 3);
+
+/** その時刻に、滑っている印が居る所。 */
+function carriedEdges(c: Carry, now: number): { l: number; r: number } {
+  if (!c.glide) return { l: c.l, r: c.r };
+  const p = glideEase((now - c.glide.t0) / c.glide.dur);
+  return { l: c.l + (c.glide.toL - c.l) * p, r: c.r + (c.glide.toR - c.r) * p };
+}
+
+/** 生きている印（鍵ごと）。`glideIndicator` が呼ぶ。 */
+const gliders = new Map<string, (index: number) => void>();
+
+/**
+ * **押した瞬間に、印を合成の糸（compositor）で滑らせ始める**（オーナー報告 2026-10-09
+ * 「ホームのアイコン押した時のカクツキが全く直ってない」）。
+ *
+ * 下のタブで画面を移ると、次の画面を組む間（中くらいの Android で 0.1〜0.3 秒）JavaScript は
+ * 1 コマも動けない。ばね（JS）で動かす印はその間止まり、押してから「止まる → 跳ぶ」に見えて
+ * いた。`transform` だけの Web Animations は画面を組む糸とは別の糸で進むので、組んでいる間も
+ * 滑り続ける。作り直された新しい印は、滑っている途中の位置から続ける（`carriedEdges`）。
+ *
+ * 伸び（両端のばねの差）はこの間だけ出ない（幅は変えない — 幅は合成の糸で動かせない）。
+ * 動きを減らす設定では何もしない（ふつうの切り替えのまま）。
+ */
+export function glideIndicator(persistKey: string, index: number): void {
+  gliders.get(persistKey)?.(index);
+}
 
 /**
  * 「いまここ」を示す、**滑って伸びる印**。
@@ -179,6 +215,8 @@ export function SlidingIndicator({
       return { l: a.l + (b.l - a.l) * f, r: a.r + (b.r - a.r) * f };
     };
 
+    /** 合成の糸で滑らせている間（`glide`）。その間に書いた値は控えに残さない。 */
+    let glidingUntil = 0;
     const paint = () => {
       const l = leftRef.current?.value() ?? 0;
       const r = rightRef.current?.value() ?? 0;
@@ -199,7 +237,8 @@ export function SlidingIndicator({
       el.style.opacity =
         indexRef.current < 0 ? "0" : String(Math.max(0, Math.min(1, opacityRef.current)));
       // **書いた値をそのまま控える。** 作り直されたら、ここから続ける。
-      if (persistKey != null) {
+      // 合成の糸で滑らせている間は、滑りの控え（`glide`）を上書きしない。
+      if (persistKey != null && performance.now() >= glidingUntil) {
         lastIndex.set(persistKey, {
           index: indexRef.current,
           l,
@@ -220,7 +259,8 @@ export function SlidingIndicator({
       // 幅が変わっていたら割合で読み替える（横向きにした直後など）。
       const w = track.getBoundingClientRect().width || 1;
       const k = carry.trackW > 0 ? w / carry.trackW : 1;
-      start = { l: carry.l * k, r: carry.r * k };
+      const at = carriedEdges(carry, performance.now());
+      start = { l: at.l * k, r: at.r * k };
     }
     leftRef.current = createSpring(start.l, paint, { damping: 1, response: lead });
     rightRef.current = createSpring(start.r, paint, { damping: 1, response: lead });
@@ -259,7 +299,31 @@ export function SlidingIndicator({
     window.addEventListener("resize", onResize);
     const ro = new ResizeObserver(onResize);
     ro.observe(track);
+    /** 合成の糸で滑らせる（`glideIndicator`）。 */
+    const glide = (to: number) => {
+      if (persistKey == null || motionReducedNow()) return;
+      const L = leftRef.current;
+      const R = rightRef.current;
+      if (!L || !R) return;
+      const fromL = L.value();
+      const fromR = R.value();
+      const e = edgesAt(to);
+      el.animate(
+        [{ transform: `translate3d(${fromL}px,0,0)` }, { transform: `translate3d(${e.l}px,0,0)` }],
+        { duration: GLIDE_MS, easing: "cubic-bezier(.2,.8,.2,1)", fill: "forwards" },
+      );
+      lastIndex.set(persistKey, {
+        index: to,
+        l: fromL,
+        r: fromR,
+        trackW: track.getBoundingClientRect().width || 1,
+        glide: { toL: e.l, toR: e.r, t0: performance.now(), dur: GLIDE_MS },
+      });
+      glidingUntil = performance.now() + GLIDE_MS;
+    };
+    if (persistKey != null) gliders.set(persistKey, glide);
     return () => {
+      if (persistKey != null && gliders.get(persistKey) === glide) gliders.delete(persistKey);
       window.removeEventListener("resize", onResize);
       ro.disconnect();
       leftRef.current?.dispose();

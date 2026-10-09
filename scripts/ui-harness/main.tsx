@@ -1,6 +1,7 @@
 import { FirstCatchScene, TutorialHarnessFrame, embedsTutorial } from "./scenes/first-catch";
 import { HomeShelfScene } from "./scenes/home-shelf";
 import { HomeTabSwitchScene } from "./scenes/home-tab-switch";
+import { HomeEditScene } from "./scenes/home-edit";
 import { InstallAppScene } from "./scenes/install-app";
 import { ChunkDesignsScene } from "./scenes/chunk-designs";
 import { PeelStickerScene } from "./scenes/peel-sticker";
@@ -185,6 +186,7 @@ const SCENES: Record<string, ((p: { q: URLSearchParams }) => ReactNode) | undefi
   home: HomeScene,
   "home-shelf": HomeShelfScene,
   "home-tab-switch": HomeTabSwitchScene,
+  "home-edit": HomeEditScene,
   "install-app": InstallAppScene,
   "home-album": HomeAlbumScene,
   "home-memorial": HomeMemorialScene,
@@ -395,6 +397,8 @@ const BARE = new Set([
   "book-album-edit",
   // 枠（上の帯・下のバー）ごと自分で作り直す（本番のタブの行き来と同じ）。
   "home-tab-switch",
+  // 枠（上の帯・下のバー）を自分で持つ（下へ送った時の「完了」の位置を見るため）。
+  "home-edit",
 ]);
 
 const q = new URLSearchParams(location.search);
@@ -422,6 +426,8 @@ const REVIEW_SCENES: Array<{ scene: string; label: string }> = [
   // 2026-10-09 候補の違いを同じ物差しで（文体の札・場面・違い）。「豚の口の周りの肉」→ 嘴邊肉 / 豬頰肉。
   { scene: "text-candidates", label: "文字検索の候補: 「豚の口の周りの肉」（文体・場面・違い）" },
   { scene: "text-candidates&case=densha", label: "文字検索の候補: 「電車」（文体・場面・違い）" },
+  // 2026-10-09「文字を長押しすると青く文字のコピーになる」「編集の完了ボタンが必ず表示されるように」。
+  { scene: "home-edit", label: "ホームの誌面: 並べ替え中に下へ送っても「完了」が画面の下に出る" },
   // 2026-10-09「ホームのアイコン押すとカクカクする」「文字だけ移動できるように」。
   { scene: "home-tab-switch", label: "ホーム ⇄ 図鑑: タブを押しても棚・写真が抜けない" },
   {
@@ -477,7 +483,6 @@ const REVIEW_SCENES: Array<{ scene: string; label: string }> = [
   // 2026-10-03「アプリ内の広告が動く 機能するようにしたい」— Google AdSense のウェブ広告。
   // 見本は本物の広告の代わりに「広告」の箱を出す。`&fill=unfilled` で広告が来ない時（枠が閉じる）。
   { scene: "dex-ads", label: "広告: 図鑑の一覧の途中" },
-  { scene: "dex-ads&view=list", label: "広告: 図鑑のリスト表示" },
   { scene: "home-ads", label: "広告: ホームの日と日の間" },
   { scene: "review-end-ads", label: "広告: 復習の終わり（カード）" },
   { scene: "settings-ads", label: "開発者設定: 広告の ID と枠の番号" },

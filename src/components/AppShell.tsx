@@ -21,6 +21,7 @@ import { useScrolled } from "@/hooks/use-scrolled";
 import { useSwipeBack } from "@/hooks/use-tab-swipe";
 import { playCameraLaunch } from "@/lib/camera-launch";
 import { useWarmCamera } from "@/hooks/use-warm-camera";
+import { glideIndicator } from "@/components/SlidingIndicator";
 
 /**
  * ヘッダーの丸アイコンそのもの。設定で顔写真を登録していればそれを出す。
@@ -262,7 +263,20 @@ export function AppShell({
    * 同じことを3箇所に書けば、いつか2箇所だけ直る。
    */
   const atPath = (to: string) => pathname === to || pathname === `${to}/`;
-  const tabIndex = items.findIndex((i) => atPath(i.to));
+  /**
+   * **押したタブ**（まだ画面が移っていない間だけ）。オーナー報告 2026-10-09「ホームのアイコン
+   * 押した時のカクツキが全く直ってない」。
+   *
+   * 画面の入れ替え（route の切り替え）は React が**1 回でまとめて**描く（ルーターの状態は
+   * 途中で手を返せない描き方）。押したその処理の中で入れ替えると、次の画面を組み終わるまで
+   * 1 コマも出ず、押したタブの印も動かない（本番の束・CPU 4 倍遅くした計測で 0.3〜0.6 秒）。
+   * だから**先に印と押した色だけを動かして 1 コマ出し**、そのコマを出した後に画面を移る。
+   */
+  const [pendingTo, setPendingTo] = useState<string | null>(null);
+  useEffect(() => setPendingTo(null), [pathname]);
+  const tabIndex = pendingTo
+    ? items.findIndex((i) => i.to === pendingTo)
+    : items.findIndex((i) => atPath(i.to));
   /**
    * いま**カメラの機械の中に居るか**。帯の色と、横払いの持ち主を決める
    * （オーナー指示 2026-09-16「下のバーも撮影モードのときはこのような
@@ -399,6 +413,29 @@ export function AppShell({
                   } else {
                     Sound.pageSnap();
                     haptic("selection");
+                    // 別のタブへ: 印を先に動かし、そのコマを出してから移る（上の `pendingTo`）。
+                    // 新しいタブで開く押し方（修飾キー・中ボタン）はリンクのまま。
+                    const plain =
+                      event.button === 0 &&
+                      !event.metaKey &&
+                      !event.ctrlKey &&
+                      !event.shiftKey &&
+                      !event.altKey;
+                    if (!isCurrent && plain) {
+                      event.preventDefault();
+                      // 印は合成の糸で滑らせる（画面を組む間も止まらない。`glideIndicator`）。
+                      glideIndicator(
+                        "tabbar",
+                        items.findIndex((i) => i.to === to),
+                      );
+                      setPendingTo(to);
+                      requestAnimationFrame(() => {
+                        window.setTimeout(() => {
+                          // 移れなかった時（止められた等）は印を元へ戻す。
+                          void navigate({ to }).finally(() => setPendingTo(null));
+                        }, 0);
+                      });
+                    }
                   }
                 }}
               />

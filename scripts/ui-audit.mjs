@@ -523,6 +523,7 @@ const BARE_SCENES = new Set([
   "book-album-edit",
   // 図鑑 ⇄ ホームの行き来。枠（上の帯・下のバー）ごと自分で作り直す（2026-10-09）。
   "home-tab-switch",
+  "home-edit",
 ]);
 
 /**

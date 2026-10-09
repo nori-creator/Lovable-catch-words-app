@@ -163,7 +163,10 @@ function layers(w: number, h: number) {
   const l = {
     color: color.getContext("2d")!,
     orm: orm.getContext("2d")!,
-    height: height.getContext("2d")!,
+    // 高さの絵は描いた後に画素を読む（`heightToNormal`）。**読む絵は端末の CPU 側に置く**
+    // （`willReadFrequently`）。GPU 側の絵を読むと、GPU の仕事が終わるまで画面ごと待つ
+    // （2026-10-09 計測: 棚を組む 1 本の長い仕事のうち、読み戻しの待ちだけで 2.5 秒）。
+    height: height.getContext("2d", { willReadFrequently: true })!,
   };
   // 布: 粗さ 0.85（G≈217）・金属 0
   l.orm.fillStyle = "rgb(255,217,0)";
@@ -344,7 +347,7 @@ export function paintPlaster(): { color: Canvas; normal: Canvas } {
   const color = canvas(s, s);
   const height = canvas(s, s);
   const cc = color.getContext("2d")!;
-  const hc = height.getContext("2d")!;
+  const hc = height.getContext("2d", { willReadFrequently: true })!;
   cc.fillStyle = "#c9b8a0"; // 暖かい生成りの漆喰（白すぎると本が沈む）
   cc.fillRect(0, 0, s, s);
   hc.fillStyle = "#808080";
