@@ -10,7 +10,9 @@
  */
 import {
   DEX_CATEGORIES,
+  DEX_OTHER_KEY,
   DEX_SHADOW_COUNT,
+  dexCatalogCategory,
   dexCategoryForKey,
   dexCategoryKey,
   dexItemFor,
@@ -187,7 +189,7 @@ export type DexSlot<T extends DexGroupable> =
 export type DexSection<T extends DexGroupable> = {
   /** 節の鍵（`data-dex-cat`）。図鑑の20は代表の分類の鍵、その人のカテゴリーはその鍵。 */
   key: string;
-  /** 図鑑のカテゴリー（1〜20）。その人が作ったカテゴリーは null。 */
+  /** 図鑑のカテゴリー（1〜20）。その人が作ったカテゴリーと「その他」の節は null。 */
   dexNo: number | null;
   slots: DexSlot<T>[];
   caughtCount: number;
@@ -225,7 +227,11 @@ export function dexAdGroupSizes(sections: ReadonlyArray<{ caughtCount: number }>
 /**
  * 言葉の図鑑のカテゴリー。その人が移した先（`shelf_key`）があればそれが勝つ — 既定の鍵なら
  * その鍵のカテゴリー、その人のカテゴリーなら節そのもの（文字列で返す）。無ければ iOS と同じく
- * 表の物のカテゴリー、表に無ければ語の分類から。
+ * 表の物のカテゴリー（見出し語 → 言い方の揺れ）、表に無ければ語の分類から。
+ *
+ * **どれにも当たらない語（分類が other・知らない鍵）は「その他」の節（`DEX_OTHER_KEY`）**。
+ * 前は 10（洗面・日用品）へ黙って寄せていて、札は「その他」なのに図鑑では蘑菇・小豬が
+ * 日用品に並んでいた（オーナー報告 2026-10-09）。
  */
 export function dexPlaceOf(
   s: DexGroupable,
@@ -234,12 +240,13 @@ export function dexPlaceOf(
 ): number | string {
   const override = (s.shelf_key ?? "").trim();
   if (override) {
-    if (isBuiltinCategory(override)) return dexCategoryForKey(override);
+    if (isBuiltinCategory(override)) return dexCategoryForKey(override) ?? DEX_OTHER_KEY;
     if (userKeys.has(override)) return override;
   }
-  const item = dexItemFor(s.word.headword, s.word.language ?? lang);
+  const fromCatalog = dexCatalogCategory(s.word.headword, s.word.language ?? lang);
+  if (fromCatalog != null) return fromCatalog;
   // 表に無い語は、見出し語で直した分類から（燒仙草が「〜草」で植物・花に入っていた）。
-  return item ? item.category : dexCategoryForKey(wordCategoryKey(s.word));
+  return dexCategoryForKey(wordCategoryKey(s.word)) ?? DEX_OTHER_KEY;
 }
 
 /**
@@ -303,7 +310,10 @@ export function dexSections<T extends DexGroupable>(
     const i = opts.userOrder?.indexOf(k) ?? -1;
     return i < 0 ? Number.MAX_SAFE_INTEGER : i;
   };
-  custom.sort((a, b) => rank(a) - rank(b));
+  // 「その他」の節は、その人のカテゴリーよりも後ろ（いちばん最後）。
+  custom.sort(
+    (a, b) => Number(a === DEX_OTHER_KEY) - Number(b === DEX_OTHER_KEY) || rank(a) - rank(b),
+  );
   for (const key of custom) {
     const caught = caughtSlots(byPlace.get(key));
     out.push({ key, dexNo: null, slots: caught, caughtCount: caught.length });

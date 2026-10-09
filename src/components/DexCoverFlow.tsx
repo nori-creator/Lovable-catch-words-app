@@ -14,7 +14,7 @@ import { useMemoryBadges } from "@/lib/use-memory-map";
 import {
   CATEGORY_META,
   ROOM_ACCENT,
-  asCategoryKey,
+  wordCategoryKey,
   categoryEmoji,
   type RoomKey,
 } from "@/lib/category";
@@ -342,9 +342,7 @@ export function DexCoverFlow({
   }, [center]);
 
   const current = stickers[center];
-  const room: RoomKey = current
-    ? CATEGORY_META[asCategoryKey(current.word.category_key)].room
-    : "town";
+  const room: RoomKey = current ? CATEGORY_META[wordCategoryKey(current.word)].room : "town";
   return (
     <section
       aria-label={t("dex.cards")}
@@ -548,7 +546,8 @@ function CardFace({
   const t = useT();
   const locale = localeOf(useUiLang());
   const photo = stickerPhotoUrl(s);
-  const cat = asCategoryKey(s.word.category_key);
+  // 図鑑の升目と同じく、見出し語で直した分類（2026-10-09: 蘑菇の札が「その他」、升目は別の棚）。
+  const cat = wordCategoryKey(s.word);
   // **設定の表記だけ**（注音かピンイン。オーナー報告 2026-09-23「ピン音に設定して
   // いるのに、図鑑の横にスライドするやつが注音のまま」）。英語の語なら IPA。
   const reading = useReadingText(

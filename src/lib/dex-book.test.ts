@@ -392,3 +392,50 @@ describe("表に無い語の置き場所", () => {
     expect(dexPlaceOf(s, "zh-TW", new Set())).toBe(17);
   });
 });
+
+/**
+ * 2026-10-09 オーナー報告（図鑑の録画）: 野のキノコの写真の「蘑菇」と子豚の「小豬」が
+ * 「洗面・日用品」(10) に並んでいた（面膜はそこで正しい）。札の分類は「その他」(other) で、
+ * 図鑑は other を 10 に黙って寄せていた。表 → 言い方の揺れ → 分類の鍵 → 「その他」の節の順。
+ */
+describe("「その他」を日用品に寄せない（蘑菇・小豬・面膜）", () => {
+  const none = new Set<string>();
+
+  it("蘑菇は「植物・花」(17)。表の香菇と同じ所（AI の答えが other でも）", () => {
+    expect(dexPlaceOf(st("m", "蘑菇", { cat: "other" }), "zh-TW", none)).toBe(17);
+  });
+
+  it("小豬は「動物」(16)（AI の答えが other でも）", () => {
+    expect(dexPlaceOf(st("p", "小豬", { cat: "other" }), "zh-TW", none)).toBe(16);
+    expect(dexPlaceOf(st("p2", "山豬", { cat: null }), "zh-TW", none)).toBe(16);
+  });
+
+  it("面膜は「洗面・日用品」(10) のまま", () => {
+    expect(dexPlaceOf(st("f", "面膜", { cat: "medicine" }), "zh-TW", none)).toBe(10);
+  });
+
+  it("表にも規則にも当たらない語は「その他」の節。知らない鍵も同じ", () => {
+    expect(dexPlaceOf(st("u", "某個東西", { cat: "other" }), "zh-TW", none)).toBe("other");
+    expect(dexPlaceOf(st("u2", "某個東西", { cat: "place" }), "zh-TW", none)).toBe("other");
+    expect(dexPlaceOf(st("u3", "某個東西", { shelf_key: "other" }), "zh-TW", none)).toBe("other");
+  });
+
+  it("「その他」の節は、その人のカテゴリーよりも後ろのいちばん最後", () => {
+    const secs = dexSections(
+      [
+        st("u", "某個東西"),
+        st("m", "蘑菇"),
+        st("f", "面膜", { cat: "medicine" }),
+        st("b", "狗", { shelf_key: "u_mine" }),
+      ],
+      { lang: "zh-TW", numbers: new Map(), userKeys: new Set(["u_mine"]), shadows: false },
+    );
+    expect(secs.map((s) => [s.key, s.dexNo])).toEqual([
+      ["tool", 10],
+      ["plant", 17],
+      ["u_mine", null],
+      ["other", null],
+    ]);
+    expect(secs.find((s) => s.dexNo === 10)!.slots.map((x) => x.id)).toEqual(["f"]);
+  });
+});

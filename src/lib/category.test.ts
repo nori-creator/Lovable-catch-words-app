@@ -123,6 +123,19 @@ describe("asCategoryKey", () => {
     expect(wordCategoryKey({ headword: "", category_key: "place" })).toBe("other");
     expect(wordCategoryKey({ category_key: null })).toBe("other");
   });
+
+  // 2026-10-09 オーナー報告: 蘑菇・小豬が「その他」になり、図鑑で日用品に並んでいた。
+  it("キノコは植物（表の香菇と同じ）、子どもの動物は動物。面膜は日用品のまま", () => {
+    expect(normalizeCategory("蘑菇", "other")).toBe("plant");
+    expect(normalizeCategory("金針菇", "other")).toBe("plant");
+    expect(normalizeCategory("小豬", "other")).toBe("animal");
+    expect(normalizeCategory("豬仔", "other")).toBe("animal");
+    expect(normalizeCategory("小雞", "other")).toBe("animal");
+    expect(normalizeCategory("面膜", "medicine")).toBe("medicine");
+    // 「〜豬」を広く取らない（豬排は料理）。
+    expect(normalizeCategory("豬排", "food")).toBe("food");
+    expect(normalizeCategory("斑馬線", "street")).toBe("street");
+  });
 });
 
 /**
@@ -168,5 +181,15 @@ describe("roomMixFromCategories", () => {
 
   it("**1枚も撮っていなければ null**。一様と言い切らない", () => {
     expect(roomMixFromCategories([])).toBeNull();
+  });
+});
+
+describe("写真の候補の指示文の分類の一覧（2026-10-09）", () => {
+  it("一覧を「fruit|のどれか: vegetable|…」と崩さない（崩れると AI が一覧の外を返し other に落ちる）", async () => {
+    const fs = await import("node:fs");
+    const path = await import("node:path");
+    const src = fs.readFileSync(path.join(__dirname, "ai.functions.ts"), "utf8");
+    expect(src).not.toContain('CATEGORY_KEYS.join("|のどれか: ")');
+    expect(src).toContain('"category_key":"${CATEGORY_KEYS.join("|")} のどれか"');
   });
 });

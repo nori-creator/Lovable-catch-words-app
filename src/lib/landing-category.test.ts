@@ -42,6 +42,18 @@ describe("着地の受け口のカテゴリー（図鑑の節の鍵に揃える�
     ).toBe("fruit");
   });
 
+  it("図鑑と同じ決め方: 蘑菇・小豬は分類が other でも植物・動物、何も当たらなければ「その他」", () => {
+    expect(landingCategoryKey({ headword: "蘑菇", categoryKey: "other", lang: "zh-TW" })).toBe(
+      "plant",
+    );
+    expect(landingCategoryKey({ headword: "小豬", categoryKey: "other", lang: "zh-TW" })).toBe(
+      "animal",
+    );
+    expect(
+      landingCategoryKey({ headword: "不在表裡的字", categoryKey: "other", lang: "zh-TW" }),
+    ).toBe("other");
+  });
+
   it("手掛かりが何も無ければ null", () => {
     expect(landingCategoryKey({ headword: "", categoryKey: null, lang: "zh-TW" })).toBeNull();
   });
