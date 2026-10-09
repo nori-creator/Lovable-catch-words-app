@@ -401,9 +401,11 @@ const q = new URLSearchParams(location.search);
  * 「これを見てください」と差し出すことになる。
  */
 const REVIEW_SCENES: Array<{ scene: string; label: string }> = [
+  // 2026-10-09 候補の違いを同じ物差しで（文体の札・場面・違い）。「豚の口の周りの肉」→ 嘴邊肉 / 豬頰肉。
+  { scene: "text-candidates", label: "文字検索の候補: 「豚の口の周りの肉」（文体・場面・違い）" },
+  { scene: "text-candidates&case=densha", label: "文字検索の候補: 「電車」（文体・場面・違い）" },
   // 2026-10-08 文字検索の流れ（その場で回る → 学習言語ならそのまま札 / 割れたら候補）。
   { scene: "text-searching", label: "文字検索: 押したらその場で回る（別の待ち画面を出さない）" },
-  { scene: "text-candidates", label: "文字検索: 母語の「電車」の候補（使われ方の札つき）" },
   { scene: "text-candidates&state=preparing", label: "文字検索: 押した候補の行が回る間" },
   { scene: "text-peel-ready", label: "文字検索: 絵と発音がそろった札・別の画像を選ぶ" },
   // 2026-10-08「図鑑の影のクオリティーが低い。もっとデザインのクオリティーを最高品質にして」。

@@ -910,6 +910,8 @@ export function CapturePage() {
         queryIsTarget: res.query_is_target,
         candidates: res.candidates.map((c) => ({
           ...c,
+          register: c.register ?? null,
+          scene: c.scene ?? "",
           usage: c.usage ?? null,
           image_query: c.image_query ?? "",
         })),

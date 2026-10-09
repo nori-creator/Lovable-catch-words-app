@@ -18,7 +18,8 @@ import { coerceTargetHeadword, isTargetHeadword } from "./target-language";
 import type { QueryLang } from "./text-query-lang";
 
 /**
- * 候補の**使われ方**の印。画面は表示言語の短い札に直す（`textPick.usage.*`）。
+ * 候補の**使われ方**の印（古い形）。画面はもう読まない — 古い iOS が読むので返し続ける
+ * （`legacyUsageOf` が `register` から作る）。
  * - `common` 一般的 / `colloquial` 口語 / `formal` 書き言葉・改まった / `academic` 学術・専門
  * - `local` その土地でよく使う（台湾華語なら「台湾でよく使う」）
  */
@@ -40,6 +41,73 @@ export function normalizeUsage(raw: unknown): CandidateUsage | null {
   return null;
 }
 
+/**
+ * 候補の**文体**（どこで使う言葉か）。どの候補も**同じ1本の物差し**で1つだけ持つ。
+ *
+ * オーナー指摘 2026-10-09（「豚の口の周りの肉」→ 嘴邊肉［台湾でよく使う］／豬頰肉［一般的］）:
+ * > 一般的な言い方とか台湾でよく使われるとか、違いが分かりにくいから、それぞれの言い方が
+ * > どのように違うのか明確にして。書き言葉なのか？一般的な話し言葉の言い方なのか？
+ * > 学術的ないいかたなのか？
+ *
+ * 前の印（`usage`）は「土地（台湾でよく使う）」と「文体（一般的・口語）」の2つの物差しが
+ * 混ざっていて、並べても比べられなかった。候補はどれも台湾で使う語なので、土地は札にしない
+ * （本当に土地が違いの時だけ「違い」の一言に書く）。
+ *
+ * - `spoken` 話し言葉（会話）
+ * - `written` 書き言葉（文章・ニュース）
+ * - `both` 会話でも文章でも
+ * - `technical` 専門用語・学術
+ * - `signage` 表示・メニューの言葉（店の札・品書き・案内板）
+ */
+export const CANDIDATE_REGISTERS = ["spoken", "written", "both", "technical", "signage"] as const;
+export type CandidateRegister = (typeof CANDIDATE_REGISTERS)[number];
+
+/**
+ * AI が返した文体を直す。無い時は古い印（`usage`）から読む。
+ * 土地の印（`local`）は文体ではないので札にしない（`null`）。
+ */
+export function normalizeRegister(raw: unknown, legacyUsage?: unknown): CandidateRegister | null {
+  if (typeof raw === "string") {
+    const v = raw.trim().toLowerCase();
+    if ((CANDIDATE_REGISTERS as readonly string[]).includes(v)) return v as CandidateRegister;
+    if (/^(conversation|colloquial|casual|informal|口語|口语|話し言葉)/.test(v)) return "spoken";
+    if (/^(formal|literary|書面|书面|書き言葉)/.test(v)) return "written";
+    if (/^(common|general|neutral|everyday|一般|両方)/.test(v)) return "both";
+    if (/^(academic|scientific|specialist|professional|jargon|學術|学術|学术|專業|専門)/.test(v))
+      return "technical";
+    if (/^(sign|menu|label|display|表示|菜單|メニュー)/.test(v)) return "signage";
+  }
+  switch (normalizeUsage(legacyUsage)) {
+    case "common":
+      return "both";
+    case "colloquial":
+      return "spoken";
+    case "formal":
+      return "written";
+    case "academic":
+      return "technical";
+    default:
+      return null;
+  }
+}
+
+/** 古い iOS のための印（`usage`）を文体から作る。表示・メニューの言葉は「一般的」に寄せる。 */
+export function legacyUsageOf(register: CandidateRegister | null): CandidateUsage | null {
+  switch (register) {
+    case "spoken":
+      return "colloquial";
+    case "written":
+      return "formal";
+    case "technical":
+      return "academic";
+    case "both":
+    case "signage":
+      return "common";
+    default:
+      return null;
+  }
+}
+
 /** 生成の形（`suggestWordCandidates`）。足りない欄は空で受ける — 形が崩れても0件にしない。 */
 export const WordCandidatesSchema = z.object({
   /**
@@ -54,9 +122,16 @@ export const WordCandidatesSchema = z.object({
         reading_zhuyin: z.string().default(""),
         pinyin: z.string().default(""),
         meaning_ja: z.string().default(""),
-        /** 他の候補との**違い**を一言で(例: トイレに置く方)。 */
+        /**
+         * 他の候補との**違い**（比べた一言。例: 「豬頰肉より口語的。店で頼むならこちら」）。
+         * 古い iOS もこの欄を出すので、名前は変えない。
+         */
         distinction: z.string().default(""),
-        /** 使われ方（`CANDIDATE_USAGES`）。知らない値は捨てる。 */
+        /** 文体（`CANDIDATE_REGISTERS`）。知らない値は `usage` から読む。 */
+        register: z.string().nullable().optional(),
+        /** 使う場面（どこで聞く・見るか。例: 「屋台・黑白切の店で注文するとき」）。 */
+        scene: z.string().nullable().optional(),
+        /** 使われ方（古い形 `CANDIDATE_USAGES`）。古い返事・古い iOS のために受ける。 */
         usage: z.string().nullable().optional(),
         /** 画像検索用の短い英語（札の絵を探す。`heroSearchQuery` が整える）。 */
         image_query: z.string().nullable().optional(),
@@ -71,7 +146,13 @@ export type TextCandidate = {
   reading_zhuyin: string;
   pinyin: string;
   meaning_ja: string;
+  /** 他の候補との違い（比べた一言）。 */
   distinction: string;
+  /** 文体の札（1つだけ）。分からない時は `null`（札を出さない）。 */
+  register: CandidateRegister | null;
+  /** 使う場面。無ければ空。 */
+  scene: string;
+  /** 古い印（古い iOS 用。画面は `register` を読む）。 */
   usage: CandidateUsage | null;
   image_query: string;
 };
@@ -116,6 +197,8 @@ export function decideTextSearch(input: {
         pinyin: "",
         meaning_ja: "",
         distinction: "",
+        register: null,
+        scene: "",
         usage: null,
         image_query: "",
       },

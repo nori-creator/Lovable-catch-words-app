@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import { detectQueryLang } from "./text-query-lang";
 import {
   decideTextSearch,
+  legacyUsageOf,
+  normalizeRegister,
   normalizeUsage,
   peelReady,
   PEEL_READY_MAX_WAIT_MS,
@@ -15,6 +17,8 @@ const cand = (headword: string, extra: Partial<TextCandidate> = {}): TextCandida
   pinyin: "x",
   meaning_ja: "意味",
   distinction: "",
+  register: null,
+  scene: "",
   usage: null,
   image_query: "",
   ...extra,
@@ -84,6 +88,48 @@ describe("normalizeUsage", () => {
     expect(normalizeUsage("")).toBeNull();
     expect(normalizeUsage("weird")).toBeNull();
     expect(normalizeUsage(undefined)).toBeNull();
+  });
+});
+
+describe("normalizeRegister（どの候補も同じ物差しの文体で — 2026-10-09）", () => {
+  it("新しい印をそのまま・言い換えを直す", () => {
+    expect(normalizeRegister("spoken")).toBe("spoken");
+    expect(normalizeRegister("Written")).toBe("written");
+    expect(normalizeRegister("both")).toBe("both");
+    expect(normalizeRegister("technical")).toBe("technical");
+    expect(normalizeRegister("signage")).toBe("signage");
+    expect(normalizeRegister("colloquial")).toBe("spoken");
+    expect(normalizeRegister("informal")).toBe("spoken");
+    expect(normalizeRegister("formal")).toBe("written");
+    expect(normalizeRegister("academic")).toBe("technical");
+    expect(normalizeRegister("menu")).toBe("signage");
+  });
+  it("文体が無い古い返事は usage から読む。土地の印は札にしない", () => {
+    expect(normalizeRegister(undefined, "common")).toBe("both");
+    expect(normalizeRegister(null, "colloquial")).toBe("spoken");
+    expect(normalizeRegister("", "formal")).toBe("written");
+    expect(normalizeRegister(undefined, "academic")).toBe("technical");
+    expect(normalizeRegister(undefined, "local")).toBeNull();
+    expect(normalizeRegister("taiwan")).toBeNull();
+    expect(normalizeRegister(undefined, undefined)).toBeNull();
+  });
+  it("古い iOS の印は文体から作る（土地の印はもう作らない）", () => {
+    expect(legacyUsageOf("spoken")).toBe("colloquial");
+    expect(legacyUsageOf("written")).toBe("formal");
+    expect(legacyUsageOf("both")).toBe("common");
+    expect(legacyUsageOf("technical")).toBe("academic");
+    expect(legacyUsageOf("signage")).toBe("common");
+    expect(legacyUsageOf(null)).toBeNull();
+  });
+  it("新しい欄（register・scene）を読み、無くても読める", () => {
+    const r = WordCandidatesSchema.parse({
+      candidates: [
+        { headword: "嘴邊肉", register: "spoken", scene: "屋台で注文するとき" },
+        { headword: "豬頰肉" },
+      ],
+    });
+    expect(r.candidates[0]).toMatchObject({ register: "spoken", scene: "屋台で注文するとき" });
+    expect(r.candidates[1].register).toBeUndefined();
   });
 });
 

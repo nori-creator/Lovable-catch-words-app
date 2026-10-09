@@ -7,8 +7,8 @@
  * なく、複数の単語の候補がある場合…は単語の候補を表示して」:
  *
  * - `?scene=text-searching` … 検索の欄のまま回る（別の待ち画面を出さない）
- * - `?scene=text-candidates` … 母語の「電車」が台湾華語で割れた時の候補（`&state=preparing` は
- *   押した行が回っている間）
+ * - `?scene=text-candidates` … 母語の「豚の口の周りの肉」が台湾華語で割れた時の候補
+ *   （`&case=densha` は「電車」、`&state=preparing` は押した行が回っている間）
  * - `?scene=text-peel-ready` … 絵と発音がそろった札と、その下の「別の画像」
  *
  * 同日のオーナー報告（画面の録画、「貓」を打って調べた回）の札と着地:
@@ -71,24 +71,58 @@ export function TextSearchingScene() {
   );
 }
 
+/**
+ * 母語の「豚の口の周りの肉」が台湾華語で割れる（オーナー報告 2026-10-09: 前は
+ * 嘴邊肉［台湾でよく使う］／豬頰肉［一般的］で、物差しが違って比べられなかった）。
+ * どの候補も「文体の札・場面・違い」の同じ3つで並べる。
+ */
+const PORK_CHEEK: TextCandidate[] = [
+  {
+    headword: "嘴邊肉",
+    reading_zhuyin: "ㄗㄨㄟˇ ㄅㄧㄢ ㄖㄡˋ",
+    pinyin: "zuǐbiānròu",
+    meaning_ja: "豚のほほ肉（口の周り）",
+    register: "spoken",
+    scene: "屋台・黑白切の店で注文するとき",
+    distinction: "豬頰肉より口語的。店で頼むならこちら",
+    usage: "colloquial",
+    image_query: "braised pork cheek",
+  },
+  {
+    headword: "豬頰肉",
+    reading_zhuyin: "ㄓㄨ ㄐㄧㄚˊ ㄖㄡˋ",
+    pinyin: "zhūjiáròu",
+    meaning_ja: "豚のほほ肉",
+    register: "signage",
+    scene: "精肉店の表示・料理本・レシピ",
+    distinction: "嘴邊肉の改まった言い方。会話ではあまり言わない",
+    usage: "common",
+    image_query: "pork cheek meat",
+  },
+  {
+    headword: "松阪豬",
+    reading_zhuyin: "ㄙㄨㄥ ㄅㄢˇ ㄓㄨ",
+    pinyin: "sōngbǎnzhū",
+    meaning_ja: "豚トロ",
+    register: "both",
+    scene: "焼肉・熱炒の店のメニュー",
+    distinction: "口の周りではなく首〜ほほの脂の多い部分",
+    usage: "common",
+    image_query: "grilled pork jowl",
+  },
+];
+
 /** 母語の「電車」が台湾華語で割れる（指す物が違う・言い方が違う）。 */
 const DENSHA: TextCandidate[] = [
-  {
-    headword: "電車",
-    reading_zhuyin: "ㄉㄧㄢˋ ㄔㄜ",
-    pinyin: "diànchē",
-    meaning_ja: "電車・路面電車",
-    distinction: "架線で走る車両そのもの",
-    usage: "common",
-    image_query: "electric train",
-  },
   {
     headword: "火車",
     reading_zhuyin: "ㄏㄨㄛˇ ㄔㄜ",
     pinyin: "huǒchē",
     meaning_ja: "（都市間の）列車",
-    distinction: "台鐵など駅と駅を結ぶ列車",
-    usage: "local",
+    register: "both",
+    scene: "台鐵の駅・切符を買うとき",
+    distinction: "日本の「電車」にいちばん近い日常の言い方",
+    usage: "common",
     image_query: "train station taiwan",
   },
   {
@@ -96,8 +130,10 @@ const DENSHA: TextCandidate[] = [
     reading_zhuyin: "ㄐㄧㄝˊ ㄩㄣˋ",
     pinyin: "jiéyùn",
     meaning_ja: "地下鉄・MRT",
-    distinction: "台北・高雄の都市鉄道",
-    usage: "local",
+    register: "both",
+    scene: "台北・高雄の市内を移動するとき",
+    distinction: "火車と違い、街の中を走る都市鉄道",
+    usage: "common",
     image_query: "taipei metro",
   },
   {
@@ -105,21 +141,39 @@ const DENSHA: TextCandidate[] = [
     reading_zhuyin: "ㄌㄧㄝˋ ㄔㄜ",
     pinyin: "lièchē",
     meaning_ja: "列車",
-    distinction: "案内放送・文書の言い方",
+    register: "written",
+    scene: "駅の放送・時刻表・ニュース",
+    distinction: "火車の改まった言い方。会話ではあまり言わない",
     usage: "formal",
     image_query: "passenger train",
   },
+  {
+    headword: "電車",
+    reading_zhuyin: "ㄉㄧㄢˋ ㄔㄜ",
+    pinyin: "diànchē",
+    meaning_ja: "電気で走る車両",
+    register: "technical",
+    scene: "鉄道の解説・車両の種類を言うとき",
+    distinction: "乗り物の種類の言葉。乗る時は火車・捷運と言う",
+    usage: "academic",
+    image_query: "electric train",
+  },
 ];
 
-/** 2) 候補（`&state=preparing` で「火車」を押して札を用意している間）。 */
+/**
+ * 2) 候補。既定は「豚の口の周りの肉」、`&case=densha` で「電車」。
+ * `&state=preparing` は1つめを押して札を用意している間。
+ */
 export function TextCandidatesScene({ q }: { q: URLSearchParams }) {
+  const densha = q.get("case") === "densha";
+  const list = densha ? DENSHA : PORK_CHEEK;
   const [preparing, setPreparing] = useState<string | null>(
-    q.get("state") === "preparing" ? "火車" : null,
+    q.get("state") === "preparing" ? list[0].headword : null,
   );
   return (
     <TextCandidateList
-      query="電車"
-      candidates={DENSHA}
+      query={densha ? "電車" : "豚の口の周りの肉"}
+      candidates={list}
       language="zh-TW"
       preparing={preparing}
       onPick={(c) => setPreparing(c.headword)}

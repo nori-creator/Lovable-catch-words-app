@@ -295,3 +295,62 @@ export function swappedTranslation(
   }
   return notes.length ? `${out}（${notes.join("、")}）` : out;
 }
+
+/**
+ * 目的語を取る動詞の後ろに付いて、その動詞を「裸」でなくする字（結果・方向・様態・アスペクト）。
+ * これで終わる動詞（賣完・吃光・切好・煮熟）は「名詞＋動詞」でも話題の形として言える。
+ */
+const VERB_COMPLETION = /[了過著完好掉光到住走開起來去成熟爛死錯對滿夠]$/u;
+
+/**
+ * **崩れた型**か（オーナー報告 2026-10-09「嘴邊肉＋切 / 嘴邊肉をする」）。
+ *
+ * 屋台の頼み方「嘴邊肉切一盤」から、型に量詞を使わない決まりに合わせて「一盤」だけを抜いた
+ * 形が返ってきた。中国語は「動詞＋目的語」の順なので、「嘴邊肉切」は成り立たない
+ * （言うなら「切嘴邊肉」か「嘴邊肉切一盤」）。訳も見出し語を写した「嘴邊肉をする」だった。
+ * 指示文でも頼んでいるが（`ai.functions.ts` の `CHUNK_INTEGRITY_RULE`）、保存済みの語にも
+ * 効くよう表示の側でも落とす。**狭く当てる**:
+ *
+ * 1. 台湾華語で、札が2つだけ・前が学ぶ語の名詞・後ろが目的語を取る動詞（pos `V`）の裸の形
+ *    （1〜2字で、結果・アスペクトの字で終わらない）。「芒果＋很＋甜」「跟＋朋友＋見面」
+ *    「切＋嘴邊肉」「珍珠奶茶＋半糖少冰」は当たらない。
+ * 2. 訳が訳になっていない: 学ぶ語をそのまま写して「をする」「する」「をやる」を付けただけ、
+ *    または訳が学ぶ語そのもの（札が2つ以上ある型の訳として）。日本語を学ぶ語には当てない
+ *    （日本語の語は訳の中にそのまま出てよい）。
+ */
+export function isBrokenUsageChunk(
+  chunk: { parts?: ReadonlyArray<ChunkPart> | null; ja?: string | null },
+  headword: string,
+  language?: string | null,
+): boolean {
+  const head = headword.trim();
+  if (!head) return false;
+  const lang = normalizeTargetLanguage(language);
+  const parts = withoutSeparatorParts(chunk.parts ?? []).filter((p) => p.text.trim());
+  if (lang.startsWith("zh") && parts.length === 2) {
+    const [noun, verb] = parts;
+    const vText = verb.text.trim();
+    if (
+      noun.text.includes(head) &&
+      posGroup(noun.pos ?? "") === "n" &&
+      (verb.pos ?? "").trim() === "V" &&
+      !vText.includes(head) &&
+      [...vText].length <= 2 &&
+      !VERB_COMPLETION.test(vText)
+    )
+      return true;
+  }
+  if (lang !== "ja" && parts.length >= 2) {
+    const ja = (chunk.ja ?? "")
+      .replace(/[（(][^）)]*[）)]/gu, "")
+      .replace(/\s+/g, "")
+      .replace(/[。．.!！]$/u, "");
+    if (!ja) return false;
+    if (ja === head) return true;
+    const escaped = head.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    if (new RegExp(`^[〜~]?${escaped}(?:を|に)?(?:する|します|やる|行う|おこなう)$`, "u").test(ja))
+      return true;
+    if (/^[〜~…]+(?:を|に)?(?:する|します|やる)$/u.test(ja)) return true;
+  }
+  return false;
+}

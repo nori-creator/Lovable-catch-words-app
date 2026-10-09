@@ -39,7 +39,7 @@ import {
   type AiAttemptRecord,
 } from "./ai-attempts";
 import { fitSuggestionsToReader } from "./first-catch-meaning";
-import { WordCandidatesSchema, normalizeUsage } from "./text-search-flow";
+import { WordCandidatesSchema, legacyUsageOf, normalizeRegister } from "./text-search-flow";
 
 // 形は `card-schema.ts` に移したが、**取り込み元は変えない** —
 // 5箇所が `@/lib/ai.functions` から型を取っている。移した都合を
@@ -481,6 +481,23 @@ const WordCandidatesInput = z.object({
 // 候補の形は `lib/text-search-flow.ts`（画面の決め事と試験が同じ物を読む）。
 const CandidateSchema = WordCandidatesSchema;
 
+/**
+ * 候補の文体・場面と、古い iOS が読む印（`usage`）。印は文体から作る — 古い画面にも
+ * 同じ物差しの札が出る（土地の印 `local` はもう作らない）。
+ */
+function registerFields(c: {
+  register?: string | null;
+  scene?: string | null;
+  usage?: string | null;
+}) {
+  const register = normalizeRegister(c.register, c.usage);
+  return {
+    register,
+    scene: (c.scene ?? "").trim().slice(0, 60),
+    usage: legacyUsageOf(register),
+  };
+}
+
 export const suggestWordCandidates = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) => WordCandidatesInput.parse(input))
@@ -504,9 +521,6 @@ export const suggestWordCandidates = createServerFn({ method: "POST" })
         : data.queryLang === "native"
           ? `「${data.query}」は学習者の母語（または別の言語）で打たれている。query_is_target は false。`
           : `「${data.query}」が**${candProfile.promptName}としてそのまま通じる語か**を先に判断し、query_is_target に true / false で書く（漢字だけの語は日本語とも${candProfile.promptName}とも読めるので、${candProfile.promptName}で実際にその意味でふつうに使う語なら true。日本語の字形・日本語にしか無い言い方なら false）。true なら candidates にはその語1つだけを返す。`;
-    const usageLocal = data.targetLanguage.startsWith("zh")
-      ? "local（台湾でよく使う。中国大陸の言い方と違う時）"
-      : "local（その土地でよく使う言い方）";
     const prompt = `学習者が「${data.query}」と書いた。これが指す${candProfile.promptName}の語を挙げてください。
 
 ${queryLine}
@@ -525,21 +539,31 @@ ${langRule}
 - **一対一なら1つだけ。** 母語の語と${candProfile.promptName}の語がほぼ一対一に対応するなら、
   候補は1つだけ返す。**候補を水増ししない**（同じ物の言い換え・ほとんど使わない語・作った語を足さない）。
 - **本当に割れる時だけ複数。** 母語の1語が${candProfile.promptName}では別々の語に分かれる時
-  （指す物が違う・日常の言い方と書き言葉/学術的な言い方・口語・その土地の言い方）だけ、
+  （指す物が違う・会話の言い方と書き言葉/専門用語/表示の言い方）だけ、
   2〜5個を**よく使う順**に並べる。
   例: ${candProfile.capture.distinctionExamples}
-- それぞれの distinction に、**他とどう違うか**を短く書く(15文字程度)。
+- **どの候補も同じ物差しで説明する**（学習者が並べて比べられるように）。それぞれに次の3つを書く:
+  1. register — 文体を次のどれか**1つだけ**:
+     spoken（話し言葉: ふだんの会話で口にする）/ written（書き言葉: 文章・ニュース・公文書）/
+     both（会話でも文章でも同じように使う）/ technical（専門用語・学術: 料理人・医療・研究などの言葉）/
+     signage（表示・メニューの言葉: 店の札・品書き・包装・案内板で目にする）。
+     「一般的」「台湾でよく使う」のような、文体ではない印は使わない。
+  2. scene — **使う場面**を具体的に1つ（20文字程度。どこで聞く・見るか）。
+     例: 「屋台・黑白切の店で注文するとき」「精肉店の表示・料理本」「駅の放送・時刻表」。
+  3. distinction — **他の候補と比べた違い**（25文字程度）。その語だけの定義を書かない。
+     必ず他の候補の語を挙げて比べる。例: 「豬頰肉より口語的。店で頼むならこちら」
+     「嘴邊肉より改まった言い方。表示や料理本向き」。
+     候補はどれも学習者が学ぶ土地で使う語なので、土地の話は**本当に違いがそこにある時だけ**ここに書く
+     （例: 「台湾特有の言い方。〇〇は中国語圏で共通」）。候補が1つだけなら distinction は空でよい。
   違いが書けない候補は挙げない — 同じ物の言い換えを並べても選べない。
-- それぞれの usage に、使われ方を次のどれか1つで書く:
-  common（一般的）/ colloquial（口語）/ formal（書き言葉・改まった）/ academic（学術・専門）/ ${usageLocal}。
 - それぞれの image_query に、その物を写真で探すための**短い英語**（2〜4語。例: "lotus root"）を書く。
   物の形が無い語（動詞・形容詞・抽象語）でも、その意味が伝わる場面を短く。
-- meaning_ja は一行の短い訳（その語の意味が分かる程度）。
+- meaning_ja は一行の短い訳だけ（その語の意味が分かる程度。使い方・場面・違いはここに書かない）。
 - 実際に${candProfile.promptName}で使われている語だけ。${candProfile.capture.scriptRule}。
   中国大陸でしか使わない言い方は出さない。
 - **確かなものだけ**。
 
-出力の形: {"query_is_target":true/false,"candidates":[{"headword":"…","reading_zhuyin":"…","pinyin":"…","meaning_ja":"…","distinction":"…","usage":"common","image_query":"…"}]}`;
+出力の形: {"query_is_target":true/false,"candidates":[{"headword":"…","reading_zhuyin":"…","pinyin":"…","meaning_ja":"…","register":"spoken","scene":"…","distinction":"…","image_query":"…"}]}`;
 
     const ask = (extra = "") =>
       generateStructured({
@@ -563,7 +587,7 @@ ${langRule}
      */
     if (raw.candidates.length === 0) {
       raw = await ask(
-        `\n\n出力の形: {"query_is_target":true/false,"candidates":[{"headword":"…","reading_zhuyin":"…","pinyin":"…","meaning_ja":"…","distinction":"…","usage":"common","image_query":"…"}]} のJSONだけを返す。前後に説明を書かない。headword は${candProfile.promptName}の語だけにし、括弧やローマ字の注釈を付けない。`,
+        `\n\n出力の形: {"query_is_target":true/false,"candidates":[{"headword":"…","reading_zhuyin":"…","pinyin":"…","meaning_ja":"…","register":"spoken","scene":"…","distinction":"…","image_query":"…"}]} のJSONだけを返す。前後に説明を書かない。headword は${candProfile.promptName}の語だけにし、括弧やローマ字の注釈を付けない。`,
       );
     }
 
@@ -593,9 +617,9 @@ ${langRule}
         reading_zhuyin: c.reading_zhuyin,
         pinyin: c.pinyin,
         meaning_ja: c.meaning_ja,
-        distinction: c.distinction,
-        // 使われ方の印と、札の絵を探す英語（古い画面は読まない — 足しただけ）。
-        usage: normalizeUsage(c.usage),
+        distinction: c.distinction.trim().slice(0, 80),
+        // 文体の札と使う場面（2026-10-09。古い画面は読まない — 足しただけ）。
+        ...registerFields(c),
         image_query: (c.image_query ?? "").trim().slice(0, 80),
       }));
     await recordCandidateReceipts(candProfile.code, candidates);
@@ -1313,9 +1337,29 @@ function formulaChunkRule(code: string): string {
     `（例: {text:"男朋友", ja:"彼氏"} と 型の訳「彼氏と喧嘩する」）。` +
     `どれを入れても型ぜんぶが自然に言える語だけ（例: 跟＋男朋友＋吵架 → 女朋友・朋友・同事・爸媽・室友、` +
     `芒果＋很＋甜 の 很 → 超・非常・有點・蠻）。` +
-    `\n型ぜんぶを続けて読んでも、そのまま自然に言える形にする。＋ などの記号はパーツに入れない。`
+    `\n型ぜんぶを続けて読んでも、そのまま自然に言える形にする。＋ などの記号はパーツに入れない。` +
+    CHUNK_INTEGRITY_RULE
   );
 }
+
+/**
+ * **崩れた型と、訳になっていない訳を作らせない**（オーナー報告 2026-10-09「嘴邊肉＋切 /
+ * 嘴邊肉をする」「なんで？これは文法的に正しい？」）。
+ *
+ * 屋台の頼み方「嘴邊肉切一盤」から、量詞を使わない決まり（量詞は別の欄）に合わせて
+ * 「一盤」だけを抜いた形が返ってきた — 「嘴邊肉切」は中国語として成り立たない。訳も
+ * 見出し語をそのまま写した「嘴邊肉をする」で、訳になっていなかった。
+ * カードを作る時と節を作り直す時の両方が `formulaChunkRule` を通るので、ここに置く。
+ * 保存済みの語は表示の側でも落とす（`extras.ts` の `isBrokenUsageChunk`）。
+ */
+const CHUNK_INTEGRITY_RULE =
+  `\n**型はどれも、ネイティブがそのまま口にする文法的に正しい句にする。**` +
+  `自然な形から必要な語を抜いて型を作らない — 自然な形に量詞などの使えない語が要るなら、` +
+  `その語を削って短くするのではなく、**別の型を選ぶ**。` +
+  `名詞の後ろに目的語を取る動詞を裸で置かない（動詞は目的語の前: ✗ 嘴邊肉＋切 → ○ 切＋嘴邊肉）。` +
+  `\nja は**型ぜんぶの本当の訳**（解説の言語で、そのまま意味が通る言い方）。` +
+  `学ぶ語をそのまま写して「〜をする」「〜する」を付けただけの訳にしない（✗ 嘴邊肉をする）。` +
+  `解説の言語にその物を表す言葉があるなら、学ぶ語の字を写さずにその言葉で訳す（✗ 嘴邊肉を注文する → ○ 豚のほほ肉を注文する）。`;
 
 /**
  * 日本語のカードだけの節の指示(2026-10-01)。

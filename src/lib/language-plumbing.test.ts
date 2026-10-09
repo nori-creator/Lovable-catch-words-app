@@ -4884,8 +4884,11 @@ describe("ホームは今日の誌面", () => {
     // その前の回（広告・ベータの計測）の面も、まだ見てもらう途中なので後ろに残す。
     // 2026-10-08: 先頭は文字で調べた語のキャッチ（調べている間・札・着地）、続いて図鑑（影・番号・
     // 入れ替わる写真・同じ言葉は1マス）。ウェルカムのログイン導線はまだ見てもらう途中なので後ろに残す。
-    // 2026-10-08（2回目）: 先頭は文字検索の流れ（その場で回る → 候補 → 絵と発音のそろった札）。
-    expect(list.slice(0, list.indexOf("},"))).toMatch(/scene: "text-searching"/);
+    // 2026-10-08（2回目）: 文字検索の流れ（その場で回る → 候補 → 絵と発音のそろった札）。
+    // 2026-10-09: 先頭は候補の違い（文体の札・場面・違い。「豚の口の周りの肉」）。
+    expect(list.slice(0, list.indexOf("},"))).toMatch(/scene: "text-candidates"/);
+    expect(list).toContain(`scene: "text-candidates&case=densha"`);
+    expect(list).toContain(`scene: "text-searching"`);
     expect(list).toContain(`scene: "dex-book&case=all"`);
     for (const sc of [
       "text-candidates",
