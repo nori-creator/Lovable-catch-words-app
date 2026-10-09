@@ -4,6 +4,7 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { z } from "zod";
 import {
   assertWithinDailyCap,
+  concreteModelId,
   generateStructured,
   getAi,
   getAiFor,
@@ -179,7 +180,8 @@ export const correctMyJournal = createServerFn({ method: "POST" })
       correction: corrected.correction,
       feedback_ja: corrected.feedback_ja,
       used_sticker_ids: stickers.map((s) => s.id),
-      model: richModel,
+      // 合言葉（`latest-flash` など）のままではなく、実際に呼んだ版付きの ID を残す。
+      model: await concreteModelId(ai, richModel),
     };
     // Try with native_phrases first; retry without it if the column hasn't
     // been migrated yet, so correction never breaks on a stale schema.

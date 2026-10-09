@@ -1,7 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
+import { readFileSync } from "node:fs";
 import {
   ADMIN_ONLY_MESSAGE,
+  BadRequestError,
   getAdminAiSettings,
+  resolveAdminImageTest,
   setAdminAiFeature,
   setAdminImageConfig,
   setAdminTtsVoice,
@@ -246,5 +249,118 @@ describe("保存と読み戻し", () => {
     await expect(
       setAdminTtsVoice(deps, { language: "fr", provider: "azure", voice: "x" }),
     ).rejects.toThrow();
+  });
+});
+
+describe("送った値が使えない時は 400（500 にしない）", () => {
+  async function statusOf(p: Promise<unknown>) {
+    try {
+      await p;
+    } catch (e) {
+      return statusForError(e);
+    }
+    throw new Error("断られなかった");
+  }
+
+  it("機能の AI: 知らない機能・知らない会社・形の違う値・鍵の無い会社・写真を読めないスキャン", async () => {
+    const { deps, writes } = fakeDeps({ admin: true });
+    for (const input of [
+      { feature: "dance", value: "auto" },
+      { feature: "card", value: "nope:x" },
+      { feature: "card", value: "gpt-5-mini" },
+      { feature: "card", value: "open ai:gpt-5" },
+      { feature: "card", value: "anthropic:claude-sonnet-4-5" },
+      { feature: "scan", value: "openai:gpt-3.5-turbo" },
+    ]) {
+      expect(await statusOf(setAdminAiFeature(deps, input))).toBe(400);
+    }
+    await expect(
+      setAdminAiFeature(deps, { feature: "dance", value: "auto" }),
+    ).rejects.toBeInstanceOf(BadRequestError);
+    expect(writes).toEqual([]);
+  });
+
+  it("画像: 知らない会社・鍵の無い会社", async () => {
+    const { deps, writes } = fakeDeps({ admin: true });
+    expect(await statusOf(setAdminImageConfig(deps, { provider: "openai", model: "" }))).toBe(400);
+    expect(await statusOf(setAdminImageConfig(deps, { provider: "nope", model: "" }))).toBe(400);
+    expect(writes).toEqual([]);
+  });
+
+  it("発音の声: 鍵の無い会社・違う性別の声・声の無い Gemini・声の無い英語・知らない言語", async () => {
+    const { deps, writes } = fakeDeps({ admin: true });
+    for (const input of [
+      { language: "en", provider: "elevenlabs", voice: "abc" },
+      { language: "zh-TW", provider: "azure", voice: "zh-TW-HsiaoChenNeural", gender: "male" },
+      { language: "zh-TW", provider: "gemini", voice: "" },
+      { language: "en", provider: "azure", voice: "" },
+      { language: "fr", provider: "azure", voice: "x" },
+    ]) {
+      expect(await statusOf(setAdminTtsVoice(deps, input))).toBe(400);
+    }
+    expect(writes).toEqual([]);
+  });
+
+  it("管理者でない人は 403 のまま（400 にしない）", async () => {
+    const { deps } = fakeDeps({ admin: false });
+    expect(await statusOf(setAdminAiFeature(deps, { feature: "dance", value: "x" }))).toBe(403);
+    expect(await statusOf(resolveAdminImageTest(deps, { provider: "google" }))).toBe(403);
+  });
+});
+
+describe("「試しに1枚作る」は保存前の選び方で試せる", () => {
+  it("何も送らなければ保存してある設定（これまでどおり。iOS は { query? } だけ）", async () => {
+    const { deps } = fakeDeps({ admin: true });
+    expect(await resolveAdminImageTest(deps, undefined)).toEqual({ query: "柚子", draft: null });
+    expect(await resolveAdminImageTest(deps, { query: "芒果" })).toEqual({
+      query: "芒果",
+      draft: null,
+    });
+  });
+
+  it("provider（と model）を送るとその選び方。保存はしない。model が空なら会社の既定", async () => {
+    const { deps, writes } = fakeDeps({ admin: true });
+    expect(
+      await resolveAdminImageTest(deps, { provider: "google", model: "gemini-3-pro-image" }),
+    ).toEqual({ query: "柚子", draft: { provider: "google", model: "gemini-3-pro-image" } });
+    expect(await resolveAdminImageTest(deps, { provider: "google" })).toEqual({
+      query: "柚子",
+      draft: { provider: "google", model: "gemini-2.5-flash-image" },
+    });
+    expect(await resolveAdminImageTest(deps, { provider: "off", model: "x" })).toEqual({
+      query: "柚子",
+      draft: { provider: "off", model: "" },
+    });
+    expect(writes).toEqual([]);
+  });
+
+  it("保存と同じ確かめ: 鍵の無い会社・知らない会社・形の違うモデル・model だけ は 400", async () => {
+    const { deps } = fakeDeps({ admin: true });
+    for (const input of [
+      { provider: "openai" },
+      { provider: "nope" },
+      { provider: "google", model: "bad model!" },
+      { model: "gemini-3-pro-image" },
+    ]) {
+      let status = 0;
+      try {
+        await resolveAdminImageTest(deps, input);
+      } catch (e) {
+        status = statusForError(e);
+      }
+      expect(status).toBe(400);
+    }
+  });
+
+  it("Web の欄は画面で選んでいる会社・モデルを送る（保存してある古い設定を試さない）", () => {
+    const card = readFileSync(
+      new URL("../components/AdminAiSettingsCard.tsx", import.meta.url),
+      "utf8",
+    );
+    expect(card).toMatch(/actions\.testImage\(\{ provider, model: model\.trim\(\) \}\)/);
+    expect(card).toMatch(/testImage: \(draft\) => testFn\(\{ data: draft \}\)/);
+    const fn = readFileSync(new URL("./images.functions.ts", import.meta.url), "utf8");
+    expect(fn).toMatch(/resolveAdminImageTest\(mod\.realAdminAiDeps\(context\), input\)/);
+    expect(fn).toMatch(/data\.draft \?\? \(await readImageOverride\(\)\)/);
   });
 });

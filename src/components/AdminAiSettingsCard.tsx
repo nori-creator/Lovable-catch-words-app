@@ -58,7 +58,8 @@ export type TtsSetInput = {
 export type AdminAiActions = {
   setFeature: (feature: string, value: string) => Promise<void>;
   setImage: (provider: string, model: string) => Promise<void>;
-  testImage: () => Promise<ImageTestResult>;
+  /** 画面でいま選んでいる会社・モデル（まだ保存していなくてよい）で1枚作る。保存はしない。 */
+  testImage: (draft: { provider: string; model: string }) => Promise<ImageTestResult>;
   setTts: (input: TtsSetInput) => Promise<void>;
   previewTts: (
     language: string,
@@ -112,7 +113,7 @@ export function AdminAiSettingsCard() {
       await imageFn({ data: { provider, model } });
       await refresh();
     },
-    testImage: () => testFn({ data: {} }) as Promise<ImageTestResult>,
+    testImage: (draft) => testFn({ data: draft }) as Promise<ImageTestResult>,
     setTts: async (input) => {
       await ttsFn({ data: input });
       await refresh();
@@ -297,7 +298,8 @@ function ImageSection({ data, actions }: { data: ReadyData; actions: AdminAiActi
     setBusy("test");
     setResult(null);
     try {
-      setResult(await actions.testImage());
+      // 保存前の選び方を試す（保存してある古い設定ではなく、いま画面で選んでいる物）。
+      setResult(await actions.testImage({ provider, model: model.trim() }));
     } catch (e) {
       toast.error(readable(e, t("aiSet.imageTestFail")));
     } finally {

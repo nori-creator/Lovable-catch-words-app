@@ -73,6 +73,8 @@ describe("statusForError", () => {
     expect(statusForError(new Error("1日の利用上限(200回)に達しました。"))).toBe(429);
     const zod = Object.assign(new Error("[]"), { name: "ZodError" });
     expect(statusForError(zod)).toBe(400);
+    const bad = Object.assign(new Error("知らない会社です: nope"), { name: "BadRequestError" });
+    expect(statusForError(bad)).toBe(400);
     expect(statusForError(new Error("boom"))).toBe(500);
   });
 });
