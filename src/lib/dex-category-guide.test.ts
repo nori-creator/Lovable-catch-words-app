@@ -177,6 +177,10 @@ describe("見出し語の規則（20のカテゴリーに合わせて）", () =>
     expect(normalizeCategory(h, "sport")).toBe("sport");
   });
 
+  it.each(["拔河", "過河"])("%s（綱引き・川を渡る行い）は川の名にしない", (h) => {
+    expect(normalizeCategory(h, "sport")).toBe("sport");
+  });
+
   it("果物の字を含むだけの語には当たらない（AI の答えのまま）", () => {
     expect(normalizeCategory("桃園", "building")).toBe("building");
     expect(normalizeCategory("黑桃", "game")).toBe("game");
