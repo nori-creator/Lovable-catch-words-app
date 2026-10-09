@@ -239,7 +239,7 @@ export const getAiModelConfig = createServerFn({ method: "GET" })
       _role: "admin",
     });
     if (!isAdmin) throw new Error("管理者のみ");
-    const { PROVIDER_PRESETS, AI_FEATURES, availableProviders, getAi } =
+    const { PROVIDER_PRESETS, AI_FEATURES, availableProviders, getAi, describeModel } =
       await import("./ai-provider.server");
     // app_config is admin-only by RLS, so normal authenticated access is enough.
     // Do not use the service-role client here; the settings page should not blank
@@ -257,12 +257,14 @@ export const getAiModelConfig = createServerFn({ method: "GET" })
     let keyError: string | null = null;
     try {
       const ai = getAi();
-      effective = {
-        provider: ai.provider,
-        fast: ai.modelFast,
-        rich: ai.modelRich,
-        rich_premium: ai.modelRichPremium,
-      };
+      // 合言葉(latest-flash など)は「latest-flash → gemini-3.5-flash」の形で、
+      // いま実際に選ばれている版まで見せる。
+      const [fast, rich, rich_premium] = await Promise.all([
+        describeModel(ai, ai.modelFast),
+        describeModel(ai, ai.modelRich),
+        describeModel(ai, ai.modelRichPremium),
+      ]);
+      effective = { provider: ai.provider, fast, rich, rich_premium };
     } catch (e) {
       // キー未設定でも画面は開ける。何が足りないかをそのまま見せる。
       keyError = e instanceof Error ? e.message : String(e);

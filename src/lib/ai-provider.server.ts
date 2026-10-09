@@ -14,6 +14,11 @@ import {
 } from "./ai-cap";
 import type { BudgetDb } from "./budget-slots";
 import { reserveUsageRow, type UsageReserveDb } from "./usage-reserve";
+import {
+  geminiKeywordTier,
+  resolveGeminiModelId,
+  withGeminiKeywords,
+} from "./gemini-latest.server";
 
 /**
  * Single switch point for every AI call in the app.
@@ -39,10 +44,52 @@ const LOVABLE_DEFAULT_MODEL = "google/gemini-3-flash-preview";
 // このエンドポイントでは解決されず 404 "Not Found" を返し、
 // カード生成とスピーキング添削が全滅した。最新版へ乗り換えたいときは
 // 設定の「使うAIを切り替える」から明示的に指定する(env でも可)。
+//
+// 2026-10-09「常に最新の Gemini を自動で使う」: 既定は**合言葉**
+// (`latest-flash-lite` / `latest-flash` / `latest-pro`)。`-latest` の別名とは違い、
+// Google 公式のモデル一覧から**実在する版付きの ID** を実行時に選んで渡す
+// (`gemini-latest.server.ts`)。一覧が読めなければ下の固定の安定版に落ちる。
+/** 固定の安定版(どの会社の設定でも最後の退避先に使う)。 */
 const GOOGLE_DEFAULT_FAST = "gemini-2.5-flash";
-const GOOGLE_DEFAULT_RICH = "gemini-2.5-flash";
-/** 課金ユーザー向け: Gemini Pro。 */
-const GOOGLE_DEFAULT_PREMIUM = "gemini-2.5-pro";
+const GOOGLE_AUTO_FAST = "latest-flash-lite";
+const GOOGLE_AUTO_RICH = "latest-flash";
+/** 課金ユーザー向け: いちばん新しい Gemini Pro。 */
+const GOOGLE_AUTO_PREMIUM = "latest-pro";
+
+/**
+ * Google の OpenAI 互換ゲートウェイ。合言葉のモデルは呼ぶ時に最新の版へ置き換わる
+ * (それ以外の ID はそのまま)。一覧の問い合わせにも同じ鍵を使う。
+ */
+function googleGateway(
+  key: string,
+  headers: Record<string, string> = { Authorization: `Bearer ${key}` },
+) {
+  return withGeminiKeywords(
+    createOpenAICompatible({ name: "google", baseURL: GOOGLE_BASE_URL, headers }),
+    { apiKey: key },
+  );
+}
+
+/** その会社用のゲートウェイ。Google だけ合言葉を受け取れるように包む。 */
+function gatewayFor(
+  providerId: string,
+  baseURL: string,
+  key: string,
+  headers: Record<string, string>,
+) {
+  if (providerId === "google" && baseURL === GOOGLE_BASE_URL) return googleGateway(key, headers);
+  return createOpenAICompatible({ name: providerId, baseURL, headers });
+}
+
+/**
+ * 画面の確認用: 合言葉なら「合言葉 → いま選ばれている版」、それ以外はそのまま。
+ * Google 以外の会社では合言葉を解かない(その会社には意味が無い)。
+ */
+export async function describeModel(ai: Pick<AiConfig, "name">, modelId: string): Promise<string> {
+  if (ai.name !== "google" || !geminiKeywordTier(modelId)) return modelId;
+  const key = findKey("google")?.value;
+  return `${modelId} → ${await resolveGeminiModelId(modelId, { apiKey: key })}`;
+}
 
 /**
  * 実行時のモデル切替(app_config.key='ai_models')。
@@ -177,20 +224,29 @@ export async function getAiRuntime(): Promise<AiConfig> {
   const keyEnv = ov.api_key_env;
   const key = keyEnv ? process.env[keyEnv] : findKey(ov.provider)?.value;
   if (!baseURL || !key) return getAi(); // 設定が不完全なら安全に env 側へ
-  const fast = ov.fast ?? GOOGLE_DEFAULT_FAST;
-  const rich = ov.rich ?? fast;
+  const isGoogle = ov.provider === "google";
+  const fast = ov.fast ?? (isGoogle ? GOOGLE_AUTO_FAST : GOOGLE_DEFAULT_FAST);
+  const rich = ov.rich ?? (isGoogle && !ov.fast ? GOOGLE_AUTO_RICH : fast);
   return {
     provider: "openai-compatible",
     name: ov.provider,
-    gateway: createOpenAICompatible({
-      name: ov.provider,
-      baseURL,
-      headers: providerHeaders(ov.provider, key),
-    }),
+    gateway: gatewayFor(ov.provider, baseURL, key, providerHeaders(ov.provider, key)),
     modelFast: fast,
     modelRich: rich,
-    modelRichPremium: ov.rich_premium ?? rich,
+    modelRichPremium: ov.rich_premium ?? (isGoogle && !ov.rich ? GOOGLE_AUTO_PREMIUM : rich),
   };
+}
+
+/**
+ * **速いモデル(Flash-Lite)はスキャンだけ**(オーナー決定 2026-10-09)。
+ * スキャン(写真の物・文字の検出、単語の候補)は最新の Flash-Lite、解説・カード生成・
+ * 添削・ヒント・日記・点検など**ほかの機能は全部**最新の Flash(丁寧な方)を使う。
+ * 呼ぶ所は「速い方」を選んでいる所が多いので、ここでスキャン以外の速い方を丁寧な方に
+ * 揃える(呼ぶ所を1つずつ直すと、新しく書いた所で漏れる)。
+ */
+export function forFeature(ai: AiConfig, feature: AiFeature): AiConfig {
+  if (feature === "scan" || ai.modelFast === ai.modelRich) return ai;
+  return { ...ai, modelFast: ai.modelRich };
 }
 
 /**
@@ -201,7 +257,7 @@ export async function getAiRuntime(): Promise<AiConfig> {
  * どこかが欠けていても必ず動く設定に落ちる — **設定ミスで機能を止めない**。
  */
 export async function getAiFor(feature: AiFeature): Promise<AiConfig> {
-  const base = await getAiRuntime();
+  const base = forFeature(await getAiRuntime(), feature);
   const ov = await getAiModelOverride();
   const spec = ov?.features?.[feature];
   if (!spec) return base;
@@ -225,11 +281,7 @@ export async function getAiFor(feature: AiFeature): Promise<AiConfig> {
   return {
     provider: "openai-compatible",
     name: providerId,
-    gateway: createOpenAICompatible({
-      name: providerId,
-      baseURL: preset.base_url,
-      headers: providerHeaders(providerId, key),
-    }),
+    gateway: gatewayFor(providerId, preset.base_url, key, providerHeaders(providerId, key)),
     modelFast: model,
     modelRich: model,
     modelRichPremium: model,
@@ -322,10 +374,10 @@ export async function getAiAttemptChain(feature: AiFeature): Promise<AiTarget[]>
     if (chain.some((t) => t.label === label)) return;
     chain.push({ label, model: gateway(model) });
   };
-  add(primaryName, primary.gateway, primary.modelFast);
+  add(primaryName, primary.gateway, primary.modelFast); // getAiFor が機能の段に揃え済み
   const tryConfig = async (make: () => AiConfig | Promise<AiConfig>) => {
     try {
-      const ai = await make();
+      const ai = forFeature(await make(), feature);
       add(ai.name ?? ai.provider, ai.gateway, ai.modelFast);
     } catch {
       // 鍵の無い設定は2番手にしない（1番手はもう決まっている）。
@@ -345,11 +397,7 @@ export async function getAiAttemptChain(feature: AiFeature): Promise<AiTarget[]>
       id === "lovable"
         ? { "Lovable-API-Key": key, "X-Lovable-AIG-SDK": "vercel-ai-sdk" }
         : providerHeaders(id, key);
-    add(
-      id,
-      createOpenAICompatible({ name: id, baseURL: preset.base_url, headers }),
-      VISION_FAST_BACKUP[id],
-    );
+    add(id, gatewayFor(id, preset.base_url, key, headers), VISION_FAST_BACKUP[id]);
   }
   return chain;
 }
@@ -440,6 +488,12 @@ function detectProvider(): AiConfig["provider"] {
   return "google"; // 何も無い: getAi() が設定手順つきのエラーを投げる
 }
 
+/** env のモデル名。空文字は未設定として扱う。 */
+function envModel(name: string): string | undefined {
+  const v = process.env[name]?.trim();
+  return v ? v : undefined;
+}
+
 export function getAi(): AiConfig {
   const provider = detectProvider();
 
@@ -449,15 +503,12 @@ export function getAi(): AiConfig {
     return {
       provider,
       name: "google",
-      gateway: createOpenAICompatible({
-        name: "google",
-        baseURL: GOOGLE_BASE_URL,
-        headers: { Authorization: `Bearer ${key}` },
-      }),
-      modelFast: process.env.AI_MODEL_FAST ?? GOOGLE_DEFAULT_FAST,
-      modelRich: process.env.AI_MODEL_RICH ?? GOOGLE_DEFAULT_RICH,
+      gateway: googleGateway(key),
+      // 未設定なら「いつも最新」の合言葉。env に版付きの ID を書けばそれに固定できる。
+      modelFast: envModel("AI_MODEL_FAST") ?? GOOGLE_AUTO_FAST,
+      modelRich: envModel("AI_MODEL_RICH") ?? GOOGLE_AUTO_RICH,
       // 課金ユーザーは Gemini Pro。env で上書きも可能。
-      modelRichPremium: process.env.AI_MODEL_RICH_PREMIUM ?? GOOGLE_DEFAULT_PREMIUM,
+      modelRichPremium: envModel("AI_MODEL_RICH_PREMIUM") ?? GOOGLE_AUTO_PREMIUM,
     };
   }
 

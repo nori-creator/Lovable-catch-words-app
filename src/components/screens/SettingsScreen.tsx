@@ -2744,7 +2744,7 @@ function AiModelPanel() {
             <Input
               value={fast}
               onChange={(e) => setFast(e.target.value)}
-              placeholder="gemini-2.5-flash"
+              placeholder="latest-flash-lite"
             />
           </div>
           <div>
@@ -2752,7 +2752,7 @@ function AiModelPanel() {
             <Input
               value={rich}
               onChange={(e) => setRich(e.target.value)}
-              placeholder="gemini-2.5-flash"
+              placeholder="latest-flash"
             />
           </div>
           <div>
@@ -2760,7 +2760,7 @@ function AiModelPanel() {
             <Input
               value={premium}
               onChange={(e) => setPremium(e.target.value)}
-              placeholder="gemini-2.5-pro"
+              placeholder="latest-pro"
             />
           </div>
           <p className="text-caption text-muted-foreground">{t("settings.aiModelNote")}</p>

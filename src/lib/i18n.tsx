@@ -3995,10 +3995,10 @@ export const DICT: Record<string, Record<UiLang, string>> = {
       "留空就用上面的預設。用「供應商:模型名稱」可以整個換到別的 AI（例 openai:gpt-5）。就算指定了沒有金鑰的供應商，也會自動退回預設，所以不會因為設定錯誤讓功能停掉。",
   },
   "settings.aiModelNote": {
-    ja: "モデル名は提供元に実在するIDを書いてください(例 gemini-2.5-flash)。存在しないIDのときは自動で安定モデルに戻して動かします。",
-    en: "Use a model ID that really exists on the provider (e.g. gemini-2.5-flash). Unknown IDs automatically fall back to a stable model.",
+    ja: "モデル名は提供元に実在するIDを書いてください(例 gemini-2.5-flash)。Google なら latest-flash-lite / latest-flash / latest-pro と書くと、いつも最新の Gemini を自動で使います。存在しないIDのときは自動で安定モデルに戻して動かします。",
+    en: "Use a model ID that really exists on the provider (e.g. gemini-2.5-flash). For Google, latest-flash-lite / latest-flash / latest-pro always use the newest Gemini automatically. Unknown IDs automatically fall back to a stable model.",
     "zh-TW":
-      "模型名稱請填供應商實際存在的 ID（例 gemini-2.5-flash）。填了不存在的 ID 時，會自動退回穩定的模型繼續運作。",
+      "模型名稱請填供應商實際存在的 ID（例 gemini-2.5-flash）。Google 可填 latest-flash-lite／latest-flash／latest-pro，會自動使用最新的 Gemini。填了不存在的 ID 時，會自動退回穩定的模型繼續運作。",
   },
   "settings.devMetrics": {
     ja: "開発者（速度計測）",
