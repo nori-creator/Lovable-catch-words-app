@@ -308,17 +308,7 @@ ${langRule}
   ふだん使う呼び方と、上位の分類語は別物。
 
 **カテゴリ分類ルール（厳守）:**
-- 手・足・顔・目・耳・鼻・口・髪・指・肩・膝など人体部位 → "body"
-- マウス・キーボード・PC・スマホ・タブレット・ヘッドホンなど電子機器 → "tech"
-- 家具（椅子/机/ソファ） → "furniture"、家電（冷蔵庫/TV） → "appliance"
-- 服 → "clothes"、靴 → "shoes"、鞄 → "bag"
-- 果物 → "fruit"、野菜 → "vegetable"、飲み物 → "drink"、食べ物 → "food"、お菓子 → "dessert"
-- 動物（子どもの動物も: 子豚・ひよこ） → "animal"、花 → "flower"、植物・キノコ → "plant"
-- 車・バイク・電車・バスなど → "transport"
-- 看板・標識 → "sign"、お店 → "shop"、建物 → "building"
-- 文房具 → "stationery"、本 → "book"、お金 → "money"、薬 → "medicine"
-
-**"other" は本当にどのカテゴリにも当てはまらないときの最終手段。手やマウスを "other" にするのは間違い。**
+${CATEGORY_CHOICE_RULES_JA}
 
 ${distinctionRule(profile.promptName, profile.capture.distinctionExamples)}
 - **distinction は15文字以内**。meaning_ja も**短く**（言い換え1つ。説明文にしない）。
@@ -716,9 +706,10 @@ ${cardProfile.capture.readingRule}
   **公式の語彙表に載っていると確信できないときは "${cardProfile.levels.outStored}"（級外）と答える。**
   検定の語彙表に無い語に級を付けると、公式の級と見分けが付かなくなる
   （オーナー指摘 2026-08-27 ⑭）。当てずっぽうで級を付けるより、級外のほうが正しい。
-- category_key: ${CATEGORY_KEYS.join("/")} のどれか。
+- category_key: 下の図鑑の20のカテゴリーで決め、${CATEGORY_KEYS.join("/")} のどれかを答える。
   ${CATEGORY_CHOICE_RULES_JA.replace(/\n/g, "\n  ")}
 - new_shelf: **上の一覧のどれを選んでも「その語らしくない」ときだけ**、新しい棚を提案する。
+  図鑑の20のカテゴリーのどれかに入る物（果物・料理・動物・植物など）なら必ず **null**。
   当てはまる棚が在るなら **null**(無理に作らない — 似た棚が乱立すると図鑑が壊れる)。
   形式: {key: 英小文字とアンダースコアのみ(例 "night_market_snack"), label: 棚の名前(${NL}・24字まで),
   emoji: 絵文字1つ, room_key: ${ROOM_KEYS.join("/")} のどれか、または新しい部屋の英小文字の鍵,

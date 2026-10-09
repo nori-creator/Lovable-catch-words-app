@@ -422,6 +422,7 @@ const REVIEW_SCENES: Array<{ scene: string; label: string }> = [
   { scene: "settings-legal&open=1", label: "設定: AI へ送る同意の小さな画面（取り消せる）" },
   // 2026-10-09「その他になぜかいろんなものがそのままになってる。可頌は食べ物だし…」。
   { scene: "dex-book&case=stuck", label: "図鑑: other のままの可頌・面膜などが棚へ" },
+  { scene: "dex-book&case=fruit", label: "図鑑: 桃（AI は nature）が果物・野菜へ、桃花は植物・花" },
   // 2026-10-09「開発者の AI 設定が散らかっている。整理・削除・統合して」— 1枚にまとめた。
   { scene: "admin-ai-settings", label: "開発者設定: AI の設定（機能ごとの AI・画像・発音の声）" },
   { scene: "admin-ai-settings&lang=en", label: "開発者設定: AI の設定（English）" },
@@ -473,7 +474,6 @@ const REVIEW_SCENES: Array<{ scene: string; label: string }> = [
   // キャッチの演出は帯の A/B/C で見比べる（普段は B 短く、節目は A しっかり、C は発音だけ）。
   { scene: "catch-animation&plan=short", label: "キャッチの演出: 短く（普段・既定）" },
   { scene: "catch-animation&plan=full", label: "キャッチの演出: しっかり（節目）" },
-  { scene: "catch-animation&plan=off", label: "キャッチの演出: オフ（発音だけ）" },
   { scene: "settings-saved", label: "設定: 保存しました・キャッチの演出の選択" },
   { scene: "settings-saved&state=live", label: "設定: 触って保存を確かめる" },
   { scene: "home-resurface", label: "ホーム: 3か月前に撮ったこの単語、覚えてる？" },
