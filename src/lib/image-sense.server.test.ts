@@ -136,6 +136,25 @@ describe("verify", () => {
     expect(h.generateText).not.toHaveBeenCalled();
   });
 
+  it("同じ写真と言われた物は duplicates で返す。Openverse・Flickr の絵も取りに行ける", async () => {
+    h.generateText.mockResolvedValue({ text: JSON.stringify({ match: [0], duplicate: [1] }) });
+    const r = await imageSenseDepsFor("u1").verify({
+      word: WORD,
+      sense: SENSE,
+      images: [
+        {
+          url: "https://live.staticflickr.com/1/2_ab_b.jpg",
+          thumb: "https://live.staticflickr.com/1/2_ab_w.jpg",
+        },
+        { url: "https://api.openverse.org/v1/images/9/thumb/" },
+      ],
+      timeoutMs: 2_000,
+    });
+    expect([...(r?.matched ?? [])]).toEqual([0]);
+    expect([...(r?.duplicates ?? [])]).toEqual([1]);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
   it("同意が無ければ絵を送らない", async () => {
     h.consent.mockRejectedValue(new Error("AI_CONSENT_REQUIRED"));
     expect(

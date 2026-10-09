@@ -113,7 +113,8 @@ export function PrivacyZhTw({ info }: { info: LegalPublicInfo }) {
           </li>
           <li>
             <strong>圖片</strong>：只送出單字（搜尋字詞）：Unsplash、Wikimedia
-            Commons、Higgsfield、Lovable AI Gateway（產生圖片）
+            Commons、Wikipedia、Openverse（WordPress.org。Flickr
+            等可自由使用的照片索引，縮圖由你的裝置載入）、Higgsfield、Lovable AI Gateway（產生圖片）
           </li>
           <li>
             <strong>地圖</strong>：Google（Google 地圖）。在網頁版顯示地圖時，你的裝置會從 Google

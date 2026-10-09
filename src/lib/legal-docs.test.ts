@@ -26,6 +26,7 @@ const PROCESSORS = [
   "ElevenLabs",
   "Unsplash",
   "Wikimedia",
+  "Openverse",
   "Higgsfield",
   "Google",
   "Stripe",

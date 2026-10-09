@@ -4,21 +4,21 @@ import { Term } from "@/components/Term";
 import { useT } from "@/lib/i18n";
 import { shortMeaning } from "@/lib/meaning-rule";
 import { Reading } from "@/lib/phonetic";
-import type { CandidateUsage, TextCandidate } from "@/lib/text-search-flow";
+import type { CandidateRegister, TextCandidate } from "@/lib/text-search-flow";
 
-/** 使われ方の札の文言（`local` は学習言語で言い方が変わる）。 */
-export function usageLabelKey(usage: CandidateUsage | null, targetLanguage: string): string | null {
-  switch (usage) {
-    case "common":
-      return "textPick.usage.common";
-    case "colloquial":
-      return "textPick.usage.colloquial";
-    case "formal":
-      return "textPick.usage.formal";
-    case "academic":
-      return "textPick.usage.academic";
-    case "local":
-      return targetLanguage.startsWith("zh") ? "textPick.usage.taiwan" : "textPick.usage.local";
+/** 文体の札の文言。どの候補も同じ物差し（`CANDIDATE_REGISTERS`）で1つだけ。 */
+export function registerLabelKey(register: CandidateRegister | null): string | null {
+  switch (register) {
+    case "spoken":
+      return "textPick.register.spoken";
+    case "written":
+      return "textPick.register.written";
+    case "both":
+      return "textPick.register.both";
+    case "technical":
+      return "textPick.register.technical";
+    case "signage":
+      return "textPick.register.signage";
     default:
       return null;
   }
@@ -29,7 +29,12 @@ export function usageLabelKey(usage: CandidateUsage | null, targetLanguage: stri
  * 複数の単語の候補がある場合（同じ日本でも台湾華語だと区別があったり一般でな言い方や学術的な
  * 言い方など）は単語の候補を表示して」）。
  *
- * 1行に1語: 語（繁体字）・読み・使われ方の札（一般的 / 口語 / 書き言葉 …）・一行の訳と違い。
+ * 1行に1語: 語（繁体字）・読み、文体の札と一行の訳、「場面」と「違い」。
+ *
+ * **どの候補も同じ物差しで並べる**（オーナー指摘 2026-10-09「一般的な言い方とか台湾でよく
+ * 使われるとか、違いが分かりにくい…書き言葉なのか？一般的な話し言葉の言い方なのか？学術的な
+ * いいかたなのか？」）。札は文体だけ（話し言葉 / 書き言葉 / 会話でも文章でも / 専門用語 /
+ * 表示・メニューの言葉）、「場面」はどこで聞く・見るか、「違い」はほかの候補と比べた一言。
  * 押した行だけがその場で回り（札の絵と発音がそろうまで）、そろったら剥がす札の画面へ移る。
  * 白い札・青い印の見出し（アプリのほかの面と同じ）。
  */
@@ -79,7 +84,7 @@ export function TextCandidateList({
       >
         {candidates.map((c) => {
           const busy = preparing === c.headword;
-          const label = usageLabelKey(c.usage, language);
+          const label = registerLabelKey(c.register);
           return (
             <li key={c.headword} className="flex min-w-0 items-center gap-2 px-3 py-2.5">
               <button
@@ -102,20 +107,43 @@ export function TextCandidateList({
                       pinyin={c.pinyin}
                       className="text-footnote text-muted-foreground"
                     />
-                    {label && (
-                      <span className="rounded-full bg-primary/10 px-2 py-0.5 text-caption font-semibold text-primary-ink">
-                        {t(label)}
-                      </span>
-                    )}
                   </span>
-                  {c.meaning_ja && (
-                    <span className="mt-0.5 line-clamp-2 block break-words text-footnote text-foreground/80">
-                      {shortMeaning(c.meaning_ja)}
+                  {(label || c.meaning_ja) && (
+                    <span className="mt-1 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5">
+                      {label && (
+                        <span className="shrink-0 rounded-full bg-primary/10 px-2 py-0.5 text-caption font-semibold text-primary-ink">
+                          {t(label)}
+                        </span>
+                      )}
+                      {c.meaning_ja && (
+                        <span className="min-w-0 break-words text-footnote text-foreground/80">
+                          {shortMeaning(c.meaning_ja)}
+                        </span>
+                      )}
                     </span>
                   )}
-                  {c.distinction && (
-                    <span className="line-clamp-2 block break-words text-caption text-muted-foreground">
-                      {c.distinction}
+                  {(c.scene || c.distinction) && (
+                    <span className="mt-1 grid grid-cols-[auto_1fr] gap-x-2 gap-y-0.5 text-caption">
+                      {c.scene && (
+                        <>
+                          <span className="font-semibold text-primary-ink">
+                            {t("textPick.scene")}
+                          </span>
+                          <span className="line-clamp-2 min-w-0 break-words text-muted-foreground">
+                            {c.scene}
+                          </span>
+                        </>
+                      )}
+                      {c.distinction && (
+                        <>
+                          <span className="font-semibold text-primary-ink">
+                            {t("textPick.difference")}
+                          </span>
+                          <span className="line-clamp-2 min-w-0 break-words text-foreground/80">
+                            {c.distinction}
+                          </span>
+                        </>
+                      )}
                     </span>
                   )}
                 </span>

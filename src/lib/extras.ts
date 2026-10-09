@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { withoutGenericChunks } from "./generic-chunks";
 import { normalizeTargetLanguage } from "./target-lang";
-import { tidyUsageParts, withoutSeparatorParts } from "./chunk-grammar";
+import { isBrokenUsageChunk, tidyUsageParts, withoutSeparatorParts } from "./chunk-grammar";
 
 /**
  * 単語カードの extras の唯一の定義(2026-07-25 詳細カード再構成)。
@@ -635,7 +635,7 @@ export function chunkMentionsHeadword(
  * プロンプトでも頼むが、**返ってきた物のほうを見て落とす**。この app は
  * 「書いてあることと返ってくる物は別」を何度も踏んでいる。
  *
- * 落とすのは7つ:
+ * 落とすのは次の物:
  * 0. **どの名詞にも付く汎用の組み合わせ**(`generic-chunks.ts`) —
  *    「買{語}」「喜歡{語}」はその語について何も教えていない
  *    (オーナー指示 2026-08-28 ③)
@@ -650,6 +650,8 @@ export function chunkMentionsHeadword(
  *    語そのもの（日本語・英語は活用形も可）が入っていない物は型ではない
  * 7. **1語を分けただけの型**(オーナー指示 2026-10-01「芒果冰のようにひとかたまりとして普段
  *    扱われるものはチャンクを分けなくていい」) — 芒果＋冰 は 芒果冰 という1語
+ * 8. **崩れた型・訳になっていない訳**(`isBrokenUsageChunk`。オーナー報告 2026-10-09
+ *    「嘴邊肉＋切 / 嘴邊肉をする」) — 量詞を抜いて残った「名詞＋裸の動詞」、学ぶ語を写した訳
  *
  * そのうえで**先頭5つ**に切る。生成側は「使用頻度の高い順」に並べるので、
  * 切るのは後ろから。
@@ -700,6 +702,8 @@ export function refineUsageChunks(
       if (parts.length >= 2 && tidyUsageParts(parts, language, { headword: head }).length < 2)
         return false;
       if (!chunkMentionsHeadword(chunkText(c, " "), head, language)) return false;
+      // 量詞を抜いて崩れた型（嘴邊肉＋切）・訳になっていない訳（嘴邊肉をする）。
+      if (isBrokenUsageChunk(c, head, language)) return false;
       if (seen.has(text)) return false;
       seen.add(text);
       return true;

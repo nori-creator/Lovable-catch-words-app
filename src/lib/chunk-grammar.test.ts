@@ -1,12 +1,13 @@
 import { describe, expect, it } from "vitest";
 import {
+  isBrokenUsageChunk,
   isSwappableSlot,
   mergeCompounds,
   swappedTranslation,
   tidyUsageParts,
   withoutSeparatorParts,
 } from "./chunk-grammar";
-import { chunkSpeechText } from "./extras";
+import { chunkSpeechText, refineUsageChunks } from "./extras";
 
 const alts = [{ text: "煮", ja: "煮る" }];
 
@@ -255,5 +256,202 @@ describe("withoutSeparatorParts（「+」を札にしない。オーナー報告
     const once = tidyUsageParts(stored, "zh-TW", { headword: "牛蒡" });
     expect(once.map((p) => p.text)).toEqual(["牛蒡", "很", "健康"]);
     expect(tidyUsageParts(once, "zh-TW", { headword: "牛蒡" })).toEqual(once);
+  });
+});
+
+describe("isBrokenUsageChunk（嘴邊肉＋切 / 嘴邊肉をする — オーナー報告 2026-10-09）", () => {
+  const zh = "zh-TW";
+  it("学ぶ名詞＋裸の他動詞（量詞を抜いて崩れた形）は落とす", () => {
+    const c = {
+      parts: [
+        { text: "嘴邊肉", pos: "N" },
+        { text: "切", pos: "V" },
+      ],
+      ja: "嘴邊肉をする",
+    };
+    expect(isBrokenUsageChunk(c, "嘴邊肉", zh)).toBe(true);
+    // 訳がまともでも、形が崩れていれば落とす。
+    expect(isBrokenUsageChunk({ ...c, ja: "豚のほほ肉を切る" }, "嘴邊肉", zh)).toBe(true);
+    // 古い役割の記号（O + V）も同じ。
+    expect(
+      isBrokenUsageChunk(
+        {
+          parts: [
+            { text: "嘴邊肉", pos: "O" },
+            { text: "切", pos: "V" },
+          ],
+          ja: "",
+        },
+        "嘴邊肉",
+        zh,
+      ),
+    ).toBe(true);
+  });
+  it("訳が学ぶ語を写して「をする」を付けただけなら落とす", () => {
+    const c = {
+      parts: [
+        { text: "吃", pos: "V" },
+        { text: "嘴邊肉", pos: "N" },
+      ],
+      ja: "嘴邊肉をする",
+    };
+    expect(isBrokenUsageChunk(c, "嘴邊肉", zh)).toBe(true);
+    expect(isBrokenUsageChunk({ ...c, ja: "〜をする" }, "嘴邊肉", zh)).toBe(true);
+    expect(isBrokenUsageChunk({ ...c, ja: "嘴邊肉する（屋台で）" }, "嘴邊肉", zh)).toBe(true);
+    expect(isBrokenUsageChunk({ ...c, ja: "嘴邊肉" }, "嘴邊肉", zh)).toBe(true);
+  });
+  it("正しい型は落とさない", () => {
+    const keep: Array<[string, { parts: { text: string; pos: string }[]; ja: string }]> = [
+      [
+        "嘴邊肉",
+        {
+          parts: [
+            { text: "切", pos: "V" },
+            { text: "嘴邊肉", pos: "N" },
+          ],
+          ja: "豚のほほ肉を切る",
+        },
+      ],
+      // 訳に学ぶ語の字が残っていても、本物の動詞が訳されていれば落とさない（作る側で直す）。
+      [
+        "嘴邊肉",
+        {
+          parts: [
+            { text: "點", pos: "V" },
+            { text: "嘴邊肉", pos: "N" },
+          ],
+          ja: "嘴邊肉を注文する",
+        },
+      ],
+      [
+        "芒果",
+        {
+          parts: [
+            { text: "芒果", pos: "N" },
+            { text: "很", pos: "Adv" },
+            { text: "甜", pos: "Vs" },
+          ],
+          ja: "マンゴーがとても甘い",
+        },
+      ],
+      [
+        "朋友",
+        {
+          parts: [
+            { text: "跟", pos: "Prep" },
+            { text: "朋友", pos: "N" },
+            { text: "見面", pos: "V-sep" },
+          ],
+          ja: "友達と会う",
+        },
+      ],
+      [
+        "珍珠奶茶",
+        {
+          parts: [
+            { text: "珍珠奶茶", pos: "N" },
+            { text: "半糖少冰", pos: "V" },
+          ],
+          ja: "タピオカミルクティーを甘さ半分・氷少なめで",
+        },
+      ],
+      // 結果の字で終わる動詞は話題の形として言える（嘴邊肉賣完了）。
+      [
+        "嘴邊肉",
+        {
+          parts: [
+            { text: "嘴邊肉", pos: "N" },
+            { text: "賣完", pos: "V" },
+          ],
+          ja: "豚のほほ肉が売り切れる",
+        },
+      ],
+      // 状態動詞（形容詞）は別の決まり（很 を補う）で扱う。
+      [
+        "嘴邊肉",
+        {
+          parts: [
+            { text: "嘴邊肉", pos: "N" },
+            { text: "好吃", pos: "Vs" },
+          ],
+          ja: "豚のほほ肉がおいしい",
+        },
+      ],
+      // 学ぶ語が動詞の時（切＋菜 ではなく 菜＋切 でも、前が学ぶ語でなければ触らない）。
+      [
+        "切",
+        {
+          parts: [
+            { text: "切", pos: "V" },
+            { text: "菜", pos: "N" },
+          ],
+          ja: "野菜を切る",
+        },
+      ],
+    ];
+    for (const [head, c] of keep) expect(isBrokenUsageChunk(c, head, zh), c.ja).toBe(false);
+  });
+  it("日本語を学ぶ語の訳・英語の型には、形の決まりを当てない", () => {
+    expect(
+      isBrokenUsageChunk(
+        {
+          parts: [
+            { text: "勉強", pos: "N" },
+            { text: "する", pos: "V" },
+          ],
+          ja: "勉強する",
+        },
+        "勉強",
+        "ja",
+      ),
+    ).toBe(false);
+    expect(
+      isBrokenUsageChunk(
+        {
+          parts: [
+            { text: "cheek", pos: "n" },
+            { text: "cut", pos: "V" },
+          ],
+          ja: "頬肉を切る",
+        },
+        "cheek",
+        "en",
+      ),
+    ).toBe(false);
+  });
+  it("refineUsageChunks が保存済みの崩れた型を出さない", () => {
+    const out = refineUsageChunks(
+      [
+        {
+          parts: [
+            { text: "嘴邊肉", pos: "N" },
+            { text: "切", pos: "V" },
+          ],
+          ja: "嘴邊肉をする",
+        },
+        {
+          parts: [
+            { text: "切", pos: "V" },
+            { text: "嘴邊肉", pos: "N" },
+          ],
+          ja: "豚のほほ肉を切る",
+        },
+        {
+          parts: [
+            { text: "嘴邊肉", pos: "N" },
+            { text: "很", pos: "Adv" },
+            { text: "Q", pos: "Vs" },
+          ],
+          ja: "豚のほほ肉がもちもちしている",
+        },
+      ],
+      [{ word: "盤" }],
+      "嘴邊肉",
+      "zh-TW",
+    );
+    expect(out.map((c) => c.parts.map((p) => p.text).join("+"))).toEqual([
+      "切+嘴邊肉",
+      "嘴邊肉+很+Q",
+    ]);
   });
 });

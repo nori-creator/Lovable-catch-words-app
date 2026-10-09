@@ -1243,6 +1243,7 @@ export function StickerSheetBody({
         isPro={isPro}
         onGenerateAi={onGenerateAi}
         generatingAi={generatingAi}
+        noPhotoFound={heroFailed}
       />
 
       {/* When & Where chip */}

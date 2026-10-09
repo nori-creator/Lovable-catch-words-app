@@ -53,15 +53,28 @@ const LOTUS_ROOT: ImageSense = {
   sense: "Lotus root, the edible rhizome vegetable, raw or cooked.",
 };
 
-/** fetch の差し替え: Unsplash とコモンズにそれぞれの見本を返す。 */
+/**
+ * fetch の差し替え: Unsplash とコモンズ（英語）にそれぞれの見本を返す。学習言語の出所
+ * （コモンズの引用付きの検索・Wikipedia・Openverse）は何も見つからない。
+ */
 function routeFetch(fetchMock: ReturnType<typeof vi.fn>, unsplash: unknown, commons?: unknown) {
   fetchMock.mockImplementation(async (url: string) => {
     const u = String(url);
     if (u.includes("api.unsplash.com")) return new Response(JSON.stringify(unsplash));
-    if (u.includes("commons.wikimedia.org"))
-      return new Response(JSON.stringify(commons ?? { query: { pages: {} } }));
+    if (u.includes("commons.wikimedia.org")) {
+      const learning = (new URL(u).searchParams.get("gsrsearch") ?? "").includes('"');
+      return new Response(JSON.stringify(learning ? {} : (commons ?? { query: { pages: {} } })));
+    }
+    if (u.includes("wikipedia.org")) return new Response(JSON.stringify({ query: { pages: [] } }));
+    if (u.includes("api.openverse.org")) return new Response(JSON.stringify({ results: [] }));
     throw new Error(`unexpected fetch ${u}`);
   });
+}
+
+/** 英語の出所（Unsplash）に投げた検索語。 */
+function unsplashQuery(fetchMock: ReturnType<typeof vi.fn>): string | null {
+  const call = fetchMock.mock.calls.find(([u]) => String(u).includes("api.unsplash.com"));
+  return call ? new URL(String(call[0])).searchParams.get("query") : null;
 }
 
 function deps(over: Partial<ImageSenseDeps> = {}): ImageSenseDeps & {
@@ -291,17 +304,16 @@ describe("searchImagesWith — レンコン（蓮藕）を文字で調べた時"
       meaning: "レンコン",
       language: "zh-TW",
     });
-    const asked = new URL(String(fetchMock.mock.calls[0][0]));
-    expect(asked.searchParams.get("query")).toBe("lotus root");
+    expect(unsplashQuery(fetchMock)).toBe("lotus root");
     const urls = out.candidates.map((c) => c.url);
-    expect(urls.slice(0, 2)).toEqual([
-      "https://images.unsplash.com/renkon-3",
-      "https://images.unsplash.com/renkon-dish-5",
-    ]);
-    expect(urls.some((u) => /flower|pond/i.test(u))).toBe(false);
-    // 先頭が説明で確かなので、絵は確かめない（AI を呼ばない）・コモンズも探さない。
-    expect(d.verify).not.toHaveBeenCalled();
-    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(urls[0]).toBe("https://images.unsplash.com/renkon-3");
+    expect(urls).toContain("https://images.unsplash.com/renkon-dish-5");
+    expect(urls.some((u) => /flower|pond|Nelumbo/i.test(u))).toBe(false);
+    // 2026-10-09: 食べ物の棚は英語の題を信じず、学習言語の写真が無ければ絵を確かめる。
+    // 確かめられない（ここでは null）時は、説明で確かな物だけ残る。
+    expect(d.verify).toHaveBeenCalledTimes(1);
+    // 学習言語（蓮藕）でも探している。
+    expect(fetchMock.mock.calls.some(([u]) => String(u).includes("api.openverse.org"))).toBe(true);
   });
 
   it("Unsplash が花しか返さなければコモンズも探し、根の写真を先頭に", async () => {
@@ -360,7 +372,7 @@ describe("searchImagesWith — レンコン（蓮藕）を文字で調べた時"
     expect(out.candidates).toEqual([]);
   });
 
-  it("確かめに失敗したら（時間切れなど）説明の順のまま返す", async () => {
+  it("確かめに失敗したら（時間切れなど）、食べ物の棚では説明で確かでない写真は出さない", async () => {
     routeFetch(fetchMock, fx.lotusRoot.unsplashFlowersOnly);
     const d = deps({ verify: vi.fn(async () => null) });
     const out = await searchImagesWith(
@@ -377,7 +389,30 @@ describe("searchImagesWith — レンコン（蓮藕）を文字で調べた時"
       d,
     );
     expect(d.verify).toHaveBeenCalledTimes(1);
-    expect(out.candidates.map((c) => c.url)).toEqual(["https://images.unsplash.com/lotus-3"]);
+    // 前は「ただの蓮」（lotus-3）を残していた。外れの写真より語の札（2026-10-09 オーナー報告）。
+    expect(out.candidates).toEqual([]);
+  });
+
+  it("確かめに失敗しても、食べ物でない棚は説明の順のまま返す", async () => {
+    routeFetch(fetchMock, fx.mouse.unsplash);
+    const d = deps({
+      resolveSense: vi.fn(async () => ({ query: "computer mouse", avoid: [] })),
+      verify: vi.fn(async () => null),
+    });
+    const out = await searchImagesWith(
+      {
+        query: "computer mouse",
+        language: "zh-TW",
+        purpose: "candidates",
+        category: "tech",
+        headword: "滑鼠",
+        meaning: "マウス",
+      },
+      async () => undefined,
+      d,
+    );
+    expect(out.candidates.length).toBeGreaterThan(0);
+    expect(out.candidates.every((c) => !/rodent|pet/.test(c.url))).toBe(true);
   });
 
   it("意味を決められなければ（同意・枠・失敗）今までどおり日本語で探す", async () => {
@@ -388,7 +423,7 @@ describe("searchImagesWith — レンコン（蓮藕）を文字で調べた時"
       async () => undefined,
       d,
     );
-    expect(new URL(String(fetchMock.mock.calls[0][0])).searchParams.get("query")).toBe("レンコン");
+    expect(unsplashQuery(fetchMock)).toBe("レンコン");
   });
 
   it("牛蒡の見本も同じ道で: 花は出さず、根を先頭に", async () => {

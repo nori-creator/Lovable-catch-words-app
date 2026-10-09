@@ -21,6 +21,7 @@ import {
   imageSensePrompt,
   imageVerifyPrompt,
   parseImageSense,
+  parseVerifyDuplicates,
   parseVerifyVerdict,
   senseKey,
   verdictKey,
@@ -35,7 +36,12 @@ export type SenseWord = {
 };
 
 /** 確かめた結果。`checked` は確かめられた候補の位置、`matched` はその意味の物だった位置。 */
-export type VerifyResult = { checked: number[]; matched: Set<number> };
+export type VerifyResult = {
+  checked: number[];
+  matched: Set<number>;
+  /** 同じ写真・ほとんど同じ写真と言われた位置（捨てる）。 */
+  duplicates?: Set<number>;
+};
 
 /** `searchImagesWith` が使う AI の部分（試験では差し替える）。 */
 export type ImageSenseDeps = {
@@ -44,6 +50,8 @@ export type ImageSenseDeps = {
     word: SenseWord;
     sense: ImageSense;
     images: ReadonlyArray<{ url: string; thumb?: string }>;
+    /** 待てる上限（ms。検索の残りの持ち時間）。無ければ `VERIFY_TIMEOUT_MS`。 */
+    timeoutMs?: number;
   }) => Promise<VerifyResult | null>;
 };
 
@@ -142,11 +150,11 @@ export function imageSenseDepsFor(userId: string): ImageSenseDeps {
       }
     },
 
-    async verify({ word, sense, images }) {
+    async verify({ word, sense, images, timeoutMs }) {
       const top = images.slice(0, VERIFY_MAX_IMAGES);
       if (top.length === 0) return null;
       // 全部覚えていれば AI を呼ばない。
-      const known = top.map((c) => verdictCache.get(verdictKey(sense, c.url)));
+      const known = top.map((c) => verdictCache.get(verdictKey(sense, c.url, word.headword)));
       if (known.every((v) => v !== undefined)) {
         return {
           checked: top.map((_, i) => i),
@@ -154,7 +162,9 @@ export function imageSenseDepsFor(userId: string): ImageSenseDeps {
         };
       }
       if (!(await gate())) return null;
-      const deadline = AbortSignal.timeout(VERIFY_TIMEOUT_MS);
+      const deadline = AbortSignal.timeout(
+        Math.max(500, Math.min(VERIFY_TIMEOUT_MS, timeoutMs ?? VERIFY_TIMEOUT_MS)),
+      );
       try {
         // 小さい絵をサーバで取る（許した置き場だけ。`image-proxy.ts`）。取れない絵は確かめない。
         const fetched = await Promise.all(
@@ -191,6 +201,7 @@ export function imageSenseDepsFor(userId: string): ImageSenseDeps {
                   text: imageVerifyPrompt({
                     headword: word.headword,
                     meaning: word.meaning,
+                    language: word.language,
                     sense,
                     count: ok.length,
                   }),
@@ -204,15 +215,21 @@ export function imageSenseDepsFor(userId: string): ImageSenseDeps {
             },
           ],
         });
-        const verdict = parseVerifyVerdict(parseJsonFromAiText(res.text), ok.length);
+        const parsed = parseJsonFromAiText(res.text);
+        const verdict = parseVerifyVerdict(parsed, ok.length);
         if (!verdict) return null;
+        const dup = parseVerifyDuplicates(parsed, ok.length);
         const matched = new Set<number>();
+        const duplicates = new Set<number>();
         ok.forEach((f, j) => {
           const yes = verdict.has(j);
           if (yes) matched.add(f.i);
-          verdictCache.set(verdictKey(sense, top[f.i].url), yes);
+          if (dup.has(j) && !yes) duplicates.add(f.i);
+          // 「同じ写真」はほかの候補との関係なので覚えない（次の検索でもう一度確かめる）。
+          if (dup.has(j) && !yes) return;
+          verdictCache.set(verdictKey(sense, top[f.i].url, word.headword), yes);
         });
-        return { checked: ok.map((f) => f.i), matched };
+        return { checked: ok.map((f) => f.i), matched, duplicates };
       } catch (e) {
         console.warn("image verify failed", e instanceof Error ? e.message.slice(0, 80) : e);
         return null;
