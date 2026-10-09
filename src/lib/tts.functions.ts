@@ -6,13 +6,7 @@ import { assertWithinDailyCap, getTts, logUsage } from "./ai-provider.server";
 import { speechIdentity, ttsObjectPath, TTS_VOICE_DEFAULT } from "./tts-cache";
 import { isShareableTtsText, type TtsShareDb } from "./tts-share";
 import { ttsVoiceFor, withVoiceOverride } from "./tts-voice";
-import {
-  cleanTtsConfig,
-  TAIWAN_AZURE_VOICES,
-  TTS_LANGUAGES,
-  TTS_PROVIDERS,
-  type TtsChoice,
-} from "./tts-providers";
+import { cleanTtsConfig, TTS_LANGUAGES, type TtsChoice } from "./tts-providers";
 
 const DEFAULT_SPEED = 0.95;
 const SIGNED_URL_TTL = 60 * 60 * 6;
@@ -364,51 +358,8 @@ async function assertAdmin(context: { supabase: unknown; userId: string }) {
     _role: "admin",
   });
   if (error) throw new Error(error.message);
-  if (!isAdmin) throw new Error("管理者のみ");
+  if (!isAdmin) throw new Error((await import("./admin-ai.server")).ADMIN_ONLY_MESSAGE);
 }
-
-/** いまの設定と、各社の鍵が揃っているか（鍵の値は返さない）。 */
-export const getTtsVoiceAdmin = createServerFn({ method: "GET" })
-  .middleware([requireSupabaseAuth])
-  .handler(async ({ context }) => {
-    await assertAdmin(context);
-    const { providerKeysPresent } = await import("./tts-provider.server");
-    const { data, error } = await context.supabase
-      .from("app_config")
-      .select("value")
-      .eq("key", "tts_voice")
-      .maybeSingle();
-    if (error) throw new Error(error.message);
-    return {
-      config: cleanTtsConfig((data as { value?: unknown } | null)?.value ?? {}),
-      providers: TTS_PROVIDERS.map((p) => ({
-        ...p,
-        voices: p.voices as Record<string, string[]>,
-        keys_present: providerKeysPresent(p.id),
-      })),
-      languages: [...TTS_LANGUAGES],
-      taiwanAzureVoices: TAIWAN_AZURE_VOICES,
-      legacy: process.env.GOOGLE_TTS_API_KEY ? "Google Cloud TTS" : "OpenAI 互換 TTS",
-    };
-  });
-
-export const setTtsVoiceAdmin = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => z.object({ config: z.unknown() }).parse(input))
-  .handler(async ({ context, data }) => {
-    await assertAdmin(context);
-    const clean = cleanTtsConfig(data.config);
-    const { error } = await context.supabase.from("app_config").upsert({
-      key: "tts_voice",
-      value: clean,
-      updated_at: new Date().toISOString(),
-      updated_by: context.userId,
-    });
-    if (error) throw new Error("設定を保存できませんでした");
-    const { forgetTtsVoiceConfig } = await import("./tts-provider.server");
-    forgetTtsVoiceConfig();
-    return { ok: true, config: clean };
-  });
 
 /**
  * **試しに鳴らす**（保存も課金の記録もしない）。かかった時間も返す —

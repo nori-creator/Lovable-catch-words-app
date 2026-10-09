@@ -10,7 +10,7 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { generateText } from "ai";
 import { z } from "zod";
 import { isNounLike } from "./pos";
-import { assertWithinDailyCap, getAi, getAiFor, getAiRuntime } from "./ai-provider.server";
+import { assertWithinDailyCap, forFeature, getAi, getAiFor } from "./ai-provider.server";
 import { normalizeDetection } from "./scan-detect-parse";
 import { readAllPages } from "./pagination";
 import { targetProfile, type CoachPhrases } from "./target-profile";
@@ -195,8 +195,13 @@ export const detectScan = createServerFn({ method: "POST" })
     try {
       found = await ask(ai);
     } catch (first) {
-      const base = await getAiRuntime().catch(() => null);
-      const same = !base || (base.gateway === ai.gateway && base.modelFast === ai.modelFast);
+      const base = await Promise.resolve()
+        .then(() => forFeature(getAi(), "scan"))
+        .catch(() => null);
+      const same =
+        !base ||
+        ((base.name ?? base.provider) === (ai.name ?? ai.provider) &&
+          base.modelFast === ai.modelFast);
       console.warn(`[scan] detect failed with ${ai.modelFast}: ${(first as Error).message}`);
       if (same) throw new Error(`scan detect failed: ${(first as Error).message}`);
       try {

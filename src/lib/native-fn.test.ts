@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { NATIVE_FNS, publicMessage, statusForError } from "./native-fn";
+import { NATIVE_ADMIN_FNS, NATIVE_FNS, publicMessage, statusForError } from "./native-fn";
 
 describe("native-fn allowlist", () => {
   it("exposes the capture, card, save and review functions iOS needs", () => {
@@ -36,12 +36,28 @@ describe("native-fn allowlist", () => {
     }
   });
 
-  it("never exposes admin functions", () => {
-    for (const name of Object.keys(NATIVE_FNS)) {
-      expect(name.toLowerCase()).not.toContain("admin");
+  it("exposes only the listed admin AI settings functions (owner decision 2026-10-09)", () => {
+    const admin = Object.keys(NATIVE_FNS).filter((n) => n.toLowerCase().includes("admin"));
+    expect(admin.sort()).toEqual([...NATIVE_ADMIN_FNS].sort());
+    for (const name of admin) {
+      expect(name.startsWith("admin")).toBe(true);
+      expect(NATIVE_FNS[name]).toBeTypeOf("function");
     }
-    expect(NATIVE_FNS["setTtsVoiceAdmin"]).toBeUndefined();
-    expect(NATIVE_FNS["pregenerateDictionaryTts"]).toBeUndefined();
+    // ほかの管理者向けの道具（辞書の取り込み・発音の作り置き・利用者の一覧）は載せない。
+    for (const name of [
+      "setTtsVoiceAdmin",
+      "pregenerateDictionaryTts",
+      "importDictionaryEntries",
+      "checkIsAdmin",
+    ]) {
+      expect(NATIVE_FNS[name]).toBeUndefined();
+    }
+  });
+
+  it("resolves every admin function to a real server function", async () => {
+    for (const name of NATIVE_ADMIN_FNS) {
+      expect(await NATIVE_FNS[name]()).toBeTypeOf("function");
+    }
   });
 
   it("does not resolve prototype keys", () => {
@@ -53,6 +69,7 @@ describe("native-fn allowlist", () => {
 describe("statusForError", () => {
   it("maps auth, cap, validation and other failures", () => {
     expect(statusForError(new Error("Unauthorized: Invalid token"))).toBe(401);
+    expect(statusForError(new Error("Forbidden: 管理者だけが使えます"))).toBe(403);
     expect(statusForError(new Error("1日の利用上限(200回)に達しました。"))).toBe(429);
     const zod = Object.assign(new Error("[]"), { name: "ZodError" });
     expect(statusForError(zod)).toBe(400);

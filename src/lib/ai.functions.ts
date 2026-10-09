@@ -2217,8 +2217,9 @@ async function askReadingTwice(
     targetProfile(language).capture.readingLookupRule +
     ` pos はこの語のいちばん普通の品詞を日本語1語（名詞・動詞・形容詞・副詞など）。\n` +
     `出力はJSONだけ: {"reading":"","reading_alt":"","pos":""}`;
+  // 1人目は点検の AI、2人目は「読みの突き合わせ」の AI（開発者の設定で別の会社にできる）。
   const a = await getAiFor("audit");
-  const b = await getAiFor("card");
+  const b = await getAiFor("reading_check");
   const models: Array<[AiConfig, string]> = [
     [a, a.modelRich],
     [b, b.modelFast === a.modelRich ? b.modelRich : b.modelFast],

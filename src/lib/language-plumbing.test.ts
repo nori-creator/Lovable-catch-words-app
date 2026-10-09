@@ -4895,6 +4895,7 @@ describe("ホームは今日の誌面", () => {
     // 2026-10-09: 先頭は候補の違い（文体の札・場面・違い。「豚の口の周りの肉」）。
     // 2026-10-09（2回目）: 先頭は設定の「規約と表記」（AI へ送る同意を1行にまとめた）。
     expect(list.slice(0, list.indexOf("},"))).toMatch(/scene: "settings-legal"/);
+    expect(list).toContain(`scene: "admin-ai-settings"`);
     expect(list).toContain(`scene: "text-candidates"`);
     expect(list).toContain(`scene: "text-candidates&case=densha"`);
     expect(list).toContain(`scene: "text-peel-no-photo"`);
@@ -5636,22 +5637,26 @@ describe("開発者だけ: 機能ごとの AI を OpenRouter から選ぶ（オ�
     expect(prov).toMatch(/openrouter: \["OPENROUTER_API_KEY", "OPENROUTER_KEY"/);
   });
 
-  it("一覧は管理者だけが読める", () => {
-    const fn = admin.slice(admin.indexOf("export const listOpenRouterModels"));
-    expect(fn).toMatch(/_role: "admin"/);
-    expect(fn).toMatch(/if \(!isAdmin\) throw new Error\("管理者のみ"\)/);
+  it("一覧は管理者だけが読める（2026-10-09 から `admin-ai.server.ts` の1つの口）", () => {
+    const adminAi = codeOnly(read("lib/admin-ai.server.ts"));
+    // 管理者でなければ、何も読まずに { isAdmin: false }。
+    expect(adminAi).toMatch(/if \(!\(await deps\.isAdmin\(\)\)\) return \{ isAdmin: false \}/);
+    expect(adminAi).toMatch(/_role: "admin"/);
+    // 古い一覧の口（OpenRouter 専用・会社ごと）は消した。
+    expect(admin).not.toMatch(/listOpenRouterModels|listProviderModels/);
   });
 
   it("設定の機能ごとの欄は一覧から選ぶ。スキャンは画像を読めるモデルだけ", () => {
-    // 2026-09-28「複雑すぎる。直感的に」: OpenRouter の数百の一覧から、**鍵のある会社 →
-    // その会社に聞いたモデルの一覧**の2段に変えた。手で名前を打たない・スキャンは画像を
-    // 読めるモデルだけ、の2つの約束はそのまま。
-    expect(settings).toMatch(/listProviderModels/);
-    expect(settings).toMatch(/id !== "scan" \|\| supportsVision\(c, m\)/);
-    const fn = admin.slice(admin.indexOf("export const listProviderModels"));
-    expect(fn).toMatch(/if \(!isAdmin\) throw new Error\("管理者のみ"\)/);
+    // 2026-09-28「複雑すぎる。直感的に」: **鍵のある会社 → その会社に聞いたモデルの一覧**から
+    // 選ぶ。手で名前を打たない・スキャンは画像を読めるモデルだけ、の2つの約束はそのまま
+    // （2026-10-09 からサーバも断る: `setAdminAiFeature` の `canReadImages`）。
+    const card = codeOnly(read("components/AdminAiSettingsCard.tsx"));
+    expect(card).toMatch(/f\.needsVision \? p\.visionModels : p\.models/);
+    expect(settings).toMatch(/<AdminAiSettingsCard \/>/);
+    const adminAi = codeOnly(read("lib/admin-ai.server.ts"));
+    expect(adminAi).toMatch(/info\.needsVision && !canReadImages\(spec\.provider, spec\.model\)/);
     // 鍵の値は返さない（入っているかどうかだけ）。
-    expect(fn).not.toMatch(/key: key\.value|value: key/);
+    expect(adminAi).not.toMatch(/key: key\.value|value: key/);
   });
 });
 
@@ -6284,24 +6289,26 @@ describe("3D 化（Tripo3D）は機能ごと外した（2026-10-03 オーナー�
 
 describe("R22（2026-09-29 オーナー報告: 設定で止まる・演出・3D・日記）", () => {
   it("画像生成の欄は Higgsfield を知っている（知らないと開発者の設定が丸ごと落ちた）", () => {
-    const settings = codeOnly(read("components/screens/SettingsScreen.tsx"));
-    expect(settings).toMatch(/id: "higgsfield",/);
-    // 一覧に無い名前が来ても落とさない。
-    expect(settings).toMatch(
-      /IMAGE_OPTIONS\.find\(\(o\) => o\.id === provider\) \?\? IMAGE_OPTIONS\[0\]/,
+    // 2026-10-09 から一覧はサーバ（`admin-ai.server.ts`）が持ち、画面はそれを並べるだけ。
+    const adminAi = codeOnly(read("lib/admin-ai.server.ts"));
+    expect(adminAi).toMatch(/\{ id: "higgsfield", name: "Higgsfield"/);
+    expect(adminAi).toMatch(
+      /higgsfield: Boolean\(img\.readHiggsfieldCredentials\(process\.env\)\)/,
     );
-    expect(settings).not.toMatch(/IMAGE_OPTIONS\.find\(\(o\) => o\.id === provider\)!/);
-    const admin = codeOnly(read("lib/admin.functions.ts"));
-    expect(admin).toMatch(/higgsfield: Boolean\(readHiggsfieldCredentials\(process\.env\)\)/);
-    expect(admin).toMatch(
+    expect(adminAi).toMatch(
       /z\.enum\(\["lovable", "openrouter", "google", "openai", "higgsfield", "off"\]\)/,
+    );
+    // 一覧に無い名前が来ても落とさない。
+    const card = codeOnly(read("components/AdminAiSettingsCard.tsx"));
+    expect(card).toMatch(
+      /data\.image\.providers\.find\(\(p\) => p\.id === provider\) \?\? data\.image\.providers\[0\]/,
     );
   });
 
   it("設定の欄は1つずつ受け止める（1つ壊れても画面ごと落とさない）", () => {
     const settings = codeOnly(read("components/screens/SettingsScreen.tsx"));
     expect(settings).toMatch(/<SafeSection name=\{title\}>\{children\}<\/SafeSection>/);
-    for (const name of ["ai-models", "image-generation", "tts-voice", "admin", "pro"])
+    for (const name of ["ai-settings", "admin", "pro"])
       expect(settings).toContain(`<SafeSection name="${name}">`);
   });
 
@@ -6787,7 +6794,7 @@ describe("R27: 日記の左ページは元の紙のまま、置き方だけホ�
  */
 describe("R26: 生のエラー文を画面に出さない", () => {
   const files = [
-    "components/TtsVoiceForm.tsx",
+    "components/AdminAiSettingsCard.tsx",
     "components/StickerSheet.tsx",
     "components/screens/SettingsScreen.tsx",
   ];

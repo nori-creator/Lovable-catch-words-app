@@ -43,7 +43,7 @@ Higgsfield は、1つの鍵で Seedream・Seedance・Soul など 50 以上の画
    - 既に別の名前（`HIGGSFIELD_API_KEY` と `HIGGSFIELD_API_SECRET`、`HF_API_KEY` と `HF_API_SECRET` など）で入れた場合も、アプリはそのまま読みます。
 4. `IMAGE_PROVIDER` は**空のまま**でよい（鍵があれば Higgsfield を使う）。明示するなら `higgsfield`。
 5. 絵の型を変えたいときだけ `IMAGE_MODEL` に Higgsfield の型番を入れる（空なら `bytedance/seedream/v4/text-to-image`）。
-6. **確かめ方**: アプリの 設定 → 開発者の欄 → 「画像生成のテスト」→「1枚作って試す」。
+6. **確かめ方**: アプリの 設定 → 開発者の欄 → 「AI の設定（開発者）」→「画像（文字検索の AI 画像）」→「試しに1枚作る」（2026-10-09 から1枚にまとめた）。
    成功なら絵と秒数、失敗なら理由（鍵が違う・残高不足・型番違いなど）が出ます。鍵の**値**は出ません（見つかった名前だけ）。
 7. Higgsfield が失敗したときは、Lovable の口で1枚作って代わりに出します（画面が空にならない）。
 

@@ -6,9 +6,13 @@
  * 使われ方、1日の上限、保存の手順…）が必ずずれていく。そこで iOS 版は
  * **Web 版と同じ関数を同じ入力で呼ぶ**。Web 版で直せば iOS 版も直る。
  *
- * - ここに載っている関数だけを呼べる（管理者向けの関数は載せない）。
+ * - ここに載っている関数だけを呼べる。
  * - 本人確認は各関数の `requireSupabaseAuth` がそのまま行う（iOS は
  *   `Authorization: Bearer <Supabase のアクセストークン>` を付けて呼ぶ）。
+ * - **管理者向けは `admin` で始まる名前の物だけ**（開発者の「AI の設定」。オーナー決定
+ *   2026-10-09「全部の AI を Web と iOS の開発者設定から切り替えられるように」）。
+ *   どれも関数の中で `has_role(admin)` を確かめ、管理者でなければ読み取りは
+ *   `{ isAdmin: false }`、書き込みは 403。鍵の値は返さない。約束は `docs/admin-ai-api.md`。
  * - ここに載せる関数は、Web の画面からもすでに同じ本人確認で呼べる物だけ。
  *   新しく外へ開く入口は増えない。
  */
@@ -33,6 +37,7 @@ const wordbook = () => import("./wordbook.functions");
 const images = () => import("./images.functions");
 const consent = () => import("./ai-consent.functions");
 const appleToken = () => import("./apple-token.functions");
+const adminAi = () => import("./admin-ai.functions");
 
 function from<M>(mod: () => Promise<M>, name: keyof M & string): Loader {
   return async () => (await mod())[name] as unknown as ServerFn;
@@ -113,13 +118,34 @@ export const NATIVE_FNS: Record<string, Loader> = {
   recordAiConsent: from(consent, "recordAiConsent"),
   // 「Apple でサインイン」の code を預ける（退会で Apple の許可を取り消すため。Guideline 5.1.1(v)）
   storeAppleAuthCode: from(appleToken, "storeAppleAuthCode"),
+  // 開発者の「AI の設定」（管理者だけ。`docs/admin-ai-api.md`）
+  adminGetAiSettings: from(adminAi, "adminGetAiSettings"),
+  adminSetAiFeature: from(adminAi, "adminSetAiFeature"),
+  adminSetImageConfig: from(adminAi, "adminSetImageConfig"),
+  adminSetTtsVoice: from(adminAi, "adminSetTtsVoice"),
+  adminTestImage: from(images, "adminTestImage"),
+  adminPreviewTtsVoice: from(tts, "previewTtsVoice"),
+  adminDiagnoseGeminiTts: from(tts, "diagnoseGeminiTts"),
 };
+
+/** 管理者だけが使える口（名前は必ず `admin` で始める）。試験が一覧と突き合わせる。 */
+export const NATIVE_ADMIN_FNS = [
+  "adminGetAiSettings",
+  "adminSetAiFeature",
+  "adminSetImageConfig",
+  "adminSetTtsVoice",
+  "adminTestImage",
+  "adminPreviewTtsVoice",
+  "adminDiagnoseGeminiTts",
+] as const;
 
 /** 失敗の中身から、iOS に返す状態コードを決める。 */
 export function statusForError(e: unknown): number {
   const name = (e as { name?: string })?.name ?? "";
   const msg = e instanceof Error ? e.message : String(e ?? "");
   if (msg.startsWith("Unauthorized")) return 401;
+  // 管理者だけの口を、管理者でない人が呼んだ（`admin-ai.server.ts` の ADMIN_ONLY_MESSAGE）。
+  if (msg.startsWith("Forbidden")) return 403;
   // 外部の AI へ送る同意が無い（`ai-consent.ts`）。iOS は同意の画面を出す。
   if (msg.includes("AI_CONSENT_REQUIRED")) return 403;
   if (msg.includes("AI_CONSENT_CHECK_FAILED")) return 503;

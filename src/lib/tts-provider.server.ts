@@ -119,7 +119,7 @@ async function synthesizeOnce(
   language: string,
 ): Promise<SynthesizedAudio> {
   const info = providerInfo(choice.provider);
-  if (!info?.implemented) throw new Error(`TTS provider not connected: ${choice.provider}`);
+  if (!info) throw new Error(`TTS provider not connected: ${choice.provider}`);
   if (choice.provider === "gemini") {
     // 鍵の名前は別名も見る（`findKey("google")`）。値は表に出さない。
     const key = findKey("google");

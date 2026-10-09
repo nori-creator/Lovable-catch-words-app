@@ -394,11 +394,8 @@ export async function searchImagesWith(
  * `reserve` は**料金のかかる窓口を呼ぶ直前に**1回だけ呼ぶ（枠の確保）。投げたら作らない
  * （その失敗はそのまま投げる）。生成を切ってある（`off`）時は確保しない。
  */
-async function generateOneAiImage(
-  query: string,
-  reserve: () => Promise<void>,
-): Promise<ImageCandidate | null> {
-  let override: { provider?: string; model?: string } | null = null;
+/** 開発者が選んだ画像の会社（`app_config.image_generation`）。読めなければ null（環境変数の既定）。 */
+async function readImageOverride(): Promise<{ provider?: string; model?: string } | null> {
   try {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data } = await supabaseAdmin
@@ -406,11 +403,18 @@ async function generateOneAiImage(
       .select("value")
       .eq("key", "image_generation")
       .maybeSingle();
-    override = (data as { value?: typeof override } | null)?.value ?? null;
+    return (data as { value?: { provider?: string; model?: string } } | null)?.value ?? null;
   } catch (error) {
     console.warn("image config unavailable; using environment default", error);
+    return null;
   }
-  const config = resolveImageConfig(process.env, override);
+}
+
+async function generateOneAiImage(
+  query: string,
+  reserve: () => Promise<void>,
+): Promise<ImageCandidate | null> {
+  const config = resolveImageConfig(process.env, await readImageOverride());
   if (config.provider === "off") return null;
   await reserve();
   if (config.provider === "openrouter") return generateWithOpenRouter(query, config.model);
@@ -523,10 +527,12 @@ async function generateWithHiggsfield(
  * **画像生成を実際に1回試す（開発者だけ）**（オーナー指示 2026-09-28「HIGGSFIELD の
  * api を lovable で設定したから実際に検査して」）。
  *
- * 設定の開発者欄のボタンから呼ぶ。**本当に1枚作る**（Higgsfield の残高を使う）。
+ * 設定の開発者欄（Web・iOS）の「試しに1枚作る」から呼ぶ。**本当に1枚作る**（残高を使う）。
+ * 使う会社・モデルは**本番と同じ**（開発者の設定 `app_config.image_generation` → 環境変数）。
  * 返すのは: どこで作ったか・鍵を見つけた名前（値は返さない）・結果・かかった時間。
+ * 形は `docs/admin-ai-api.md`。
  */
-export const testImageGeneration = createServerFn({ method: "POST" })
+export const adminTestImage = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) =>
     z.object({ query: z.string().min(1).max(60).default("柚子") }).parse(input ?? {}),
@@ -536,10 +542,10 @@ export const testImageGeneration = createServerFn({ method: "POST" })
       _user_id: context.userId,
       _role: "admin",
     });
-    if (!isAdmin) throw new Error("Forbidden: admin role required");
-    const config = readImageConfig(process.env);
+    if (!isAdmin) throw new Error((await import("./admin-ai.server")).ADMIN_ONLY_MESSAGE);
+    const config = resolveImageConfig(process.env, await readImageOverride());
     const { higgsfieldCredentialSource } = await import("./higgsfield.server");
-    const credentialName = higgsfieldCredentialSource();
+    const credentialName = config.provider === "higgsfield" ? higgsfieldCredentialSource() : null;
     const started = Date.now();
     if (config.provider === "higgsfield") {
       const r = await generateWithHiggsfield(data.query, config.model);
@@ -549,7 +555,7 @@ export const testImageGeneration = createServerFn({ method: "POST" })
         credentialName,
         ok: r.ok,
         image: r.ok ? r.candidate.url : null,
-        reason: r.ok ? null : r.reason,
+        error: r.ok ? null : r.reason,
         ms: Date.now() - started,
       };
     }
@@ -561,10 +567,10 @@ export const testImageGeneration = createServerFn({ method: "POST" })
       credentialName,
       ok: !!one,
       image: one?.url ?? null,
-      reason: one
+      error: one
         ? null
         : config.provider === "off"
-          ? "IMAGE_PROVIDER=off"
+          ? "画像生成は停止中です"
           : "生成できませんでした",
       ms: Date.now() - started,
     };

@@ -39,6 +39,7 @@ import { OnboardingScene } from "./scenes/onboarding";
 import { StickerSheetScene } from "./scenes/sticker-sheet";
 import { CandidatePickerScene } from "./scenes/candidate-picker";
 import { ImageSettingsScene } from "./scenes/image-settings";
+import { AdminAiSettingsNoKeyScene, AdminAiSettingsScene } from "./scenes/admin-ai-settings";
 import { HeroPickerScene } from "./scenes/hero-picker";
 import { CameraStripScene } from "./scenes/camera-strip";
 import { RewardCatchScene } from "./scenes/reward-catch";
@@ -259,6 +260,9 @@ const SCENES: Record<string, ((p: { q: URLSearchParams }) => ReactNode) | undefi
   "camera-strip": CameraStripScene,
   "candidate-picker": CandidatePickerScene,
   "image-settings": ImageSettingsScene,
+  // 開発者の「AI の設定」1枚（機能ごとの AI・画像・発音の声。2026-10-09）。
+  "admin-ai-settings": AdminAiSettingsScene,
+  "admin-ai-settings-nokey": AdminAiSettingsNoKeyScene,
   "hero-picker": HeroPickerScene,
   "reward-catch": RewardCatchScene,
   "word-card-empty": WordCardEmptyScene,
@@ -412,6 +416,9 @@ const REVIEW_SCENES: Array<{ scene: string; label: string }> = [
   // 2026-10-09「aiのデータの送信の同意をずっと設定に表示してるの不自然だから、規約にまとめ」。
   { scene: "settings-legal", label: "設定: 規約と表記に AI へ送る同意の1行（同意済み）" },
   { scene: "settings-legal&open=1", label: "設定: AI へ送る同意の小さな画面（取り消せる）" },
+  // 2026-10-09「開発者の AI 設定が散らかっている。整理・削除・統合して」— 1枚にまとめた。
+  { scene: "admin-ai-settings", label: "開発者設定: AI の設定（機能ごとの AI・画像・発音の声）" },
+  { scene: "admin-ai-settings&lang=en", label: "開発者設定: AI の設定（English）" },
   // 2026-10-09 候補の違いを同じ物差しで（文体の札・場面・違い）。「豚の口の周りの肉」→ 嘴邊肉 / 豬頰肉。
   { scene: "text-candidates", label: "文字検索の候補: 「豚の口の周りの肉」（文体・場面・違い）" },
   { scene: "text-candidates&case=densha", label: "文字検索の候補: 「電車」（文体・場面・違い）" },
@@ -481,8 +488,6 @@ const REVIEW_SCENES: Array<{ scene: string; label: string }> = [
   { scene: "legal-tokushoho&legal=missing", label: "特商法の表記: 未設定（販売しない）" },
   { scene: "legal-tokushoho&legal=ready", label: "特商法の表記: 設定済み（見本の値）" },
   { scene: "legal-privacy&legal=ready", label: "プライバシーポリシー" },
-  { scene: "legal-privacy&legal=ready&lang=zh-TW", label: "プライバシーポリシー（繁體中文）" },
-  { scene: "legal-terms&legal=ready", label: "利用規約" },
 ];
 
 /**
