@@ -155,8 +155,11 @@ export function useCatchImages(opts: {
    * 保存の後は他の候補と同じ道（`attach`）で仮画像になる。失敗は投げる（呼ぶ側が知らせる）。
    */
   const [generatingAi, setGeneratingAi] = useState(false);
+  /** 作っている間に重ねて押されても、2枚目を頼まない（枠を2回使わない・後から届いた絵で替えない）。 */
+  const generatingRef = useRef(false);
   const generateAi = useCallback(async () => {
-    if (!key) return;
+    if (!key || generatingRef.current) return;
+    generatingRef.current = true;
     setGeneratingAi(true);
     try {
       const made = await generateProImageFn({
@@ -169,6 +172,7 @@ export function useCatchImages(opts: {
       const c: WebImageCandidate = { url: made.url, thumb: made.url, source: made.source };
       setState((s) => (s.key === key ? { ...s, chosen: c, shown: made.url, settled: true } : s));
     } finally {
+      generatingRef.current = false;
       setGeneratingAi(false);
     }
   }, [key, generateProImageFn]);

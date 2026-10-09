@@ -91,7 +91,7 @@ export function HeroImageChoices({
         <button
           type="button"
           onClick={onGenerateAi}
-          disabled={!!swapping}
+          disabled={!!swapping || generatingAi}
           aria-busy={generatingAi}
           className="mt-2 inline-flex min-h-11 items-center gap-1.5 rounded-full bg-secondary px-4 text-footnote font-semibold text-foreground transition active:scale-95 disabled:opacity-50"
         >

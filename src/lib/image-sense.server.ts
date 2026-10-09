@@ -225,8 +225,9 @@ export function imageSenseDepsFor(userId: string): ImageSenseDeps {
           const yes = verdict.has(j);
           if (yes) matched.add(f.i);
           if (dup.has(j) && !yes) duplicates.add(f.i);
-          // 「同じ写真」は並びによるので覚えない（合っている物として覚える）。
-          verdictCache.set(verdictKey(sense, top[f.i].url, word.headword), yes || dup.has(j));
+          // 「同じ写真」はほかの候補との関係なので覚えない（次の検索でもう一度確かめる）。
+          if (dup.has(j) && !yes) return;
+          verdictCache.set(verdictKey(sense, top[f.i].url, word.headword), yes);
         });
         return { checked: ok.map((f) => f.i), matched, duplicates };
       } catch (e) {
