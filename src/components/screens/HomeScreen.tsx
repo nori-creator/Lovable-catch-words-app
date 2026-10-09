@@ -3,6 +3,7 @@ import { MemorialReveal } from "@/components/MemorialReveal";
 import { ResurfaceCard } from "@/components/ResurfaceCard";
 import { useMemoryBadges } from "@/lib/use-memory-map";
 import { JIGGLE, jiggleStyle, LIFTED } from "@/lib/album-drag";
+import { motionReducedNow } from "@/hooks/use-reduced-motion";
 import { CollageFasteners } from "@/components/AlbumPrint";
 import {
   ALBUM_PAGE_RATIO,
@@ -1274,7 +1275,51 @@ export function DayCollage({
    * 1フレームに何度も来る `pointermove` で配列ごと作り直すと、札の枚数ぶん
    * 描き直しが積み上がって、掴んだ物が指から遅れる。
    */
-  const [live, setLive] = useState<{ id: string; place: Placement } | null>(null);
+  const [live, setLive] = useState<{
+    id: string;
+    place: Placement;
+    /**
+     * **掴んだ時の横の位置。字の寄せ方（`data-col`・`data-cap`）は離すまでこれで決める。**
+     * （オーナー報告 2026-10-09「ホームの単語を移動させようとすると飛ぶ」）
+     *
+     * 字だけの札の枠は写真の札と同じ幅（字よりずっと広い）で、字は枠の**外側の端**に
+     * 寄せてある。寄せる側を動かしている最中の位置で決めていたので、誌面の真ん中を
+     * またいだコマで字が枠の左端から右端へ **約 108px 一気に跳んでいた**（録画の 9→10・
+     * 25→26・36→37 コマ目、計測でも 1 コマ 108px が 3 回）。
+     */
+    grabX: number;
+  } | null>(null);
+  /** 掴んだ札を `live` に載せる（同じ札を掴み直したときは、掴んだ時の横の位置を保つ）。 */
+  const lift = (id: string, place: Placement) =>
+    setLive((l) => ({ id, place, grabX: l?.id === id ? l.grabX : place.x }));
+  /**
+   * **指に付いてくる動きは DOM に直に書く。React を通さない。**（2026-10-09）
+   *
+   * 前は `pointermove` ごと（1 コマ 1 回）に `setLive` で誌面ぜんぶを描き直し、
+   * `left/top` を変えて組み直していた（札の数だけ時刻の書式化・印の組み立て・
+   * 窓の受け口の張り直し）。いまは掴んだ札の `--drag-x/--drag-y`（`translate` の
+   * 中の足し算）だけを rAF で書く。`translate` は組み直しを起こさない。
+   * React を通すのは、つまんで大きさ・傾きが変わる時だけ。
+   *
+   *  - `dragEl`: 掴んでいる札（ボタン）
+   *  - `shownPlace`: いま React が描いている置き方（`live.place`）。ずれ＝指の置き方 − これ
+   *  - `liftComp`: 写真の札を `scale` で持ち上げた時、指の下の点が逃げないための足し算
+   *    （`scale` は札の真ん中を軸にするので、端を掴むと最大 6px 指からずれていた）
+   *  - `releaseFlip`: 離した瞬間に見えていた所（離した後、そこから最後の場所へ滑らせる）
+   */
+  const dragEl = useRef<HTMLElement | null>(null);
+  const shownPlace = useRef<Placement | null>(null);
+  const liftComp = useRef({ x: 0, y: 0 });
+  const releaseFlip = useRef<{
+    /** 離した瞬間に見えていた所（字だけの札は字の行の真ん中、写真の札は札の真ん中）。 */
+    x: number;
+    y: number;
+    rot: number;
+    rotTo: number;
+    photo: boolean;
+  } | null>(null);
+  const boardW = useRef(0);
+  boardW.current = board.w;
   /**
    * 札ごとの「大きさの種類」。**表にはまだこの列が在る**ので、
    * 初期の寸法と縦横の比はここから決まる（オーナー指示 2026-09-15
@@ -1508,6 +1553,148 @@ export function DayCollage({
     return live?.id === id ? live.place : fallback;
   }
 
+  /**
+   * 指が運んだぶんを、掴んだ札の `translate` の足し算（`--drag-x/--drag-y`）に書く。
+   * **読むのは ref だけ**（寸法を測らない）ので、1 コマに何度呼んでも組み直しは起きない。
+   */
+  function writeOffset() {
+    const el = dragEl.current;
+    const base = shownPlace.current;
+    if (!el || !base) return;
+    const p = pendingPlace.current ?? base;
+    const w = boardW.current;
+    el.style.setProperty("--drag-x", `${(p.x - base.x) * w + liftComp.current.x}px`);
+    el.style.setProperty("--drag-y", `${(p.y - base.y) * w + liftComp.current.y}px`);
+  }
+
+  /**
+   * 掴んだ瞬間に1度だけ測る（運んでいる間は測らない）。
+   *
+   * - 写真の札: `scale`（`LIFTED.scale`）は札の真ん中が軸なので、指の下の点は
+   *   (倍率 − 1) × (指 − 真ん中) だけ外へ逃げる。そのぶんを戻す足し算を覚える
+   *   （大きさは傾きと入れ替えても同じなので、画面の座標のままで正しい）。
+   * - 字だけの札: 浮かせる `scale` を**指の点を軸に**する（`--grab-ox/--grab-oy`）。
+   *   札は傾いているので、画面の点を札の向きに戻してから字の箱の中の位置にする。
+   */
+  function grabElement(el: HTMLElement, at: Pt, place: Placement) {
+    dragEl.current = el;
+    pendingPlace.current = null;
+    el.style.setProperty("--drag-x", "0px");
+    el.style.setProperty("--drag-y", "0px");
+    if (!el.hasAttribute("data-plain")) {
+      const r = el.getBoundingClientRect();
+      const k = 1 - LIFTED.scale;
+      liftComp.current = {
+        x: k * (at.x - (r.left + r.width / 2)),
+        y: k * (at.y - (r.top + r.height / 2)),
+      };
+      return;
+    }
+    liftComp.current = { x: 0, y: 0 };
+    const plain = el.querySelector<HTMLElement>(".collage__plain");
+    if (!plain) return;
+    const r = plain.getBoundingClientRect();
+    const th = (place.rot * Math.PI) / 180;
+    const vx = at.x - (r.left + r.width / 2);
+    const vy = at.y - (r.top + r.height / 2);
+    const lx = vx * Math.cos(th) + vy * Math.sin(th);
+    const ly = -vx * Math.sin(th) + vy * Math.cos(th);
+    plain.style.setProperty("--grab-ox", `${Math.round(lx + plain.offsetWidth / 2)}px`);
+    plain.style.setProperty("--grab-oy", `${Math.round(ly + plain.offsetHeight / 2)}px`);
+  }
+
+  /** 札の見えている所（字だけの札は字の行、写真の札は札の真ん中）。離す時の滑らせに使う。 */
+  function visualCenter(el: HTMLElement): Pt {
+    const target = el.hasAttribute("data-plain")
+      ? (el.querySelector<HTMLElement>(".collage__cap-row") ?? el)
+      : el;
+    const r = target.getBoundingClientRect();
+    return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+  }
+
+  /**
+   * **描いた置き方が変わったら、ずれを描き直す前に合わせる**（描かれる前に走る）。
+   *
+   * 離した時: ずれを消し、離した瞬間に見えていた所から最後の場所へ短く滑らせる（FLIP）。
+   * 字の寄せる側が変わる回（真ん中をまたいで置いた）も、傾きがまっすぐに吸い付く回も、
+   * 写真が持ち上げた大きさから戻る回も、跳ばずに動いて見える。動きを減らす設定では滑らせない。
+   */
+  useLayoutEffect(() => {
+    shownPlace.current = live?.place ?? null;
+    if (live) {
+      writeOffset();
+      return;
+    }
+    const el = dragEl.current;
+    if (!el) return;
+    el.style.removeProperty("--drag-x");
+    el.style.removeProperty("--drag-y");
+    const f = releaseFlip.current;
+    dragEl.current = null;
+    releaseFlip.current = null;
+    if (!f || !el.isConnected || motionReducedNow()) return;
+    // 字だけの札は、浮かせた字（`scale`）も下ろしながら戻す。並びの最後へ送ると DOM の
+    // 中で動くので CSS の戻り（transition）は消える — ここで同じ動きを付けてから測る。
+    if (!f.photo)
+      el.querySelector<HTMLElement>(".collage__plain")?.animate(
+        { scale: ["1.06", "1"] },
+        { duration: 160, easing: "ease-out" },
+      );
+    const after = visualCenter(el);
+    const dx = f.x - after.x;
+    const dy = f.y - after.y;
+    if (Math.hypot(dx, dy) < 0.5 && f.rot === f.rotTo && !f.photo) return;
+    const timing: KeyframeAnimationOptions = {
+      duration: 260,
+      // 少しだけ行き過ぎて戻る（置いた手応え）。
+      easing: "cubic-bezier(0.22, 1.18, 0.36, 1)",
+    };
+    const slide = {
+      translate: [`calc(-50% + ${dx}px) calc(-50% + ${dy}px)`, "-50% -50%"],
+      rotate: [`${f.rot}deg`, `${f.rotTo}deg`],
+    };
+    el.animate(f.photo ? { ...slide, scale: [`${LIFTED.scale}`, "1"] } : slide, timing);
+    // 赤いバツ・鉛筆の枠（札の隣）も同じに滑らせる。最後の場所に先に出ると札と離れて見える。
+    const marks = el.nextElementSibling;
+    if (marks instanceof HTMLElement && marks.classList.contains("album-remove-frame"))
+      marks.animate(slide, timing);
+    // `writeOffset` などは ref だけを見るので依存に入れない。
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [live]);
+
+  /**
+   * **字だけの札は、指を離した所に字を残す。**（2026-10-09「単語を移動させようとすると飛ぶ」）
+   *
+   * 字は枠（指の当たる広さ。字よりずっと広い）の外側の端に寄せてあり、どちらに寄せるかは
+   * 枠の位置で決まる（真ん中より左なら左端、右なら右端）。運んでいる間は掴んだ時の寄せ方の
+   * ままなので、真ん中をまたいで置くと、離した瞬間に字が枠の幅ぶん（計測で 108px）逃げていた。
+   *
+   * そこで**字を離した所に置ける枠の位置**を求めて書き戻す。字の行の真ん中と枠の真ん中の差は
+   * 左に寄せても右に寄せても大きさが同じ（向きが逆）なので、運んでいた寄せ方で1度測れば両方
+   * 分かる。どちらの寄せ方でも置けない帯（真ん中のすぐ左右。枠が字より広いぶんだけ在る）に
+   * 離した時だけ、近いほうの端へ寄せ、その差は滑らせて見せる（`releaseFlip`）。
+   *
+   * 測るのは離した時の1度だけ。
+   */
+  function wordKeepingX(el: HTMLElement, p: Placement, grabRight: boolean): number {
+    const boardEl = boardRef.current;
+    const row = el.querySelector<HTMLElement>(".collage__cap-row");
+    const W = boardW.current;
+    if (!boardEl || !row || !W) return p.x;
+    const b = boardEl.getBoundingClientRect();
+    const r = row.getBoundingClientRect();
+    /** 離した所の字の行の真ん中（台紙の左端から）。 */
+    const c = r.left + r.width / 2 - b.left - boardEl.clientLeft;
+    /** 字の行の真ん中が、枠の真ん中から外側の端へ寄っている量。 */
+    const k = (grabRight ? 1 : -1) * (c - p.x * W);
+    const xl = (c + k) / W;
+    const xr = (c - k) / W;
+    const okL = xl < 0.5;
+    const okR = xr >= 0.5;
+    const x = okL && okR ? (grabRight ? xr : xl) : okL ? xl : okR ? xr : c < W / 2 ? 0.4999 : 0.5;
+    return Math.min(1, Math.max(0, x));
+  }
+
   // 長押し(550ms)。**詳細の画面と同じ長さ**にする — 同じ動作が場所によって
   // 違う長さだと、どちらかが「効かない」と感じられる。
   const pressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -1541,6 +1728,7 @@ export function DayCollage({
     at: { x: number; y: number },
     pointerId: number,
     place: Placement,
+    el: HTMLElement,
   ) {
     longPressFired.current = false;
     if (!editable) return;
@@ -1559,7 +1747,8 @@ export function DayCollage({
         moved: false,
       };
       dragged.current = false;
-      setLive({ id, place });
+      grabElement(el, at, place);
+      lift(id, place);
     }, 550);
   }
   function endPress() {
@@ -1582,28 +1771,34 @@ export function DayCollage({
    *     つまんで広げると縁が指の下からすぐ逃げる
    *   ・**指が横取りされた回も必ず戻る**（通知や電話で固まらない）
    */
+  const liveId = live?.id ?? null;
   useEffect(() => {
-    if (!live) return;
-    const shown = () => pendingPlace.current ?? grip.current?.startPlace ?? live.place;
+    if (!liveId) return;
+    const shown = () =>
+      pendingPlace.current ?? shownPlace.current ?? grip.current?.startPlace ?? null;
     const move = (e: PointerEvent) => {
       const g = grip.current;
       if (!g || !g.pointers.has(e.pointerId)) return;
       g.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
       const d = gestureDelta(g.startGrip, gripOf(g.pointers));
       if (Math.hypot(d.dx, d.dy) > 2 || d.scale !== 1 || d.rot !== 0) g.moved = true;
-      /**
-       * **1フレームに1回だけ描き直す。** `pointermove` は1フレームに何度も
-       * 来るので、そのたびに state を変えると札の枚数ぶん描き直しが
-       * 積み上がって、掴んだ物が指から遅れる（「カクカク」のもう半分）。
-       */
       // 下へは**ページの底まで**（台紙はページの形。昔の縦に長い台紙で下に置いた札は、
       // 動かした時にページの中へ戻る）。
       pendingPlace.current = applyDelta(g.startPlace, d, board.w, ALBUM_PAGE_RATIO);
+      /**
+       * **1フレームに1回だけ書く。** `pointermove` は1フレームに何度も来るので、
+       * 最後の指の位置だけを rAF で `translate` に書く（`writeOffset`。React は通さない）。
+       * つまんで大きさ・傾きが変わった時だけ、枠の実寸が変わるので描き直す。
+       */
       if (!moveRafPlace.current) {
         moveRafPlace.current = requestAnimationFrame(() => {
           moveRafPlace.current = 0;
           const next = pendingPlace.current;
-          if (next && grip.current) setLive({ id: grip.current.id, place: next });
+          const g2 = grip.current;
+          const base = shownPlace.current;
+          if (!next || !g2) return;
+          if (base && (next.scale !== base.scale || next.rot !== base.rot)) lift(g2.id, next);
+          else writeOffset();
         });
       }
     };
@@ -1612,23 +1807,41 @@ export function DayCollage({
       if (!g || !g.pointers.has(e.pointerId)) return;
       g.pointers.delete(e.pointerId);
       const now = shown();
+      if (!now) return;
       if (g.pointers.size > 0) {
         // まだ指が残っている。**残った指で握りを取り直す** —
         // 取り直さないと、離した瞬間に残った指へ札が飛ぶ。
         reseat(now);
         pendingPlace.current = now;
-        setLive({ id: g.id, place: now });
+        lift(g.id, now);
         return;
       }
       // 全部離れた。**ここで初めてまっすぐの近くを直す**
       //（動かしている最中に吸い付くと驚く）。
       if (moveRafPlace.current) cancelAnimationFrame(moveRafPlace.current);
       moveRafPlace.current = 0;
+      // 離した最後の指の位置まで書いてから、見えている所を1度だけ測る（滑らせの起点）。
+      writeOffset();
+      const el = dragEl.current;
+      const settled = g.moved ? settle(now) : now;
+      const final =
+        g.moved && el?.hasAttribute("data-plain")
+          ? { ...settled, x: wordKeepingX(el, settled, (live?.grabX ?? now.x) >= 0.5) }
+          : settled;
+      if (el) {
+        const c = visualCenter(el);
+        releaseFlip.current = {
+          ...c,
+          rot: now.rot,
+          rotTo: final.rot,
+          photo: !el.hasAttribute("data-plain"),
+        };
+      }
       pendingPlace.current = null;
       grip.current = null;
       dragged.current = g.moved;
       setLive(null);
-      if (g.moved) commitPlace(g.id, settle(now));
+      if (g.moved) commitPlace(g.id, final);
     };
     window.addEventListener("pointermove", move);
     window.addEventListener("pointerup", up);
@@ -1638,10 +1851,11 @@ export function DayCollage({
       window.removeEventListener("pointerup", up);
       window.removeEventListener("pointercancel", up);
     };
-    // `reseat` は毎描画で作り直されるが、中身は ref だけなので依存に
-    // 入れる必要がない（入れると指を動かすたびに張り直しになる）。
+    // `reseat`・`lift`・`writeOffset` は毎描画で作り直されるが、中身は ref と
+    // setState だけなので依存に入れない（入れると描き直すたびに張り直しになる）。
+    // 張り直すのは掴む札か台紙の幅が変わった時だけ（前は 1 コマごとに外して張り直していた）。
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [live, board]);
+  }, [liveId, board.w]);
   /**
    * **長押しで掴んだ札を動かす間だけ、画面の送りを止める。**
    *
@@ -1723,7 +1937,8 @@ export function DayCollage({
             g.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
             // 指の数が変わったので握りを取り直す（取り直さないと札が飛ぶ）。
             reseat(pendingPlace.current ?? g.startPlace);
-            setLive({ id: g.id, place: pendingPlace.current ?? g.startPlace });
+            pendingPlace.current = g.startPlace;
+            lift(g.id, g.startPlace);
           }}
           className={`relative w-full ${editing ? "touch-none" : ""}`}
           // 高さは中身から。決め打ちの形にすると、札が増えた日に下がはみ出す。
@@ -1788,6 +2003,8 @@ export function DayCollage({
               </>
             );
             const lifted = live?.id === s.id;
+            /** 字を寄せる側を決める横の位置。**掴んでいる間は掴んだ時のまま**（`live.grabX`）。 */
+            const colX = lifted && live ? live.grabX : place.x;
             /** 編集中の印（赤いバツ＝アルバムから外す・青い鉛筆＝ひと言を直す）。 */
             const editMarks = (
               <>
@@ -1848,26 +2065,37 @@ export function DayCollage({
                   onPointerDown={(e) => {
                     if (!editing) {
                       // **長押しの時点で掴む**ので、押さえた指と置き方を渡す。
-                      startPress(s.id, { x: e.clientX, y: e.clientY }, e.pointerId, place);
+                      startPress(
+                        s.id,
+                        { x: e.clientX, y: e.clientY },
+                        e.pointerId,
+                        place,
+                        e.currentTarget,
+                      );
                       return;
                     }
                     // 既に編集中。**別の札を掴んでいる間は受け取らない** —
                     // 2枚同時に動かすのは紙のアルバムでもできない。
                     if (grip.current && grip.current.id !== s.id) return;
+                    const at = { x: e.clientX, y: e.clientY };
                     if (!grip.current) {
                       grip.current = {
                         id: s.id,
                         pointers: new Map(),
-                        startGrip: { a: { x: e.clientX, y: e.clientY } },
+                        startGrip: { a: at },
                         startPlace: place,
                         moved: false,
                       };
+                      grabElement(e.currentTarget, at, place);
                     }
-                    grip.current.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+                    grip.current.pointers.set(e.pointerId, at);
                     // **指の数が変わったら握りを取り直す。** 取り直さないと、
                     // 2本目を置いた瞬間に「真ん中」が飛んで札がワープする。
-                    reseat(place);
-                    setLive({ id: s.id, place });
+                    // 起点は**いま見えている置き方**（描いた `place` は掴んだ時のままなので、
+                    // それを使うと運んだぶんだけ札が戻る）。
+                    reseat(pendingPlace.current ?? place);
+                    pendingPlace.current = grip.current.startPlace;
+                    lift(s.id, grip.current.startPlace);
                   }}
                   onPointerMove={(e) => {
                     // 動かす・広げる・回すは**窓が受け持つ**（上の effect）。
@@ -1901,14 +2129,14 @@ export function DayCollage({
                    * 内側（真ん中）に寄せると、左右の列は少し重なっているので、
                    * 隣の列の写真に潜って時刻も語も読めなくなる（実測で2枚）。
                    */
-                  data-col={place.x < 0.5 ? "l" : "r"}
+                  data-col={colX < 0.5 ? "l" : "r"}
                   /**
                    * **語は写真の真ん中の下が基本**（オーナー指示 2026-09-23「基本的に
                    * 写真の真ん中下に来るようにして。場合によっては右下や左下に来ても
                    * いい」）。真ん中に置くと隣の列の写真に潜る時だけ、外側の端へ寄せる
                    * （`captionAlign`）。
                    */
-                  data-cap={captionAlign(place.x, px.w, board.w)}
+                  data-cap={captionAlign(colX, px.w, board.w)}
                   /**
                    * **普段は縦に送れる（`touch-pan-y`）。**（オーナー報告 2026-09-29
                    * 「ホーム画面スクロールするとスクロールできなくなる」）
@@ -1989,7 +2217,12 @@ export function DayCollage({
                        * `translate` / `rotate` / `scale` を個別に書けば、
                        * 揺れの `transform` は**その後ろに重なる**ので喧嘩しない。
                        */
-                      translate: "-50% -50%",
+                      /**
+                       * 指で運んでいる間のずれ（`--drag-x/--drag-y`）は `writeOffset` が直に書く。
+                       * `translate` の足し算なので組み直しが起きず、合成だけで動く。
+                       */
+                      translate: "calc(-50% + var(--drag-x, 0px)) calc(-50% + var(--drag-y, 0px))",
+                      willChange: lifted ? "translate" : undefined,
                       rotate: `${place.rot}deg`,
                       /**
                        * **持ち上げた時の大きさと影は、写真の札だけ札ごと。**（オーナー報告
@@ -2003,7 +2236,9 @@ export function DayCollage({
                        * 当たる広さはそのまま、見えないまま。
                        */
                       scale: lifted && heroUrl ? `${LIFTED.scale}` : undefined,
-                      zIndex: lifted ? 60 : z,
+                      // 掴んだ札は、ほかの札の赤いバツ・鉛筆（70）よりも上を通る（下を通ると、
+                      // 運んでいる字に別の札の印が重なって見えた。2026-10-09）。
+                      zIndex: lifted ? 80 : z,
                       boxShadow:
                         lifted && heroUrl
                           ? `0 ${LIFTED.shadowBlurPx / 2}px ${LIFTED.shadowBlurPx}px rgba(0,0,0,${LIFTED.shadowAlpha})`

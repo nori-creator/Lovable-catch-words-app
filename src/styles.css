@@ -9018,21 +9018,41 @@ html[data-motion="reduce"] .memorial-reveal * {
   visibility: hidden;
 }
 /* 持ち上げた字だけの札は、**字そのもの**が少し浮く（枠に影を付けると字より広い箱が見える）。
-   影は字の形に沿う `drop-shadow`。大きくするのは字の側の端を軸に（外側の端は動かさない）。 */
-.album-lifted .collage__plain {
-  scale: 1.06;
-  transform-origin: left top;
-  filter: drop-shadow(0 3px 4px rgb(60 42 18 / 0.28));
+   影は字の形に沿う `drop-shadow`。大きくする軸は**指で押さえた点**（`--grab-ox/--grab-oy`、
+   掴んだ時に `DayCollage` が書く。2026-10-09「単語を移動させようとすると飛ぶ」）— 字の端を
+   軸にすると、指の下の字が浮かせた分だけ指から逃げる。下ろす時も同じ速さで戻す
+   （規則が `.album-lifted` にだけ在ると、離した瞬間に 1.06 → 1 へ跳ぶ）。 */
+[data-album-sticker] .collage__plain {
+  transform-origin: var(--grab-ox, left) var(--grab-oy, top);
   transition:
     scale 0.14s var(--ease-out, ease-out),
     filter 0.14s var(--ease-out, ease-out);
 }
-[data-col="r"].album-lifted .collage__plain {
-  transform-origin: right top;
+[data-col="r"][data-album-sticker] .collage__plain {
+  transform-origin: var(--grab-ox, right) var(--grab-oy, top);
+}
+.album-lifted .collage__plain {
+  scale: 1.06;
+  filter: drop-shadow(0 3px 4px rgb(60 42 18 / 0.28));
+}
+html[data-motion="reduce"] [data-album-sticker] .collage__plain {
+  transition: none;
 }
 html[data-motion="reduce"] .album-lifted .collage__plain {
   scale: none;
-  transition: none;
+}
+/* 指で運んでいる札のずれ（`DayCollage` の `writeOffset` が掴んだ札にだけ書く）。
+   **子へ受け継がせない** — 受け継ぐと、書くたびに札の中の字・写真・留め具まで
+   スタイルを計算し直す。型を付けておくと `translate` の中の足し算も速い。 */
+@property --drag-x {
+  syntax: "<length>";
+  inherits: false;
+  initial-value: 0px;
+}
+@property --drag-y {
+  syntax: "<length>";
+  inherits: false;
+  initial-value: 0px;
 }
 @keyframes album-remove-in {
   from {
