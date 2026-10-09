@@ -29,19 +29,13 @@
 import { TTS_VOICE_DEFAULT } from "./tts-cache";
 import { DEFAULT_TARGET_LANGUAGE, TARGET_LANGUAGES } from "./target-lang";
 
-export type TtsProviderId = "azure" | "gemini" | "elevenlabs" | "voai" | "aten";
+export type TtsProviderId = "azure" | "gemini" | "elevenlabs";
 
 export type TtsProviderInfo = {
   id: TtsProviderId;
   label: string;
   /** 鍵の環境変数（全部そろって使える）。 */
   keyEnvs: string[];
-  /**
-   * 繋いであるか。VoAI と ATEN は**公式の API 仕様を取れなかった**ので
-   * 繋いでいない（推測で書くと、鳴らない・違う声が貯まる）。契約時に
-   * 仕様書を受け取ったら足す。
-   */
-  implemented: boolean;
   /** 選べるモデル（先頭が既定）。空ならモデルの指定は無い。 */
   models: string[];
   /** 学習言語ごとの声の候補（先頭が既定）。空なら声の ID を手で入れる。 */
@@ -49,12 +43,16 @@ export type TtsProviderInfo = {
   note: string;
 };
 
+/**
+ * 選べる会社（どれも繋いである物だけ）。VoAI 絕好聲創・ATEN 優聲學は公式の API 仕様を
+ * 取れず未接続のまま選べない項目として並んでいたので、2026-10-09 に一覧から外した
+ * （契約して仕様書を受け取ったら、ここに足して `tts-provider.server.ts` に頼み方を書く）。
+ */
 export const TTS_PROVIDERS: TtsProviderInfo[] = [
   {
     id: "azure",
     label: "Azure AI Speech",
     keyEnvs: ["AZURE_SPEECH_KEY", "AZURE_SPEECH_REGION"],
-    implemented: true,
     models: [],
     voices: {
       "zh-TW": ["zh-TW-HsiaoChenNeural", "zh-TW-YunJheNeural", "zh-TW-HsiaoYuNeural"],
@@ -69,7 +67,6 @@ export const TTS_PROVIDERS: TtsProviderInfo[] = [
     label: "Gemini TTS（3.8）",
     // 鍵の名前は別名も見る（`tts-provider.server.ts` の `providerKeysPresent`）。
     keyEnvs: ["GEMINI_API_KEY"],
-    implemented: true,
     // 先頭が既定。Flash-Lite は速く安い日常の読み上げ向け、Flash は表現力・方言・長文向け
     // （公式の各モデルのページ）。
     models: ["gemini-3.8-flash-lite-tts", "gemini-3.8-flash-tts"],
@@ -80,29 +77,10 @@ export const TTS_PROVIDERS: TtsProviderInfo[] = [
     id: "elevenlabs",
     label: "ElevenLabs",
     keyEnvs: ["ELEVENLABS_API_KEY"],
-    implemented: true,
     // Flash が最速。v3 は表現が豊かだが、会社自身がリアルタイム向けではないと言っている。
     models: ["eleven_flash_v2_5", "eleven_turbo_v2_5", "eleven_multilingual_v2", "eleven_v3"],
     voices: {},
     note: "声の ID は ElevenLabs の Voice Library からコピーして入れる。",
-  },
-  {
-    id: "voai",
-    label: "VoAI 絕好聲創",
-    keyEnvs: ["VOAI_API_KEY"],
-    implemented: false,
-    models: [],
-    voices: {},
-    note: "公式の API 仕様書を取得できなかったため未接続。契約後に仕様書をもらえば足せる。",
-  },
-  {
-    id: "aten",
-    label: "ATEN 優聲學",
-    keyEnvs: ["ATEN_AIVOICE_API_KEY"],
-    implemented: false,
-    models: [],
-    voices: {},
-    note: "API は企業版の契約で提供（公開の仕様書なし）。仕様書をもらえば足せる。",
   },
 ];
 
@@ -160,7 +138,7 @@ export const TTS_LANGUAGES = TARGET_LANGUAGES;
 const SAFE = /^[A-Za-z0-9_.:()\- ]{1,100}$/;
 
 /**
- * 保存する前の掃除。知らない会社・繋いでいない会社・変な字は捨てる
+ * 保存する前の掃除。知らない会社・変な字は捨てる
  * （その言語は「これまでの声」に戻る）。
  */
 export function cleanTtsConfig(raw: unknown): TtsVoiceConfig {
@@ -172,7 +150,7 @@ export function cleanTtsConfig(raw: unknown): TtsVoiceConfig {
     const c = (langs as Record<string, unknown>)[lang] as Partial<TtsChoice> | undefined;
     if (!c || typeof c !== "object") continue;
     const info = providerInfo(c.provider);
-    if (!info?.implemented) continue;
+    if (!info) continue;
     const voice = typeof c.voice === "string" ? c.voice.trim() : "";
     if (!SAFE.test(voice)) continue;
     const model = typeof c.model === "string" ? c.model.trim() : "";
@@ -252,7 +230,7 @@ export function choiceFor(
     if (t) return t;
   }
   const c = config?.languages?.[language];
-  return c && providerInfo(c.provider)?.implemented ? c : null;
+  return c && providerInfo(c.provider) ? c : null;
 }
 
 /**

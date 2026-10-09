@@ -18,20 +18,8 @@ import {
   updateMyProfile,
 } from "@/lib/profile.functions";
 import { getMyScanMetrics } from "@/lib/metrics.functions";
-import {
-  checkIsAdmin,
-  getImageGenerationSettings,
-  setImageGenerationSettings,
-} from "@/lib/admin.functions";
-import { testImageGeneration } from "@/lib/images.functions";
-import { DEFAULT_HIGGSFIELD_IMAGE_MODEL } from "@/lib/image-provider";
-import {
-  diagnoseGeminiTts,
-  getTtsVoiceAdmin,
-  previewTtsVoice,
-  setTtsVoiceAdmin,
-} from "@/lib/tts.functions";
-import { TtsVoiceForm } from "@/components/TtsVoiceForm";
+import { checkIsAdmin } from "@/lib/admin.functions";
+import { AdminAiSettingsCard } from "@/components/AdminAiSettingsCard";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -63,12 +51,6 @@ import { reconcileLanguage } from "@/lib/language-sync";
 import { storedLevels, setStoredLevels } from "@/lib/level-pref";
 import { restoreSettings } from "@/lib/settings-restore";
 import { getPhotoPref, setPhotoPref, type PhotoPref } from "@/lib/photo-pref";
-import {
-  clearCatchTimings,
-  readCatchTimings,
-  summarizeCatchTimings,
-  type CatchTimingSummary,
-} from "@/lib/catch-speed";
 import { pickL1 } from "@/lib/l1";
 import { readerL1 } from "@/lib/reader-language";
 import { UI_THEMES, getUiTheme, setUiTheme, type UiThemeId } from "@/lib/ui-theme";
@@ -77,8 +59,6 @@ import {
   setPlaceReminderEnabled,
   requestNotificationPermissionDetailed,
 } from "@/lib/place-reminder";
-import { getAiModelConfig, listProviderModels, setAiModelConfig } from "@/lib/admin.functions";
-import { recommendedKind, splitSpec, supportsVision } from "@/lib/ai-provider-models";
 import { getAdConfig, setAdConfig } from "@/lib/monetization.functions";
 import {
   createBillingPortalSession,
@@ -1204,44 +1184,17 @@ function AdminOnlyDeveloperPanel() {
 }
 
 /**
- * 「切り抜きあり/なし」の1行(要望 #73)。
- * **件数を必ず添える** — 1件の中央値と20件の中央値を同じ顔で出さない。
+ * §7: median speeds over the last 20 scans vs. the spec targets.
+ * 管理者かどうかは外側（`AdminOnlyDeveloperPanel`）が確かめ済み。
  */
-function CatchTimingRow({ label, median, n }: { label: string; median: number | null; n: number }) {
-  const t = useT();
-  return (
-    <div className="flex items-center justify-between text-footnote">
-      <span className="text-muted-foreground">{label}</span>
-      <span className={median == null ? "text-muted-foreground" : "font-semibold"}>
-        {median == null ? t("settings.metricNone") : `${(median / 1000).toFixed(2)}s`}
-        <span className="ml-1 font-normal text-muted-foreground">
-          ({t("set.catchSpeedN", { n: String(n) })})
-        </span>
-      </span>
-    </div>
-  );
-}
-
-/** §7: median speeds over the last 20 scans vs. the spec targets. */
 function DeveloperPanel() {
   const t = useT();
   const metricsFn = useServerFn(getMyScanMetrics);
-  const adminFn = useServerFn(checkIsAdmin);
   const { data: m } = useQuery({
     queryKey: ["scan-metrics"],
     queryFn: () => metricsFn(),
     staleTime: 60_000,
   });
-  const { data: adm } = useQuery({
-    queryKey: ["is-admin"],
-    queryFn: () => adminFn(),
-    staleTime: 300_000,
-  });
-  // 端末の記録なので、描いたあとに読む(サーバ側では localStorage が無い)。
-  const [timings, setTimings] = useState<CatchTimingSummary>(() => summarizeCatchTimings([]));
-  useEffect(() => {
-    setTimings(summarizeCatchTimings(readCatchTimings()));
-  }, []);
 
   const row = (label: string, value: number | null | undefined, targetMs: number) => {
     const ok = value != null && value <= targetMs;
@@ -1278,50 +1231,17 @@ function DeveloperPanel() {
           {t("set.qualitySamples", { n: m?.samples ?? 0 })}
         </p>
 
-        {/* 要望 #73「切り抜きあり/なし・ファストモードの時間を計測して比較」。
-            端末に貯めた記録から出す(理由は `lib/catch-speed.ts`)。
-            **記録が無い側は「—」** — 0 と書くと「0秒で終わった」と読める。 */}
-        <div className="border-t border-border pt-2">
-          <p className="mb-1 text-caption font-semibold label-caps text-muted-foreground">
-            {t("set.catchSpeedMetrics")}
-          </p>
-          <CatchTimingRow
-            label={t("settings.speedDetail")}
-            median={timings.detail.median}
-            n={timings.detail.n}
-          />
-          <CatchTimingRow
-            label={t("settings.speedFast")}
-            median={timings.fast.median}
-            n={timings.fast.n}
-          />
-          {timings.detail.n + timings.fast.n > 0 && (
-            <button
-              onClick={() => {
-                clearCatchTimings();
-                setTimings(summarizeCatchTimings(readCatchTimings()));
-              }}
-              className="mt-1 min-h-11 text-footnote text-muted-foreground underline"
-            >
-              {t("set.catchSpeedClear")}
-            </button>
-          )}
-        </div>
-        {adm?.isAdmin && (
-          <>
-            <Link to="/admin/metrics" className="block text-footnote text-primary underline">
-              {t("settings.kpiLink")}
-            </Link>
-            {/* 利用者ごとの詳しい情報（開発者だけ、オーナー指示 2026-09-27）。 */}
-            <Link to="/admin/users" className="block text-footnote text-primary underline">
-              {t("settings.usersLink")}
-            </Link>
-            {/* ベータの指標（ファネル・継続・使い方・費用・解析の確かさ。2026-10-03）。 */}
-            <Link to="/admin/beta" className="block text-footnote text-primary underline">
-              {t("settings.betaLink")}
-            </Link>
-          </>
-        )}
+        <Link to="/admin/metrics" className="block text-footnote text-primary underline">
+          {t("settings.kpiLink")}
+        </Link>
+        {/* 利用者ごとの詳しい情報（開発者だけ、オーナー指示 2026-09-27）。 */}
+        <Link to="/admin/users" className="block text-footnote text-primary underline">
+          {t("settings.usersLink")}
+        </Link>
+        {/* ベータの指標（ファネル・継続・使い方・費用・解析の確かさ。2026-10-03）。 */}
+        <Link to="/admin/beta" className="block text-footnote text-primary underline">
+          {t("settings.betaLink")}
+        </Link>
       </div>
     </details>
   );
@@ -1805,9 +1725,9 @@ export function ToggleRow({
 
 // ============================================================================
 // 開発者(admin)専用セクション — 一般ユーザーには一切見えない。
-//  1. UIテーマの比較(現行は必ず残す)
-//  2. キャッチの決め台詞ボイス(追加・削除・試聴)
-//  3. AIモデルの切替(Gemini/ChatGPT/Claude/DeepSeek/Kimi)
+//  1. 配色デザイン(現行は必ず残す)
+//  2. AI の設定(機能ごとの AI・文字検索の AI 画像・発音の声。`AdminAiSettingsCard`)
+//  3. 広告
 // ============================================================================
 function AdminOnlySection() {
   const t = useT();
@@ -1830,100 +1750,15 @@ function AdminOnlySection() {
       <SafeSection name="ui-theme">
         <UiThemePicker />
       </SafeSection>
-      <SafeSection name="ai-models">
-        <AiModelPanel />
-      </SafeSection>
-      <SafeSection name="image-generation">
-        <ImageGenerationPanel />
-      </SafeSection>
-      <SafeSection name="tts-voice">
-        <TtsVoicePanel />
-      </SafeSection>
-      <SafeSection name="image-test">
-        <ImageGenTestPanel />
+      {/* **AI は1枚にまとめた**（オーナー決定 2026-10-09「開発者の AI 設定が散らかっている。
+          整理・削除・統合して」）。機能ごとの AI・文字検索の AI 画像・発音の声。 */}
+      <SafeSection name="ai-settings">
+        <AdminAiSettingsCard />
       </SafeSection>
       <SafeSection name="ads">
         <AdsPanel />
       </SafeSection>
     </div>
-  );
-}
-
-/**
- * **画像生成を実際に1枚作って確かめる（開発者だけ）**（オーナー指示 2026-09-28
- * 「HIGGSFIELD の api を lovable で設定したから実際に検査して」）。
- * どこで作ったか・鍵が見つかった名前（値は出さない）・結果の絵・かかった秒を出す。
- */
-function ImageGenTestPanel() {
-  const t = useT();
-  const testFn = useServerFn(testImageGeneration);
-  const [busy, setBusy] = useState(false);
-  const [result, setResult] = useState<Awaited<ReturnType<typeof testImageGeneration>> | null>(
-    null,
-  );
-  const [err, setErr] = useState<string | null>(null);
-  const run = async () => {
-    setBusy(true);
-    setErr(null);
-    setResult(null);
-    try {
-      setResult(await testFn({ data: {} }));
-    } catch (e) {
-      setErr(e instanceof Error ? e.message : String(e));
-    } finally {
-      setBusy(false);
-    }
-  };
-  return (
-    <details className="rounded-2xl border border-border bg-card p-4">
-      <summary className="cursor-pointer list-none text-body font-semibold [&::-webkit-details-marker]:hidden">
-        {t("imageTest.title")}
-      </summary>
-      <div className="mt-3 space-y-3">
-        <p className="text-caption leading-relaxed text-muted-foreground">{t("imageTest.desc")}</p>
-        <Button
-          type="button"
-          onClick={() => void run()}
-          disabled={busy}
-          className="min-h-11 w-full"
-        >
-          {busy ? t("imageTest.running") : t("imageTest.run")}
-        </Button>
-        {result && (
-          <div
-            className="space-y-2 text-footnote"
-            data-image-test-result={result.ok ? "ok" : "fail"}
-          >
-            <p
-              className={
-                result.ok ? "font-semibold text-primary" : "font-semibold text-destructive"
-              }
-            >
-              {result.ok ? t("imageTest.ok") : t("imageTest.fail")}
-              <span className="ml-2 font-normal text-muted-foreground tabular-nums">
-                {(result.ms / 1000).toFixed(1)}s
-              </span>
-            </p>
-            <p>
-              {t("imageTest.provider")}: <code>{result.provider}</code> ·{" "}
-              <code>{result.model}</code>
-            </p>
-            <p>
-              {t("imageTest.key")}: <code>{result.credentialName ?? t("imageTest.noKey")}</code>
-            </p>
-            {result.reason && <p className="text-destructive">{result.reason}</p>}
-            {result.image && (
-              <img
-                src={result.image}
-                alt=""
-                className="aspect-square w-40 rounded-xl object-cover"
-              />
-            )}
-          </div>
-        )}
-        {err && <p className="text-footnote text-destructive">{err}</p>}
-      </div>
-    </details>
   );
 }
 
@@ -2341,437 +2176,6 @@ function UiThemePicker() {
           </li>
         ))}
       </ul>
-    </details>
-  );
-}
-
-/** AIモデルの切替。鍵は環境変数のまま、モデル名と提供元だけを差し替える。 */
-/**
- * **発音の声を出す会社を選ぶ**（開発者だけ。オーナー指示 2026-09-23「台湾華語の
- * 発音が機械音で気に入らないから…開発者の私だけ、apiを設定できるようにして」）。
- *
- * 学習言語ごとに「会社・声・モデル」を選び、**その場で鳴らして届くまでの時間を
- * 見てから**切り替える（「速さと正確性が命」）。鍵はここでは入れない — 環境変数
- * （Lovable の Secrets）に置き、ここには揃っているかだけを出す。
- */
-function TtsVoicePanel() {
-  const t = useT();
-  const getFn = useServerFn(getTtsVoiceAdmin);
-  const setFn = useServerFn(setTtsVoiceAdmin);
-  const tryFn = useServerFn(previewTtsVoice);
-  const diagFn = useServerFn(diagnoseGeminiTts);
-  const qc = useQueryClient();
-  const { data } = useQuery({
-    queryKey: ["tts-voice-admin"],
-    queryFn: () => getFn(),
-    staleTime: 30_000,
-  });
-  return (
-    <TtsVoiceForm
-      data={data}
-      onTry={(language, text, choice) => tryFn({ data: { language, text, choice } })}
-      onDiagnose={() => diagFn()}
-      onSave={async (languages, taiwan) => {
-        await setFn({ data: { config: { languages, ...(taiwan ? { taiwan } : {}) } } });
-        await qc.invalidateQueries({ queryKey: ["tts-voice-admin"] });
-        toast.success(t("settings.ttsSaved"));
-      }}
-    />
-  );
-}
-
-const IMAGE_OPTIONS = [
-  {
-    id: "lovable",
-    label: "Lovable AI",
-    key: "LOVABLE_API_KEY",
-    defaultModel: "openai/gpt-image-1-mini",
-  },
-  {
-    id: "openrouter",
-    label: "OpenRouter",
-    key: "OPENROUTER_API_KEY",
-    defaultModel: "bytedance-seed/seedream-5-0-pro",
-  },
-  {
-    id: "google",
-    label: "Google AI Studio",
-    key: "GEMINI_API_KEY",
-    defaultModel: "gemini-2.5-flash-image",
-  },
-  { id: "openai", label: "OpenAI", key: "OPENAI_API_KEY", defaultModel: "gpt-image-1-mini" },
-  /**
-   * **Higgsfield も選択肢に置く**（オーナー報告 2026-09-29「設定のボタンを押すとこのエラーが
-   * 出る」）。サーバは Higgsfield の鍵があると既定でここを返す（`readImageConfig`）のに、
-   * 一覧に無かったので `option` が空になり、**開発者の設定画面が丸ごと落ちていた**。
-   */
-  {
-    id: "higgsfield",
-    label: "Higgsfield",
-    key: "HIGGSFIELD_API_KEY / HIGGSFIELD_API_SECRET",
-    defaultModel: DEFAULT_HIGGSFIELD_IMAGE_MODEL,
-  },
-  { id: "off", label: "画像生成を停止", key: "", defaultModel: "" },
-] as const;
-type ImageOption = (typeof IMAGE_OPTIONS)[number]["id"];
-
-type ImagePreviewData = {
-  effective: { provider: ImageOption; model: string };
-  keys: Record<Exclude<ImageOption, "off">, boolean>;
-};
-
-export function ImageGenerationPanel({ previewData }: { previewData?: ImagePreviewData } = {}) {
-  const t = useT();
-  const readable = useReadableError();
-  const getFn = useServerFn(getImageGenerationSettings);
-  const setFn = useServerFn(setImageGenerationSettings);
-  const qc = useQueryClient();
-  const { data: liveData, error } = useQuery({
-    queryKey: ["image-generation-settings"],
-    queryFn: () => getFn(),
-    staleTime: 30_000,
-    enabled: !previewData,
-  });
-  const data = previewData ?? liveData;
-  const [provider, setProvider] = useState<ImageOption>("lovable");
-  const [model, setModel] = useState("");
-  const [saving, setSaving] = useState(false);
-  useEffect(() => {
-    if (!data) return;
-    setProvider(data.effective.provider as ImageOption);
-    setModel(data.effective.model);
-  }, [data]);
-  // 知らない名前が来ても落とさない（一覧に無い提供元は「Lovable AI」の欄で見せる）。
-  const option = IMAGE_OPTIONS.find((o) => o.id === provider) ?? IMAGE_OPTIONS[0];
-  const keyPresent = provider === "off" || Boolean(data?.keys[provider]);
-  async function save() {
-    setSaving(true);
-    try {
-      await setFn({ data: { provider, model: model.trim() } });
-      await qc.invalidateQueries({ queryKey: ["image-generation-settings"] });
-      toast.success("画像生成の設定を保存しました");
-    } catch (e) {
-      toast.error(readable(e, t("settings.saveFailed")));
-    } finally {
-      setSaving(false);
-    }
-  }
-  return (
-    <details className="rounded-2xl border border-border bg-card p-4">
-      <summary className="cursor-pointer list-none text-body font-semibold [&::-webkit-details-marker]:hidden">
-        文字検索のAI画像
-      </summary>
-      <div className="mt-4 space-y-3 text-footnote">
-        <p className="text-muted-foreground">
-          文字で見つけた単語の詳細と復習に、AI画像を1枚作ります。ホームのアルバムには表示しません。
-        </p>
-        <p className="rounded-xl bg-secondary/60 p-3">
-          現在:{" "}
-          {data
-            ? `${IMAGE_OPTIONS.find((o) => o.id === data.effective.provider)?.label ?? data.effective.provider} / ${data.effective.model || "停止"}`
-            : error
-              ? "設定を読み込めませんでした"
-              : "読み込み中…"}
-        </p>
-        <Label htmlFor="image-provider">画像を作るサービス</Label>
-        <select
-          id="image-provider"
-          value={provider}
-          onChange={(e) => {
-            const next = e.target.value as ImageOption;
-            setProvider(next);
-            setModel(IMAGE_OPTIONS.find((o) => o.id === next)?.defaultModel ?? "");
-          }}
-          className="min-h-11 w-full rounded-xl border border-input bg-background px-3 text-field"
-        >
-          {IMAGE_OPTIONS.map((o) => (
-            <option key={o.id} value={o.id}>
-              {o.label}
-            </option>
-          ))}
-        </select>
-        {provider !== "off" && (
-          <>
-            <p className={keyPresent ? "text-ok-ink" : "text-destructive-ink"}>
-              {keyPresent
-                ? "✓ サーバにキーがあります"
-                : `キーがありません。Lovable → Cloud → Secrets に ${option.key} を追加してください。`}
-            </p>
-            <Label htmlFor="image-model">画像モデル</Label>
-            <Input
-              id="image-model"
-              value={model}
-              onChange={(e) => setModel(e.target.value)}
-              placeholder={option.defaultModel}
-              autoComplete="off"
-            />
-            <p className="text-muted-foreground">
-              キーはこの画面に入力しません。各サービスのAPIキーをSecretsへ保存し、ここで提供元を選んでください。
-            </p>
-          </>
-        )}
-        <Button
-          onClick={save}
-          disabled={saving || !data || !keyPresent || Boolean(previewData)}
-          className="w-full"
-        >
-          {saving ? "保存中…" : "画像生成の設定を保存"}
-        </Button>
-      </div>
-    </details>
-  );
-}
-
-function AiModelPanel() {
-  const t = useT();
-  const readable = useReadableError();
-  const getFn = useServerFn(getAiModelConfig);
-  const setFn = useServerFn(setAiModelConfig);
-  const qc = useQueryClient();
-  const { data } = useQuery({
-    queryKey: ["ai-model-config"],
-    queryFn: () => getFn(),
-    staleTime: 30_000,
-  });
-  const [provider, setProvider] = useState("");
-  const [fast, setFast] = useState("");
-  const [rich, setRich] = useState("");
-  const [premium, setPremium] = useState("");
-  const [features, setFeatures] = useState<Record<string, string>>({});
-  const [saving, setSaving] = useState(false);
-  const pmFn = useServerFn(listProviderModels);
-  const { data: companies } = useQuery({
-    queryKey: ["provider-models"],
-    queryFn: () => pmFn(),
-    staleTime: 60 * 60_000,
-  });
-
-  useEffect(() => {
-    if (!data) return;
-    setProvider(data.config.provider ?? "");
-    setFast(data.config.fast ?? "");
-    setRich(data.config.rich ?? "");
-    setPremium(data.config.rich_premium ?? "");
-    setFeatures({ ...(data.config.features ?? {}) });
-  }, [data]);
-
-  async function save() {
-    setSaving(true);
-    try {
-      await setFn({ data: { config: { provider, fast, rich, rich_premium: premium, features } } });
-      await qc.invalidateQueries({ queryKey: ["ai-model-config"] });
-      toast.success(t("settings.aiApplied"));
-    } catch (e) {
-      toast.error(readable(e, t("settings.saveFailed")));
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  /**
-   * **機能ごとに、何に使う AI かを1行で**（オーナー指示 2026-09-27「開発者の使う AI を
-   * 変更する設定、初心者の私には設定しづらいから、もっと見やすく、簡潔に機能ごとに
-   * どのように AI を使い分けるようにするのか、設定を分かりやすく見やすくして」）。
-   *
-   * 上から: ①動いているか（1行）②機能ごとの AI（説明つき・押して選ぶ）
-   * ③詳しい設定（既定の AI・キーの状況。ふだんは閉じたまま）。
-   */
-  const FEATURE_ORDER = ["scan", "card", "review", "journal", "audit"] as const;
-  return (
-    <details className="rounded-2xl border border-border bg-card p-4">
-      <summary className="cursor-pointer list-none text-body font-semibold [&::-webkit-details-marker]:hidden">
-        {t("settings.aiSwitch")}
-      </summary>
-
-      {/* ① 動いているか。キーが1つも無いと全部止まる（2026-07-28 の障害）ので最初に言う。 */}
-      <p
-        className={`mt-2 rounded-xl p-2 text-caption font-semibold leading-relaxed ${
-          data?.effective ? "bg-ok/10 text-ok-ink" : "bg-destructive/10 text-destructive-ink"
-        }`}
-      >
-        {data?.effective ? t("settings.aiOk", { p: data.effective.provider }) : t("settings.aiNg")}
-      </p>
-      {data?.effective && (
-        <p className="mt-1 text-caption text-muted-foreground">
-          {t("settings.aiDefaultModels", { f: data.effective.fast, r: data.effective.rich })}
-        </p>
-      )}
-
-      {/* ② 機能ごと。何に使うかを1行添え、空なら既定のまま。 */}
-      <div className="mt-3 space-y-3">
-        {/* ② 機能ごと: ①会社 → ②モデル の2つを選ぶだけ（2026-09-28「複雑すぎる。直感的に」）。
-            会社は Secrets に鍵が入っている所だけ選べる。モデルはその会社に「いま使える物」を
-            聞いた一覧（手で名前を打たない — 綴り違い・古い名前で機能が止まるのを防ぐ）。 */}
-        <p className="rounded-xl bg-secondary/60 p-2 text-caption leading-relaxed">
-          {t("set.aiHowTo")}
-        </p>
-        {FEATURE_ORDER.filter((id) => (data?.features ?? []).some((f) => f.id === id)).map((id) => {
-          const cur = splitSpec(features[id]);
-          const company = (companies ?? []).find((c) => c.id === cur.provider);
-          const want = recommendedKind(id);
-          // スキャンは写真を読む。**画像を読めるモデルだけ**を並べる（2026-09-22 の約束）。
-          const usable = (c: string, m: string) => id !== "scan" || supportsVision(c, m);
-          const models = [...(company?.models ?? [])]
-            .filter((m) => usable(cur.provider, m.id))
-            .sort((a, b) => Number(b.kind === want) - Number(a.kind === want));
-          const setSpec = (provider: string, model: string) =>
-            setFeatures((prev) => {
-              const next = { ...prev };
-              if (!provider) delete next[id];
-              else next[id] = `${provider}:${model}`;
-              return next;
-            });
-          return (
-            <div key={id} className="rounded-xl border border-border p-2.5">
-              <p className="text-footnote font-semibold">{t(`settings.aiFeature.${id}`)}</p>
-              <p className="mt-0.5 text-caption leading-snug text-muted-foreground">
-                {t(`settings.aiFeatureDesc.${id}`)}
-              </p>
-              <div className="mt-2 grid gap-2 sm:grid-cols-2">
-                <select
-                  aria-label={t("set.aiCompany")}
-                  value={cur.provider}
-                  onChange={(e) => {
-                    const p = e.target.value;
-                    const list = (companies ?? [])
-                      .find((c) => c.id === p)
-                      ?.models.filter((m) => usable(p, m.id));
-                    setSpec(p, (list?.find((m) => m.kind === want) ?? list?.[0])?.id ?? "");
-                  }}
-                  className="min-h-11 w-full rounded-md border border-input bg-background px-3 text-field"
-                >
-                  <option value="">{t("set.aiDefault")}</option>
-                  {(companies ?? []).map((c) => (
-                    <option key={c.id} value={c.id} disabled={!c.keyFound}>
-                      {c.label}
-                      {c.keyFound ? "" : ` — ${t("set.aiNoKey")}`}
-                    </option>
-                  ))}
-                </select>
-                {cur.provider && (
-                  <select
-                    aria-label={t("set.aiModel")}
-                    value={cur.model}
-                    onChange={(e) => setSpec(cur.provider, e.target.value)}
-                    className="min-h-11 w-full rounded-md border border-input bg-background px-3 text-field"
-                  >
-                    {cur.model && !models.some((m) => m.id === cur.model) && (
-                      <option value={cur.model}>{cur.model}</option>
-                    )}
-                    {models.map((m, i) => (
-                      <option key={m.id} value={m.id}>
-                        {m.kind === "fast" ? "⚡ " : "🧠 "}
-                        {m.label}
-                        {i === 0 && m.kind === want ? ` — ${t("set.aiRecommended")}` : ""}
-                      </option>
-                    ))}
-                  </select>
-                )}
-              </div>
-              {company?.error && (
-                <p className="mt-1 text-caption text-destructive-ink">
-                  {t("set.aiListFailed", { p: company.label, e: company.error })}
-                </p>
-              )}
-            </div>
-          );
-        })}
-        <p className="text-caption text-muted-foreground">{t("settings.aiPerFeatureHint")}</p>
-      </div>
-
-      {/* ③ 詳しい設定。既定の AI とキーの状況。 */}
-      <details className="mt-3 rounded-xl border border-border p-2">
-        <summary className="min-h-11 cursor-pointer list-none content-center text-footnote font-semibold [&::-webkit-details-marker]:hidden">
-          {t("settings.aiAdvanced")}
-        </summary>
-        {data?.effective && (
-          <div className="mt-2 rounded-xl bg-secondary/60 p-2 text-caption leading-relaxed">
-            <div className="font-semibold">{t("settings.aiRunning")}</div>
-            <div className="text-muted-foreground">
-              {t("set.aiEffective", {
-                p: data.effective.provider,
-                f: data.effective.fast,
-                r: data.effective.rich,
-              })}
-              {" / "}Pro {data.effective.rich_premium}
-            </div>
-          </div>
-        )}
-        {/* 診断: 障害(2026-07-28のスキャン全滅)の原因はキー未設定だった。
-            「どのキーが実際に見えているか」を出す。 */}
-        <div className="mt-2 rounded-xl border border-border p-2 text-caption leading-relaxed">
-          <div className="font-semibold">{t("settings.aiKeys")}</div>
-          <ul className="mt-1 space-y-0.5">
-            {(data?.presets ?? []).map((p) => (
-              <li key={p.id} className="flex items-center justify-between gap-2">
-                <span className="truncate">{p.label}</span>
-                <span className={p.key_present ? "text-ok-ink" : "text-muted-foreground"}>
-                  {p.key_present
-                    ? `✅ ${p.key_env_found} ${t("settings.aiKeyFound")}`
-                    : `— ${p.api_key_env} ${t("settings.aiKeyMissing")}`}
-                </span>
-              </li>
-            ))}
-          </ul>
-          <p className="mt-1 text-caption text-muted-foreground">{t("settings.aiKeysHint")}</p>
-          {data?.keyError && (
-            <p className="mt-1 rounded-lg bg-destructive/10 p-1.5 text-caption text-destructive-ink">
-              {data.keyError}
-            </p>
-          )}
-        </div>
-        <div className="mt-3 space-y-2">
-          <div>
-            <Label className="text-footnote">{t("settings.aiProvider")}</Label>
-            <select
-              aria-label={t("set.aiProviderAria")}
-              value={provider}
-              onChange={(e) => setProvider(e.target.value)}
-              className="mt-1 min-h-11 w-full rounded-md border border-input bg-background px-3 text-field"
-            >
-              <option value="">{t("settings.aiEnvDefault")}</option>
-              {(data?.presets ?? []).map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.label}
-                  {p.key_present ? "" : t("set.keyMissing", { env: p.api_key_env })}
-                </option>
-              ))}
-            </select>
-            <p className="mt-1 text-caption text-muted-foreground">{t("settings.aiKeyNote")}</p>
-          </div>
-          <div>
-            <Label className="text-footnote">{t("settings.aiFast")}</Label>
-            <Input
-              value={fast}
-              onChange={(e) => setFast(e.target.value)}
-              placeholder="gemini-2.5-flash"
-            />
-          </div>
-          <div>
-            <Label className="text-footnote">{t("settings.aiRich")}</Label>
-            <Input
-              value={rich}
-              onChange={(e) => setRich(e.target.value)}
-              placeholder="gemini-2.5-flash"
-            />
-          </div>
-          <div>
-            <Label className="text-footnote">{t("settings.aiPremium")}</Label>
-            <Input
-              value={premium}
-              onChange={(e) => setPremium(e.target.value)}
-              placeholder="gemini-2.5-pro"
-            />
-          </div>
-          <p className="text-caption text-muted-foreground">{t("settings.aiModelNote")}</p>
-        </div>
-      </details>
-
-      <div className="mt-3 space-y-2">
-        <Button className="w-full" onClick={save} disabled={saving}>
-          {saving ? t("settings.saving") : t("settings.aiApply")}
-        </Button>
-      </div>
     </details>
   );
 }

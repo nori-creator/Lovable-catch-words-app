@@ -865,33 +865,6 @@ export const DICT: Record<string, Record<UiLang, string>> = {
   },
   "dex.allCategories": { ja: "すべて", en: "All", "zh-TW": "全部" },
   "dex.calendar": { ja: "カレンダー", en: "Calendar", "zh-TW": "行事曆" },
-  "set.orSearch": {
-    ja: "モデルを探す（例: gemini flash）",
-    en: "Search models (e.g. gemini flash)",
-    "zh-TW": "搜尋模型（例如 gemini flash）",
-  },
-  "set.orFree": { ja: "無料", en: "Free", "zh-TW": "免費" },
-  "set.orVision": { ja: "画像を読める", en: "Reads images", "zh-TW": "可讀圖片" },
-  "set.orVisionOnly": {
-    ja: "スキャンは写真を読むので、画像を読めるモデルだけ出しています。",
-    en: "Scan reads photos, so only image-capable models are listed.",
-    "zh-TW": "掃描需要讀照片，所以只列出能讀圖片的模型。",
-  },
-  "set.orPriceUnit": {
-    ja: "値段は100万トークンあたり（入力 / 出力、米ドル）",
-    en: "Price per 1M tokens (input / output, USD)",
-    "zh-TW": "價格為每 100 萬 token（輸入 / 輸出，美元）",
-  },
-  "set.orNoKey": {
-    ja: "OpenRouter の鍵が見つかりません（OPENROUTER_API_KEY など）。選んでも既定のAIで動きます。",
-    en: "No OpenRouter key found (OPENROUTER_API_KEY etc.). Choices fall back to the default AI.",
-    "zh-TW": "找不到 OpenRouter 的金鑰（OPENROUTER_API_KEY 等）。選了也會使用預設的 AI。",
-  },
-  "set.orLoadFailed": {
-    ja: "OpenRouter の一覧を取れませんでした（{e}）。モデル名を手で入れてください。",
-    en: "Couldn't load the OpenRouter list ({e}). Type a model name instead.",
-    "zh-TW": "無法取得 OpenRouter 的清單（{e}）。請手動輸入模型名稱。",
-  },
   "dex.timeline": {
     ja: "その日のタイムライン",
     en: "Timeline of the day",
@@ -1612,13 +1585,6 @@ export const DICT: Record<string, Record<UiLang, string>> = {
     en: "Couldn't check notification permission. Please try again later.",
     "zh-TW": "無法確認通知權限，請過一會兒再試一次。",
   },
-  "set.aiProviderAria": { ja: "AI提供元", en: "AI provider", "zh-TW": "AI 供應商" },
-  "set.aiEffective": {
-    ja: "提供元 {p} / 速い系 {f} / 詳しい系 {r}",
-    en: "Provider {p} / fast {f} / rich {r}",
-    "zh-TW": "供應商 {p} / 快速型 {f} / 詳細型 {r}",
-  },
-  "set.keyMissing": { ja: "({env} 未設定)", en: "({env} not set)", "zh-TW": "（{env} 未設定）" },
   // --- ログイン・発音練習 ---
   // 迎える面の言葉（オーナー指示 2026-09-17）。
   // > 「好きなものから言葉をのキャッチコピーを、日常があなただけの単語帳に。
@@ -3320,162 +3286,301 @@ export const DICT: Record<string, Record<UiLang, string>> = {
     "zh-TW": "配色設計（僅限開發者）",
   },
   "settings.themeKeep": { ja: "保持", en: "Kept", "zh-TW": "保留" },
-  "settings.ttsSwitch": {
-    ja: "発音の声を切り替える",
-    en: "Switch the pronunciation voice",
-    "zh-TW": "切換發音的聲音",
+  "aiSet.title": {
+    ja: "AI の設定（開発者）",
+    en: "AI settings (developer)",
+    "zh-TW": "AI 設定（開發者）",
   },
-  "settings.ttsLegacy": {
-    ja: "何も選ばない時の声: {p}",
-    en: "Voice when nothing is chosen: {p}",
-    "zh-TW": "未選擇時的聲音：{p}",
+  "aiSet.loading": {
+    ja: "読み込み中…",
+    en: "Loading…",
+    "zh-TW": "載入中…",
   },
-  "settings.ttsLangZh": { ja: "台湾華語", en: "Taiwan Mandarin", "zh-TW": "台灣華語" },
-  "settings.ttsLangEn": { ja: "英語", en: "English", "zh-TW": "英語" },
-  "settings.ttsProvider": { ja: "会社", en: "Provider", "zh-TW": "供應商" },
-  "settings.ttsDefault": {
-    ja: "これまでの声（既定）",
-    en: "Current voice (default)",
-    "zh-TW": "原本的聲音（預設）",
+  "aiSet.loadFailed": {
+    ja: "設定を読み込めませんでした",
+    en: "Couldn't load the settings",
+    "zh-TW": "無法載入設定",
   },
-  "settings.ttsNotConnected": { ja: "未接続", en: "not connected", "zh-TW": "未串接" },
-  "settings.ttsKeyMissing": {
-    ja: "鍵が未設定です: {k}（Lovable の Secrets に入れる）",
-    en: "Key not set: {k} (add it to Lovable Secrets)",
-    "zh-TW": "尚未設定金鑰：{k}（放進 Lovable 的 Secrets）",
+  "aiSet.statusOk": {
+    ja: "✓ AI は動いています（既定: {p}）",
+    en: "✓ AI is working (default: {p})",
+    "zh-TW": "✓ AI 運作中（預設：{p}）",
   },
-  "settings.ttsVoice": { ja: "声の ID", en: "Voice ID", "zh-TW": "聲音 ID" },
-  "settings.ttsModel": { ja: "モデル", en: "Model", "zh-TW": "模型" },
-  "settings.ttsTry": { ja: "試しに鳴らす", en: "Try it", "zh-TW": "試聽" },
-  "settings.ttsTook": {
-    ja: "{ms} ミリ秒で届いた",
+  "aiSet.statusNg": {
+    ja: "AI が動いていません: {e}",
+    en: "AI is not working: {e}",
+    "zh-TW": "AI 無法運作：{e}",
+  },
+  "aiSet.featuresHeading": {
+    ja: "機能ごとの AI",
+    en: "AI per feature",
+    "zh-TW": "各功能的 AI",
+  },
+  "aiSet.featuresNote": {
+    ja: "「自動」は最新の Gemini を使います（スキャンは Flash-Lite、ほかは Flash）。選ぶとすぐに切り替わります。鍵は Secrets に入れます。",
+    en: '"Auto" uses the newest Gemini (Flash-Lite for scanning, Flash for everything else). A change applies right away. Keys live in Secrets.',
+    "zh-TW":
+      "「自動」會使用最新的 Gemini（掃描用 Flash-Lite，其他用 Flash）。選擇後立即切換。金鑰放在 Secrets。",
+  },
+  "aiSet.current": {
+    ja: "いま",
+    en: "Now",
+    "zh-TW": "目前",
+  },
+  "aiSet.autoCurrent": {
+    ja: "自動（最新 {tier}）→ {m}",
+    en: "Auto (newest {tier}) → {m}",
+    "zh-TW": "自動（最新 {tier}）→ {m}",
+  },
+  "aiSet.auto": {
+    ja: "自動（最新 {tier}）",
+    en: "Auto (newest {tier})",
+    "zh-TW": "自動（最新 {tier}）",
+  },
+  "aiSet.pickAria": {
+    ja: "{f} の AI",
+    en: "AI for {f}",
+    "zh-TW": "{f} 的 AI",
+  },
+  "aiSet.noKey": {
+    ja: "鍵が未設定",
+    en: "no key",
+    "zh-TW": "未設定金鑰",
+  },
+  "aiSet.noModels": {
+    ja: "使えるモデルなし",
+    en: "no usable models",
+    "zh-TW": "沒有可用的模型",
+  },
+  "aiSet.listFailed": {
+    ja: "一覧を取れません",
+    en: "couldn't list models",
+    "zh-TW": "無法取得模型清單",
+  },
+  "aiSet.saved": {
+    ja: "保存しました",
+    en: "Saved",
+    "zh-TW": "已儲存",
+  },
+  "aiSet.save": {
+    ja: "保存",
+    en: "Save",
+    "zh-TW": "儲存",
+  },
+  "aiSet.feature.scan": {
+    ja: "スキャン",
+    en: "Scan",
+    "zh-TW": "掃描",
+  },
+  "aiSet.feature.card": {
+    ja: "単語カード",
+    en: "Word cards",
+    "zh-TW": "單字卡",
+  },
+  "aiSet.feature.review": {
+    ja: "復習の添削・ヒント",
+    en: "Review feedback and hints",
+    "zh-TW": "複習的批改與提示",
+  },
+  "aiSet.feature.journal": {
+    ja: "日記の添削",
+    en: "Diary correction",
+    "zh-TW": "日記批改",
+  },
+  "aiSet.feature.audit": {
+    ja: "自己点検",
+    en: "Self-check",
+    "zh-TW": "自我檢查",
+  },
+  "aiSet.feature.reading_check": {
+    ja: "読みの突き合わせ",
+    en: "Reading cross-check",
+    "zh-TW": "讀音交叉核對",
+  },
+  "aiSet.feature.lexicon": {
+    ja: "辞書の手入れ",
+    en: "Dictionary upkeep",
+    "zh-TW": "辭典維護",
+  },
+  "aiSet.featureDesc.scan": {
+    ja: "写真の物・文字の検出、単語の候補、単語帳の読み取り（写真を読めるモデルだけ）。",
+    en: "Finds objects and text in photos, suggests words and reads wordbook pages (image-capable models only).",
+    "zh-TW": "偵測照片中的物品與文字、提出單字候選、讀取單字本（僅限能讀圖片的模型）。",
+  },
+  "aiSet.featureDesc.card": {
+    ja: "単語・フレーズのカード作り、項目の作り直し、意味の訳。",
+    en: "Builds word and phrase cards, regenerates sections and translates meanings.",
+    "zh-TW": "製作單字與片語卡、重新產生項目、翻譯意思。",
+  },
+  "aiSet.featureDesc.review": {
+    ja: "スピーキングの添削とヒント。",
+    en: "Speaking feedback and hints.",
+    "zh-TW": "口說批改與提示。",
+  },
+  "aiSet.featureDesc.journal": {
+    ja: "日記の添削と書き出しの質問。",
+    en: "Diary corrections and writing prompts.",
+    "zh-TW": "日記批改與寫作提問。",
+  },
+  "aiSet.featureDesc.audit": {
+    ja: "報告された誤りの特定と、作り直した項目の判定。",
+    en: "Finds reported mistakes and judges regenerated items.",
+    "zh-TW": "找出被回報的錯誤，並判斷重新產生的項目。",
+  },
+  "aiSet.featureDesc.reading_check": {
+    ja: "読み・品詞を2人目として確かめる。自己点検と別の AI にすると独立に確かめられます。",
+    en: "A second opinion on readings and parts of speech. Pick a different AI from Self-check for an independent check.",
+    "zh-TW": "以第二意見確認讀音與詞性。與自我檢查使用不同的 AI，就能獨立確認。",
+  },
+  "aiSet.featureDesc.lexicon": {
+    ja: "辞書の点検、利用者の報告の検証、生きた例文の生成（毎日の裏方）。",
+    en: "Audits dictionary entries, checks user reports and writes fresh example sentences (daily background work).",
+    "zh-TW": "檢查辭典條目、驗證使用者回報、產生道地例句（每日背景作業）。",
+  },
+  "aiSet.imageHeading": {
+    ja: "画像（文字検索の AI 画像）",
+    en: "Images (AI images for text search)",
+    "zh-TW": "圖片（文字搜尋的 AI 圖片）",
+  },
+  "aiSet.imageNote": {
+    ja: "文字で見つけた単語の詳細と復習に、AI 画像を1枚作ります。ホームのアルバムには出しません。",
+    en: "Makes one AI image for words found by text, shown in word details and reviews (not in the home album).",
+    "zh-TW": "為以文字找到的單字製作一張 AI 圖片，顯示在單字詳情與複習中（不會出現在首頁相簿）。",
+  },
+  "aiSet.imageProvider": {
+    ja: "画像を作るサービス",
+    en: "Image service",
+    "zh-TW": "圖片服務",
+  },
+  "aiSet.imageModel": {
+    ja: "画像モデル",
+    en: "Image model",
+    "zh-TW": "圖片模型",
+  },
+  "aiSet.imageOff": {
+    ja: "画像生成を停止",
+    en: "Image generation off",
+    "zh-TW": "停止產生圖片",
+  },
+  "aiSet.imageTest": {
+    ja: "試しに1枚作る",
+    en: "Try one image",
+    "zh-TW": "試做一張",
+  },
+  "aiSet.imageTesting": {
+    ja: "作っています…",
+    en: "Generating…",
+    "zh-TW": "產生中…",
+  },
+  "aiSet.imageTestOk": {
+    ja: "作れました",
+    en: "Image created",
+    "zh-TW": "已產生",
+  },
+  "aiSet.imageTestFail": {
+    ja: "作れませんでした",
+    en: "Couldn't create an image",
+    "zh-TW": "無法產生圖片",
+  },
+  "aiSet.ttsHeading": {
+    ja: "発音の声",
+    en: "Pronunciation voices",
+    "zh-TW": "發音的聲音",
+  },
+  "aiSet.ttsNote": {
+    ja: "学習言語ごとに声を選び、試しに鳴らしてから保存します。選ばない言語は既定の声（{p}）です。",
+    en: "Pick a voice per learning language, play a sample, then save. Languages left on default use {p}.",
+    "zh-TW": "為每種學習語言選擇聲音，試聽後再儲存。未選擇的語言使用預設聲音（{p}）。",
+  },
+  "aiSet.ttsLangZh": {
+    ja: "台湾華語",
+    en: "Taiwanese Mandarin",
+    "zh-TW": "台灣華語",
+  },
+  "aiSet.ttsLangEn": {
+    ja: "英語",
+    en: "English",
+    "zh-TW": "英語",
+  },
+  "aiSet.ttsLangJa": {
+    ja: "日本語",
+    en: "Japanese",
+    "zh-TW": "日語",
+  },
+  "aiSet.ttsTwNote": {
+    ja: "Azure か Gemini を選ぶと、アプリ全体でこの台湾の声1つだけを使います（ほかの声に切り替えません）。",
+    en: "With Azure or Gemini, this becomes the one Taiwanese voice used across the app (it never switches to another voice).",
+    "zh-TW": "選擇 Azure 或 Gemini 時，整個 App 只使用這一個台灣聲音（不會切換到其他聲音）。",
+  },
+  "aiSet.ttsIncomplete": {
+    ja: "声が選ばれていないため、既定の声で鳴っています。",
+    en: "No voice is chosen yet, so the default voice plays.",
+    "zh-TW": "尚未選擇聲音，目前使用預設聲音。",
+  },
+  "aiSet.ttsProvider": {
+    ja: "声の会社",
+    en: "Voice provider",
+    "zh-TW": "聲音供應商",
+  },
+  "aiSet.ttsDefaultVoice": {
+    ja: "既定の声",
+    en: "Default voice",
+    "zh-TW": "預設聲音",
+  },
+  "aiSet.ttsGender": {
+    ja: "声の性別",
+    en: "Voice gender",
+    "zh-TW": "聲音性別",
+  },
+  "aiSet.ttsFemale": {
+    ja: "女性",
+    en: "Female",
+    "zh-TW": "女性",
+  },
+  "aiSet.ttsMale": {
+    ja: "男性",
+    en: "Male",
+    "zh-TW": "男性",
+  },
+  "aiSet.ttsVoice": {
+    ja: "声の ID",
+    en: "Voice ID",
+    "zh-TW": "聲音 ID",
+  },
+  "aiSet.ttsModel": {
+    ja: "モデル",
+    en: "Model",
+    "zh-TW": "模型",
+  },
+  "aiSet.ttsDiagnose": {
+    ja: "診断（台湾の声の一覧を出す）",
+    en: "Diagnose (list Taiwanese voices)",
+    "zh-TW": "診斷（列出台灣聲音）",
+  },
+  "aiSet.ttsDiagKeyOk": {
+    ja: "鍵あり。",
+    en: "Key found.",
+    "zh-TW": "有金鑰。",
+  },
+  "aiSet.ttsDiagKeyNo": {
+    ja: "鍵がありません。",
+    en: "No key.",
+    "zh-TW": "沒有金鑰。",
+  },
+  "aiSet.ttsDiagVoices": {
+    ja: "台湾の声: 女性 {f}・男性 {m}",
+    en: "Taiwanese voices: {f} female, {m} male",
+    "zh-TW": "台灣聲音：女性 {f}、男性 {m}",
+  },
+  "aiSet.ttsTry": {
+    ja: "試しに鳴らす",
+    en: "Play sample",
+    "zh-TW": "試聽",
+  },
+  "aiSet.ttsTook": {
+    ja: "{ms} ms で届きました",
     en: "Arrived in {ms} ms",
     "zh-TW": "{ms} 毫秒送達",
-  },
-  "settings.ttsSave": { ja: "この声にする", en: "Use these voices", "zh-TW": "使用這些聲音" },
-  "settings.ttsSaved": { ja: "声を切り替えました", en: "Voice switched", "zh-TW": "已切換聲音" },
-  "settings.ttsTwTitle": {
-    ja: "台湾の声（アプリ全体で1つ）",
-    en: "Taiwan voice (one for the whole app)",
-    "zh-TW": "台灣聲音（全 App 統一一個）",
-  },
-  "settings.ttsTwNote": {
-    ja: "決めると、台湾華語の読み上げはすべてこの声。失敗しても別の声・端末の声には切り替えず、鳴らさない。",
-    en: "Once set, every Taiwan Mandarin reading uses this voice. On failure it stays silent instead of switching to another voice.",
-    "zh-TW": "設定後，所有台灣華語朗讀都用這個聲音。失敗時不會改用其他聲音，而是不發聲。",
-  },
-  "settings.ttsTwOff": {
-    ja: "決めない（これまでの声）",
-    en: "Not set (current voice)",
-    "zh-TW": "不指定（原本的聲音）",
-  },
-  "settings.ttsTwGender": { ja: "性別", en: "Gender", "zh-TW": "性別" },
-  "settings.ttsTwFemale": { ja: "女性", en: "Female", "zh-TW": "女聲" },
-  "settings.ttsTwMale": { ja: "男性", en: "Male", "zh-TW": "男聲" },
-  "settings.ttsTwIncomplete": {
-    ja: "この性別の声がまだ選ばれていません。診断で出た声を入れてください（未選択の間、台湾の声は無効）。",
-    en: "No voice chosen for this gender yet. Pick one from the diagnosis (the Taiwan voice stays off until then).",
-    "zh-TW": "此性別尚未選擇聲音。請從診斷結果選一個（在此之前台灣聲音不啟用）。",
-  },
-  "settings.ttsDiagnose": {
-    ja: "Gemini を診断（課金なし）",
-    en: "Diagnose Gemini (no charge)",
-    "zh-TW": "診斷 Gemini（不計費）",
-  },
-  "settings.ttsDiagKeyOk": {
-    ja: "鍵: あり（{k}）",
-    en: "Key: present ({k})",
-    "zh-TW": "金鑰：有（{k}）",
-  },
-  "settings.ttsDiagKeyNo": { ja: "鍵: なし", en: "Key: missing", "zh-TW": "金鑰：無" },
-  "settings.ttsDiagVoices": {
-    ja: "zh-TW の声: 女性 {f} / 男性 {m}",
-    en: "zh-TW voices: female {f} / male {m}",
-    "zh-TW": "zh-TW 聲音：女 {f} / 男 {m}",
-  },
-  "settings.aiSwitch": {
-    ja: "使うAIを切り替える",
-    en: "Switch the AI in use",
-    "zh-TW": "切換要用的 AI",
-  },
-  "settings.aiRunning": {
-    ja: "いま動いている設定",
-    en: "Currently running",
-    "zh-TW": "目前運作中的設定",
-  },
-  "settings.aiProvider": { ja: "提供元", en: "Provider", "zh-TW": "供應商" },
-  "settings.aiEnvDefault": {
-    ja: "環境変数のまま（既定）",
-    en: "Keep environment default",
-    "zh-TW": "維持環境變數（預設）",
-  },
-  "settings.aiKeyNote": {
-    ja: "APIキーは環境変数に置いたまま切り替わります(DBに鍵は保存しません)。",
-    en: "API keys stay in environment variables — never stored in the database.",
-    "zh-TW": "API 金鑰會留在環境變數裡切換（不會把金鑰存進資料庫）。",
-  },
-  "settings.aiFast": {
-    ja: "速い系（スキャン・候補・4択の生成）",
-    en: "Fast (scan, candidates, quiz)",
-    "zh-TW": "快速型（掃描、候選、四選一的產生）",
-  },
-  "settings.aiRich": {
-    ja: "詳しい系（カード・添削）",
-    en: "Rich (cards, corrections)",
-    "zh-TW": "詳細型（字卡、修改）",
-  },
-  "settings.aiPremium": { ja: "Pro ユーザー用", en: "For Pro users", "zh-TW": "給 Pro 使用者" },
-  "settings.aiApply": {
-    ja: "この設定で動かす",
-    en: "Run with these settings",
-    "zh-TW": "用這個設定運作",
-  },
-  "settings.aiApplied": {
-    ja: "AIモデルを切り替えました（次のリクエストから有効）",
-    en: "AI models switched (effective from the next request)",
-    "zh-TW": "已切換 AI 模型（下一個請求開始生效）",
-  },
-  "settings.aiKeys": {
-    ja: "APIキーの検出状況",
-    en: "API key detection",
-    "zh-TW": "API 金鑰的偵測狀況",
-  },
-  "settings.aiKeyFound": { ja: "検出", en: "found", "zh-TW": "已偵測" },
-  "settings.aiKeyMissing": { ja: "未設定", en: "not set", "zh-TW": "未設定" },
-  "settings.aiKeysHint": {
-    ja: "サーバーの環境変数を実際に読んだ結果です。1つも検出できないとAI機能は動きません。",
-    en: "Read live from the server environment. With no key detected, AI features cannot run.",
-    "zh-TW": "這是實際讀取伺服器環境變數的結果。一個都偵測不到的話，AI 功能就不會運作。",
-  },
-  "settings.aiPerFeature": {
-    ja: "機能ごとに使うAIを分ける",
-    en: "Assign an AI per feature",
-    "zh-TW": "依功能分別指定要用的 AI",
-  },
-  "settings.aiFeature.scan": {
-    ja: "スキャン（速さ優先）",
-    en: "Scan (speed first)",
-    "zh-TW": "掃描（以速度優先）",
-  },
-  "settings.aiFeature.card": {
-    ja: "単語カード生成",
-    en: "Word card generation",
-    "zh-TW": "單字卡產生",
-  },
-  "settings.aiFeature.review": {
-    ja: "復習の添削・ヒント",
-    en: "Review feedback & hints",
-    "zh-TW": "複習的修改、提示",
-  },
-  "settings.aiFeature.journal": {
-    ja: "日記の添削",
-    en: "Journal correction",
-    "zh-TW": "日記的修改",
-  },
-  "settings.aiFeature.audit": {
-    ja: "自己改善の点検",
-    en: "Self-improvement audit",
-    "zh-TW": "自我改善的檢查",
   },
   // 広告（開発者だけ、オーナー指示 2026-09-27）。`ad-policy.ts`。
   "settings.ads": {
@@ -3521,23 +3626,6 @@ export const DICT: Record<string, Record<UiLang, string>> = {
   },
   // 広告の場所ごとのオン・オフ（2026-09-28「あとからどこに広告つけるか変更できるように」）。
   "ads.places": { ja: "広告を出す場所", en: "Where ads appear", "zh-TW": "廣告位置" },
-  // AI の切り替え: 会社 → モデル の2つだけ（2026-09-28「複雑すぎる。直感的に」）。
-  "set.aiHowTo": {
-    ja: "使いたい会社の鍵を Lovable の Cloud → Secrets に入れると、ここでその会社が選べるようになります。機能ごとに「会社」と「モデル」を選んで「適用」を押すだけです。⚡は速い・安い、🧠は賢い。空のままなら、いつもの AI を使います。",
-    en: "Add a company's API key in Lovable (Cloud → Secrets) and it becomes selectable here. For each feature, pick a company and a model, then Apply. ⚡ = fast and cheap, 🧠 = smarter. Leave blank to use the default AI.",
-    "zh-TW":
-      "在 Lovable 的 Cloud → Secrets 放入該公司的金鑰後，這裡就能選擇那家公司。每個功能只要選「公司」和「模型」再按「套用」。⚡快又便宜，🧠比較聰明。留空則使用預設的 AI。",
-  },
-  "set.aiCompany": { ja: "AI の会社", en: "AI company", "zh-TW": "AI 公司" },
-  "set.aiModel": { ja: "モデル", en: "Model", "zh-TW": "模型" },
-  "set.aiDefault": { ja: "いつもの（既定）", en: "Default", "zh-TW": "預設" },
-  "set.aiNoKey": { ja: "鍵が未設定", en: "no key", "zh-TW": "未設定金鑰" },
-  "set.aiRecommended": { ja: "おすすめ", en: "recommended", "zh-TW": "推薦" },
-  "set.aiListFailed": {
-    ja: "{p} のモデル一覧を読めませんでした（{e}）。鍵が正しいか確かめてください",
-    en: "Couldn't load {p} models ({e}). Check the key",
-    "zh-TW": "無法讀取 {p} 的模型清單（{e}）。請確認金鑰是否正確",
-  },
   "ads.reviewEnd": {
     ja: "復習の区切り（Web は終わりの画面の下の札）",
     en: "After review sets (on the web: a card below the end screen)",
@@ -3886,51 +3974,6 @@ export const DICT: Record<string, Record<UiLang, string>> = {
     en: "Ad settings saved",
     "zh-TW": "已儲存廣告設定",
   },
-  "imageTest.title": {
-    ja: "画像生成のテスト",
-    en: "Image generation test",
-    "zh-TW": "圖片生成測試",
-  },
-  "imageTest.desc": {
-    ja: "文字検索で使う AI の絵を、今の設定で実際に1枚作ります（生成の料金がかかります）。",
-    en: "Generates one real image with the current settings used by text search (billed).",
-    "zh-TW": "用文字搜尋目前的設定實際生成一張圖（會產生費用）。",
-  },
-  "imageTest.run": {
-    ja: "1枚作って試す",
-    en: "Generate one",
-    "zh-TW": "生成一張試試",
-  },
-  "imageTest.running": {
-    ja: "作っています…",
-    en: "Generating…",
-    "zh-TW": "生成中…",
-  },
-  "imageTest.provider": {
-    ja: "作る所",
-    en: "Provider",
-    "zh-TW": "生成來源",
-  },
-  "imageTest.key": {
-    ja: "見つかった鍵の名前",
-    en: "Key found as",
-    "zh-TW": "找到的金鑰名稱",
-  },
-  "imageTest.noKey": {
-    ja: "なし",
-    en: "none",
-    "zh-TW": "無",
-  },
-  "imageTest.ok": {
-    ja: "成功",
-    en: "Success",
-    "zh-TW": "成功",
-  },
-  "imageTest.fail": {
-    ja: "失敗",
-    en: "Failed",
-    "zh-TW": "失敗",
-  },
   "settings.usersLink": {
     ja: "利用者ごとの情報（開発者だけ）",
     en: "Per-user details (developer only)",
@@ -3941,76 +3984,12 @@ export const DICT: Record<string, Record<UiLang, string>> = {
     en: "Beta metrics (developer only)",
     "zh-TW": "Beta 指標（僅開發者）",
   },
-  // 開発者の AI 設定を機能ごとに（オーナー指示 2026-09-27）。
-  "settings.aiOk": {
-    ja: "AI は動いています（提供元: {p}）",
-    en: "AI is running (provider: {p})",
-    "zh-TW": "AI 正在運作（供應商：{p}）",
-  },
-  "settings.aiNg": {
-    ja: "AI が動いていません。下の「詳しい設定」で API キーを確認してください",
-    en: "AI is not running. Check the API keys under “Advanced”",
-    "zh-TW": "AI 沒有在運作。請在下方「進階設定」確認 API 金鑰",
-  },
-  "settings.aiDefaultModels": {
-    ja: "指定しない機能は既定の AI（速い方: {f} / 丁寧な方: {r}）を使います",
-    en: "Features without a choice use the defaults (fast: {f} / careful: {r})",
-    "zh-TW": "沒有指定的功能使用預設 AI（快速：{f}／仔細：{r}）",
-  },
-  "settings.aiReset": { ja: "既定に戻す", en: "Use the default", "zh-TW": "改回預設" },
-  "settings.aiAdvanced": {
-    ja: "詳しい設定（既定の AI・キー。ふだんは触らない）",
-    en: "Advanced (default AI and keys; usually leave as is)",
-    "zh-TW": "進階設定（預設 AI、金鑰，平常不用動）",
-  },
-  "settings.aiFeatureDesc.scan": {
-    ja: "カメラで撮った写真から物・文字を見つけ、単語の候補を出す。速さが一番大事（写真を読めるAIだけ選べます）。",
-    en: "Finds objects and text in the photo and suggests words. Speed matters most (only image-capable AIs).",
-    "zh-TW": "從拍的照片找出物品與文字並提出單字候選。速度最重要（只能選能讀圖片的 AI）。",
-  },
-  "settings.aiFeatureDesc.card": {
-    ja: "単語の詳細（意味・例文・チャンク・使い方など）を作る・作り直す。質が一番大事。",
-    en: "Writes and rewrites word details (meaning, examples, chunks, usage). Quality matters most.",
-    "zh-TW": "產生、重做單字詳情（意思、例句、語塊、用法等）。品質最重要。",
-  },
-  "settings.aiFeatureDesc.review": {
-    ja: "復習の発音・答えの添削とヒント。",
-    en: "Feedback and hints for review answers and pronunciation.",
-    "zh-TW": "複習時的發音、答案修改與提示。",
-  },
-  "settings.aiFeatureDesc.journal": {
-    ja: "日記の添削。",
-    en: "Corrects journal entries.",
-    "zh-TW": "修改日記。",
-  },
-  "settings.aiFeatureDesc.audit": {
-    ja: "裏方: 報告されたエラーや解説の誤りを点検して直す。",
-    en: "Behind the scenes: checks and fixes reported errors in explanations.",
-    "zh-TW": "幕後：檢查並修正被回報的錯誤。",
-  },
-  "settings.aiPerFeatureHint": {
-    ja: "空欄なら上の既定を使います。「提供元:モデル名」で別のAIに丸ごと振り分けられます(例 openai:gpt-5)。キーが無い提供元を指定しても既定に自動で戻るので、設定ミスで機能は止まりません。",
-    en: "Leave blank to use the default above. Use “provider:model” to route a feature to another AI (e.g. openai:gpt-5). If that provider has no key, it falls back to the default — a wrong setting never breaks the feature.",
-    "zh-TW":
-      "留空就用上面的預設。用「供應商:模型名稱」可以整個換到別的 AI（例 openai:gpt-5）。就算指定了沒有金鑰的供應商，也會自動退回預設，所以不會因為設定錯誤讓功能停掉。",
-  },
-  "settings.aiModelNote": {
-    ja: "モデル名は提供元に実在するIDを書いてください(例 gemini-2.5-flash)。存在しないIDのときは自動で安定モデルに戻して動かします。",
-    en: "Use a model ID that really exists on the provider (e.g. gemini-2.5-flash). Unknown IDs automatically fall back to a stable model.",
-    "zh-TW":
-      "模型名稱請填供應商實際存在的 ID（例 gemini-2.5-flash）。填了不存在的 ID 時，會自動退回穩定的模型繼續運作。",
-  },
   "settings.devMetrics": {
     ja: "開発者（速度計測）",
     en: "Developer (speed metrics)",
     "zh-TW": "開發者（速度測量）",
   },
   "settings.deleteAccount": { ja: "アカウントを削除", en: "Delete account", "zh-TW": "刪除帳號" },
-  "settings.videoLabel": {
-    ja: "録画（インカメ）",
-    en: "Record video (front camera)",
-    "zh-TW": "錄影（前鏡頭）",
-  },
   "settings.avatar": { ja: "プロフィール写真", en: "Profile photo", "zh-TW": "大頭貼" },
   "settings.avatarPick": { ja: "写真を選ぶ", en: "Choose photo", "zh-TW": "選照片" },
   "settings.avatarChange": { ja: "変更", en: "Change", "zh-TW": "更換" },
@@ -4033,18 +4012,6 @@ export const DICT: Record<string, Record<UiLang, string>> = {
   },
   "settings.reviewLimit": { ja: "1日の復習枚数", en: "Cards per day", "zh-TW": "每天複習的張數" },
   "settings.reviewLimitNone": { ja: "無制限", en: "All", "zh-TW": "無限制" },
-  "settings.reviewFocus": { ja: "優先する記憶の段階", en: "Prioritise", "zh-TW": "優先的記憶階段" },
-  "settings.focusAll": { ja: "期限順", en: "By due date", "zh-TW": "依到期順序" },
-  "settings.focusWeak": { ja: "忘れかけ", en: "Weakest", "zh-TW": "快忘了" },
-  "settings.focusNew": { ja: "覚えたて", en: "Newest", "zh-TW": "剛記住" },
-  "settings.strictness": {
-    ja: "発音判定の厳しさ",
-    en: "Pronunciation strictness",
-    "zh-TW": "發音判定的嚴格度",
-  },
-  "settings.easy": { ja: "やさしい", en: "Easy", "zh-TW": "寬鬆" },
-  "settings.normal": { ja: "ふつう", en: "Normal", "zh-TW": "普通" },
-  "settings.strict": { ja: "きびしい", en: "Strict", "zh-TW": "嚴格" },
   "settings.light": { ja: "ライト", en: "Light", "zh-TW": "淺色" },
   "settings.dark": { ja: "ダーク", en: "Dark", "zh-TW": "深色" },
   "settings.system": { ja: "システム", en: "System", "zh-TW": "跟隨系統" },
@@ -4094,15 +4061,6 @@ export const DICT: Record<string, Record<UiLang, string>> = {
     en: "The database hasn't been migrated for this setting yet (please contact the admin).",
     "zh-TW": "這台裝置的資料庫還不支援新的設定（請聯絡管理者）。",
   },
-  "settings.speedDetail": { ja: "切り抜き", en: "Cut-out", "zh-TW": "去背" },
-  "settings.speedFast": { ja: "ファスト", en: "Fast", "zh-TW": "快速" },
-  "set.catchSpeedMetrics": {
-    ja: "キャッチにかかった時間",
-    en: "Time a catch took",
-    "zh-TW": "捕捉花的時間",
-  },
-  "set.catchSpeedN": { ja: "{n}回", en: "{n}×", "zh-TW": "{n} 次" },
-  "set.catchSpeedClear": { ja: "記録を消す", en: "Clear the log", "zh-TW": "清除紀錄" },
   /**
    * オーナー指示 2026-08-26「設定の札の主役の画像って項目名前変えて。
    * また画面ごとのボタンも削除して」。

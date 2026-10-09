@@ -10,15 +10,14 @@
  * 鍵が無い時は、何をどこに入れればよいかを画面に出す。
  */
 import { useEffect, useMemo, useRef, useState } from "react";
-import { TtsVoiceForm, type TtsVoiceAdminData } from "@/components/TtsVoiceForm";
+import { AdminAiSettingsView } from "@/components/AdminAiSettingsCard";
 import {
   TAIWAN_AZURE_VOICES,
-  TTS_LANGUAGES,
-  TTS_PROVIDERS,
   providerInfo,
   type GeminiDiagnosis,
   type GeminiVoiceInfo,
 } from "@/lib/tts-providers";
+import { adminAiFixture, useFixtureActions } from "./admin-ai-settings";
 import { TTS_COMPARE_SAMPLES } from "@/lib/tts-synth";
 
 type Status = {
@@ -188,18 +187,39 @@ export function TtsVoicesScene() {
     );
   };
 
-  const formData: TtsVoiceAdminData = {
-    config: {},
-    providers: TTS_PROVIDERS.map((p) => ({
-      ...p,
-      voices: p.voices as Record<string, string[]>,
-      keys_present:
-        p.id === "azure" ? !!status?.azure : p.id === "gemini" ? !!status?.gemini : false,
-    })),
-    languages: [...TTS_LANGUAGES],
-    taiwanAzureVoices: TAIWAN_AZURE_VOICES,
-    legacy: "OpenAI 互換 TTS",
+  const [formState, setFormData] = useState(() => adminAiFixture());
+  // 鍵の有無は、この確認用ページの関数（Netlify）が教えた物を出す。
+  const formData = {
+    ...formState,
+    tts: {
+      ...formState.tts,
+      providers: formState.tts.providers.map((p) => ({
+        ...p,
+        hasKey: p.id === "azure" ? !!status?.azure : p.id === "gemini" ? !!status?.gemini : false,
+      })),
+    },
   };
+  const formActions = useFixtureActions(formState, setFormData, {
+    previewTts: async (_language, text, choice) => {
+      const i = Math.max(
+        0,
+        TTS_COMPARE_SAMPLES.indexOf(text as (typeof TTS_COMPARE_SAMPLES)[number]),
+      );
+      const r = await speak(choice, i);
+      return { audio_url: r.url, ms: r.ms };
+    },
+    diagnoseTts: async (): Promise<GeminiDiagnosis> => {
+      const r = await fetch(API);
+      const st = (await r.json()) as Status;
+      return {
+        keyPresent: st.gemini,
+        keyEnv: st.geminiKeyEnv,
+        models: st.geminiModels,
+        voices: st.geminiVoices,
+        voicesError: st.geminiVoicesError,
+      };
+    },
+  });
 
   const keysReady = status?.azure && status?.gemini;
 
@@ -300,38 +320,11 @@ export function TtsVoicesScene() {
       <div style={card}>
         <h2 style={h2}>アプリでの設定（同じ画面）</h2>
         <p style={small}>
-          下はアプリの「設定 → 開発者 →
-          発音の声を切り替える」と同じ画面です。ここで押しても保存はしません（アプリで押すと、全員の台湾華語の声がすぐ切り替わります）。
+          下はアプリの「設定 → 開発者 → AI の設定（開発者）」と同じ画面です（発音の声は下の方）。
+          ここで押しても保存はしません（アプリで押すと、全員の台湾華語の声がすぐ切り替わります）。
         </p>
       </div>
-      <TtsVoiceForm
-        defaultOpen
-        data={formData}
-        onTry={async (_language, text, choice) => {
-          const i = Math.max(
-            0,
-            TTS_COMPARE_SAMPLES.indexOf(text as (typeof TTS_COMPARE_SAMPLES)[number]),
-          );
-          const r = await speak(choice, i);
-          return { audio_url: r.url, ms: r.ms };
-        }}
-        onDiagnose={async (): Promise<GeminiDiagnosis> => {
-          const r = await fetch(API);
-          const st = (await r.json()) as Status;
-          return {
-            keyPresent: st.gemini,
-            keyEnv: st.geminiKeyEnv,
-            models: st.geminiModels,
-            voices: st.geminiVoices,
-            voicesError: st.geminiVoicesError,
-          };
-        }}
-        onSave={async () => {
-          window.alert(
-            "確認用ページでは保存しません。アプリの設定で「この声にする」を押すと保存されます。",
-          );
-        }}
-      />
+      <AdminAiSettingsView defaultOpen data={formData} actions={formActions} />
     </div>
   );
 }
