@@ -473,7 +473,6 @@ const REVIEW_SCENES: Array<{ scene: string; label: string }> = [
   { scene: "dex-ads&view=list", label: "広告: 図鑑のリスト表示" },
   { scene: "home-ads", label: "広告: ホームの日と日の間" },
   { scene: "review-end-ads", label: "広告: 復習の終わり（カード）" },
-  { scene: "dex-ads&fill=unfilled", label: "広告: 来ない時は枠が閉じる" },
   { scene: "settings-ads", label: "開発者設定: 広告の ID と枠の番号" },
   // 2026-10-03「続けて」— ベータで使う計測（ファネル・継続率・費用・解析の安定）。管理者だけ。
   { scene: "admin-beta", label: "管理: ベータの指標" },
