@@ -337,6 +337,8 @@ export function CapturePage() {
   const pendingIdRef = useRef<string | null>(null);
   /** 撮った写真を端末に預けている途中の約束。AI が失敗したときだけ待つ。 */
   const queueingRef = useRef<Promise<unknown> | null>(null);
+  /** 撮った写真（保存用の 1600px）ができたら解ける。AI が先に失敗した時、預ける前にこれを待つ。 */
+  const photoReadyRef = useRef<Promise<void> | null>(null);
   // 解析に失敗して端末に預けたときの**実際の理由**。
   // これを出さないと、401 や壊れた画像のような二度と直らない失敗まで
   // 「写真は預かりました(あとで続きができます)」と出て、
@@ -679,8 +681,17 @@ export function CapturePage() {
     // `fileToDataUrl` の reject を誰も受けておらず、失敗すると画面は
     // 何も変わらなかった。撮ったのに何も起きない画面は、押せていない
     // のか壊れているのか区別がつかない(独立監査の指摘)。
+    // **AI を真っ先に走らせる**（実測 2026-10-10: 撮ってから候補までの中央値 4.25 秒のうち、
+    // 端末と通信で約 0.8 秒）。前は保存用の 1600px の絵を作り終えてから AI 用の 768px を
+    // 作り直して送っていた。アプリ内のカメラは撮った時点で AI 用の 768px（`analysisImage`）が
+    // できているので、それをそのまま送る。ほかの道は元の絵から 768px を先に作って送り、
+    // 保存用の絵は AI を待つ間に作る。
+    let markPhotoReady: () => void = () => {};
+    photoReadyRef.current = new Promise<void>((resolve) => (markPhotoReady = resolve));
+    if (analysisImage) void runAi(analysisImage, { ready: true });
     try {
       const url = await fileToDataUrl(file);
+      if (!analysisImage) void runAi(await compressImage(url, 768, 0.8), { ready: true });
       const compressed = await compressImage(url, 1600);
       objectImageRef.current = compressed;
       setObjectImg(compressed);
@@ -707,15 +718,17 @@ export function CapturePage() {
         }
         return queued;
       });
-      void runAi(analysisImage ?? compressed);
     } catch (e) {
       console.error(e);
+      // 先に走らせた AI の答えは使わない（写真が無いまま候補だけが出ないように）。
+      runTokenRef.current++;
       setError(t("cap.photoReadFailed"));
       toast.error(t("cap.photoReadFailed"));
       selfiePendingRef.current = false;
       setStep("object");
     } finally {
       captureBusyRef.current = false;
+      markPhotoReady();
     }
   }
 
@@ -745,7 +758,7 @@ export function CapturePage() {
     analysisNextRef.current = null;
   }
 
-  async function runAi(imgOverride?: string) {
+  async function runAi(imgOverride?: string, opts: { ready?: boolean } = {}) {
     const img = imgOverride ?? objectImg;
     if (!img) return;
     const token = ++runTokenRef.current;
@@ -761,7 +774,8 @@ export function CapturePage() {
 
     try {
       // The AI only needs a small image — shrinking it cuts upload time and cost.
-      const aiImage = await compressImage(img, 768, 0.8);
+      // `ready`: 渡された絵がもう AI 用の 768px（撮った直後の道）— 作り直さない。
+      const aiImage = opts.ready ? img : await compressImage(img, 768, 0.8);
       if (runTokenRef.current !== token) return;
       // 切り抜きは**候補をタップしてから**走らせる(下の confirmWord)。
       // どの語を選ぶか決める前から待たされる理由はないし、切り抜かれた絵が
@@ -800,7 +814,9 @@ export function CapturePage() {
       // 再試行のたびに同じ写真が1件ずつ増え、消えるのは元の1件だけなので、
       // 3回失敗すれば「解析待ち」に同じ写真が3枚並ぶ。
       // 撮った直後に預け始めた分が済むのを待つ（上限つき — `offline-queue.ts`）。
-      // 待たないと、同じ写真をもう1枚預けてしまう。
+      // 待たないと、同じ写真をもう1枚預けてしまう。AI を写真より先に走らせるので、
+      // 写真（と預け始め）ができるのも待つ（圏外ですぐ落ちた回）。
+      if (photoReadyRef.current) await photoReadyRef.current;
       if (queueingRef.current) await queueingRef.current.catch(() => null);
       const here = await resolveLocation();
       const saved = pendingIdRef.current
