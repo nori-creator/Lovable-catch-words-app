@@ -39,6 +39,7 @@ import {
   type AiAttemptRecord,
 } from "./ai-attempts";
 import { fitSuggestionsToReader } from "./first-catch-meaning";
+import { withObjectPoints } from "./suggestion-position";
 import { WordCandidatesSchema, legacyUsageOf, normalizeRegister } from "./text-search-flow";
 
 // 形は `card-schema.ts` に移したが、**取り込み元は変えない** —
@@ -132,12 +133,20 @@ const SuggestionSchema = z.object({
          * 2段目（その物のほかの言い方）に分ける（`groupCandidates`）。
          */
         group: z.number().int().min(0).max(20).optional().catch(undefined),
+        /**
+         * **写真のどこに写っている物か**（2026-10-10、`suggestion-position.ts`）。Gemini の枠の形
+         * [ymin, xmin, ymax, xmax]（0〜1000）。崩れていても候補は捨てない（枠だけ捨てる）。
+         */
+        box_2d: z.array(z.number()).optional().catch(undefined),
       }),
     )
     // 件数も固定しない。4件返ってきた回に**1件も出さない**のは重すぎる。
     // 物ごとに別の言い方も返すので、上限は 12。
     .min(1)
-    .max(12),
+    .max(12)
+    // 同じ物の呼び方すべてに、その物の枠と真ん中の点（`point`、iOS が読む [x, y]）を配る。
+    // 後で捨てる語が枠を持っていても、同じ物の残りの語に位置が残るよう、読んだ時点で配る。
+    .transform((items) => withObjectPoints(items)),
 });
 
 /**
@@ -428,6 +437,8 @@ ${langRule}
   くわしい・専門的=specific / 固有名詞=proper。
   別の呼び方が無い物は1つだけでよい。無理に作らない。
 - 物は最大5つ、1つの物の呼び方は最大3つ。
+- 物ごとに、その物の**最初の呼び方**に box_2d を付ける: 写真の中でその物を囲む枠を
+  [ymin, xmin, ymax, xmax]（0〜1000、写真の左上が原点）で。同じ group の2つ目以降の呼び方には付けなくてよい。
 
 **同じ物の呼び方が複数あるときの並び（ふだんの呼び方を上に）:**
 - ネイティブが日常でいちばんよく口にする呼び方を上に置く。正確・専門的な名前や
@@ -444,7 +455,7 @@ ${distinctionRule(profile.promptName, profile.capture.distinctionExamples)}
   候補の画面は横に動かないので、長い文は読まれない（オーナー指示 2026-09-28
   「単語の説明が長すぎて、横にスクロールしないと見れないことがある。長すぎる文はなしで」）。`;
 
-    const instruction = `${prompt}\n\n必ずJSONだけを返してください。**${profile.promptName}の語を出す。他の言語の語を混ぜない。**\n形式: {"suggestions":[{"headword":"${profile.capture.jsonHeadwordHint}",${profile.capture.jsonReadingHint},"meaning_ja":"意味(上で指定した解説の言語で)","distinction":"使い分けの一言","category_key":"${CATEGORY_KEYS.join("|")} のどれか","register":"common|casual|specific|proper のどれか","group":0}]}。**確からしい順に並べ**、物は3〜5つ返してください(無理に5つに埋めない — 写っていない物を足すぐらいなら少なくてよい)。同じ物の別の呼び方は同じ group で。`;
+    const instruction = `${prompt}\n\n必ずJSONだけを返してください。**${profile.promptName}の語を出す。他の言語の語を混ぜない。**\n形式: {"suggestions":[{"headword":"${profile.capture.jsonHeadwordHint}",${profile.capture.jsonReadingHint},"meaning_ja":"意味(上で指定した解説の言語で)","distinction":"使い分けの一言","category_key":"${CATEGORY_KEYS.join("|")} のどれか","register":"common|casual|specific|proper のどれか","group":0,"box_2d":[ymin,xmin,ymax,xmax]}]}。**確からしい順に並べ**、物は3〜5つ返してください(無理に5つに埋めない — 写っていない物を足すぐらいなら少なくてよい)。同じ物の別の呼び方は同じ group で。`;
     /**
      * **1番手が遅い時は2番手を並べて追いかける**（`ai-attempts.ts`、チュートリアルと同じ）。
      * 前は1回の呼び出しに締め切りが無く、AI SDK が黙って2回まで再送していた（詰まった
