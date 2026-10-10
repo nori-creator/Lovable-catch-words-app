@@ -10,7 +10,7 @@ import {
 import { resolveLevel } from "./level-source";
 import { JLPT_SCALE, LEVEL_INDEXES, parseLevelStep } from "./level-scale";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-import { generateText } from "ai";
+import { generateText, type LanguageModelUsage } from "ai";
 import { z } from "zod";
 import { pickReportedItem, reportContext } from "@/lib/report-locate";
 import { CATEGORY_CHOICE_RULES_JA, CATEGORY_KEYS, ROOM_KEYS, normalizeCategory } from "./category";
@@ -39,6 +39,7 @@ import {
   type AiAttemptRecord,
 } from "./ai-attempts";
 import { fitSuggestionsToReader } from "./first-catch-meaning";
+import { withObjectPoints } from "./suggestion-position";
 import { WordCandidatesSchema, legacyUsageOf, normalizeRegister } from "./text-search-flow";
 
 // 形は `card-schema.ts` に移したが、**取り込み元は変えない** —
@@ -71,6 +72,7 @@ import {
 } from "./dictionary-entry";
 import {
   assertWithinDailyCap,
+  concreteModelId,
   getAi,
   getAiFor,
   getAiAttemptChain,
@@ -131,12 +133,20 @@ const SuggestionSchema = z.object({
          * 2段目（その物のほかの言い方）に分ける（`groupCandidates`）。
          */
         group: z.number().int().min(0).max(20).optional().catch(undefined),
+        /**
+         * **写真のどこに写っている物か**（2026-10-10、`suggestion-position.ts`）。Gemini の枠の形
+         * [ymin, xmin, ymax, xmax]（0〜1000）。崩れていても候補は捨てない（枠だけ捨てる）。
+         */
+        box_2d: z.array(z.number()).optional().catch(undefined),
       }),
     )
     // 件数も固定しない。4件返ってきた回に**1件も出さない**のは重すぎる。
     // 物ごとに別の言い方も返すので、上限は 12。
     .min(1)
-    .max(12),
+    .max(12)
+    // 同じ物の呼び方すべてに、その物の枠と真ん中の点（`point`、iOS が読む [x, y]）を配る。
+    // 後で捨てる語が枠を持っていても、同じ物の残りの語に位置が残るよう、読んだ時点で配る。
+    .transform((items) => withObjectPoints(items)),
 });
 
 /**
@@ -231,6 +241,7 @@ function recordSuggestRun(
           ms: a.ms,
           outcome: a.outcome,
           ...(a.code ? { code: a.code } : {}),
+          ...(a.quota ? { quota: a.quota } : {}),
           ...(a.startMs ? { startMs: a.startMs } : {}),
         })),
       },
@@ -240,8 +251,39 @@ function recordSuggestRun(
 }
 
 /**
- * カード生成の1回を `ai_runs` に残す（`loop="card_generate"`）。中身は成否・待ち時間・AI を呼んだ回数と
- * それぞれの時間・頼んだモデルの設定名だけ — 語・文は入れない。返事は待たせない。
+ * カード生成: 1回ごとの締め切り（1番手・2番手）。iOS はカード生成を 60 秒で打ち切る
+ * （`AIService.generateCard`）。1番手が `CARD_HEDGE_AFTER_MS` 答えなければ2番手を並べるので、
+ * 遅くても 20 + 35 = 55 秒で終わる。
+ */
+const CARD_ATTEMPT_TIMEOUTS = [40_000, 35_000];
+/**
+ * 1番手（Google の最新の Flash）がこの時間までに答えなければ2番手を並べる
+ * （`AI_CARD_HEDGE_AFTER_MS` で変更、`0` で止める）。実測 2026-10-10: 1番手の1回が 41.9 秒。
+ * 前の gemini-2.5-flash は、カードを待つ道（打った語）で 10〜23 秒だった。
+ */
+const CARD_HEDGE_AFTER_MS = 20_000;
+
+/** カードの1回分の AI の記録（どの回か: 0 = 最初・1 = 形のやり直し・2 = 空の extras のやり直し）。 */
+type CardAttemptRecord = AiAttemptRecord & { round: number };
+
+/** 答えた回の使った量（考えた分 = `reasoning` を含む）。量が分からない会社は `undefined`。 */
+type CardTokens = { in?: number; out?: number; reasoning?: number; total?: number };
+
+function cardTokensOf(usage: LanguageModelUsage | undefined): CardTokens | undefined {
+  if (!usage) return undefined;
+  const tokens: CardTokens = {
+    in: usage.inputTokens,
+    out: usage.outputTokens,
+    reasoning: usage.outputTokenDetails?.reasoningTokens,
+    total: usage.totalTokens,
+  };
+  return Object.values(tokens).some((v) => typeof v === "number") ? tokens : undefined;
+}
+
+/**
+ * カード生成の1回を `ai_runs` に残す（`loop="card_generate"`）。中身は成否・待ち時間・AI を呼んだ回ごとの
+ * 名前・時間・結果・上限の印・答えた回の使った量・頼んだモデルの設定名だけ — 語・文は入れない。
+ * 返事は待たせない。
  * 実測 2026-10-10: 本番のカード生成が 55 秒かかり、2回は約2分で失敗した。どこで待っているかを測るため。
  */
 function recordCardRun(
@@ -251,14 +293,16 @@ function recordCardRun(
     ms: number;
     preMs: number;
     aiMs: number;
-    attempts: Array<{ ms: number; outcome: "ok" | "shape" | "error" }>;
+    attempts: CardAttemptRecord[];
     model: string;
+    via?: string;
+    tokens?: CardTokens;
     sections: number | null;
     pro: boolean;
   },
 ): void {
   console.info(
-    `generateCard: ${run.ok ? "ok" : "failed"} in ${run.ms}ms (AI ${run.aiMs}ms, ${run.attempts.length} calls, ${run.model})`,
+    `generateCard: ${run.ok ? "ok" : "failed"} in ${run.ms}ms (AI ${run.aiMs}ms, ${run.attempts.length} calls, ${run.via ?? run.model})`,
   );
   void runAfterResponse("generateCard: ai_runs", async () => {
     const table = context.supabase.from("ai_runs") as {
@@ -275,9 +319,20 @@ function recordCardRun(
         pre_ms: run.preMs,
         ai_ms: run.aiMs,
         model: run.model,
+        ...(run.via ? { via: run.via } : {}),
+        ...(run.tokens ? { tokens: run.tokens } : {}),
         sections: run.sections,
         pro: run.pro,
-        attempts: run.attempts,
+        attempts: run.attempts.map((a) => ({
+          round: a.round,
+          label: a.label,
+          ms: a.ms,
+          outcome: a.outcome,
+          ...(a.code ? { code: a.code } : {}),
+          ...(a.quota ? { quota: a.quota } : {}),
+          ...(a.startMs ? { startMs: a.startMs } : {}),
+          ...(a.hedged ? { hedged: true } : {}),
+        })),
       },
     });
     if (error) console.warn("generateCard: ai_runs insert failed", error.message);
@@ -382,6 +437,8 @@ ${langRule}
   くわしい・専門的=specific / 固有名詞=proper。
   別の呼び方が無い物は1つだけでよい。無理に作らない。
 - 物は最大5つ、1つの物の呼び方は最大3つ。
+- 物ごとに、その物の**最初の呼び方**に box_2d を付ける: 写真の中でその物を囲む枠を
+  [ymin, xmin, ymax, xmax]（0〜1000、写真の左上が原点）で。同じ group の2つ目以降の呼び方には付けなくてよい。
 
 **同じ物の呼び方が複数あるときの並び（ふだんの呼び方を上に）:**
 - ネイティブが日常でいちばんよく口にする呼び方を上に置く。正確・専門的な名前や
@@ -398,7 +455,7 @@ ${distinctionRule(profile.promptName, profile.capture.distinctionExamples)}
   候補の画面は横に動かないので、長い文は読まれない（オーナー指示 2026-09-28
   「単語の説明が長すぎて、横にスクロールしないと見れないことがある。長すぎる文はなしで」）。`;
 
-    const instruction = `${prompt}\n\n必ずJSONだけを返してください。**${profile.promptName}の語を出す。他の言語の語を混ぜない。**\n形式: {"suggestions":[{"headword":"${profile.capture.jsonHeadwordHint}",${profile.capture.jsonReadingHint},"meaning_ja":"意味(上で指定した解説の言語で)","distinction":"使い分けの一言","category_key":"${CATEGORY_KEYS.join("|")} のどれか","register":"common|casual|specific|proper のどれか","group":0}]}。**確からしい順に並べ**、物は3〜5つ返してください(無理に5つに埋めない — 写っていない物を足すぐらいなら少なくてよい)。同じ物の別の呼び方は同じ group で。`;
+    const instruction = `${prompt}\n\n必ずJSONだけを返してください。**${profile.promptName}の語を出す。他の言語の語を混ぜない。**\n形式: {"suggestions":[{"headword":"${profile.capture.jsonHeadwordHint}",${profile.capture.jsonReadingHint},"meaning_ja":"意味(上で指定した解説の言語で)","distinction":"使い分けの一言","category_key":"${CATEGORY_KEYS.join("|")} のどれか","register":"common|casual|specific|proper のどれか","group":0,"box_2d":[ymin,xmin,ymax,xmax]}]}。**確からしい順に並べ**、物は3〜5つ返してください(無理に5つに埋めない — 写っていない物を足すぐらいなら少なくてよい)。同じ物の別の呼び方は同じ group で。`;
     /**
      * **1番手が遅い時は2番手を並べて追いかける**（`ai-attempts.ts`、チュートリアルと同じ）。
      * 前は1回の呼び出しに締め切りが無く、AI SDK が黙って2回まで再送していた（詰まった
@@ -971,27 +1028,60 @@ ${data.hintCategory ? `カテゴリのヒント: ${data.hintCategory}` : ""}`;
       (wantOwn("counters") ? ` / counters（名詞でなければ空配列）` : "") +
       `。`;
 
-    // AI を呼んだ回ごとの時間（`recordCardRun`）。
-    const cardAttempts: Array<{ ms: number; outcome: "ok" | "shape" | "error" }> = [];
-    const genOnce = async (extraPush = ""): Promise<GeneratedCard> => {
-      const t0 = Date.now();
-      try {
-        const c = await genOnceUntimed(extraPush);
-        cardAttempts.push({ ms: Date.now() - t0, outcome: "ok" });
-        return c;
-      } catch (e) {
-        cardAttempts.push({
-          ms: Date.now() - t0,
-          outcome: e instanceof CardShapeError ? "shape" : "error",
-        });
-        throw e;
-      }
-    };
-    const genOnceUntimed = async (extraPush = ""): Promise<GeneratedCard> => {
-      // モデルIDが無効なら安全なモデルへ自動フォールバック(404で機能を殺さない)
-      const result = await withModelFallback(ai, preferredModel, (m) =>
-        generateText({ model: ai.gateway(m), prompt: `${prompt}${jsonTail}${extraPush}` }),
-      );
+    /**
+     * **1番手が回数の上限（429）や不調で落ちたら、待たずに2番手へ**（実測 2026-10-10、本番に試験用の匿名で）。
+     *
+     * ここは `generateText` を AI SDK の既定のまま呼んでいた（黙って2回まで再送、2 秒・4 秒、相手が
+     * 「待て」と言えば最大 60 秒）。本番では Google の最新の Flash が「Too Many Requests」を返し、
+     * 1回は 41.9 秒かけて形の崩れた返事、もう1回は 6.4 秒で再送が尽きて、**カードが作られなかった**
+     * （保存は候補の意味だけで済み、例文・解説が埋まらない）。
+     * 候補（suggestWords）と同じ段取りにする（`ai-attempts.ts`）: 1番手は再送しない。落ちたら
+     * 2番手（鍵のある別の会社、`getAiAttemptChain`）で1回。1番手が `CARD_HEDGE_AFTER_MS` 答えなければ
+     * 2番手を並べ、先に使える返事をくれた方を取る。形の崩れた返事は「使えない返事」として
+     * もう片方を待つ。どちらも崩れていれば、下の形のやり直しに任せる。
+     * 1番手は今までどおり `withModelFallback`（モデル名が無い時だけ控えのモデルへ）。
+     */
+    const aiName = ai.name ?? ai.provider;
+    const [, cardBackup] = await getAiAttemptChain("card");
+    const cardTargets: Array<{
+      label: string;
+      generate: (
+        prompt: string,
+        signal: AbortSignal,
+      ) => Promise<{ text: string; usage: LanguageModelUsage }>;
+    }> = [
+      {
+        label: `${aiName}:${await concreteModelId({ name: aiName }, preferredModel)}`,
+        generate: (cardPrompt, signal) =>
+          withModelFallback(ai, preferredModel, (m) =>
+            generateText({
+              model: ai.gateway(m),
+              prompt: cardPrompt,
+              abortSignal: signal,
+              maxRetries: 0,
+            }),
+          ),
+      },
+      ...(cardBackup
+        ? [
+            {
+              label: cardBackup.label,
+              generate: (cardPrompt: string, signal: AbortSignal) =>
+                generateText({
+                  model: cardBackup.model,
+                  prompt: cardPrompt,
+                  abortSignal: signal,
+                  maxRetries: 0,
+                }),
+            },
+          ]
+        : []),
+    ];
+    // AI を呼んだ回ごとの記録（`recordCardRun`）と、答えた AI・使った量。
+    const cardAttempts: CardAttemptRecord[] = [];
+    let cardVia: string | undefined;
+    let cardTokens: CardTokens | undefined;
+    const readCard = (text: string, via: string): GeneratedCard => {
       // **失敗の理由を飲まない。**
       //
       // ここは `catch {}` で全部を握り潰し、"AI did not return a structured
@@ -1002,11 +1092,12 @@ ${data.hintCategory ? `カテゴリのヒント: ${data.hintCategory}` : ""}`;
       //  同じ形)。何が落ちたかは必ず記録に残す。
       let raw: unknown;
       try {
-        raw = parseJsonFromAiText(result.text);
+        raw = parseJsonFromAiText(text);
       } catch {
         console.warn("generateCard: JSONとして読めない", {
           headword: data.headword,
-          head: result.text.slice(0, 300),
+          via,
+          head: text.slice(0, 300),
         });
         throw new CardShapeError("JSONとして読めない返答");
       }
@@ -1018,10 +1109,49 @@ ${data.hintCategory ? `カテゴリのヒント: ${data.hintCategory}` : ""}`;
         .join(" / ");
       console.warn("generateCard: カードの形が合わない", {
         headword: data.headword,
+        via,
         why,
-        head: result.text.slice(0, 300),
+        head: text.slice(0, 300),
       });
       throw new CardShapeError(why);
+    };
+    const genOnce = async (extraPush = "", round = 0): Promise<GeneratedCard> => {
+      const cardPrompt = `${prompt}${jsonTail}${extraPush}`;
+      try {
+        const outcome = await runAiAttempts(
+          cardTargets.map((target, i) => ({
+            label: target.label,
+            timeoutMs: CARD_ATTEMPT_TIMEOUTS[Math.min(i, CARD_ATTEMPT_TIMEOUTS.length - 1)],
+            run: async (signal: AbortSignal) => {
+              const result = await target.generate(cardPrompt, signal);
+              return { card: readCard(result.text, target.label), usage: result.usage };
+            },
+          })),
+          {
+            hedgeAfterMs: hedgeAfterFromEnv(
+              process.env.AI_CARD_HEDGE_AFTER_MS,
+              CARD_HEDGE_AFTER_MS,
+            ),
+            isUnusableReply: (e) => e instanceof CardShapeError,
+            onAttemptFailed: (record, next) =>
+              console.warn(
+                `generateCard: attempt failed: ${record.label} ${record.outcome} ${record.code ?? ""}` +
+                  `${record.quota ? ` (${record.quota})` : ""} after ${record.ms}ms` +
+                  (next ? ` — trying ${next}` : ""),
+              ),
+          },
+        );
+        cardAttempts.push(...outcome.attempts.map((a) => ({ ...a, round })));
+        cardVia = outcome.via;
+        cardTokens = cardTokensOf(outcome.value.usage);
+        return outcome.value.card;
+      } catch (e) {
+        if (!(e instanceof AiAttemptsFailed)) throw e;
+        cardAttempts.push(...e.attempts.map((a) => ({ ...a, round })));
+        // 返事は来たが形が崩れていた（最後の本当の失敗が形）なら、下の形のやり直しに任せる。
+        if (e.lastError instanceof CardShapeError) throw e.lastError;
+        throw e;
+      }
     };
     const extrasLookEmpty = (c: GeneratedCard): boolean => {
       const e = c.extras;
@@ -1057,6 +1187,7 @@ ${data.hintCategory ? `カテゴリのヒント: ${data.hintCategory}` : ""}`;
           `\n\n前回の返答は形が合いませんでした(${e.message})。` +
             `**JSONオブジェクト1つだけ**を、上に挙げたキーで返してください。` +
             `category_key は指定した一覧の中から必ず1つ選ぶこと。`,
+          1,
         ).catch((again: unknown) => {
           // 2回とも駄目なら、**その人に読める言葉で**伝える。
           // 英語の1行を日本語の画面に出したまま2か月放置していた。
@@ -1086,6 +1217,7 @@ ${data.hintCategory ? `カテゴリのヒント: ${data.hintCategory}` : ""}`;
                 .join(" / ") +
               ` を含め、` +
               `**すべてのextras項目に具体的な内容を必ず入れて**やり直してください。`,
+            2,
           );
           if (!extrasLookEmpty(retry)) card = retry;
         } catch {
@@ -1102,6 +1234,8 @@ ${data.hintCategory ? `カテゴリのヒント: ${data.hintCategory}` : ""}`;
         aiMs: Date.now() - aiStartedAt,
         attempts: cardAttempts,
         model: String(preferredModel),
+        via: cardVia,
+        tokens: cardTokens,
         sections: data.sections?.length ?? null,
         pro: !!pro,
       });

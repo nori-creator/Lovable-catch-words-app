@@ -3,6 +3,7 @@ import {
   AI_ATTEMPT_TIMEOUT,
   AiAttemptsFailed,
   attemptErrorCode,
+  attemptQuotaHint,
   hedgeAfterFromEnv,
   runAiAttempts,
 } from "./ai-attempts";
@@ -344,5 +345,80 @@ describe("attemptErrorCode", () => {
     expect(attemptErrorCode(new Error(AI_ATTEMPT_TIMEOUT))).toBe(AI_ATTEMPT_TIMEOUT);
     expect(attemptErrorCode(new Error("user photo of my house at 3 Main St"))).toBe("error");
     expect(attemptErrorCode("nope")).toBe("unknown");
+  });
+});
+
+/** Google の OpenAI 互換の口が返す 429 の形（本文は配列、`details` に上限の ID）。 */
+function tooManyRequests(body: string) {
+  return Object.assign(new Error("Too Many Requests"), { statusCode: 429, responseBody: body });
+}
+
+const GOOGLE_429 = JSON.stringify([
+  {
+    error: {
+      code: 429,
+      message:
+        "You exceeded your current quota, please check your plan and billing details.\n" +
+        "* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, " +
+        "limit: 20, model: gemini-3.8-flash\nPlease retry in 33.1s.",
+      status: "RESOURCE_EXHAUSTED",
+      details: [
+        {
+          "@type": "type.googleapis.com/google.rpc.QuotaFailure",
+          violations: [
+            {
+              quotaMetric: "generativelanguage.googleapis.com/generate_content_free_tier_requests",
+              quotaId: "GenerateRequestsPerDayPerProjectPerModel-FreeTier",
+              quotaDimensions: { location: "global", model: "gemini-3.8-flash" },
+              quotaValue: "20",
+            },
+          ],
+        },
+        { "@type": "type.googleapis.com/google.rpc.RetryInfo", retryDelay: "33s" },
+      ],
+    },
+  },
+]);
+
+describe("attemptQuotaHint", () => {
+  it("keeps which limit was hit (id, metric/limit/model, retry seconds) and nothing else", () => {
+    const hint = attemptQuotaHint(tooManyRequests(GOOGLE_429));
+    expect(hint).toBe(
+      "GenerateRequestsPerDayPerProjectPerModel-FreeTier " +
+        "generate_content_free_tier_requests/20/gemini-3.8-flash retry_33s",
+    );
+    expect(hint).not.toMatch(/billing|quota, please/);
+  });
+
+  it("reads the body from the cause too, and is undefined when there is no body or no limit in it", () => {
+    expect(attemptQuotaHint({ cause: tooManyRequests(GOOGLE_429) })).toContain("FreeTier");
+    expect(attemptQuotaHint(new Error("Too Many Requests"))).toBeUndefined();
+    expect(
+      attemptQuotaHint(tooManyRequests('{"error":{"message":"Internal error"}}')),
+    ).toBeUndefined();
+    expect(attemptQuotaHint(null)).toBeUndefined();
+  });
+
+  it("is recorded on the failed attempt before falling back", async () => {
+    const result = await runAiAttempts([
+      {
+        label: "google:gemini-3.8-flash",
+        timeoutMs: 20_000,
+        run: async () => {
+          throw tooManyRequests(GOOGLE_429);
+        },
+      },
+      { label: "lovable:google/gemini-2.5-flash", timeoutMs: 20_000, run: async () => "card" },
+    ]);
+    expect(result.value).toBe("card");
+    expect(result.via).toBe("lovable:google/gemini-2.5-flash");
+    expect(result.attempts[0]).toEqual(
+      expect.objectContaining({
+        outcome: "error",
+        code: "http_429",
+        quota: expect.stringContaining("GenerateRequestsPerDayPerProjectPerModel-FreeTier"),
+      }),
+    );
+    expect(result.attempts[1]).not.toHaveProperty("quota");
   });
 });
