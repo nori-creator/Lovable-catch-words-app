@@ -178,8 +178,12 @@ async function recordCandidateReceipts(
 
 /** 撮った後の候補: 1回ごとの締め切り（1番手・2番手）。画面の待ちは 20 秒。 */
 const SUGGEST_ATTEMPT_TIMEOUTS = [18_000, 13_000];
-/** 1番手がこの時間までに答えなければ2番手を並べる（`AI_HEDGE_AFTER_MS` で変更、`0` で止める）。 */
-const SUGGEST_HEDGE_AFTER_MS = 6_000;
+/**
+ * 1番手がこの時間までに答えなければ2番手を並べる（`AI_HEDGE_AFTER_MS` で変更、`0` で止める）。
+ * 4 秒（実測 2026-10-09〜10: 1番手 gemini-3.5-flash-lite の AI 時間は中央値 2.4 秒・90% で 3.2 秒）。
+ * 前は 6 秒で、1番手が詰まった回は 11.7 秒かかっていた（2番手が 6 秒後に始まり 4.6 秒）。
+ */
+const SUGGEST_HEDGE_AFTER_MS = 4_000;
 
 /**
  * 撮った後の候補の1回を `ai_runs` に残す（`loop="capture_suggest"`）。中身は成否・待ち時間・
@@ -194,6 +198,10 @@ function recordSuggestRun(
     via?: string;
     hedged?: boolean;
     attempts: AiAttemptRecord[];
+    /** 始まりから AI を呼ぶまで（同意の後・読み出しを並べて待った時間）。 */
+    preMs?: number;
+    /** 枠の確保が終わるまで（AI と並べて走らせる。`null` = 記録の時点で終わっていない）。 */
+    capMs?: number | null;
   },
 ): void {
   console.info(
@@ -216,6 +224,8 @@ function recordSuggestRun(
         ai_ms: run.aiMs,
         ...(run.via ? { via: run.via } : {}),
         hedged: run.hedged ?? false,
+        ...(run.preMs != null ? { pre_ms: run.preMs } : {}),
+        ...(run.capMs != null ? { cap_ms: run.capMs } : {}),
         attempts: run.attempts.map((a) => ({
           label: a.label,
           ms: a.ms,
@@ -229,26 +239,99 @@ function recordSuggestRun(
   });
 }
 
+/**
+ * カード生成の1回を `ai_runs` に残す（`loop="card_generate"`）。中身は成否・待ち時間・AI を呼んだ回数と
+ * それぞれの時間・頼んだモデルの設定名だけ — 語・文は入れない。返事は待たせない。
+ * 実測 2026-10-10: 本番のカード生成が 55 秒かかり、2回は約2分で失敗した。どこで待っているかを測るため。
+ */
+function recordCardRun(
+  context: { userId: string; supabase: { from: (t: "ai_runs") => unknown } },
+  run: {
+    ok: boolean;
+    ms: number;
+    preMs: number;
+    aiMs: number;
+    attempts: Array<{ ms: number; outcome: "ok" | "shape" | "error" }>;
+    model: string;
+    sections: number | null;
+    pro: boolean;
+  },
+): void {
+  console.info(
+    `generateCard: ${run.ok ? "ok" : "failed"} in ${run.ms}ms (AI ${run.aiMs}ms, ${run.attempts.length} calls, ${run.model})`,
+  );
+  void runAfterResponse("generateCard: ai_runs", async () => {
+    const table = context.supabase.from("ai_runs") as {
+      insert: (row: unknown) => PromiseLike<{ error: { message: string } | null }>;
+    };
+    const { error } = await table.insert({
+      user_id: context.userId,
+      loop: "card_generate",
+      iterations: run.attempts.length,
+      accepted: run.ok ? 1 : 0,
+      meta: {
+        ok: run.ok,
+        ms: run.ms,
+        pre_ms: run.preMs,
+        ai_ms: run.aiMs,
+        model: run.model,
+        sections: run.sections,
+        pro: run.pro,
+        attempts: run.attempts,
+      },
+    });
+    if (error) console.warn("generateCard: ai_runs insert failed", error.message);
+  });
+}
+
 export const suggestWords = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) => SuggestInput.parse(input))
   .handler(async ({ data, context }) => {
-    // 外部の AI へ送る前の同意（`ai-consent.ts`）。無ければ何も送らずに断る。
+    // 外部の AI へ送る前の同意（`ai-consent.ts`）。無ければ何も送らず・数えずに断る。
     await (await import("./ai-consent.server")).assertAiConsent(context.userId);
     const startedAt = Date.now();
-    // AI の前の読み出し（使う AI・枠の確保・級・解説の言語）は**並べて**待つ（実物確認
-    // 2026-10-03: シャッターから候補まで 4.5〜42 秒。前はここで4〜5往復を1つずつ待っていた）。
-    // 枠の確保が断られたら、そこで止まる（AI は呼ばない）。
+    // **枠の確保は AI と並べて走らせる**（実測 2026-10-10: 本番の候補で、AI 以外の待ちが
+    // 中央値 1.0 秒・初回は 1.6〜4.1 秒。AI 本体は 1.6〜2.9 秒）。確保は DB の往復が
+    // 6〜8 回続く（種類・予約・無料枠・全体枠）ので、前はそれが終わるまで AI を呼べなかった。
+    // いまは確保を始めたまま AI を呼び、**断られたら AI を止めて断りを返す**（返事は渡さない）。
+    // 読みの検め（`tw-reading.server` — 大きな辞書を読み込む）も AI と並べて読み込む。
+    const capCheck = assertWithinDailyCap(context.userId, "suggest");
+    const capStop = new AbortController();
+    const capRefusal = capCheck.then(
+      () => null,
+      (e: unknown) => {
+        capStop.abort();
+        return e;
+      },
+    );
+    const readingCheckLoad = loadReadingCheck();
+    readingCheckLoad.catch(() => {});
+    let capMs: number | null = null;
+    void capCheck.then(
+      () => (capMs = Date.now() - startedAt),
+      () => {},
+    );
+    // AI の前に要る物（使う AI・級・解説の言語）は**並べて**待つ（DB 1往復ぶん）。
     // レベルはクライアントの申告ではなく**プロフィールを正**とする
     // (以前は既定の TOCFL-2 が常に使われ、設定が効いていなかった)。
     // 級は**細かさの目安**としてだけ使う(下の `specificity`)。
-    const [chain, , levelGoal, langRule, reader] = await Promise.all([
-      getAiAttemptChain("scan"),
-      assertWithinDailyCap(context.userId, "suggest"),
-      getUserLevelGoal(context.userId),
-      explanationLanguageRule(context.userId, data.targetLanguage),
-      getExplanationLanguage(context.userId),
-    ]);
+    let chain: Awaited<ReturnType<typeof getAiAttemptChain>>;
+    let levelGoal: string,
+      langRule: string,
+      reader: Awaited<ReturnType<typeof getExplanationLanguage>>;
+    try {
+      [chain, levelGoal, langRule, reader] = await Promise.all([
+        getAiAttemptChain("scan"),
+        getUserLevelGoal(context.userId),
+        explanationLanguageRule(context.userId, data.targetLanguage),
+        getExplanationLanguage(context.userId),
+      ]);
+    } catch (e) {
+      capStop.abort();
+      throw (await capRefusal) ?? e;
+    }
+    const preMs = Date.now() - startedAt;
     const profile = targetProfile(data.targetLanguage);
     // **JLPT は数字の向きが逆**(N5 が入門)。数字を拾うと N5 の人が「上位」になり、
     // 専門の名前ばかり出る。JLPT だけは段(N5→1 … N1→5)で読む。
@@ -316,7 +399,6 @@ ${distinctionRule(profile.promptName, profile.capture.distinctionExamples)}
   「単語の説明が長すぎて、横にスクロールしないと見れないことがある。長すぎる文はなしで」）。`;
 
     const instruction = `${prompt}\n\n必ずJSONだけを返してください。**${profile.promptName}の語を出す。他の言語の語を混ぜない。**\n形式: {"suggestions":[{"headword":"${profile.capture.jsonHeadwordHint}",${profile.capture.jsonReadingHint},"meaning_ja":"意味(上で指定した解説の言語で)","distinction":"使い分けの一言","category_key":"${CATEGORY_KEYS.join("|")} のどれか","register":"common|casual|specific|proper のどれか","group":0}]}。**確からしい順に並べ**、物は3〜5つ返してください(無理に5つに埋めない — 写っていない物を足すぐらいなら少なくてよい)。同じ物の別の呼び方は同じ group で。`;
-    const correctTaiwanReading = await loadReadingCheck();
     /**
      * **1番手が遅い時は2番手を並べて追いかける**（`ai-attempts.ts`、チュートリアルと同じ）。
      * 前は1回の呼び出しに締め切りが無く、AI SDK が黙って2回まで再送していた（詰まった
@@ -334,7 +416,8 @@ ${distinctionRule(profile.promptName, profile.capture.distinctionExamples)}
           run: async (signal: AbortSignal) => {
             const result = await generateText({
               model: target.model,
-              abortSignal: signal,
+              // 枠の確保が断られたら、走っている AI も止める（上の `capStop`）。
+              abortSignal: AbortSignal.any([signal, capStop.signal]),
               maxRetries: 0,
               messages: [
                 {
@@ -372,17 +455,25 @@ ${distinctionRule(profile.promptName, profile.capture.distinctionExamples)}
         },
       );
     } catch (e) {
+      // 枠が断られて止めた回は、その断り（上限の案内）を返す。AI の失敗としては数えない。
+      const refused = await capRefusal;
+      if (refused) throw refused;
       const failed = e instanceof AiAttemptsFailed ? e : null;
       recordSuggestRun(context, {
         ok: false,
         ms: Date.now() - startedAt,
         aiMs: failed?.ms ?? null,
         attempts: failed?.attempts ?? [],
+        preMs,
+        capMs,
       });
       if (failed?.attempts.some((a) => a.outcome === "unusable"))
         throw new Error("候補の形が整いませんでした。もう一度お試しください。");
       throw new Error("画像のAI読み込みに失敗しました");
     }
+    // AI が枠の確保より先に答えた時は、確保を待ってから渡す（断られたら渡さない）。
+    const refused = await capRefusal;
+    if (refused) throw refused;
     recordSuggestRun(context, {
       ok: true,
       ms: Date.now() - startedAt,
@@ -390,8 +481,11 @@ ${distinctionRule(profile.promptName, profile.capture.distinctionExamples)}
       via: outcome.via,
       hedged: outcome.hedged,
       attempts: outcome.attempts,
+      preMs,
+      capMs,
     });
     const parsed = outcome.value;
+    const correctTaiwanReading = await readingCheckLoad;
     /**
      * **学習言語の語だけを返す**（オーナー報告 2026-10-02「英語の図鑑に
      * ノートが入っている」）。指示文に「他の言語の語を混ぜない」と書いても、
@@ -658,28 +752,37 @@ export const generateCard = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     // 外部の AI へ送る前の同意（`ai-consent.ts`）。無ければ何も送らずに断る。
     await (await import("./ai-consent.server")).assertAiConsent(context.userId);
-    const ai = await getAiFor("card");
-    await assertWithinDailyCap(context.userId, "card");
-    const levelGoal = await getUserLevelGoal(context.userId);
-    const levelRule = await levelInstruction(context.userId);
-    const langRule = await explanationLanguageRule(context.userId, data.targetLanguage);
-    // 解説をどの言語で書くか。プロンプト本文に散らばる「日本語で」という
-    // 指示が langRule と矛盾し、英語設定でも日本語の解説が返っていた。
-    // 説明文の言語名をここで差し替えて矛盾を無くす。
-    const explainLang = await getExplanationLanguage(context.userId);
+    const cardStartedAt = Date.now();
+    // AI の前の読み出し（使う AI・枠の確保・級・解説の言語・母語・Pro か）は**並べて**待つ。
+    // 前は 10 回の往復を1つずつ待っていた（ほとんどが同じ profiles の行）。枠の確保が
+    // 断られたら、ここで止まる（AI は呼ばない）。
+    const [ai, , levelGoal, levelRule, langRule, explainLang, l1, l1Gram, l1Info, pro] =
+      await Promise.all([
+        getAiFor("card"),
+        assertWithinDailyCap(context.userId, "card"),
+        getUserLevelGoal(context.userId),
+        levelInstruction(context.userId),
+        explanationLanguageRule(context.userId, data.targetLanguage),
+        // 解説をどの言語で書くか。プロンプト本文に散らばる「日本語で」という
+        // 指示が langRule と矛盾し、英語設定でも日本語の解説が返っていた。
+        // 説明文の言語名をここで差し替えて矛盾を無くす。
+        getExplanationLanguage(context.userId),
+        // 発音のコツは**母語ごとに全く変わる**(有気音が無い/そり舌が無い等)。
+        // 設定の母語から具体的な干渉項目を流し込む。
+        l1Rule(context.userId, "pronunciation"),
+        // 語順・量詞・「的」の位置などは母語で崩れ方が違う。例文とチャンクを
+        // 「その母語話者が実際に間違える所」に寄せるため、文法側も渡す。
+        l1Rule(context.userId, "wordorder"),
+        getLearnerL1(context.userId),
+        isProUser(context.userId),
+      ]);
+    const cardPreMs = Date.now() - cardStartedAt;
     // **3つある表示言語を2つに潰さない。** ここは
     // `explainLang === "en" ? "英語" : "日本語"` だった — 繁體中文を
     // 選んだ人が「日本語」に落ち、AI が日本語で解説を書いていた
     // (オーナー報告「項目に日本語が混ざる」)。正は
     // `explanationLanguageName()` 1つ。
     const NL = explanationLanguageName(explainLang);
-    // 発音のコツは**母語ごとに全く変わる**(有気音が無い/そり舌が無い等)。
-    // 設定の母語から具体的な干渉項目を流し込む。
-    const l1 = await l1Rule(context.userId, "pronunciation");
-    // 語順・量詞・「的」の位置などは母語で崩れ方が違う。例文とチャンクを
-    // 「その母語話者が実際に間違える所」に寄せるため、文法側も渡す。
-    const l1Gram = await l1Rule(context.userId, "wordorder");
-    const l1Info = await getLearnerL1(context.userId);
     const learnerL1 = l1Info.speakerJa;
 
     // **ここも分岐しない**(上の候補と同じ理由)。前は台湾華語以外が
@@ -809,7 +912,6 @@ ${want("mnemonic") ? `- mnemonic: ${mnemonicRule(data.targetLanguage, l1Info.cod
 
 ${data.hintCategory ? `カテゴリのヒント: ${data.hintCategory}` : ""}`;
 
-    const pro = await isProUser(context.userId);
     const preferredModel = pro ? ai.modelRichPremium : ai.modelRich;
     // Plain text + robust JSON parse (like suggestWords). We deliberately do NOT
     // use experimental_output / response_format=json_schema here: Gemini's
@@ -869,7 +971,23 @@ ${data.hintCategory ? `カテゴリのヒント: ${data.hintCategory}` : ""}`;
       (wantOwn("counters") ? ` / counters（名詞でなければ空配列）` : "") +
       `。`;
 
+    // AI を呼んだ回ごとの時間（`recordCardRun`）。
+    const cardAttempts: Array<{ ms: number; outcome: "ok" | "shape" | "error" }> = [];
     const genOnce = async (extraPush = ""): Promise<GeneratedCard> => {
+      const t0 = Date.now();
+      try {
+        const c = await genOnceUntimed(extraPush);
+        cardAttempts.push({ ms: Date.now() - t0, outcome: "ok" });
+        return c;
+      } catch (e) {
+        cardAttempts.push({
+          ms: Date.now() - t0,
+          outcome: e instanceof CardShapeError ? "shape" : "error",
+        });
+        throw e;
+      }
+    };
+    const genOnceUntimed = async (extraPush = ""): Promise<GeneratedCard> => {
       // モデルIDが無効なら安全なモデルへ自動フォールバック(404で機能を殺さない)
       const result = await withModelFallback(ai, preferredModel, (m) =>
         generateText({ model: ai.gateway(m), prompt: `${prompt}${jsonTail}${extraPush}` }),
@@ -926,52 +1044,75 @@ ${data.hintCategory ? `カテゴリのヒント: ${data.hintCategory}` : ""}`;
         (e.examples_extra?.length ?? 0) > 0;
       return !filled;
     };
-    // 形が合わなかったときも**1度だけ**やり直す。以前は一発勝負で、
-    // モデルが1項目外しただけでその語が永久にカードにならなかった。
+    const aiStartedAt = Date.now();
+    const generate = async (): Promise<GeneratedCard> => {
+      // 形が合わなかったときも**1度だけ**やり直す。以前は一発勝負で、
+      // モデルが1項目外しただけでその語が永久にカードにならなかった。
+      let card: GeneratedCard;
+      try {
+        card = await genOnce();
+      } catch (e) {
+        if (!(e instanceof CardShapeError)) throw e;
+        card = await genOnce(
+          `\n\n前回の返答は形が合いませんでした(${e.message})。` +
+            `**JSONオブジェクト1つだけ**を、上に挙げたキーで返してください。` +
+            `category_key は指定した一覧の中から必ず1つ選ぶこと。`,
+        ).catch((again: unknown) => {
+          // 2回とも駄目なら、**その人に読める言葉で**伝える。
+          // 英語の1行を日本語の画面に出したまま2か月放置していた。
+          throw new Error(
+            `カードの形が整いませんでした。もう一度お試しください。` +
+              `(${again instanceof Error ? again.message : String(again)})`,
+          );
+        });
+      }
+      // 意味は語の長さに（R17。説明文で返った回を保存前に縮める）。
+      // 削れた説明は空の「使う場面」へ移す（捨てない、`withShortMeaning`）。
+      card = withShortMeaning(card);
+      if (extrasLookEmpty(card)) {
+        // 1回だけ、空を明確に禁止して作り直す。
+        try {
+          const retry = await genOnce(
+            `\n\n前回 extras が空で不十分でした。今回は ` +
+              [
+                want("usage_chunks") && "usage_chunks",
+                "usage_context",
+                want("related_words") && "related_words",
+                want("pronunciation_tips") && "pronunciation_tips",
+                want(noteSection) && cardProfile.capture.noteField,
+                want("examples_extra") && "examples_extra",
+              ]
+                .filter(Boolean)
+                .join(" / ") +
+              ` を含め、` +
+              `**すべてのextras項目に具体的な内容を必ず入れて**やり直してください。`,
+          );
+          if (!extrasLookEmpty(retry)) card = retry;
+        } catch {
+          /* keep the first result */
+        }
+      }
+      return card;
+    };
+    const cardRun = (ok: boolean) =>
+      recordCardRun(context, {
+        ok,
+        ms: Date.now() - cardStartedAt,
+        preMs: cardPreMs,
+        aiMs: Date.now() - aiStartedAt,
+        attempts: cardAttempts,
+        model: String(preferredModel),
+        sections: data.sections?.length ?? null,
+        pro: !!pro,
+      });
     let card: GeneratedCard;
     try {
-      card = await genOnce();
+      card = await generate();
     } catch (e) {
-      if (!(e instanceof CardShapeError)) throw e;
-      card = await genOnce(
-        `\n\n前回の返答は形が合いませんでした(${e.message})。` +
-          `**JSONオブジェクト1つだけ**を、上に挙げたキーで返してください。` +
-          `category_key は指定した一覧の中から必ず1つ選ぶこと。`,
-      ).catch((again: unknown) => {
-        // 2回とも駄目なら、**その人に読める言葉で**伝える。
-        // 英語の1行を日本語の画面に出したまま2か月放置していた。
-        throw new Error(
-          `カードの形が整いませんでした。もう一度お試しください。` +
-            `(${again instanceof Error ? again.message : String(again)})`,
-        );
-      });
+      cardRun(false);
+      throw e;
     }
-    // 意味は語の長さに（R17。説明文で返った回を保存前に縮める）。
-    // 削れた説明は空の「使う場面」へ移す（捨てない、`withShortMeaning`）。
-    card = withShortMeaning(card);
-    if (extrasLookEmpty(card)) {
-      // 1回だけ、空を明確に禁止して作り直す。
-      try {
-        const retry = await genOnce(
-          `\n\n前回 extras が空で不十分でした。今回は ` +
-            [
-              want("usage_chunks") && "usage_chunks",
-              "usage_context",
-              want("related_words") && "related_words",
-              want("pronunciation_tips") && "pronunciation_tips",
-              want(noteSection) && cardProfile.capture.noteField,
-              want("examples_extra") && "examples_extra",
-            ]
-              .filter(Boolean)
-              .join(" / ") +
-            ` を含め、` +
-            `**すべてのextras項目に具体的な内容を必ず入れて**やり直してください。`,
-        );
-        if (!extrasLookEmpty(retry)) card = retry;
-      } catch {
-        /* keep the first result */
-      }
-    }
+    cardRun(true);
     const resolvedHead = card.headword_zh?.trim() || data.headword;
     // **読みは AI のまま通さない**（2026-10-03「拿鐵」が nálǎtiě と出た件）。
     // 字の数と音節の数・字ごとの読み・台湾の読みを検め、外れていれば辞書の読みに直す。
