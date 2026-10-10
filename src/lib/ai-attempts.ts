@@ -39,6 +39,8 @@ export type AiAttemptRecord = {
   outcome: AiAttemptOutcome;
   /** 失敗の短い印（長い英文や個人の情報は入れない）。 */
   code?: string;
+  /** 回数の上限（429）に当たった時の、どの上限かの印（`attemptQuotaHint`）。 */
+  quota?: string;
   /** 依頼の始まりから、この回を始めるまでの ms（追いかけの回は `hedgeAfterMs` 前後）。 */
   startMs?: number;
   /** 1番手を待ったまま並べて始めた回（追いかけ）。 */
@@ -86,6 +88,35 @@ export function attemptErrorCode(error: unknown): string {
   if (code) return code;
   if (error.name === "AbortError" || error.name === "TimeoutError") return "aborted";
   return error.name && error.name !== "Error" ? error.name.slice(0, 40) : "error";
+}
+
+/**
+ * **回数の上限（429）に当たった時、どの上限かを短く残す**（実測 2026-10-10: 本番のカード生成が
+ * Google の「Too Many Requests」で落ちていた。1分あたりか1日あたりか、無料枠かで直し方が違う）。
+ *
+ * 返事の本文から**決まった形の所だけ**を拾う: 上限の ID（`quotaId`、例
+ * `GenerateRequestsPerDayPerProjectPerModel-FreeTier`）、「Quota exceeded for metric: …, limit: 20,
+ * model: …」の名前・値・モデル、「Please retry in 33.1s」の秒。文・鍵・番号は残さない。
+ * 拾えなければ `undefined`。
+ */
+export function attemptQuotaHint(error: unknown): string | undefined {
+  const body = responseBodyOf(error) ?? responseBodyOf((error as { cause?: unknown })?.cause);
+  if (!body) return undefined;
+  const hints = new Set<string>();
+  for (const m of body.matchAll(/"quotaId"\s*:\s*"([A-Za-z0-9_-]{1,80})"/g)) hints.add(m[1]);
+  for (const m of body.matchAll(
+    /Quota exceeded for metric: (?:[\w.-]+\/)?([\w-]{1,80}), limit: (\d{1,12})(?:, model: ([\w.-]{1,60}))?/g,
+  )) {
+    hints.add([m[1], m[2], m[3]].filter(Boolean).join("/"));
+  }
+  const retry = body.match(/retry in (\d{1,5}(?:\.\d+)?)s/i)?.[1];
+  if (retry) hints.add(`retry_${Math.round(Number(retry))}s`);
+  return hints.size > 0 ? [...hints].slice(0, 4).join(" ").slice(0, 200) : undefined;
+}
+
+function responseBodyOf(error: unknown): string | undefined {
+  const body = (error as { responseBody?: unknown } | null | undefined)?.responseBody;
+  return typeof body === "string" && body.length > 0 ? body : undefined;
 }
 
 /**
@@ -221,11 +252,13 @@ export async function runAiAttempts<T>(
                 ? "unusable"
                 : "error";
             if (outcome !== "timeout") lastReal = error;
+            const quota = outcome === "timeout" ? undefined : attemptQuotaHint(error);
             const record: AiAttemptRecord = {
               ...base,
               ms: now() - begin,
               outcome,
               code: outcome === "timeout" ? "timeout" : attemptErrorCode(error),
+              ...(quota ? { quota } : {}),
             };
             records[i] = record;
             // もう片方がまだ走っているなら、それを待つ。何も走っていなければ次の回へ。
