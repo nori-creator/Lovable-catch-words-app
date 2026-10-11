@@ -13,6 +13,11 @@
  *   2026-10-09「全部の AI を Web と iOS の開発者設定から切り替えられるように」）。
  *   どれも関数の中で `has_role(admin)` を確かめ、管理者でなければ読み取りは
  *   `{ isAdmin: false }`、書き込みは 403。鍵の値は返さない。約束は `docs/admin-ai-api.md`。
+ * - 開発者の「利用者と分析」（`/admin/users`・`/admin/metrics`・`/admin/beta` と同じ数字。
+ *   オーナー決定 2026-10-11「開発者の私だけ設定の開発者設定から web 版と同じように、
+ *   利用者やアプリの詳しい情報、分析が見えるように」）も `admin` で始まる別名で載せる。
+ *   どれも読むだけで、管理者でなければ 403（`Forbidden: admin role required`）。
+ *   メールアドレス・正確な位置・写真・日記の本文は、Web の管理画面と同じく返さない。
  * - ここに載せる関数は、Web の画面からもすでに同じ本人確認で呼べる物だけ。
  *   新しく外へ開く入口は増えない。
  */
@@ -39,6 +44,9 @@ const consent = () => import("./ai-consent.functions");
 const appleToken = () => import("./apple-token.functions");
 const adminAi = () => import("./admin-ai.functions");
 const candidatePick = () => import("./candidate-pick.functions");
+const adminUsers = () => import("./admin-users.functions");
+const metrics = () => import("./metrics.functions");
+const betaMetrics = () => import("./beta-metrics.functions");
 
 function from<M>(mod: () => Promise<M>, name: keyof M & string): Loader {
   return async () => (await mod())[name] as unknown as ServerFn;
@@ -135,6 +143,12 @@ export const NATIVE_FNS: Record<string, Loader> = {
   adminGetAiStats: from(adminAi, "adminGetAiStats"),
   adminGetAiTestPhotos: from(adminAi, "adminGetAiTestPhotos"),
   adminTestPhotoCandidates: from(ai, "adminTestPhotoCandidates"),
+  // 開発者の「利用者と分析」（管理者だけ・読むだけ。Web の管理画面と同じ関数）
+  adminListUsers: from(adminUsers, "listAdminUsers"),
+  adminGetUserDetail: from(adminUsers, "getAdminUserDetail"),
+  adminGetOverview: from(adminUsers, "getAdminOverview"),
+  adminGetDashboard: from(metrics, "getAdminDashboard"),
+  adminGetBetaMetrics: from(betaMetrics, "getBetaMetrics"),
 };
 
 /** 管理者だけが使える口（名前は必ず `admin` で始める）。試験が一覧と突き合わせる。 */
@@ -149,6 +163,11 @@ export const NATIVE_ADMIN_FNS = [
   "adminGetAiStats",
   "adminGetAiTestPhotos",
   "adminTestPhotoCandidates",
+  "adminListUsers",
+  "adminGetUserDetail",
+  "adminGetOverview",
+  "adminGetDashboard",
+  "adminGetBetaMetrics",
 ] as const;
 
 /** 失敗の中身から、iOS に返す状態コードを決める。 */

@@ -38,21 +38,37 @@ describe("native-fn allowlist", () => {
     }
   });
 
-  it("exposes only the listed admin AI settings functions (owner decision 2026-10-09)", () => {
+  it("exposes only the listed admin functions (AI settings 2026-10-09, users and metrics 2026-10-11)", () => {
     const admin = Object.keys(NATIVE_FNS).filter((n) => n.toLowerCase().includes("admin"));
     expect(admin.sort()).toEqual([...NATIVE_ADMIN_FNS].sort());
     for (const name of admin) {
       expect(name.startsWith("admin")).toBe(true);
       expect(NATIVE_FNS[name]).toBeTypeOf("function");
     }
-    // ほかの管理者向けの道具（辞書の取り込み・発音の作り置き・利用者の一覧）は載せない。
+    // ほかの管理者向けの道具（辞書の取り込み・発音の作り置き・単価の書き換え）は載せない。
     for (const name of [
       "setTtsVoiceAdmin",
       "pregenerateDictionaryTts",
       "importDictionaryEntries",
       "checkIsAdmin",
+      "setBetaUnitCosts",
+      "listAdminUsers",
+      "getAdminUserDetail",
     ]) {
       expect(NATIVE_FNS[name]).toBeUndefined();
+    }
+  });
+
+  it("exposes the developer's users and metrics only under admin names (owner decision 2026-10-11)", () => {
+    for (const name of [
+      "adminListUsers",
+      "adminGetUserDetail",
+      "adminGetOverview",
+      "adminGetDashboard",
+      "adminGetBetaMetrics",
+    ]) {
+      expect(NATIVE_ADMIN_FNS).toContain(name);
+      expect(NATIVE_FNS[name]).toBeTypeOf("function");
     }
   });
 
