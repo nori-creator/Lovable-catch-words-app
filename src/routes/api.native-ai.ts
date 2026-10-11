@@ -66,7 +66,7 @@ export const Route = createFileRoute("/api/native-ai")({
         }
 
         const route = NATIVE_AI_ROUTING[input.feature];
-        const cfg = await ai.getAiFor(route.feature);
+        const cfg = await ai.getAiFor(route.feature, "native_ai");
         const preferred = route.tier === "fast" ? cfg.modelFast : cfg.modelRich;
         const content: Array<{ type: "text"; text: string } | { type: "image"; image: string }> = [
           { type: "text", text: input.prompt },

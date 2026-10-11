@@ -3281,6 +3281,298 @@ export const DICT: Record<string, Record<UiLang, string>> = {
     "zh-TW": "配色設計（僅限開發者）",
   },
   "settings.themeKeep": { ja: "保持", en: "Kept", "zh-TW": "保留" },
+  "aiStats.heading": {
+    ja: "速さと正確さ（モデルごと）",
+    en: "Speed and accuracy by model",
+    "zh-TW": "各模型的速度與準確度",
+  },
+  "aiStats.note": {
+    ja: "実際に使われた分から数えます（機能 → 用途 → モデル）。モデルを切り替えると行が増えるので、前後を見比べられます。時間は AI に頼んでから答えが返るまで。写真・語・文は記録しません。",
+    en: "Counted from real use (feature → task → model). Switching a model adds a new row, so you can compare before and after. Time runs from the request to the AI until its answer arrives. Photos, words and text are not recorded.",
+    "zh-TW":
+      "依實際使用統計（功能 → 用途 → 模型）。切換模型後會多出一列，可以比較前後。時間是從向 AI 提出請求到回答傳回為止。不記錄照片、單字與文字。",
+  },
+  "aiStats.period": {
+    ja: "期間",
+    en: "Period",
+    "zh-TW": "期間",
+  },
+  "aiStats.days": {
+    ja: "{n}日",
+    en: "{n} d",
+    "zh-TW": "{n} 天",
+  },
+  "aiStats.mine": {
+    ja: "自分の分だけ",
+    en: "Only my own use",
+    "zh-TW": "只看自己的使用",
+  },
+  "aiStats.loadFailed": {
+    ja: "読み込めませんでした",
+    en: "Couldn't load",
+    "zh-TW": "無法載入",
+  },
+  "aiStats.empty": {
+    ja: "この期間の記録はまだありません。AI を使う機能を使うと、ここに数が出ます（この画面ができた後の分から）。",
+    en: "No records for this period yet. Numbers appear here once AI features are used (counting starts with this update).",
+    "zh-TW": "這段期間還沒有紀錄。使用 AI 功能後，數字會出現在這裡（從這次更新之後開始計算）。",
+  },
+  "aiStats.truncated": {
+    ja: "記録が多いため、一部だけで数えています。",
+    en: "Too many records — counted from part of them.",
+    "zh-TW": "紀錄太多，只用其中一部分計算。",
+  },
+  "aiStats.other": {
+    ja: "その他",
+    en: "Other",
+    "zh-TW": "其他",
+  },
+  "aiStats.current": {
+    ja: "いま",
+    en: "Now",
+    "zh-TW": "目前",
+  },
+  "aiStats.speed": {
+    ja: "{n}回 · 成功 {ok}% · 中央値 {p50}秒 · 90% {p90}秒",
+    en: "{n} {n|call|calls} · {ok}% OK · median {p50}s · 90% {p90}s",
+    "zh-TW": "{n} 次 · 成功 {ok}% · 中位數 {p50} 秒 · 90% {p90} 秒",
+  },
+  "aiStats.timeouts": {
+    ja: "時間切れ {n}",
+    en: "{n} timed out",
+    "zh-TW": "逾時 {n}",
+  },
+  "aiStats.failed": {
+    ja: "失敗 {n}",
+    en: "{n} failed",
+    "zh-TW": "失敗 {n}",
+  },
+  "aiStats.cancelled": {
+    ja: "追いかけで取り消し {n}",
+    en: "{n} cancelled (hedge)",
+    "zh-TW": "因並行而取消 {n}",
+  },
+  "aiStats.picks": {
+    ja: "候補の当たり: 1番目 {top1}% · 3番目まで {top3}%（選んだ {n} 回）",
+    en: "Picks: 1st {top1}% · top 3 {top3}% ({n} {n|pick|picks})",
+    "zh-TW": "候選命中：第 1 個 {top1}% · 前 3 個 {top3}%（選了 {n} 次）",
+  },
+  "aiStats.unusable": {
+    ja: "使えない返事 {p}%（{n}/{of}）",
+    en: "Unusable replies {p}% ({n}/{of})",
+    "zh-TW": "無法使用的回應 {p}%（{n}/{of}）",
+  },
+  "aiStats.cost": {
+    ja: "1回 約 ${c}",
+    en: "~${c} per call",
+    "zh-TW": "每次約 ${c}",
+  },
+  "aiStats.tokens": {
+    ja: "入力 {i} · 出力 {o} トークン",
+    en: "{i} in · {o} out tokens",
+    "zh-TW": "輸入 {i} · 輸出 {o} 個 token",
+  },
+  "aiStats.testsHeading": {
+    ja: "固定の写真の試し（モデルごと）",
+    en: "Fixed-photo tests by model",
+    "zh-TW": "固定照片測試（各模型）",
+  },
+  "aiStats.testScore": {
+    ja: "正解が1番目 {top1}% · 3番目まで {top3}%（{n} 枚）",
+    en: "Correct 1st {top1}% · top 3 {top3}% ({n} {n|photo|photos})",
+    "zh-TW": "正解在第 1 個 {top1}% · 前 3 個 {top3}%（{n} 張）",
+  },
+  "aiStats.testSpeed": {
+    ja: "中央値 {p50}秒 · 90% {p90}秒",
+    en: "median {p50}s · 90% {p90}s",
+    "zh-TW": "中位數 {p50} 秒 · 90% {p90} 秒",
+  },
+  "aiStats.testHeading": {
+    ja: "固定の写真で試す",
+    en: "Test with fixed photos",
+    "zh-TW": "用固定照片測試",
+  },
+  "aiStats.testNote": {
+    ja: "本番の設定は変えずに、選んだモデルへ正解の付いた写真 {n} 枚を流し、撮った後の候補と同じ指示で、正解が何番目に出るかと時間を測ります。利用者には影響しません。1日 300 枚まで。",
+    en: "Without changing the live setting, sends {n} labelled {n|photo|photos} to the chosen model with the same prompt as photo candidates, and measures where the right answer ranks and how long it takes. Users are not affected. Up to 300 photos a day.",
+    "zh-TW":
+      "不改變正式設定，把 {n} 張附有正解的照片送給選擇的模型，用與拍照候選相同的指示，測量正解排第幾與所需時間。不影響使用者。每天最多 300 張。",
+  },
+  "aiStats.testModel": {
+    ja: "試すモデル",
+    en: "Model to test",
+    "zh-TW": "要測試的模型",
+  },
+  "aiStats.testAuto": {
+    ja: "いまのスキャンの AI",
+    en: "Current scan AI",
+    "zh-TW": "目前的掃描 AI",
+  },
+  "aiStats.testLanguage": {
+    ja: "学習言語",
+    en: "Learning language",
+    "zh-TW": "學習語言",
+  },
+  "aiStats.lang.zh-TW": {
+    ja: "台湾華語",
+    en: "Taiwanese Mandarin",
+    "zh-TW": "台灣華語",
+  },
+  "aiStats.lang.en": {
+    ja: "英語",
+    en: "English",
+    "zh-TW": "英語",
+  },
+  "aiStats.lang.ja": {
+    ja: "日本語",
+    en: "Japanese",
+    "zh-TW": "日語",
+  },
+  "aiStats.testRun": {
+    ja: "試す",
+    en: "Run test",
+    "zh-TW": "開始測試",
+  },
+  "aiStats.testRunning": {
+    ja: "試しています… {i}/{n}",
+    en: "Testing… {i}/{n}",
+    "zh-TW": "測試中… {i}/{n}",
+  },
+  "aiStats.testStop": {
+    ja: "止める",
+    en: "Stop",
+    "zh-TW": "停止",
+  },
+  "aiStats.testWant": {
+    ja: "正解",
+    en: "expected",
+    "zh-TW": "正解",
+  },
+  "aiStats.task.photo_candidates": {
+    ja: "撮った写真の候補",
+    en: "Photo word candidates",
+    "zh-TW": "拍照的單字候選",
+  },
+  "aiStats.task.tutorial_candidates": {
+    ja: "チュートリアルの写真の候補",
+    en: "Tutorial photo candidates",
+    "zh-TW": "教學照片的候選",
+  },
+  "aiStats.task.word_candidates": {
+    ja: "母語で調べた語の候補",
+    en: "Candidates for a typed word",
+    "zh-TW": "用母語查詢的候選",
+  },
+  "aiStats.task.scan_detect": {
+    ja: "スキャンの物・文字の検出",
+    en: "Scan: objects and text",
+    "zh-TW": "掃描：物品與文字偵測",
+  },
+  "aiStats.task.scan_parts": {
+    ja: "「+細かく」の部分の検出",
+    en: '"More detail": parts',
+    "zh-TW": "「+更細」的部位偵測",
+  },
+  "aiStats.task.image_sense": {
+    ja: "語の絵の意味を決める",
+    en: "Picture sense for a word",
+    "zh-TW": "決定單字圖片的意思",
+  },
+  "aiStats.task.image_verify": {
+    ja: "語の絵を確かめる",
+    en: "Checking word pictures",
+    "zh-TW": "確認單字圖片",
+  },
+  "aiStats.task.wordbook": {
+    ja: "単語帳の読み取り",
+    en: "Reading wordbook pages",
+    "zh-TW": "讀取單字本",
+  },
+  "aiStats.task.card": {
+    ja: "単語カード（解説）",
+    en: "Word card (explanation)",
+    "zh-TW": "單字卡（解說）",
+  },
+  "aiStats.task.tutorial_card": {
+    ja: "チュートリアルのカード",
+    en: "Tutorial card",
+    "zh-TW": "教學的單字卡",
+  },
+  "aiStats.task.phrase_card": {
+    ja: "フレーズカード",
+    en: "Phrase card",
+    "zh-TW": "片語卡",
+  },
+  "aiStats.task.section_regen": {
+    ja: "項目の作り直し",
+    en: "Regenerating a section",
+    "zh-TW": "重新產生項目",
+  },
+  "aiStats.task.reader_meaning": {
+    ja: "読む人の言語での意味",
+    en: "Meaning in the reader's language",
+    "zh-TW": "讀者語言的意思",
+  },
+  "aiStats.task.distractors": {
+    ja: "4択の誤答の作り置き",
+    en: "Quiz distractors",
+    "zh-TW": "四選一的錯誤選項",
+  },
+  "aiStats.task.journal_correct": {
+    ja: "日記の添削",
+    en: "Diary correction",
+    "zh-TW": "日記批改",
+  },
+  "aiStats.task.journal_prompts": {
+    ja: "日記の書き出しの質問",
+    en: "Diary prompts",
+    "zh-TW": "日記的寫作提問",
+  },
+  "aiStats.task.report_locate": {
+    ja: "報告された項目の特定",
+    en: "Locating a reported item",
+    "zh-TW": "找出被回報的項目",
+  },
+  "aiStats.task.reading_check_1": {
+    ja: "読みの突き合わせ（1人目）",
+    en: "Reading check (1st)",
+    "zh-TW": "讀音核對（第一位）",
+  },
+  "aiStats.task.correction_judge": {
+    ja: "作り直しの判定",
+    en: "Judging a correction",
+    "zh-TW": "判斷是否重新產生",
+  },
+  "aiStats.task.reading_check_2": {
+    ja: "読みの突き合わせ（2人目）",
+    en: "Reading check (2nd)",
+    "zh-TW": "讀音核對（第二位）",
+  },
+  "aiStats.task.lexicon_audit": {
+    ja: "辞書の点検",
+    en: "Dictionary audit",
+    "zh-TW": "辭典檢查",
+  },
+  "aiStats.task.lexicon_corpus": {
+    ja: "生きた例文の生成",
+    en: "Generating live examples",
+    "zh-TW": "產生實用例句",
+  },
+  "aiStats.task.report_triage": {
+    ja: "利用者の報告の検証",
+    en: "Checking user reports",
+    "zh-TW": "驗證使用者回報",
+  },
+  "aiStats.task.category_backfill": {
+    ja: "棚の分類の付け直し",
+    en: "Re-sorting shelves",
+    "zh-TW": "重新分類書架",
+  },
+  "aiStats.task.native_ai": {
+    ja: "iOS の自由文の窓口",
+    en: "iOS free-form AI",
+    "zh-TW": "iOS 的自由文字窗口",
+  },
   "aiSet.title": {
     ja: "AI の設定（開発者）",
     en: "AI settings (developer)",

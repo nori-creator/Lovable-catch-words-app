@@ -133,7 +133,7 @@ export const correctMyJournal = createServerFn({ method: "POST" })
     await assertWithinDailyCap(userId, "correction");
     const { today, stickers } = await getTodaysCaptures(supabase, userId);
 
-    const ai = await getAiFor("journal");
+    const ai = await getAiFor("journal", "journal_correct");
 
     // Roadmap B6: no full model-diary. Correction + "ネイティブならこう言う"
     // phrases + an explanation of the sentence patterns actually used.
@@ -345,7 +345,7 @@ export const getJournalPrompts = createServerFn({ method: "GET" })
     if (stickers.length === 0) return null;
 
     await assertWithinDailyCap(userId, "journal_prompt");
-    const ai = await getAiFor("journal");
+    const ai = await getAiFor("journal", "journal_prompts");
     const levelRule = await levelInstruction(userId);
     const langRule = await explanationLanguageRule(userId);
     // **3言語すべてを名前で引く**（`=== "en" ? "英語" : "日本語"` だと繁體中文の人の

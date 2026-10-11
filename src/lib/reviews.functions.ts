@@ -744,7 +744,7 @@ export async function pregenerateDistractors(
   /** その語の学習言語。渡さない古い呼び出しは既定(台湾華語)のまま。 */
   language?: string | null,
 ): Promise<void> {
-  const ai = await getAiFor("review");
+  const ai = await getAiFor("review", "distractors");
   // 「◯◯の単語」の呼び方は言語の表から(日本語の語を「台湾華語の単語」と呼ばない)。
   const quizWordLabel = targetProfile(language).coach.quizWordLabel;
   const accepted: string[] = [];

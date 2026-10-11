@@ -34,10 +34,12 @@ import { fillSharedWordFromCard, recordGeneratedCards, trustedCardFrom } from ".
 import { runAfterResponse } from "./after-response";
 import {
   AiAttemptsFailed,
+  attemptErrorCode,
   hedgeAfterFromEnv,
   runAiAttempts,
   type AiAttemptRecord,
 } from "./ai-attempts";
+import { AI_TEST_LANGUAGES, aiTestPhoto, testPhotoRank } from "./ai-test-photos";
 import { fitSuggestionsToReader } from "./first-catch-meaning";
 import { withObjectPoints } from "./suggestion-position";
 import { WordCandidatesSchema, legacyUsageOf, normalizeRegister } from "./text-search-flow";
@@ -72,6 +74,7 @@ import {
 } from "./dictionary-entry";
 import {
   aiCallerTier,
+  aiTargetFor,
   assertWithinDailyCap,
   concreteModelId,
   getAi,
@@ -359,13 +362,109 @@ export const warmUpCapture = createServerFn({ method: "POST" })
     const results = await Promise.allSettled([
       import("./ai-consent.server").then((m) => m.hasAiConsent(context.userId)),
       aiCallerTier(context.userId),
-      getAiAttemptChain("scan"),
+      getAiAttemptChain("scan", "photo_candidates"),
       getUserLevelGoal(context.userId),
       getExplanationLanguage(context.userId),
       loadReadingCheck(),
     ]);
     return { ok: results.every((r) => r.status === "fulfilled"), ms: Date.now() - startedAt };
   });
+
+/**
+ * 学習言語の語だけにした候補（`keepTargetHeadwords` の後）を、画面に出す順・形にする
+ * （本番の `suggestWords` と「固定の写真で試す」で同じ — 試しの順位が画面の順位と同じになる）。
+ */
+function finishPhotoCandidates(
+  usable: z.infer<typeof SuggestionSchema>["suggestions"],
+  reader: Awaited<ReturnType<typeof getExplanationLanguage>>,
+  targetLanguage: string,
+  correctTaiwanReading: Awaited<ReturnType<typeof loadReadingCheck>>,
+) {
+  return fitSuggestionsToReader(orderByRegister(usable), reader, targetLanguage).map((s) => ({
+    // 候補の読みも検める（`tw-reading.server.ts`）。
+    ...correctTaiwanReading(targetLanguage, s.headword, s),
+    // 候補の意味も語の長さに（R17「湯咖哩の英語の単語の候補…が長すぎる」）。
+    meaning_ja: shortMeaning(s.meaning_ja),
+    category_key: normalizeCategory(s.headword, s.category_key),
+  }));
+}
+
+/**
+ * **撮った後の候補の指示文**（本番の `suggestWords` と、開発者の「固定の写真で試す」
+ * — `adminTestPhotoCandidates` — が同じ物を使う。試しの結果が本番の指示と食い違わないように）。
+ */
+function photoCandidatesInstruction(targetLanguage: string, levelGoal: string, langRule: string) {
+  const profile = targetProfile(targetLanguage);
+  // **JLPT は数字の向きが逆**(N5 が入門)。数字を拾うと N5 の人が「上位」になり、
+  // 専門の名前ばかり出る。JLPT だけは段(N5→1 … N1→5)で読む。
+  // 台湾華語・英語の読み方は変えない(CEFR の "B1" を 1 と読んでいるのは前からの形)。
+  const jlptStep = profile.levels.id === JLPT_SCALE.id ? parseLevelStep(levelGoal) : null;
+  const levelNum =
+    typeof jlptStep === "number" ? jlptStep : Number(levelGoal.match(/(\d)/)?.[1] ?? 2);
+
+  // **ここに `levelInstruction` をそのまま掛けない。**
+  //
+  // あれは「語彙は必ずこの範囲に収める」と言う指示で、**解説や例文**には
+  // 正しい。しかし**学ぶ語の候補**に掛けると、その人が既に知っている
+  // 語しか出せなくなる。オーナー指摘(2026-08-20):
+  //
+  //   「三杯雞の画像をとっても雞肉としか表示されない。服を撮ったときに
+  //     衣服としか表示されない。レベルの高い人が衣服という単語を
+  //     調べないよね。短袖とかは調べるけど」
+  //
+  // 候補にとってレベルは**上限ではなく下限**で、「どこまで細かい名前で
+  // 呼ぶか」を決める物。だから級の縛りは外し、細かさの指示に置き換える。
+  // **例は言語ごとに違う。** 「短袖」「三杯雞」は台湾華語の例で、
+  // 英語の学習者に渡しても手掛かりにならない。表は
+  // `target-profile.ts` の `capture.specificity` が持つ。
+  const band = levelNum <= 2 ? 0 : levelNum <= 4 ? 1 : 2;
+  const bandName = ["入門〜基礎", "中位", "上位"][band];
+  const specificity = `学習者は${bandName}の級。${profile.capture.specificity[band]}`;
+
+  // **分岐しない。** 前は「台湾華語なら40行、それ以外は1行」だった。
+  // カテゴリの規則も「上位の分類語に逃げない」も**写真の話であって
+  // 言語の話ではない**ので、どの言語にも要る。言語で変わる所だけを
+  // プロフィールから受け取る。
+  const prompt = `この画像から、${profile.promptName}の学習対象として有用な名詞を5つ選んでください。
+- ${profile.capture.scriptRule}
+${specificity}
+${langRule}
+- 画像に明確に写っているものだけ
+
+**写っている物そのものの名前を出す（いちばん大事）:**
+- その言語を話す人がその写真を見て**最初に口にする名前**を出す。
+  ${profile.capture.namingExamples}
+- **確からしい順に並べる。** 1つ目が「これは何か」への答え。
+  自信の無いものを上に置かない。
+
+**写っている物ごとに分ける（group）:**
+- 写っている**別々の物**に 0 から順に group の番号を振る（確からしい物ほど小さい番号）。
+- 同じ物に別の呼び方（正確な名前・固有名詞・**砕けた言い方（略語・口語）**など）があれば、
+  **同じ group の番号で**続けて出す。register は ふだん=common / 砕けた=casual /
+  くわしい・専門的=specific / 固有名詞=proper。
+  別の呼び方が無い物は1つだけでよい。無理に作らない。
+- 物は最大5つ、1つの物の呼び方は最大3つ。
+- 物ごとに、その物の**最初の呼び方**に box_2d を付ける: 写真の中でその物を囲む枠を
+  [ymin, xmin, ymax, xmax]（0〜1000、写真の左上が原点）で。同じ group の2つ目以降の呼び方には付けなくてよい。
+
+**同じ物の呼び方が複数あるときの並び（ふだんの呼び方を上に）:**
+- ネイティブが日常でいちばんよく口にする呼び方を上に置く。正確・専門的な名前や
+  固有名詞は**下に置くが、消さない**（register で印を付ける）。
+  例: ${profile.capture.commonFirstExamples}
+- ただし**具体性は失わない**。「三杯雞」を「雞肉」に、「短袖」を「衣服」にしない —
+  ふだん使う呼び方と、上位の分類語は別物。
+
+**カテゴリ分類ルール（厳守）:**
+${CATEGORY_CHOICE_RULES_JA}
+
+${distinctionRule(profile.promptName, profile.capture.distinctionExamples)}
+- **distinction は15文字以内**。meaning_ja も**短く**（言い換え1つ。説明文にしない）。
+  候補の画面は横に動かないので、長い文は読まれない（オーナー指示 2026-09-28
+  「単語の説明が長すぎて、横にスクロールしないと見れないことがある。長すぎる文はなしで」）。`;
+
+  const instruction = `${prompt}\n\n必ずJSONだけを返してください。**${profile.promptName}の語を出す。他の言語の語を混ぜない。**\n形式: {"suggestions":[{"headword":"${profile.capture.jsonHeadwordHint}",${profile.capture.jsonReadingHint},"meaning_ja":"意味(上で指定した解説の言語で)","distinction":"使い分けの一言","category_key":"${CATEGORY_KEYS.join("|")} のどれか","register":"common|casual|specific|proper のどれか","group":0,"box_2d":[ymin,xmin,ymax,xmax]}]}。**確からしい順に並べ**、物は3〜5つ返してください(無理に5つに埋めない — 写っていない物を足すぐらいなら少なくてよい)。同じ物の別の呼び方は同じ group で。`;
+  return { profile, instruction };
+}
 
 export const suggestWords = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
@@ -405,7 +504,7 @@ export const suggestWords = createServerFn({ method: "POST" })
       reader: Awaited<ReturnType<typeof getExplanationLanguage>>;
     try {
       [chain, levelGoal, langRule, reader] = await Promise.all([
-        getAiAttemptChain("scan"),
+        getAiAttemptChain("scan", "photo_candidates"),
         getUserLevelGoal(context.userId),
         explanationLanguageRule(context.userId, data.targetLanguage),
         getExplanationLanguage(context.userId),
@@ -415,75 +514,11 @@ export const suggestWords = createServerFn({ method: "POST" })
       throw (await capRefusal) ?? e;
     }
     const preMs = Date.now() - startedAt;
-    const profile = targetProfile(data.targetLanguage);
-    // **JLPT は数字の向きが逆**(N5 が入門)。数字を拾うと N5 の人が「上位」になり、
-    // 専門の名前ばかり出る。JLPT だけは段(N5→1 … N1→5)で読む。
-    // 台湾華語・英語の読み方は変えない(CEFR の "B1" を 1 と読んでいるのは前からの形)。
-    const jlptStep = profile.levels.id === JLPT_SCALE.id ? parseLevelStep(levelGoal) : null;
-    const levelNum =
-      typeof jlptStep === "number" ? jlptStep : Number(levelGoal.match(/(\d)/)?.[1] ?? 2);
-
-    // **ここに `levelInstruction` をそのまま掛けない。**
-    //
-    // あれは「語彙は必ずこの範囲に収める」と言う指示で、**解説や例文**には
-    // 正しい。しかし**学ぶ語の候補**に掛けると、その人が既に知っている
-    // 語しか出せなくなる。オーナー指摘(2026-08-20):
-    //
-    //   「三杯雞の画像をとっても雞肉としか表示されない。服を撮ったときに
-    //     衣服としか表示されない。レベルの高い人が衣服という単語を
-    //     調べないよね。短袖とかは調べるけど」
-    //
-    // 候補にとってレベルは**上限ではなく下限**で、「どこまで細かい名前で
-    // 呼ぶか」を決める物。だから級の縛りは外し、細かさの指示に置き換える。
-    // **例は言語ごとに違う。** 「短袖」「三杯雞」は台湾華語の例で、
-    // 英語の学習者に渡しても手掛かりにならない。表は
-    // `target-profile.ts` の `capture.specificity` が持つ。
-    const band = levelNum <= 2 ? 0 : levelNum <= 4 ? 1 : 2;
-    const bandName = ["入門〜基礎", "中位", "上位"][band];
-    const specificity = `学習者は${bandName}の級。${profile.capture.specificity[band]}`;
-
-    // **分岐しない。** 前は「台湾華語なら40行、それ以外は1行」だった。
-    // カテゴリの規則も「上位の分類語に逃げない」も**写真の話であって
-    // 言語の話ではない**ので、どの言語にも要る。言語で変わる所だけを
-    // プロフィールから受け取る。
-    const prompt = `この画像から、${profile.promptName}の学習対象として有用な名詞を5つ選んでください。
-- ${profile.capture.scriptRule}
-${specificity}
-${langRule}
-- 画像に明確に写っているものだけ
-
-**写っている物そのものの名前を出す（いちばん大事）:**
-- その言語を話す人がその写真を見て**最初に口にする名前**を出す。
-  ${profile.capture.namingExamples}
-- **確からしい順に並べる。** 1つ目が「これは何か」への答え。
-  自信の無いものを上に置かない。
-
-**写っている物ごとに分ける（group）:**
-- 写っている**別々の物**に 0 から順に group の番号を振る（確からしい物ほど小さい番号）。
-- 同じ物に別の呼び方（正確な名前・固有名詞・**砕けた言い方（略語・口語）**など）があれば、
-  **同じ group の番号で**続けて出す。register は ふだん=common / 砕けた=casual /
-  くわしい・専門的=specific / 固有名詞=proper。
-  別の呼び方が無い物は1つだけでよい。無理に作らない。
-- 物は最大5つ、1つの物の呼び方は最大3つ。
-- 物ごとに、その物の**最初の呼び方**に box_2d を付ける: 写真の中でその物を囲む枠を
-  [ymin, xmin, ymax, xmax]（0〜1000、写真の左上が原点）で。同じ group の2つ目以降の呼び方には付けなくてよい。
-
-**同じ物の呼び方が複数あるときの並び（ふだんの呼び方を上に）:**
-- ネイティブが日常でいちばんよく口にする呼び方を上に置く。正確・専門的な名前や
-  固有名詞は**下に置くが、消さない**（register で印を付ける）。
-  例: ${profile.capture.commonFirstExamples}
-- ただし**具体性は失わない**。「三杯雞」を「雞肉」に、「短袖」を「衣服」にしない —
-  ふだん使う呼び方と、上位の分類語は別物。
-
-**カテゴリ分類ルール（厳守）:**
-${CATEGORY_CHOICE_RULES_JA}
-
-${distinctionRule(profile.promptName, profile.capture.distinctionExamples)}
-- **distinction は15文字以内**。meaning_ja も**短く**（言い換え1つ。説明文にしない）。
-  候補の画面は横に動かないので、長い文は読まれない（オーナー指示 2026-09-28
-  「単語の説明が長すぎて、横にスクロールしないと見れないことがある。長すぎる文はなしで」）。`;
-
-    const instruction = `${prompt}\n\n必ずJSONだけを返してください。**${profile.promptName}の語を出す。他の言語の語を混ぜない。**\n形式: {"suggestions":[{"headword":"${profile.capture.jsonHeadwordHint}",${profile.capture.jsonReadingHint},"meaning_ja":"意味(上で指定した解説の言語で)","distinction":"使い分けの一言","category_key":"${CATEGORY_KEYS.join("|")} のどれか","register":"common|casual|specific|proper のどれか","group":0,"box_2d":[ymin,xmin,ymax,xmax]}]}。**確からしい順に並べ**、物は3〜5つ返してください(無理に5つに埋めない — 写っていない物を足すぐらいなら少なくてよい)。同じ物の別の呼び方は同じ group で。`;
+    const { profile, instruction } = photoCandidatesInstruction(
+      data.targetLanguage,
+      levelGoal,
+      langRule,
+    );
     /**
      * **1番手が遅い時は2番手を並べて追いかける**（`ai-attempts.ts`、チュートリアルと同じ）。
      * 前は1回の呼び出しに締め切りが無く、AI SDK が黙って2回まで再送していた（詰まった
@@ -589,19 +624,120 @@ ${distinctionRule(profile.promptName, profile.capture.distinctionExamples)}
     }
     // 意味と使い分けの一言は**表示言語で**（チュートリアルと同じ関門、`first-catch-meaning.ts`）。
     // 別の言語で返った意味は空にする — 控え（共有の語の中身）にも残さない。
-    const suggestions = fitSuggestionsToReader(
-      orderByRegister(usable),
+    const suggestions = finishPhotoCandidates(
+      usable,
       reader,
       data.targetLanguage,
-    ).map((s) => ({
-      // 候補の読みも検める（`tw-reading.server.ts`）。
-      ...correctTaiwanReading(data.targetLanguage, s.headword, s),
-      // 候補の意味も語の長さに（R17「湯咖哩の英語の単語の候補…が長すぎる」）。
-      meaning_ja: shortMeaning(s.meaning_ja),
-      category_key: normalizeCategory(s.headword, s.category_key),
-    }));
+      correctTaiwanReading,
+    );
     await recordCandidateReceipts(profile.code, suggestions);
     return { suggestions };
+  });
+
+/** 「固定の写真で試す」の1枚の締め切り（本番の1番手と同じ 18 秒より長め — 遅いモデルも測り切る）。 */
+const ADMIN_TEST_TIMEOUT_MS = 30_000;
+
+const AdminTestPhotoInput = z.object({
+  /** `"auto"`（いまのスキャンの AI）か `"会社:モデル"`。本番の設定は変えない。 */
+  value: z.string().max(200),
+  photo: z.string().regex(/^[a-z0-9-]{1,60}$/),
+  targetLanguage: z.enum(AI_TEST_LANGUAGES),
+  imageBase64: z
+    .string()
+    .max(3_000_000)
+    .regex(/^data:image\/(jpeg|png|webp);base64,/),
+});
+
+/**
+ * **開発者の「固定の写真で試す」**（オーナー依頼 2026-10-11「haiku や sonnet をテストして時間と
+ * 正確性を gemini と比較して」）。選んだモデルに、正解の付いた決まった写真を1枚流し、撮った後の候補
+ * （`suggestWords` と同じ指示文・同じ並べ直し）の何番目に正解が出たかと時間を返す。
+ *
+ * - 管理者だけ。**本番の設定は変えない**（利用者には影響しない）。
+ * - 流すのは公開の決まった写真（`ai-test-photos.ts`）だけなので、利用者の同意・候補の1日の枠は
+ *   使わない。代わりに試しの1日の上限（`ai-test.server.ts`）。
+ * - 結果は `ai_test` に1行（開発者の画面の「固定の写真の試し」の表）。本番の `ai_call` には入れない。
+ */
+export const adminTestPhotoCandidates = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) => AdminTestPhotoInput.parse(input))
+  .handler(async ({ data, context }) => {
+    const photo = aiTestPhoto(data.photo);
+    if (!photo) throw new Error(`知らない写真です: ${data.photo}`);
+    const { assertAiTestAllowed, recordAiTest } = await import("./ai-test.server");
+    await assertAiTestAllowed(context);
+    const [target, levelGoal, langRule, reader, correctTaiwanReading] = await Promise.all([
+      aiTargetFor("scan", data.value),
+      getUserLevelGoal(context.userId),
+      explanationLanguageRule(context.userId, data.targetLanguage),
+      getExplanationLanguage(context.userId),
+      loadReadingCheck(),
+    ]);
+    const { instruction } = photoCandidatesInstruction(data.targetLanguage, levelGoal, langRule);
+    const started = Date.now();
+    let heads: string[] = [];
+    let usage: LanguageModelUsage | undefined;
+    let code: string | undefined;
+    try {
+      const result = await generateText({
+        model: target.model,
+        maxRetries: 0,
+        abortSignal: AbortSignal.timeout(ADMIN_TEST_TIMEOUT_MS),
+        messages: [
+          {
+            role: "user",
+            content: [
+              { type: "text", text: instruction },
+              { type: "image", image: data.imageBase64 },
+            ],
+          },
+        ],
+      });
+      usage = result.usage;
+      let parsed: z.infer<typeof SuggestionSchema> | null = null;
+      try {
+        parsed = SuggestionSchema.parse(parseJsonFromAiText(result.text));
+      } catch {
+        code = "unusable";
+      }
+      if (parsed) {
+        const usable = keepTargetHeadwords(parsed.suggestions, data.targetLanguage);
+        heads = finishPhotoCandidates(
+          usable,
+          reader,
+          data.targetLanguage,
+          correctTaiwanReading,
+        ).map((s) => s.headword);
+      }
+    } catch (e) {
+      const name = (e as { name?: string })?.name;
+      code = name === "TimeoutError" || name === "AbortError" ? "timeout" : attemptErrorCode(e);
+    }
+    const ms = Date.now() - started;
+    const accept = photo.labels[data.targetLanguage];
+    const rank = code ? null : testPhotoRank(heads, accept);
+    await recordAiTest(context, {
+      task: "photo_candidates",
+      model: target.label,
+      photo: photo.id,
+      kind: photo.kind,
+      lang: data.targetLanguage,
+      ok: !code,
+      ms,
+      rank,
+      n: heads.length,
+      code,
+      usage,
+    });
+    return {
+      ok: !code,
+      ms,
+      model: target.label,
+      rank,
+      heads: heads.slice(0, 6),
+      want: accept[0],
+      code: code ?? null,
+    };
   });
 
 const CardInput = z.object({
@@ -673,7 +809,7 @@ export const suggestWordCandidates = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     // 外部の AI へ送る前の同意（`ai-consent.ts`）。無ければ何も送らずに断る。
     await (await import("./ai-consent.server")).assertAiConsent(context.userId);
-    const ai = await getAiFor("scan");
+    const ai = await getAiFor("scan", "word_candidates");
     await assertWithinDailyCap(context.userId, "suggest");
     const levelRule = await levelInstruction(context.userId);
     const langRule = await explanationLanguageRule(context.userId, data.targetLanguage);
@@ -843,7 +979,7 @@ export const generateCard = createServerFn({ method: "POST" })
     // 断られたら、ここで止まる（AI は呼ばない）。
     const [ai, , levelGoal, levelRule, langRule, explainLang, l1, l1Gram, l1Info, pro] =
       await Promise.all([
-        getAiFor("card"),
+        getAiFor("card", "card"),
         assertWithinDailyCap(context.userId, "card"),
         getUserLevelGoal(context.userId),
         levelInstruction(context.userId),
@@ -1070,7 +1206,7 @@ ${data.hintCategory ? `カテゴリのヒント: ${data.hintCategory}` : ""}`;
      * 1番手は今までどおり `withModelFallback`（モデル名が無い時だけ控えのモデルへ）。
      */
     const aiName = ai.name ?? ai.provider;
-    const [, cardBackup] = await getAiAttemptChain("card");
+    const [, cardBackup] = await getAiAttemptChain("card", "card");
     const cardTargets: Array<{
       label: string;
       generate: (
@@ -1450,7 +1586,7 @@ export const generatePhraseCard = createServerFn({ method: "POST" })
   .handler(async ({ data, context }): Promise<GeneratedPhraseCard> => {
     // 外部の AI へ送る前の同意（`ai-consent.ts`）。無ければ何も送らずに断る。
     await (await import("./ai-consent.server")).assertAiConsent(context.userId);
-    const ai = await getAiFor("card");
+    const ai = await getAiFor("card", "phrase_card");
     await assertWithinDailyCap(context.userId, "phrase_card");
     // Plain text + tolerant parse (see generateCard) — avoid json_schema output
     // that Gemini's OpenAI-compatible endpoint rejects.
@@ -2077,7 +2213,7 @@ async function runSectionRegen(
   };
 
   const { prompt, schema } = spec[data.section];
-  const ai = await getAiFor("card");
+  const ai = await getAiFor("card", "section_regen");
   // **高性能なモデルは Pro の中身**(オーナーが挙げた有料機能の1つ)。
   // 無料の人にも項目は埋まる — 書き手が変わるだけ。
   const model = (await proCheck(userId)) ? ai.modelRichPremium : ai.modelRich;
@@ -2494,7 +2630,7 @@ async function locateReportedItem(
       .eq("id", wordId)
       .maybeSingle();
     if (!full) return null;
-    const ai = await getAiFor("audit");
+    const ai = await getAiFor("audit", "report_locate");
     const prompt =
       `語学カードについて、学習者から「どこかが間違っている」と報告がありました。\n` +
       `語: ${headword}（${language ?? ""}）\n報告の一言: ${note || "(なし)"}\n` +
@@ -2527,8 +2663,8 @@ async function askReadingTwice(
     ` pos はこの語のいちばん普通の品詞を日本語1語（名詞・動詞・形容詞・副詞など）。\n` +
     `出力はJSONだけ: {"reading":"","reading_alt":"","pos":""}`;
   // 1人目は点検の AI、2人目は「読みの突き合わせ」の AI（開発者の設定で別の会社にできる）。
-  const a = await getAiFor("audit");
-  const b = await getAiFor("reading_check");
+  const a = await getAiFor("audit", "reading_check_1");
+  const b = await getAiFor("reading_check", "reading_check_2");
   const models: Array<[AiConfig, string]> = [
     [a, a.modelRich],
     [b, b.modelFast === a.modelRich ? b.modelRich : b.modelFast],
@@ -2592,7 +2728,7 @@ async function judgeCorrection(p: {
   if (pAfter != null) return { by: "jev", pAfter };
 
   try {
-    const ai = await getAiFor("audit");
+    const ai = await getAiFor("audit", "correction_judge");
     const prompt =
       `語学カードの1項目について、学習者から「間違っている」と報告がありました。\n` +
       `語: ${p.headword}（${p.language ?? ""}）\n項目: ${p.item}\n` +

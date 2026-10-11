@@ -551,7 +551,7 @@ export const fillReaderMeanings = createServerFn({ method: "POST" })
       const { generateText } = await import("ai");
       try {
         await ai.assertWithinDailyCap(userId, "reader_meaning");
-        const cfg = await ai.getAiFor("card");
+        const cfg = await ai.getAiFor("card", "reader_meaning");
         const NL = ai.explanationLanguageName(lang);
         const byLang = new Map<string, typeof words>();
         for (const w of left) {

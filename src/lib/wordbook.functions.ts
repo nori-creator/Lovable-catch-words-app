@@ -97,7 +97,7 @@ export const extractWordbook = createServerFn({ method: "POST" })
     await (await import("./ai-consent.server")).assertAiConsent(context.userId);
     const { supabase, userId } = context;
     await assertWithinDailyCap(userId, "wordbook");
-    const ai = await getAiFor("scan");
+    const ai = await getAiFor("scan", "wordbook");
     // 意味は**読む人の言語**で（iOS の言語検査 2026-10-01: 表示言語が英語・台湾華語でも
     // 単語帳の意味だけ日本語で返り、画面に言語が混ざっていた）。頁の意味が別の言語なら訳す。
     const { explanationLanguageRule } = await import("./ai-provider.server");

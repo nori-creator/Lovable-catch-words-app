@@ -10,7 +10,13 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { generateText } from "ai";
 import { z } from "zod";
 import { isNounLike } from "./pos";
-import { assertWithinDailyCap, forFeature, getAi, getAiFor } from "./ai-provider.server";
+import {
+  assertWithinDailyCap,
+  forFeature,
+  getAi,
+  getAiFor,
+  measuredAi,
+} from "./ai-provider.server";
 import { normalizeDetection } from "./scan-detect-parse";
 import { readAllPages } from "./pagination";
 import { targetProfile, type CoachPhrases } from "./target-profile";
@@ -142,7 +148,7 @@ export const detectScan = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     // 外部の AI へ送る前の同意（`ai-consent.ts`）。無ければ何も送らずに断る。
     await (await import("./ai-consent.server")).assertAiConsent(context.userId);
-    const ai = await getAiFor("scan");
+    const ai = await getAiFor("scan", "scan_detect");
     const { supabase, userId } = context;
     await assertWithinDailyCap(userId, "scan_detect");
     const { levelInstruction, explanationLanguageRule } = await import("./ai-provider.server");
@@ -196,7 +202,7 @@ export const detectScan = createServerFn({ method: "POST" })
       found = await ask(ai);
     } catch (first) {
       const base = await Promise.resolve()
-        .then(() => forFeature(getAi(), "scan"))
+        .then(() => measuredAi(forFeature(getAi(), "scan"), "scan", "scan_detect"))
         .catch(() => null);
       const same =
         !base ||
@@ -318,7 +324,7 @@ export const detectParts = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     // 外部の AI へ送る前の同意（`ai-consent.ts`）。無ければ何も送らずに断る。
     await (await import("./ai-consent.server")).assertAiConsent(context.userId);
-    const ai = await getAiFor("scan");
+    const ai = await getAiFor("scan", "scan_parts");
     await assertWithinDailyCap(context.userId, "scan_parts");
     const imageInput = data.imageBase64.startsWith("data:")
       ? data.imageBase64

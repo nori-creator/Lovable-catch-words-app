@@ -16,10 +16,13 @@ import {
 import type { AdminAiSettings, TtsLanguageRow } from "@/lib/admin-ai.server";
 import {
   adminGetAiSettings,
+  adminGetAiStats,
   adminSetAiFeature,
   adminSetImageConfig,
   adminSetTtsVoice,
 } from "@/lib/admin-ai.functions";
+import { adminTestPhotoCandidates } from "@/lib/ai.functions";
+import { AiStatsSection, type AiStatsActions, type AiStatsResult } from "./AdminAiStatsSection";
 import { adminTestImage } from "@/lib/images.functions";
 import { diagnoseGeminiTts, previewTtsVoice } from "@/lib/tts.functions";
 
@@ -28,6 +31,7 @@ import { diagnoseGeminiTts, previewTtsVoice } from "@/lib/tts.functions";
  * いる。整理・削除・統合して」「アプリの全部の AI を Web と iOS の開発者設定から切り替える」）。
  *
  * 上から: ①動いているか ②機能ごとの AI（自動 = 最新の Gemini、または 会社:モデル）
+ * ②' 機能ごと・モデルごとの速さと正確さ・固定の写真で試す（`AdminAiStatsSection.tsx`）
  * ③文字検索の AI 画像（会社・モデル・試しに1枚） ④発音の声（台湾華語・英語・日本語）。
  * 中身はサーバの `admin-ai.server.ts`。iOS も同じ口を呼ぶ（`docs/admin-ai-api.md`）。
  *
@@ -67,6 +71,10 @@ export type AdminAiActions = {
     choice: { provider: string; voice: string; model?: string },
   ) => Promise<{ audio_url: string; ms: number }>;
   diagnoseTts?: () => Promise<GeminiDiagnosis>;
+  /** 速さと正確さの表（無ければ表を出さない）。 */
+  getStats?: AiStatsActions["getStats"];
+  /** 固定の写真で試す（無ければ試しの欄を出さない）。 */
+  testPhoto?: AiStatsActions["testPhoto"];
 };
 
 const TTS_SAMPLE: Record<string, string> = {
@@ -97,6 +105,8 @@ export function AdminAiSettingsCard() {
   const ttsFn = useServerFn(adminSetTtsVoice);
   const tryFn = useServerFn(previewTtsVoice);
   const diagFn = useServerFn(diagnoseGeminiTts);
+  const statsFn = useServerFn(adminGetAiStats);
+  const testPhotoFn = useServerFn(adminTestPhotoCandidates);
   const qc = useQueryClient();
   const { data, error } = useQuery({
     queryKey: ["admin-ai-settings"],
@@ -120,6 +130,8 @@ export function AdminAiSettingsCard() {
     },
     previewTts: (language, text, choice) => tryFn({ data: { language, text, choice } }),
     diagnoseTts: () => diagFn(),
+    getStats: (input) => statsFn({ data: input }) as Promise<AiStatsResult>,
+    testPhoto: (input) => testPhotoFn({ data: input }),
   };
   if (data && !data.isAdmin) return null;
   return <AdminAiSettingsView data={data} loadError={error} actions={actions} />;
@@ -164,6 +176,12 @@ export function AdminAiSettingsView({
               : t("aiSet.statusNg", { e: ready.status.error ?? "" })}
           </p>
           <FeatureSection data={ready} actions={actions} />
+          {actions.getStats && (
+            <AiStatsSection
+              data={ready}
+              actions={{ getStats: actions.getStats, testPhoto: actions.testPhoto }}
+            />
+          )}
           <ImageSection data={ready} actions={actions} />
           <TtsSection data={ready} actions={actions} />
         </div>
