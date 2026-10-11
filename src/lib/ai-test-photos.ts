@@ -257,6 +257,47 @@ export const AI_TEST_PHOTOS: readonly AiTestPhoto[] = [
   ),
 ];
 
+/**
+ * 写真の中身の指紋（SHA-256）。サーバは届いた写真がこの名前の写真か確かめてから試す
+ * （古い写真を覚えている端末・取り違えで、別の写真の結果をこの正解で数えないため）。
+ * 写真を差し替えたら、ここも直す（`ai-test-photos.test.ts` が食い違いを見つける）。
+ */
+export const AI_TEST_PHOTO_SHA256: Readonly<Record<string, string>> = {
+  aircon: "7fe29f2837cb9c5a65a53fa34d24bc246a4b0844ca8f0d5127d2e16e4c88f851",
+  banana: "a6ec0d26b9e602f7531e2e32c4efa5ef3fd071361cc9a0d2fcd1a86e77377271",
+  "bike-bell": "dc216c98482262a3c8ecc7ea6573cb3f189322a6577278d392521601f4e9a600",
+  "braised-pork-rice": "2602d3024ad75ac1017e30ec7d2d97778ba25655fde4bc93a6d39b42b3e119bc",
+  "bubble-tea-cup": "9f8ed2f364e9bf68c9aa772a5943a3d6a70721b5a132ab2d195d70f7da441718",
+  "bubble-tea-street": "924436080ee344f5b971ab18701c2810c7d3656b42e3313719670b9fe8e0310e",
+  cafe: "b2736578150481b05a664dcd369503c0ee64dc002f5f04838860c1753c6333c3",
+  cat: "bbd99d0bc3bca8603641981fbad0a3e765b1b0868ab63a94202636b8b4c5d2d5",
+  "chicken-cutlet": "f5851455c87bdb8bd363f420285f0346b9c4d64709f223ae558cd825f3211ace",
+  coconut: "f746d2a87d2c443240b02879499f887b40fbe009bfb32f301205aab5a539e035",
+  "coffee-cup": "8321ecfc3d6dadb1c66dc5190b4f4003d6a7c31eb0c5d3d0206803159678a49b",
+  cola: "890501387662c75042b846bb280d1e822868cbe5e63de67ebc5fa0e4791d24d9",
+  douhua: "8597f9c19f4d5bf78892b6892868e51032ada353f7a10f98f28ef6fdc3e27fd8",
+  fan: "c4731e9124b1e2bfbdf772fde32a85d42eecd5a8f2d7a98395174a4b0203fe70",
+  flowers: "db1da2a489b80b447e48e63ab6885e56dbf54eb9954d1385265454f94ff60962",
+  juice: "4ddcc68e4de16ec2bacd746880a32602869772aff9ee118637e2254410732397",
+  keys: "5b844bf81edbb56fe12c777021098dd77f3329662ee9e01fd7a19a1f9e050ccd",
+  lantern: "1ae3d2fb05399bea799dba81449fbab3a3489335fa3768bf35c148e0115ee5f5",
+  "mango-shaved-ice": "8b54fefb1588a6b170fa38f0f1317ec79ba1c8c86b4d2900bfb770682d895abe",
+  mango: "c8d8d1636c0def520a2ef138209b829c86472769837484f24985462de4551299",
+  mug: "c69fe37388d7a05cfccc7996828e57c0e465ecafdcb79fab2d7995631c86dfb6",
+  oolong: "77a781b1abbf1ab0c95c5f82aa14315b10205078323ee05598becd2b84d98228",
+  "pineapple-cake": "5d369dad4f36768f6c77575e5b6c825085f0753b44e779b6c3982a6496cf6507",
+  pomelo: "40806a4563cb9433d9a6f1ef4cdaa7d4e9d7244c668e3c91e3f7cf0433acd490",
+  remote: "f817803066b7e010b1995d62c1425e25c35dcfbaf500c98709928ac3e59af834",
+  "rice-cooker": "048db0481d7b23df8b10acefc58e0a60a86f2531625c9e556a49f6dd9a8228f2",
+  sea: "4733436821707daeb4fd0e1212af33f8c49c3813913c494d761d9b03f4833752",
+  slippers: "2bfbc7fd54c434d4dbb52b190bea8e0507969b3d504f4d2021ad4f6547073868",
+  stool: "ce182875c534ca522c39ad63c234ea6c29363b64032a88c00e222e448728e0de",
+  succulent: "54ba678439f3a1d29e1386602f2b32caa6f5617522bd2f3324f1fcaa738f24d0",
+  tissue: "4b757650ec3364e488aa0653aaf86d765bcc96636dc249fe9233874590e4abfc",
+  umbrella: "916e97518c439c4696729c93d78c03259aca29e39775c674bd0c612227c97c92",
+  xiaolongbao: "50147abcf522ed39002440705ce012fb906e52db8622173f413272098654cc8f",
+};
+
 export function isAiTestLanguage(v: unknown): v is AiTestLanguage {
   return typeof v === "string" && (AI_TEST_LANGUAGES as readonly string[]).includes(v);
 }

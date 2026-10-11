@@ -39,7 +39,12 @@ import {
   runAiAttempts,
   type AiAttemptRecord,
 } from "./ai-attempts";
-import { AI_TEST_LANGUAGES, aiTestPhoto, testPhotoRank } from "./ai-test-photos";
+import {
+  AI_TEST_LANGUAGES,
+  AI_TEST_PHOTO_SHA256,
+  aiTestPhoto,
+  testPhotoRank,
+} from "./ai-test-photos";
 import { claude5ThinkingOff } from "./claude-thinking";
 import { fitSuggestionsToReader } from "./first-catch-meaning";
 import { withObjectPoints } from "./suggestion-position";
@@ -205,6 +210,9 @@ const SUGGEST_HEDGE_AFTER_MS = 3_000;
 /**
  * 撮った後の候補の1回を `ai_runs` に残す（`loop="capture_suggest"`）。中身は成否・待ち時間・
  * 答えた AI の名前・各回の結果だけ — 写真・語は入れない。返事は待たせない。
+ *
+ * 行は返事の後に書くので、行の時刻は返事より遅れる。返事ができた時刻（`at`、ms）も残す —
+ * 候補を選んだ回（`candidate_pick`）をこの撮影に結び付ける時に使う（`ai-model-stats.ts`）。
  */
 function recordSuggestRun(
   context: { userId: string; supabase: { from: (t: "ai_runs") => unknown } },
@@ -226,6 +234,7 @@ function recordSuggestRun(
       (run.via ? ` via ${run.via}` : "") +
       (run.hedged ? " (hedged)" : ""),
   );
+  const at = Date.now();
   void runAfterResponse("suggestWords: ai_runs", async () => {
     const table = context.supabase.from("ai_runs") as {
       insert: (row: unknown) => PromiseLike<{ error: { message: string } | null }>;
@@ -238,6 +247,7 @@ function recordSuggestRun(
       meta: {
         ok: run.ok,
         ms: run.ms,
+        at,
         ai_ms: run.aiMs,
         ...(run.via ? { via: run.via } : {}),
         hedged: run.hedged ?? false,
@@ -672,6 +682,13 @@ export const adminTestPhotoCandidates = createServerFn({ method: "POST" })
     if (!photo) throw new Error(`知らない写真です: ${data.photo}`);
     const { assertAiTestAllowed, recordAiTest } = await import("./ai-test.server");
     await assertAiTestAllowed(context);
+    // 届いた写真がこの名前の写真か（古い写真を覚えた端末・取り違えの結果を、この正解で数えない）。
+    const bytes = Buffer.from(data.imageBase64.slice(data.imageBase64.indexOf(",") + 1), "base64");
+    const digest = Buffer.from(await crypto.subtle.digest("SHA-256", bytes)).toString("hex");
+    if (digest !== AI_TEST_PHOTO_SHA256[photo.id])
+      throw new Error(
+        `AI_TEST_PHOTO_MISMATCH: ${photo.id} の写真が違います（アプリを最新にしてください）`,
+      );
     const [target, levelGoal, langRule, reader, correctTaiwanReading] = await Promise.all([
       aiTargetFor("scan", data.value),
       getUserLevelGoal(context.userId),

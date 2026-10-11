@@ -245,7 +245,8 @@ export function adminAiStatsFixture(days: 1 | 7 | 30 = 7, mine = false) {
     pick(299 + i * 10, r);
   });
   suggest(400, lite, "unusable");
-  const test = (model: string, ranks: Array<number | null>, ms: number) =>
+  // `"timeout"` = 答えが返らなかった写真（時間に入れず、正解の率では外れ）。
+  const test = (model: string, ranks: Array<number | null | "timeout">, ms: number) =>
     ranks.forEach((rank, i) =>
       rows.push({
         user_id: "u",
@@ -255,16 +256,18 @@ export function adminAiStatsFixture(days: 1 | 7 | 30 = 7, mine = false) {
           task: "photo_candidates",
           model,
           photo: AI_TEST_PHOTOS[i % AI_TEST_PHOTOS.length].id,
-          ok: true,
-          ms: ms + i * 40,
+          lang: "zh-TW",
+          ok: rank !== "timeout",
+          ms: rank === "timeout" ? 30_000 : ms + i * 40,
           in: 1700,
           out: 300,
-          ...(rank ? { rank } : {}),
+          ...(typeof rank === "number" ? { rank } : {}),
+          ...(rank === "timeout" ? { code: "timeout" } : {}),
         },
       }),
     );
   test(lite, [1, 1, 1, 2, 1, null, 1, 1, 3, 1], 2100);
-  test(haiku, [1, 2, 1, null, 1, 1, null, 2, 1, 1], 1600);
+  test(haiku, [1, 2, 1, null, 1, 1, "timeout", 2, 1, 1], 1600);
   return {
     isAdmin: true as const,
     truncated: false,

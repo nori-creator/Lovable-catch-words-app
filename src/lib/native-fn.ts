@@ -163,6 +163,8 @@ export function statusForError(e: unknown): number {
   if (msg.includes("AI_CONSENT_CHECK_FAILED")) return 503;
   // 開発者の「固定の写真で試す」の1日の上限（`ai-test.server.ts`）。
   if (msg.includes("AI_TEST_DAILY_LIMIT")) return 429;
+  // 送った写真が、名前の写真と違う（`adminTestPhotoCandidates`。古い写真を覚えた端末など）。
+  if (msg.includes("AI_TEST_PHOTO_MISMATCH")) return 400;
   if (
     msg.includes("1日の利用上限") ||
     msg.includes("AI_DAILY_CAP") ||

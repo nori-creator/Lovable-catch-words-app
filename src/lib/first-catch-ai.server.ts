@@ -225,7 +225,7 @@ export function prefetchFirstCatchChain(
   const chain =
     action === "suggest"
       ? getAiAttemptChain("scan", "tutorial_candidates")
-      : getAiAttemptChain("card", "tutorial_card");
+      : getAiAttemptChain("card", action === "lesson" ? "tutorial_lesson" : "tutorial_card");
   // 枠の確保が先に断られた時、拾われない失敗として残さない（使う時にもう一度 await する）。
   chain.catch(() => {});
   return chain;

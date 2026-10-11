@@ -35,6 +35,7 @@ export const AI_TASKS = [
   // 単語カード
   { id: "card", feature: "card" }, // 単語カード（詳細の解説・例文）
   { id: "tutorial_card", feature: "card" }, // チュートリアルのカード
+  { id: "tutorial_lesson", feature: "card" }, // チュートリアルの、その人に合わせた短いレッスン
   { id: "phrase_card", feature: "card" }, // フレーズカード
   { id: "section_regen", feature: "card" }, // 項目の作り直し
   { id: "reader_meaning", feature: "card" }, // 読む人の言語での意味
