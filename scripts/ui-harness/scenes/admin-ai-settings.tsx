@@ -10,6 +10,8 @@ import {
   type ImageTestResult,
 } from "@/components/AdminAiSettingsCard";
 import type { AdminAiSettings } from "@/lib/admin-ai.server";
+import { computeAiModelStats, type AiStatsRow } from "@/lib/ai-model-stats";
+import { AI_TEST_PHOTOS } from "@/lib/ai-test-photos";
 import { AI_FEATURES } from "@/lib/ai-features";
 import { DICT, UI_LANGS, type UiLang } from "@/lib/i18n";
 import { TAIWAN_AZURE_VOICES, TTS_PROVIDERS } from "@/lib/tts-providers";
@@ -180,6 +182,100 @@ export function adminAiFixture(overrides: Partial<Ready> = {}): Ready {
   };
 }
 
+/**
+ * 速さと正確さの表の見本（本物の数え方 `computeAiModelStats` に、決まった行を通す）。
+ * スキャンは Flash-Lite と Claude Haiku を見比べている途中、という想定。
+ */
+export function adminAiStatsFixture(days: 1 | 7 | 30 = 7, mine = false) {
+  const now = Date.UTC(2026, 9, 11, 9);
+  const rows: AiStatsRow[] = [];
+  const at = (i: number) => new Date(now - i * 60_000).toISOString();
+  const add = (task: string, feature: string, model: string, ms: number[], extra = {}) =>
+    ms.forEach((m, i) =>
+      rows.push({
+        user_id: "u",
+        loop: "ai_call",
+        created_at: at(i),
+        meta: { feature, task, model, ms: m, ok: true, in: 1850, out: 320, ...extra },
+      }),
+    );
+  const lite = "google:gemini-3.8-flash-lite";
+  const haiku = "anthropic:claude-haiku-5-5";
+  add("photo_candidates", "scan", lite, [1900, 2100, 2300, 2500, 2800, 3400, 2000, 2200]);
+  add("photo_candidates", "scan", haiku, [1500, 1700, 1600, 2600]);
+  rows.push({
+    user_id: "u",
+    loop: "ai_call",
+    created_at: at(1),
+    meta: {
+      feature: "scan",
+      task: "photo_candidates",
+      model: lite,
+      ms: 18000,
+      ok: false,
+      code: "timeout",
+    },
+  });
+  add("card", "card", "google:gemini-3.8-flash", [12400, 15800, 18600, 21000], {
+    in: 10200,
+    out: 2050,
+  });
+  add("reader_meaning", "card", "google:gemini-3.8-flash", [1300, 1500, 1800]);
+  add("journal_correct", "journal", "openrouter:anthropic/claude-sonnet-4.5", [6100, 7400]);
+  const suggest = (i: number, via: string, outcome = "ok") =>
+    rows.push({
+      user_id: "u",
+      loop: "capture_suggest",
+      created_at: at(i),
+      meta: { ok: true, via, attempts: [{ label: via, outcome }] },
+    });
+  const pick = (i: number, rank: number | null) =>
+    rows.push({
+      user_id: "u",
+      loop: "candidate_pick",
+      created_at: at(i),
+      meta: rank ? { via: "photo", rank, n: 5 } : { via: "native_search" },
+    });
+  [1, 1, 2, 1, null, 1, 3].forEach((r, i) => {
+    suggest(100 + i * 10, lite);
+    pick(99 + i * 10, r);
+  });
+  [1, 1, 2].forEach((r, i) => {
+    suggest(300 + i * 10, haiku);
+    pick(299 + i * 10, r);
+  });
+  suggest(400, lite, "unusable");
+  const test = (model: string, ranks: Array<number | null>, ms: number) =>
+    ranks.forEach((rank, i) =>
+      rows.push({
+        user_id: "u",
+        loop: "ai_test",
+        created_at: at(i),
+        meta: {
+          task: "photo_candidates",
+          model,
+          photo: AI_TEST_PHOTOS[i % AI_TEST_PHOTOS.length].id,
+          ok: true,
+          ms: ms + i * 40,
+          in: 1700,
+          out: 300,
+          ...(rank ? { rank } : {}),
+        },
+      }),
+    );
+  test(lite, [1, 1, 1, 2, 1, null, 1, 1, 3, 1], 2100);
+  test(haiku, [1, 2, 1, null, 1, 1, null, 2, 1, 1], 1600);
+  return {
+    isAdmin: true as const,
+    truncated: false,
+    ...computeAiModelStats(rows, {
+      days,
+      mine,
+      since: new Date(now - days * 86_400_000).toISOString(),
+    }),
+  };
+}
+
 /** 見本の中だけで動く道具（保存すると画面の「いま」が変わる）。 */
 export function useFixtureActions(
   data: Ready,
@@ -253,6 +349,27 @@ export function useFixtureActions(
     },
     previewTts: async () => {
       throw new Error("見本のページでは声を鳴らしません（設定 → 開発者 で試してください）");
+    },
+    getStats: async ({ days, mine }) => {
+      await wait();
+      return adminAiStatsFixture(days, mine);
+    },
+    testPhoto: async ({ value, photo }) => {
+      await wait();
+      const i = AI_TEST_PHOTOS.findIndex((p) => p.id === photo);
+      const p = AI_TEST_PHOTOS[i];
+      const rank = i % 5 === 3 ? null : i % 4 === 2 ? 2 : 1;
+      const want = p.labels["zh-TW"][0];
+      return {
+        ok: true,
+        ms: 1500 + (i % 7) * 230,
+        model: value === "auto" ? "google:gemini-3.8-flash-lite" : value,
+        variant: null,
+        rank,
+        heads: rank === 1 ? [want, "杯子"] : rank === 2 ? ["杯子", want] : ["杯子", "桌子"],
+        want,
+        code: null,
+      };
     },
     ...extra,
   };

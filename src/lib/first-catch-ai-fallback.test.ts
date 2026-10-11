@@ -31,7 +31,14 @@ vi.mock("@/integrations/supabase/client.server", () => ({
   },
 }));
 
-import { executeFirstCatchAI, runFirstCatchAI } from "./first-catch-ai.server";
+import {
+  FIRST_CATCH_HEDGE_AFTER_MS,
+  executeFirstCatchAI,
+  runFirstCatchAI,
+} from "./first-catch-ai.server";
+
+/** 写真の候補の追いかけ（2番手を並べる）までの時間。決め打ちにせず設定から読む。 */
+const HEDGE = FIRST_CATCH_HEDGE_AFTER_MS.suggest;
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
 
@@ -194,11 +201,11 @@ describe("first-catch AI attempts", () => {
     expect(run).toMatchObject({ ok: true, tokensIn: 900, tokensOut: 80 });
   });
 
-  it("hedges: asks the second configured model after 6 s and takes its answer (primary aborted)", async () => {
+  it("hedges: asks the second configured model after the hedge delay and takes its answer (primary aborted)", async () => {
     vi.useFakeTimers();
     generateText.mockImplementationOnce(stall()).mockResolvedValueOnce({ text: reply });
     const pending = runFirstCatchAI(request);
-    await vi.advanceTimersByTimeAsync(5_999);
+    await vi.advanceTimersByTimeAsync(HEDGE - 1);
     expect(generateText).toHaveBeenCalledTimes(1);
     await vi.advanceTimersByTimeAsync(1);
     const { run } = await pending;
@@ -206,7 +213,7 @@ describe("first-catch AI attempts", () => {
     expect(generateText.mock.calls[1][0].model).toEqual({ id: "backup" });
     expect(generateText.mock.calls[0][0].abortSignal.aborted).toBe(true);
     expect(run.attempts.map((a) => a.outcome)).toEqual(["cancelled", "ok"]);
-    expect(run).toMatchObject({ via: "google:gemini-2.5-flash", hedged: true, ms: 6_000 });
+    expect(run).toMatchObject({ via: "google:gemini-2.5-flash", hedged: true, ms: HEDGE });
   });
 
   it("AI_HEDGE_AFTER_MS=0 turns hedging off: the second model starts only after the 20 s deadline", async () => {
@@ -228,17 +235,17 @@ describe("first-catch AI attempts", () => {
     generateText.mockImplementationOnce(stall()).mockResolvedValueOnce({ text: reply });
     const { db, inserted } = memberDb();
     const pending = executeFirstCatchAI(request, { userId: "u1", supabase: db });
-    await vi.advanceTimersByTimeAsync(6_000);
+    await vi.advanceTimersByTimeAsync(HEDGE);
     await pending;
     expect(reserveAiCallFor).toHaveBeenCalledTimes(1);
     expect(inserted.find((r) => r.table === "ai_runs")?.row.meta).toMatchObject({
       ok: true,
       via: "google:gemini-2.5-flash",
       hedged: true,
-      ms: 6_000,
+      ms: HEDGE,
       attempts: [
         { label: "lovable:google/gemini-3-flash-preview", outcome: "cancelled" },
-        { label: "google:gemini-2.5-flash", outcome: "ok", hedged: true, startMs: 6_000 },
+        { label: "google:gemini-2.5-flash", outcome: "ok", hedged: true, startMs: HEDGE },
       ],
     });
   });

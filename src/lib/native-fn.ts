@@ -38,6 +38,7 @@ const images = () => import("./images.functions");
 const consent = () => import("./ai-consent.functions");
 const appleToken = () => import("./apple-token.functions");
 const adminAi = () => import("./admin-ai.functions");
+const candidatePick = () => import("./candidate-pick.functions");
 
 function from<M>(mod: () => Promise<M>, name: keyof M & string): Loader {
   return async () => (await mod())[name] as unknown as ServerFn;
@@ -49,6 +50,8 @@ export const NATIVE_FNS: Record<string, Loader> = {
   // カメラを開いた時の下準備（AI は呼ばない・枠は数えない）
   warmUpCapture: from(ai, "warmUpCapture"),
   suggestWordCandidates: from(ai, "suggestWordCandidates"),
+  // 候補の何番目を選んだか（モデルごとの候補の当たり。`candidate-pick.functions.ts`）
+  logCandidatePick: from(candidatePick, "logCandidatePick"),
   generateCard: from(ai, "generateCard"),
   generatePhraseCard: from(ai, "generatePhraseCard"),
   regenerateCardSection: from(ai, "regenerateCardSection"),
@@ -128,6 +131,10 @@ export const NATIVE_FNS: Record<string, Loader> = {
   adminTestImage: from(images, "adminTestImage"),
   adminPreviewTtsVoice: from(tts, "previewTtsVoice"),
   adminDiagnoseGeminiTts: from(tts, "diagnoseGeminiTts"),
+  // 機能ごと・モデルごとの AI の速さと正確さ・固定の写真で試す（`ai-model-stats.ts`）
+  adminGetAiStats: from(adminAi, "adminGetAiStats"),
+  adminGetAiTestPhotos: from(adminAi, "adminGetAiTestPhotos"),
+  adminTestPhotoCandidates: from(ai, "adminTestPhotoCandidates"),
 };
 
 /** 管理者だけが使える口（名前は必ず `admin` で始める）。試験が一覧と突き合わせる。 */
@@ -139,6 +146,9 @@ export const NATIVE_ADMIN_FNS = [
   "adminTestImage",
   "adminPreviewTtsVoice",
   "adminDiagnoseGeminiTts",
+  "adminGetAiStats",
+  "adminGetAiTestPhotos",
+  "adminTestPhotoCandidates",
 ] as const;
 
 /** 失敗の中身から、iOS に返す状態コードを決める。 */
@@ -151,6 +161,8 @@ export function statusForError(e: unknown): number {
   // 外部の AI へ送る同意が無い（`ai-consent.ts`）。iOS は同意の画面を出す。
   if (msg.includes("AI_CONSENT_REQUIRED")) return 403;
   if (msg.includes("AI_CONSENT_CHECK_FAILED")) return 503;
+  // 開発者の「固定の写真で試す」の1日の上限（`ai-test.server.ts`）。
+  if (msg.includes("AI_TEST_DAILY_LIMIT")) return 429;
   if (
     msg.includes("1日の利用上限") ||
     msg.includes("AI_DAILY_CAP") ||

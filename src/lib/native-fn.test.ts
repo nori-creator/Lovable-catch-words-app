@@ -7,6 +7,7 @@ describe("native-fn allowlist", () => {
       "suggestWords",
       "warmUpCapture",
       "suggestWordCandidates",
+      "logCandidatePick",
       "generateCard",
       "saveSticker",
       "checkOwnedWord",

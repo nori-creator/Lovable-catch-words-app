@@ -483,6 +483,124 @@ Web は同じ関数を `useServerFn` で直に呼ぶ（返事の形は同じ）�
 }
 ```
 
+## `adminGetAiStats`（機能ごと・用途ごと・モデルごとの速さと正確さ）
+
+オーナー依頼 2026-10-11「開発者の設定から、それぞれの機能で使う AI を切り替えたときの結果を計測し、
+分析できるようにして」。数え方は `src/lib/ai-model-stats.ts`、記録は `src/lib/ai-call-log.ts`。
+
+`data`: `{ "days": 1 | 7 | 30, "mine": false }`（`mine: true` = 自分の使った分だけ。`days` が
+それ以外なら 7）。管理者でなければ `{ "isAdmin": false }`。
+
+返事（数だけ。誰の行か・写真・語は返さない）:
+
+```json
+{
+  "isAdmin": true,
+  "truncated": false,
+  "days": 7,
+  "mine": false,
+  "since": "2026-10-04T09:00:00.000Z",
+  "tasks": [
+    {
+      "task": "photo_candidates",
+      "feature": "scan",
+      "models": [
+        {
+          "model": "google:gemini-3.5-flash-lite",
+          "calls": 120,
+          "ok": 118,
+          "failed": 0,
+          "timeouts": 2,
+          "cancelled": 9,
+          "okPct": 98.3,
+          "p50": 2104,
+          "p90": 3380,
+          "p99": 6900,
+          "avgIn": 1850,
+          "avgOut": 320,
+          "avgReasoning": null,
+          "costUsd": 0.00135,
+          "unusable": { "n": 1, "of": 129, "pct": 0.8 },
+          "picks": {
+            "n": 85,
+            "top1": 61,
+            "top3": 77,
+            "nativeSearch": 4,
+            "top1Pct": 71.8,
+            "top3Pct": 90.6
+          }
+        }
+      ]
+    }
+  ],
+  "tests": [
+    {
+      "task": "photo_candidates",
+      "model": "anthropic:claude-haiku-5-5",
+      "variant": "thinking-off",
+      "n": 33,
+      "ok": 33,
+      "top1": 24,
+      "top3": 30,
+      "top1Pct": 72.7,
+      "top3Pct": 90.9,
+      "p50": 1650,
+      "p90": 2400,
+      "costUsd": 0.0003,
+      "lastAt": "2026-10-11T08:12:00.000Z"
+    }
+  ]
+}
+```
+
+- 時間（`p50` など）は ms。AI に頼んでから答えが揃うまで（利用者の待ち時間全体ではない）。
+- `calls` = 答えた回 + 失敗 + 時間切れ。`cancelled`（追いかけで負けた・枠の確保で止めた）は AI の
+  失敗ではないので `calls` にも時間にも入れない。
+- `unusable`（形が崩れて捨てた返事）・`picks`（候補の当たり）は測れる用途だけ。無い用途は `null`。
+  `picks` の分母は「一覧から選んだ回 + 一覧に無く母語で調べ直した回」（`/admin/beta` と同じ）。
+- `costUsd` は有料枠の単価での1回の目安（単価の分かるモデルだけ。`ai-model-prices.ts`）。
+- `task` の名前と並びは `AI_TASKS`（`ai-call-log.ts`）。画面の名前は `aiStats.task.<task>`。
+
+## `adminGetAiTestPhotos`（固定の写真で試す: 写真の一覧）
+
+`data`: `{}`。返事: `{ "isAdmin": true, "languages": ["zh-TW","en","ja"], "photos": [{ "id": "cafe", "kind": "photo", "path": "/ai-test/photos/cafe.jpg" }] }`。
+写真はアプリの入口（`https://catchwords.lovable.app`）に `path` を付けて取る。正解はサーバが持つ
+（`src/lib/ai-test-photos.ts`）。
+
+## `adminTestPhotoCandidates`（固定の写真で試す: 1枚）
+
+本番の設定を変えずに、選んだモデルに1枚流す（撮った後の候補と同じ指示文・同じ並べ直し）。
+管理者だけ・1日（24 時間）300 枚まで（超えると `AI_TEST_DAILY_LIMIT`、native-fn では 429）。
+
+`data`:
+
+```json
+{
+  "value": "anthropic:claude-haiku-5-5",
+  "photo": "cafe",
+  "targetLanguage": "zh-TW",
+  "thinking": "default",
+  "imageBase64": "data:image/jpeg;base64,…"
+}
+```
+
+`value` は `"auto"`（いまのスキャンの AI）か `"会社:モデル"`（写真を読めるモデル）。
+`thinking` は `"default"`（省略可。本番と同じ呼び方）か `"off"`（Claude に考えさせない: Haiku 5.5 は
+`thinking: {type: "disabled"}`、Sonnet 5.5 は `{type: "between_tools"}`、Opus 5 系と Claude 以外は何も変えない）。
+Claude 5 は何も渡さないと考えてから答える（Anthropic の OpenAI 互換の口の資料）。
+
+返事: `{ "ok": true, "ms": 1640, "model": "anthropic:claude-haiku-5-5", "variant": null, "rank": 1, "heads": ["咖啡","拿鐵"], "want": "咖啡", "code": null }`
+（`variant` = `"thinking-off"` なら考えさせない呼び方で測った。`tests` の行も `variant` ごとに分かれる）
+（`rank` = 正解が候補の何番目か。無ければ `null`。`code` は失敗の印 — `timeout` / `unusable` / `http_429` など）。
+結果は `adminGetAiStats` の `tests` に入る。一度に 2 枚ずつ流すのが目安（無料枠の1分あたりの上限）。
+
+## `logCandidatePick`（候補の何番目を選んだか — iOS からも送る）
+
+`data`: `{ "via": "photo" | "native_search" | "typed" | "scan", "rank": 1, "n": 5 }`
+（`rank` = 選んだ語が AI の並びで何番目か、1 から。`native_search` = 写真の候補に無く母語で調べ直した）。
+語・写真は送らない。サーバはこの1回を、その人へ直前（15 分以内）に候補を出したモデルに結び付けて
+`picks` を数える。
+
 ---
 
 ## iOS 画面の組み立て（Web と同じ並び）
@@ -491,7 +609,12 @@ Web は同じ関数を `useServerFn` で直に呼ぶ（返事の形は同じ）�
 2. 「機能ごとの AI」: `features` を順に。名前（`label`）・説明（`description`）・「いま: …」・選択肢
    （「自動（最新 {Gemini Flash|Gemini Flash-Lite}）」+ `hasKey` の会社ごとにモデル。鍵の無い会社は押せない行）。
    選んだら即 `adminSetAiFeature` → 成功したら `adminGetAiSettings` を読み直す。
-3. 「画像（文字検索の AI 画像）」: 会社（鍵の無い物は押せない）・モデル（空なら既定）・保存・「試しに1枚作る」（`adminTestImage`。**画面でいま選んでいる `provider` / `model` を送る** — 保存前の選び方を試せる）。
-4. 「発音の声」: 台湾華語 / 英語 / 日本語 の3行。会社・（台湾華語の Azure/Gemini は性別）・声・モデル・試しに鳴らす・保存。
+3. 「速さと正確さ（モデルごと）」: 期間（1日 / 7日 / 30日）と「自分の分だけ」で `adminGetAiStats`。
+   機能ごとに用途 → モデルの順に、回数・成功率・中央値・90%・候補の当たり・使えない返事・1回の費用。
+   機能の「いま」のモデル（`features[].provider` + `resolved`）の行に「いま」。下に「固定の写真で試す」
+   （モデル・学習言語を選び、`adminGetAiTestPhotos` の写真を2枚ずつ `adminTestPhotoCandidates` へ。
+   終わったら `adminGetAiStats` を読み直す）。
+4. 「画像（文字検索の AI 画像）」: 会社（鍵の無い物は押せない）・モデル（空なら既定）・保存・「試しに1枚作る」（`adminTestImage`。**画面でいま選んでいる `provider` / `model` を送る** — 保存前の選び方を試せる）。
+5. 「発音の声」: 台湾華語 / 英語 / 日本語 の3行。会社・（台湾華語の Azure/Gemini は性別）・声・モデル・試しに鳴らす・保存。
 
 管理者でない人には、この欄ごと出さない（`adminGetAiSettings` が `{ "isAdmin": false }`）。

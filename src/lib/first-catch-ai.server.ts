@@ -200,7 +200,8 @@ export const FIRST_CATCH_ATTEMPT_TIMEOUTS: Record<FirstCatchAIRequest["action"],
  * 限って並べた1回ぶんだけ増える（枠の予約は1回のまま）。
  */
 export const FIRST_CATCH_HEDGE_AFTER_MS: Record<FirstCatchAIRequest["action"], number> = {
-  suggest: 6_000,
+  // 写真の候補は撮影の候補（`ai.functions.ts` の `SUGGEST_HEDGE_AFTER_MS`）と同じ 3 秒（オーナー決定 2026-10-11）。
+  suggest: 3_000,
   card: 12_000,
   lesson: 12_000,
 };
@@ -221,7 +222,10 @@ export function firstCatchHedgeAfter(
 export function prefetchFirstCatchChain(
   action: FirstCatchAIRequest["action"],
 ): Promise<AiTarget[]> {
-  const chain = getAiAttemptChain(action === "suggest" ? "scan" : "card");
+  const chain =
+    action === "suggest"
+      ? getAiAttemptChain("scan", "tutorial_candidates")
+      : getAiAttemptChain("card", "tutorial_card");
   // 枠の確保が先に断られた時、拾われない失敗として残さない（使う時にもう一度 await する）。
   chain.catch(() => {});
   return chain;

@@ -143,7 +143,7 @@ export const reclassifyOtherWords = createServerFn({ method: "POST" })
         },
         classify: async (prompt) => {
           const { getAiFor, generateStructured } = await import("./ai-provider.server");
-          const ai = await getAiFor("lexicon");
+          const ai = await getAiFor("lexicon", "category_backfill");
           return generateStructured({
             model: ai.gateway(ai.modelFast),
             prompt,

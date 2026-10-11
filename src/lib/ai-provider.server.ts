@@ -20,6 +20,8 @@ import {
   withGeminiKeywords,
 } from "./gemini-latest.server";
 import { featureTier, parseFeatureValue, type AiFeature } from "./ai-features";
+import type { AiTask } from "./ai-call-log";
+import { measuredGateway, measuredModel } from "./ai-call-log.server";
 
 /**
  * Single switch point for every AI call in the app.
@@ -264,7 +266,24 @@ export function providerConfig(providerId: string, model: string): AiConfig | nu
  * どこかが欠けていても必ず動く設定に落ちる — **設定ミスで機能を止めない**。
  * 呼ぶ所は `withModelFallback` で包み、モデルが無い(404)時は控えのモデルへ落とす。
  */
-export async function getAiFor(feature: AiFeature): Promise<AiConfig> {
+export async function getAiFor(feature: AiFeature, task?: AiTask): Promise<AiConfig> {
+  return measuredAi(await resolveAiFor(feature), feature, task);
+}
+
+/**
+ * **呼んだ1回ずつを記録する形に包む**（`ai-call-log.server.ts`。機能ごと・用途ごと・モデルごとの
+ * 速さと成否を、開発者の「AI の設定」で見比べるため）。`task` を渡さない呼び出しは機能の名前で数える。
+ */
+export function measuredAi(cfg: AiConfig, feature: AiFeature, task?: AiTask): AiConfig {
+  const provider = cfg.name ?? cfg.provider;
+  return {
+    ...cfg,
+    gateway: measuredGateway(cfg.gateway, { feature, task: task ?? feature, provider }),
+  };
+}
+
+/** `getAiFor` の中身（包む前）。 */
+async function resolveAiFor(feature: AiFeature): Promise<AiConfig> {
   const ov = await getAiModelOverride();
   const spec = parseFeatureValue(ov?.features?.[feature]);
   if (spec?.provider) {
@@ -290,7 +309,7 @@ export async function describeFeature(
   feature: AiFeature,
 ): Promise<{ provider: string; model: string; resolved: string } | { error: string }> {
   try {
-    const ai = await getAiFor(feature);
+    const ai = await resolveAiFor(feature);
     const provider = ai.name ?? ai.provider;
     const model = ai.modelFast;
     let resolved = model;
@@ -378,8 +397,8 @@ const VISION_FAST_BACKUP: Record<string, string> = {
  * 2. 鍵のある会社の、写真を読める速い控え（`VISION_FAST_BACKUP`。別の会社を先に）
  * どれも1番手と同じなら、2番手は無し（1回だけ試す）。設定が欠けていても投げない。
  */
-export async function getAiAttemptChain(feature: AiFeature): Promise<AiTarget[]> {
-  const primary = await getAiFor(feature);
+export async function getAiAttemptChain(feature: AiFeature, task?: AiTask): Promise<AiTarget[]> {
+  const primary = await resolveAiFor(feature);
   const primaryName = primary.name ?? primary.provider;
   const chain: AiTarget[] = [];
   // 重ねないかは設定に書いた名前で見る（前と同じ）。記録の名前は版付きの ID（`concreteModelId`）。
@@ -390,7 +409,11 @@ export async function getAiAttemptChain(feature: AiFeature): Promise<AiTarget[]>
     if (seen.includes(key)) return;
     seen.push(key);
     const label = `${name}:${await concreteModelId({ name }, model)}`;
-    chain.push({ label, model: gateway(model) });
+    // 1番手も2番手も、呼んだ1回ずつを記録する（`measuredAi` と同じ）。
+    chain.push({
+      label,
+      model: measuredModel(gateway(model), { feature, task: task ?? feature, provider: name }),
+    });
   };
   await add(primaryName, primary.gateway, primary.modelFast); // getAiFor が機能の段に揃え済み
   const tryConfig = async (make: () => AiConfig | Promise<AiConfig>) => {
@@ -411,6 +434,30 @@ export async function getAiAttemptChain(feature: AiFeature): Promise<AiTarget[]>
     if (cfg) await add(id, cfg.gateway, VISION_FAST_BACKUP[id]);
   }
   return chain;
+}
+
+/**
+ * **開発者の「固定の写真で試す」用**: 値（`"auto"` か `"会社:モデル"`）の AI を1つ返す。
+ * 本番の設定は変えない。**呼んだ1回を `ai_call` に記録しない**（試しの結果は `ai_test` に別に
+ * 残し、本番の表に混ぜない）。鍵が無ければ投げる。
+ */
+export async function aiTargetFor(feature: AiFeature, value: string): Promise<AiTarget> {
+  const spec = parseFeatureValue(value);
+  if (!spec) {
+    const ai = await resolveAiFor(feature);
+    const name = ai.name ?? ai.provider;
+    return {
+      label: `${name}:${await concreteModelId({ name }, ai.modelFast)}`,
+      model: ai.gateway(ai.modelFast),
+    };
+  }
+  if (!spec.provider) throw new Error('値は "auto" か "会社:モデル" です');
+  const cfg = providerConfig(spec.provider, spec.model);
+  if (!cfg) throw new Error(`${spec.provider} の鍵がサーバにありません`);
+  return {
+    label: `${spec.provider}:${await concreteModelId({ name: spec.provider }, spec.model)}`,
+    model: cfg.gateway(spec.model),
+  };
 }
 
 /**

@@ -58,3 +58,33 @@ export const adminSetTtsVoice = createServerFn({ method: "POST" })
     const { mod, deps: d } = await deps(context);
     return mod.setAdminTtsVoice(d, data);
   });
+
+/**
+ * 機能ごと・用途ごと・モデルごとの AI の速さと正確さ（`ai-model-stats.ts`）。
+ * `{ days: 1 | 7 | 30, mine: boolean }`（`mine` = 自分の使った分だけ）。管理者でなければ
+ * `{ isAdmin: false }`。
+ */
+export const adminGetAiStats = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) => input)
+  .handler(async ({ context, data }) => {
+    const mod = await import("./ai-model-stats.server");
+    return mod.loadAiModelStats(context, mod.parseAiStatsInput(data));
+  });
+
+/**
+ * 「固定の写真で試す」の写真の一覧（`ai-test-photos.ts`）。iOS はこの `path` をアプリの入口の
+ * URL に付けて写真を取り、1枚ずつ `adminTestPhotoCandidates` に送る。正解はサーバが持つ。
+ */
+export const adminGetAiTestPhotos = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { deps: d } = await deps(context);
+    if (!(await d.isAdmin())) return { isAdmin: false as const };
+    const { AI_TEST_LANGUAGES, AI_TEST_PHOTOS, aiTestPhotoPath } = await import("./ai-test-photos");
+    return {
+      isAdmin: true as const,
+      languages: [...AI_TEST_LANGUAGES],
+      photos: AI_TEST_PHOTOS.map((p) => ({ id: p.id, kind: p.kind, path: aiTestPhotoPath(p.id) })),
+    };
+  });

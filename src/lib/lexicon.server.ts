@@ -161,7 +161,7 @@ export async function runLexiconAudit(
   const rows = [...aiRows, ...verifiedRows];
   if (rows.length === 0) return { checked: 0, fixed: 0, flagged: 0 };
 
-  const ai = await getAiFor("lexicon");
+  const ai = await getAiFor("lexicon", "lexicon_audit");
   const listing = rows
     .map(
       (r, i) =>
@@ -492,7 +492,7 @@ const SYNTH_SCENES = [
 export async function generateSyntheticCorpus(
   candidateWords: string[] = [],
 ): Promise<{ sentences: number; words: number; pairs: number; new_words: number }> {
-  const ai = await getAiFor("lexicon");
+  const ai = await getAiFor("lexicon", "lexicon_corpus");
   const dayIdx = Math.floor(Date.now() / 86400000);
   const scenes = [0, 1, 2].map((k) => SYNTH_SCENES[(dayIdx + k * 2) % SYNTH_SCENES.length]);
 
@@ -603,7 +603,7 @@ export async function triageEntryReports(
     })
     .join("\n");
 
-  const ai = await getAiFor("lexicon");
+  const ai = await getAiFor("lexicon", "report_triage");
   const audit = await generateStructured({
     model: ai.gateway(ai.modelRich),
     schema: AuditSchema,

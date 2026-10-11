@@ -19,6 +19,8 @@ import {
   type CandidatePickVia,
 } from "./funnel-events";
 import { readAllPages } from "./pagination";
+import { AI_CALL_LOOP } from "./ai-call-log";
+import { AI_TEST_LOOP } from "./ai-model-stats";
 import { taipeiDay } from "./taipei-day";
 
 /**
@@ -121,11 +123,15 @@ export const getBetaMetrics = createServerFn({ method: "GET" })
           .order("id")
           .range(a, b),
       ),
+      // AI を呼んだ1回ずつの行（`ai_call`）と開発者の試し（`ai_test`）は費用の単価に無く、
+      // 数も多いので読まない（速さと正確さの表 `ai-model-stats.ts` が読む）。
       readAllPages<{ user_id: string; loop: string; created_at: string }>((a, b) =>
         db
           .from("ai_runs")
           .select("user_id, loop, created_at")
           .gte("created_at", since30)
+          .neq("loop", AI_CALL_LOOP)
+          .neq("loop", AI_TEST_LOOP)
           .order("id")
           .range(a, b),
       ),

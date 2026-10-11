@@ -111,9 +111,9 @@ async function sharedWordSense(word: SenseWord): Promise<ImageSense | null> {
   }
 }
 
-async function fastVisionModel() {
+async function fastVisionModel(task: "image_sense" | "image_verify") {
   const { getAiAttemptChain } = await import("./ai-provider.server");
-  const chain = await getAiAttemptChain("scan");
+  const chain = await getAiAttemptChain("scan", task);
   return chain[0]?.model ?? null;
 }
 
@@ -137,7 +137,7 @@ export function imageSenseDepsFor(userId: string): ImageSenseDeps {
       const fallback = () => (weak ? sharedWordSense(word) : Promise.resolve(null));
       if (!(await gate())) return fallback();
       try {
-        const model = await fastVisionModel();
+        const model = await fastVisionModel("image_sense");
         if (!model) return fallback();
         const { parseJsonFromAiText } = await import("./ai-provider.server");
         const res = await generateText({
@@ -191,7 +191,7 @@ export function imageSenseDepsFor(userId: string): ImageSenseDeps {
         );
         const ok = fetched.filter((f): f is NonNullable<typeof f> => !!f);
         if (ok.length === 0) return null;
-        const model = await fastVisionModel();
+        const model = await fastVisionModel("image_verify");
         if (!model) return null;
         const { parseJsonFromAiText } = await import("./ai-provider.server");
         const res = await generateText({
