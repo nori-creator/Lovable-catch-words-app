@@ -12,6 +12,7 @@
  * - 記録の失敗で AI の呼び出しを落とさない
  */
 import { wrapLanguageModel, type LanguageModelMiddleware } from "ai";
+import { createIsomorphicFn } from "@tanstack/react-start";
 import { runAfterResponse } from "./after-response";
 import {
   aiCallErrorCode,
@@ -31,15 +32,17 @@ type LanguageModelV3Usage = Awaited<
 >["usage"];
 type AnyModel = LanguageModelV3 | string;
 
-/** いまの要求の持ち主（server fn の外・試験では null）。 */
-async function currentCaller(): Promise<string | null> {
-  try {
-    const { getRequest } = await import("@tanstack/react-start/server");
-    return callerFromAuthHeader(getRequest()?.headers?.get("authorization"), Date.now());
-  } catch {
-    return null;
-  }
-}
+/** いまの要求の持ち主（server fn の外・試験・ブラウザでは null）。 */
+const currentCaller = createIsomorphicFn()
+  .server(async (): Promise<string | null> => {
+    try {
+      const { getRequest } = await import("@tanstack/react-start/server");
+      return callerFromAuthHeader(getRequest()?.headers?.get("authorization"), Date.now());
+    } catch {
+      return null;
+    }
+  })
+  .client(async (): Promise<string | null> => null);
 
 function usageOf(usage: LanguageModelV3Usage | undefined) {
   return {
