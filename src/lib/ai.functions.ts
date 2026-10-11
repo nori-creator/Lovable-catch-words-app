@@ -191,10 +191,12 @@ async function recordCandidateReceipts(
 const SUGGEST_ATTEMPT_TIMEOUTS = [18_000, 13_000];
 /**
  * 1番手がこの時間までに答えなければ2番手を並べる（`AI_HEDGE_AFTER_MS` で変更、`0` で止める）。
- * 4 秒（実測 2026-10-09〜10: 1番手 gemini-3.5-flash-lite の AI 時間は中央値 2.4 秒・90% で 3.2 秒）。
- * 前は 6 秒で、1番手が詰まった回は 11.7 秒かかっていた（2番手が 6 秒後に始まり 4.6 秒）。
+ * 3 秒（オーナー決定 2026-10-11）。1番手 gemini-3.5-flash-lite の AI 時間は、2026-10-11 の実測で
+ * 1.6〜2.3 秒（前日は中央値 2.4 秒・90% で 3.2 秒）。1番手が詰まった回（2026-10-10、7.4 秒で打ち切り）は、
+ * 4 秒後に始めた2番手が 3.4 秒で答え、AI の部分が 7.4 秒になっていた。3 秒ならその回は約 1 秒短い。
+ * 前は 6 秒 → 4 秒。並べた回は2つ分の費用がかかる。
  */
-const SUGGEST_HEDGE_AFTER_MS = 4_000;
+const SUGGEST_HEDGE_AFTER_MS = 3_000;
 
 /**
  * 撮った後の候補の1回を `ai_runs` に残す（`loop="capture_suggest"`）。中身は成否・待ち時間・
@@ -486,8 +488,8 @@ ${distinctionRule(profile.promptName, profile.capture.distinctionExamples)}
      * **1番手が遅い時は2番手を並べて追いかける**（`ai-attempts.ts`、チュートリアルと同じ）。
      * 前は1回の呼び出しに締め切りが無く、AI SDK が黙って2回まで再送していた（詰まった
      * 相手を画面の 20 秒まで待ち続け、画面は「通信に時間がかかっています」）。いまは
-     * 1番手 18 秒・2番手 13 秒の締め切りで、1番手が 6 秒（`AI_HEDGE_AFTER_MS`）答えなければ
-     * 2番手を並べる。最悪 6 + 13 = 19 秒で、画面の 20 秒より先に理由つきで終わる。
+     * 1番手 18 秒・2番手 13 秒の締め切りで、1番手が 3 秒（`SUGGEST_HEDGE_AFTER_MS`）答えなければ
+     * 2番手を並べる。最悪 3 + 13 = 16 秒で、画面の 20 秒より先に理由つきで終わる。
      * 枠の確保は上の1回だけ。形の崩れた返事は「使えない返事」として、もう片方を待つ。
      */
     let outcome: Awaited<ReturnType<typeof runAiAttempts<z.infer<typeof SuggestionSchema>>>>;

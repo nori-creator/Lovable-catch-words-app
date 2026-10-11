@@ -200,7 +200,8 @@ export const FIRST_CATCH_ATTEMPT_TIMEOUTS: Record<FirstCatchAIRequest["action"],
  * 限って並べた1回ぶんだけ増える（枠の予約は1回のまま）。
  */
 export const FIRST_CATCH_HEDGE_AFTER_MS: Record<FirstCatchAIRequest["action"], number> = {
-  suggest: 6_000,
+  // 写真の候補は撮影の候補（`ai.functions.ts` の `SUGGEST_HEDGE_AFTER_MS`）と同じ 3 秒（オーナー決定 2026-10-11）。
+  suggest: 3_000,
   card: 12_000,
   lesson: 12_000,
 };
