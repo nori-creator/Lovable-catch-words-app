@@ -259,6 +259,8 @@ function ModelRow({ m, isCurrent }: { m: AiModelStat; isCurrent: boolean }) {
 function TestResults({ report }: { report: AiModelStatsReport }) {
   const t = useT();
   if (report.tests.length === 0) return null;
+  const langName = (l: string) =>
+    t(`aiStats.lang.${l}`) === `aiStats.lang.${l}` ? l : t(`aiStats.lang.${l}`);
   return (
     <div className="space-y-2" data-ai-stats-tests="">
       <p className="text-footnote font-semibold">{t("aiStats.testsHeading")}</p>
@@ -266,12 +268,13 @@ function TestResults({ report }: { report: AiModelStatsReport }) {
         const cost = usd(x.costUsd);
         return (
           <div
-            key={`${x.task}:${x.model}:${x.variant ?? ""}`}
+            key={`${x.task}:${x.model}:${x.variant ?? ""}:${x.lang ?? ""}`}
             className="rounded-xl border border-border p-2.5"
           >
             <p className="break-all text-caption font-semibold">
               {x.model}
               {x.variant && ` · ${t(`aiStats.variant.${x.variant}`)}`}
+              {x.lang && ` · ${langName(x.lang)}`}
             </p>
             <p className="text-caption tabular-nums">
               {t("aiStats.testScore", {
@@ -282,6 +285,7 @@ function TestResults({ report }: { report: AiModelStatsReport }) {
             </p>
             <p className="text-caption text-muted-foreground tabular-nums">
               {t("aiStats.testSpeed", { p50: sec(x.p50), p90: sec(x.p90) })}
+              {x.failed > 0 && ` · ${t("aiStats.testFailed", { n: String(x.failed) })}`}
               {cost && ` · ${t("aiStats.cost", { c: cost })}`}
             </p>
           </div>
@@ -359,7 +363,10 @@ function TestPanel({
     onDone();
   }
 
+  // 率の分母は答えが返った写真だけ（サーバが記録した物と同じ）。写真の読み込み・通信・権限の
+  // 失敗はモデルの外れではないので、数だけ別に出す。
   const done = live.filter((x) => x.result);
+  const errors = live.length - done.length;
   const top1 = done.filter((x) => x.result!.rank === 1).length;
   const top3 = done.filter((x) => x.result!.rank != null && x.result!.rank <= 3).length;
 
@@ -437,11 +444,16 @@ function TestPanel({
         <div className="space-y-1">
           <p className="text-caption font-semibold tabular-nums" role="status">
             {t("aiStats.testScore", {
-              top1: done.length ? String(Math.round((1000 * top1) / live.length) / 10) : "—",
-              top3: done.length ? String(Math.round((1000 * top3) / live.length) / 10) : "—",
-              n: String(live.length),
+              top1: done.length ? String(Math.round((1000 * top1) / done.length) / 10) : "—",
+              top3: done.length ? String(Math.round((1000 * top3) / done.length) / 10) : "—",
+              n: String(done.length),
             })}
           </p>
+          {errors > 0 && (
+            <p className="text-caption text-destructive-ink tabular-nums">
+              {t("aiStats.testErrors", { n: String(errors) })}
+            </p>
+          )}
           <ul className="max-h-64 space-y-0.5 overflow-y-auto text-caption tabular-nums">
             {live.map((x) => (
               <li key={x.photo} className="break-all">

@@ -77,6 +77,10 @@ describe("statusForError", () => {
     expect(statusForError(zod)).toBe(400);
     const bad = Object.assign(new Error("知らない会社です: nope"), { name: "BadRequestError" });
     expect(statusForError(bad)).toBe(400);
+    expect(statusForError(new Error("AI_TEST_DAILY_LIMIT: 試しは1日 300 枚までです"))).toBe(429);
+    expect(
+      statusForError(new Error("AI_TEST_PHOTO_MISMATCH: cafe の写真が違います（アプリを最新に）")),
+    ).toBe(400);
     expect(statusForError(new Error("boom"))).toBe(500);
   });
 });

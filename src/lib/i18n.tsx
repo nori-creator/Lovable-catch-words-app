@@ -3383,9 +3383,19 @@ export const DICT: Record<string, Record<UiLang, string>> = {
     "zh-TW": "正解在第 1 個 {top1}% · 前 3 個 {top3}%（{n} 張）",
   },
   "aiStats.testSpeed": {
-    ja: "中央値 {p50}秒 · 90% {p90}秒",
-    en: "median {p50}s · 90% {p90}s",
-    "zh-TW": "中位數 {p50} 秒 · 90% {p90} 秒",
+    ja: "答えた写真の時間: 中央値 {p50}秒 · 90% {p90}秒",
+    en: "Answered photos: median {p50}s · 90% {p90}s",
+    "zh-TW": "有回應的照片：中位數 {p50} 秒 · 90% {p90} 秒",
+  },
+  "aiStats.testFailed": {
+    ja: "答えなし {n} 枚（時間切れ・失敗。時間には入れず、正解の率では外れ）",
+    en: "{n} without an answer (timeout or error; not in the times, counted as misses)",
+    "zh-TW": "沒有回應 {n} 張（逾時或失敗；不計入時間，正解率中算答錯）",
+  },
+  "aiStats.testErrors": {
+    ja: "届かなかった {n} 枚は数えていません（写真の読み込み・通信・権限の失敗。一覧の ! の行）",
+    en: "Not counted: {n} {n|photo|photos} that didn't get through (loading, network or permission error; the ! rows)",
+    "zh-TW": "未計入：{n} 張沒有送達（照片載入、連線或權限失敗；清單中的 ! 列）",
   },
   "aiStats.testHeading": {
     ja: "固定の写真で試す",
@@ -3497,6 +3507,11 @@ export const DICT: Record<string, Record<UiLang, string>> = {
     ja: "チュートリアルのカード",
     en: "Tutorial card",
     "zh-TW": "教學的單字卡",
+  },
+  "aiStats.task.tutorial_lesson": {
+    ja: "チュートリアルのレッスン",
+    en: "Tutorial lesson",
+    "zh-TW": "教學的課程",
   },
   "aiStats.task.phrase_card": {
     ja: "フレーズカード",

@@ -538,8 +538,10 @@ Web は同じ関数を `useServerFn` で直に呼ぶ（返事の形は同じ）�
       "task": "photo_candidates",
       "model": "anthropic:claude-haiku-5-5",
       "variant": "thinking-off",
+      "lang": "zh-TW",
       "n": 33,
       "ok": 33,
+      "failed": 0,
       "top1": 24,
       "top3": 30,
       "top1Pct": 72.7,
@@ -560,6 +562,18 @@ Web は同じ関数を `useServerFn` で直に呼ぶ（返事の形は同じ）�
   `picks` の分母は「一覧から選んだ回 + 一覧に無く母語で調べ直した回」（`/admin/beta` と同じ）。
 - `costUsd` は有料枠の単価での1回の目安（単価の分かるモデルだけ。`ai-model-prices.ts`）。
 - `task` の名前と並びは `AI_TASKS`（`ai-call-log.ts`）。画面の名前は `aiStats.task.<task>`。
+  チュートリアルは候補（`tutorial_candidates`）・カード（`tutorial_card`）・その人に合わせた
+  レッスン（`tutorial_lesson`）に分かれる。
+- `mine: false` の時は、**登録前の人のチュートリアル**も入る（`app_config` の `first-catch-run:`
+  の各回の結果。`ai_runs` に行を持てないため）。量（トークン）と費用は無く、残すのは 14 日なので、
+  30 日の表でもその分は 14 日まで。
+- `picks` は、選んだ回を「候補を出した時刻」が直前の撮影に結び付ける（撮った後の候補の行は返事の後に
+  書くので、行の時刻ではなく返事ができた時刻 `meta.at` で比べる。`meta.at` の無い古い行は
+  書き込みの遅れを 3 秒まで見込む）。
+- `tests` はモデル × 呼び方（`variant`）× 学習言語（`lang`）ごとに1行。`failed` = 答えが返らなかった
+  写真（時間切れ・会社の失敗）。`top1Pct` / `top3Pct` は `n`（失敗も入れる）が分母で、失敗は外れ。
+  `p50` / `p90` は答えた写真だけの時間なので、`failed` と並べて見る。`lang` は古い行で無ければ `null`。
+- 読む行が多すぎる時は**新しい順に**上限まで読み、`truncated: true`。
 
 ## `adminGetAiTestPhotos`（固定の写真で試す: 写真の一覧）
 
@@ -593,6 +607,13 @@ Claude 5 は何も渡さないと考えてから答える（Anthropic の OpenAI
 （`variant` = `"thinking-off"` なら考えさせない呼び方で測った。`tests` の行も `variant` ごとに分かれる）
 （`rank` = 正解が候補の何番目か。無ければ `null`。`code` は失敗の印 — `timeout` / `unusable` / `http_429` など）。
 結果は `adminGetAiStats` の `tests` に入る。一度に 2 枚ずつ流すのが目安（無料枠の1分あたりの上限）。
+
+サーバは届いた写真が `photo` の写真か（SHA-256 が `AI_TEST_PHOTO_SHA256` と同じか）を確かめる。
+違えば AI を呼ばずに `AI_TEST_PHOTO_MISMATCH` で断る（native-fn では 400。記録も数えもしない）。
+写真は加工せず、`path` から取ったままの中身を送ること。
+
+画面で数える時: 答えが返った写真（`ok: false` も入れる。サーバの記録と同じ）を分母にする。写真の
+読み込み・通信・権限の失敗（返事が無い）はモデルの外れではないので、分母に入れず数だけ別に出す。
 
 ## `logCandidatePick`（候補の何番目を選んだか — iOS からも送る）
 
