@@ -364,6 +364,7 @@ export function useFixtureActions(
         ok: true,
         ms: 1500 + (i % 7) * 230,
         model: value === "auto" ? "google:gemini-3.8-flash-lite" : value,
+        variant: null,
         rank,
         heads: rank === 1 ? [want, "杯子"] : rank === 2 ? ["杯子", want] : ["杯子", "桌子"],
         want,

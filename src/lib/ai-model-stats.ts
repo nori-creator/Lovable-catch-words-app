@@ -91,6 +91,8 @@ export type AiTaskStats = {
 export type AiTestStat = {
   task: string;
   model: string;
+  /** 呼び方の違い（`thinking-off` = Claude に考えさせない）。既定の呼び方は null。 */
+  variant: string | null;
   /** 流した写真の数（失敗も入れる）。 */
   n: number;
   ok: number;
@@ -350,7 +352,13 @@ export function computeAiModelStats(
 export function computeAiTests(rows: AiStatsRow[]): AiTestStat[] {
   const groups = new Map<
     string,
-    { task: string; model: string; rows: Array<Record<string, unknown>>; lastAt: string }
+    {
+      task: string;
+      model: string;
+      variant: string | null;
+      rows: Array<Record<string, unknown>>;
+      lastAt: string;
+    }
   >();
   for (const row of rows) {
     if (row.loop !== AI_TEST_LOOP) continue;
@@ -358,8 +366,9 @@ export function computeAiTests(rows: AiStatsRow[]): AiTestStat[] {
     const task = str(m.task);
     const model = str(m.model);
     if (!task || !model) continue;
-    const key = `${task}\u0000${model}`;
-    const g = groups.get(key) ?? { task, model, rows: [], lastAt: row.created_at };
+    const variant = str(m.variant);
+    const key = `${task}\u0000${model}\u0000${variant ?? ""}`;
+    const g = groups.get(key) ?? { task, model, variant, rows: [], lastAt: row.created_at };
     g.rows.push(m);
     if (row.created_at > g.lastAt) g.lastAt = row.created_at;
     groups.set(key, g);
@@ -376,6 +385,7 @@ export function computeAiTests(rows: AiStatsRow[]): AiTestStat[] {
       return {
         task: g.task,
         model: g.model,
+        variant: g.variant,
         n: g.rows.length,
         ok: ok.length,
         top1,

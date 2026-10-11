@@ -3573,6 +3573,21 @@ export const DICT: Record<string, Record<UiLang, string>> = {
     en: "iOS free-form AI",
     "zh-TW": "iOS 的自由文字窗口",
   },
+  "aiStats.testThinkingOff": {
+    ja: "Claude に考えさせない（速い方）",
+    en: "Don't let Claude think (faster)",
+    "zh-TW": "不讓 Claude 思考（較快）",
+  },
+  "aiStats.testThinkingNote": {
+    ja: "選ばないと、Claude 5 は考えてから答えます（いまの本番の呼び方と同じ）。",
+    en: "Unchecked, Claude 5 thinks before answering (the same way the live app calls it now).",
+    "zh-TW": "不勾選時，Claude 5 會先思考再回答（與目前正式版的呼叫方式相同）。",
+  },
+  "aiStats.variant.thinking-off": {
+    ja: "考えない",
+    en: "no thinking",
+    "zh-TW": "不思考",
+  },
   "aiSet.title": {
     ja: "AI の設定（開発者）",
     en: "AI settings (developer)",

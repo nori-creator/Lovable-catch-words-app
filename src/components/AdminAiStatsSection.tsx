@@ -40,6 +40,8 @@ export type AiTestPhotoResult = {
   ok: boolean;
   ms: number;
   model: string;
+  /** `thinking-off` = Claude に考えさせない呼び方で測った。 */
+  variant: string | null;
   rank: number | null;
   heads: string[];
   want: string;
@@ -52,6 +54,8 @@ export type AiStatsActions = {
     value: string;
     photo: string;
     targetLanguage: AiTestLanguage;
+    /** `"off"` = Claude に考えさせない（Claude 以外は無視される）。 */
+    thinking: "default" | "off";
     imageBase64: string;
   }) => Promise<AiTestPhotoResult>;
 };
@@ -261,8 +265,14 @@ function TestResults({ report }: { report: AiModelStatsReport }) {
       {report.tests.map((x) => {
         const cost = usd(x.costUsd);
         return (
-          <div key={`${x.task}:${x.model}`} className="rounded-xl border border-border p-2.5">
-            <p className="break-all text-caption font-semibold">{x.model}</p>
+          <div
+            key={`${x.task}:${x.model}:${x.variant ?? ""}`}
+            className="rounded-xl border border-border p-2.5"
+          >
+            <p className="break-all text-caption font-semibold">
+              {x.model}
+              {x.variant && ` · ${t(`aiStats.variant.${x.variant}`)}`}
+            </p>
             <p className="text-caption tabular-nums">
               {t("aiStats.testScore", {
                 top1: x.top1Pct == null ? "—" : String(x.top1Pct),
@@ -311,6 +321,9 @@ function TestPanel({
   const readable = useReadableError();
   const [value, setValue] = useState(AUTO);
   const [lang, setLang] = useState<AiTestLanguage>(DEFAULT_TARGET_LANGUAGE);
+  const [noThinking, setNoThinking] = useState(false);
+  // Claude 5（Opus 5 系は考える量を切れないので除く）を選んだ時だけ「考えさせない」を選べる。
+  const claude = /^anthropic:claude-(?!opus-5)/.test(value);
   const [live, setLive] = useState<LiveResult[]>([]);
   const [running, setRunning] = useState(false);
   const stop = useRef(false);
@@ -325,7 +338,13 @@ function TestPanel({
         const photo = p;
         try {
           const imageBase64 = await photoDataUrl(photo.id);
-          const result = await run({ value, photo: photo.id, targetLanguage: lang, imageBase64 });
+          const result = await run({
+            value,
+            photo: photo.id,
+            targetLanguage: lang,
+            thinking: claude && noThinking ? "off" : "default",
+            imageBase64,
+          });
           setLive((l) => [...l, { photo: photo.id, result, error: null }]);
         } catch (e) {
           setLive((l) => [...l, { photo: photo.id, result: null, error: readable(e, "error") }]);
@@ -383,6 +402,22 @@ function TestPanel({
           </option>
         ))}
       </select>
+      {claude && (
+        <div>
+          <label className="flex min-h-11 items-center gap-2 text-caption">
+            <input
+              type="checkbox"
+              checked={noThinking}
+              disabled={running}
+              onChange={(e) => setNoThinking(e.target.checked)}
+            />
+            {t("aiStats.testThinkingOff")}
+          </label>
+          <p className="text-caption leading-snug text-muted-foreground">
+            {t("aiStats.testThinkingNote")}
+          </p>
+        </div>
+      )}
       <div className="flex gap-2">
         <Button type="button" disabled={running} onClick={() => void start()}>
           {running

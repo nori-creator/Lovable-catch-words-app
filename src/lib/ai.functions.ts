@@ -40,6 +40,7 @@ import {
   type AiAttemptRecord,
 } from "./ai-attempts";
 import { AI_TEST_LANGUAGES, aiTestPhoto, testPhotoRank } from "./ai-test-photos";
+import { claude5ThinkingOff } from "./claude-thinking";
 import { fitSuggestionsToReader } from "./first-catch-meaning";
 import { withObjectPoints } from "./suggestion-position";
 import { WordCandidatesSchema, legacyUsageOf, normalizeRegister } from "./text-search-flow";
@@ -642,6 +643,11 @@ const AdminTestPhotoInput = z.object({
   value: z.string().max(200),
   photo: z.string().regex(/^[a-z0-9-]{1,60}$/),
   targetLanguage: z.enum(AI_TEST_LANGUAGES),
+  /**
+   * `"off"` = Claude に考えさせない（`claude5ThinkingOff`）。Claude 5 の各モデルは、何も渡さないと考えてから
+   * 答える（Anthropic の OpenAI 互換の口の資料）。本番の呼び方（何も渡さない）と、速い方の両方を測れるように。
+   */
+  thinking: z.enum(["default", "off"]).default("default"),
   imageBase64: z
     .string()
     .max(3_000_000)
@@ -674,6 +680,7 @@ export const adminTestPhotoCandidates = createServerFn({ method: "POST" })
       loadReadingCheck(),
     ]);
     const { instruction } = photoCandidatesInstruction(data.targetLanguage, levelGoal, langRule);
+    const thinkingOff = data.thinking === "off" ? claude5ThinkingOff(target.label) : null;
     const started = Date.now();
     let heads: string[] = [];
     let usage: LanguageModelUsage | undefined;
@@ -683,6 +690,8 @@ export const adminTestPhotoCandidates = createServerFn({ method: "POST" })
         model: target.model,
         maxRetries: 0,
         abortSignal: AbortSignal.timeout(ADMIN_TEST_TIMEOUT_MS),
+        // OpenAI 互換の口は、会社の名前の欄を本文にそのまま足す（`thinking` → Messages API の thinking）。
+        ...(thinkingOff ? { providerOptions: { anthropic: { thinking: thinkingOff } } } : {}),
         messages: [
           {
             role: "user",
@@ -728,11 +737,13 @@ export const adminTestPhotoCandidates = createServerFn({ method: "POST" })
       n: heads.length,
       code,
       usage,
+      ...(thinkingOff ? { variant: "thinking-off" } : {}),
     });
     return {
       ok: !code,
       ms,
       model: target.label,
+      variant: thinkingOff ? "thinking-off" : null,
       rank,
       heads: heads.slice(0, 6),
       want: accept[0],

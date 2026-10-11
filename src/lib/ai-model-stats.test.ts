@@ -163,5 +163,29 @@ describe("computeAiModelStats — fixed-photo tests", () => {
     expect(tests[1].p50).toBe(1000);
     expect(tests[0]).toMatchObject({ n: 2, top1Pct: 100, p90: 2500 });
     expect(tests[0].lastAt).toBe(at(2500));
+    expect(tests[0].variant).toBeNull();
+  });
+
+  it("keeps a different way of calling the same model (Claude without thinking) on its own row", () => {
+    const row = (variant?: string): AiStatsRow => ({
+      user_id: A,
+      loop: "ai_test",
+      created_at: at(0),
+      meta: {
+        task: "photo_candidates",
+        model: HAIKU,
+        ok: true,
+        ms: 900,
+        rank: 1,
+        ...(variant ? { variant } : {}),
+      },
+    });
+    const { tests } = computeAiModelStats([row(), row("thinking-off"), row("thinking-off")], opts);
+    expect(tests.map((t) => [t.variant, t.n])).toEqual(
+      expect.arrayContaining([
+        [null, 1],
+        ["thinking-off", 2],
+      ]),
+    );
   });
 });

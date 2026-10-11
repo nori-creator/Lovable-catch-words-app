@@ -537,6 +537,7 @@ Web は同じ関数を `useServerFn` で直に呼ぶ（返事の形は同じ）�
     {
       "task": "photo_candidates",
       "model": "anthropic:claude-haiku-5-5",
+      "variant": "thinking-off",
       "n": 33,
       "ok": 33,
       "top1": 24,
@@ -578,13 +579,18 @@ Web は同じ関数を `useServerFn` で直に呼ぶ（返事の形は同じ）�
   "value": "anthropic:claude-haiku-5-5",
   "photo": "cafe",
   "targetLanguage": "zh-TW",
+  "thinking": "default",
   "imageBase64": "data:image/jpeg;base64,…"
 }
 ```
 
 `value` は `"auto"`（いまのスキャンの AI）か `"会社:モデル"`（写真を読めるモデル）。
+`thinking` は `"default"`（省略可。本番と同じ呼び方）か `"off"`（Claude に考えさせない: Haiku 5.5 は
+`thinking: {type: "disabled"}`、Sonnet 5.5 は `{type: "between_tools"}`、Opus 5 系と Claude 以外は何も変えない）。
+Claude 5 は何も渡さないと考えてから答える（Anthropic の OpenAI 互換の口の資料）。
 
-返事: `{ "ok": true, "ms": 1640, "model": "anthropic:claude-haiku-5-5", "rank": 1, "heads": ["咖啡","拿鐵"], "want": "咖啡", "code": null }`
+返事: `{ "ok": true, "ms": 1640, "model": "anthropic:claude-haiku-5-5", "variant": null, "rank": 1, "heads": ["咖啡","拿鐵"], "want": "咖啡", "code": null }`
+（`variant` = `"thinking-off"` なら考えさせない呼び方で測った。`tests` の行も `variant` ごとに分かれる）
 （`rank` = 正解が候補の何番目か。無ければ `null`。`code` は失敗の印 — `timeout` / `unusable` / `http_429` など）。
 結果は `adminGetAiStats` の `tests` に入る。一度に 2 枚ずつ流すのが目安（無料枠の1分あたりの上限）。
 

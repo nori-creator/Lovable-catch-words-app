@@ -79,6 +79,8 @@ export type AiTestRecord = {
   n: number;
   code?: string;
   usage?: LanguageModelUsage;
+  /** 呼び方の違い（`thinking-off` = Claude に考えさせない）。無ければ既定の呼び方。 */
+  variant?: string;
 };
 
 export function aiTestRow(userId: string, r: AiTestRecord) {
@@ -93,6 +95,7 @@ export function aiTestRow(userId: string, r: AiTestRecord) {
     n: r.n,
   };
   if (r.rank != null) meta.rank = r.rank;
+  if (r.variant) meta.variant = r.variant.slice(0, 40);
   if (r.code) meta.code = r.code.slice(0, 60);
   const tin = r.usage?.inputTokens;
   const tout = r.usage?.outputTokens;
