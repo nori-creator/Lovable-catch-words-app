@@ -46,6 +46,8 @@ function from<M>(mod: () => Promise<M>, name: keyof M & string): Loader {
 export const NATIVE_FNS: Record<string, Loader> = {
   // 候補・カード
   suggestWords: from(ai, "suggestWords"),
+  // カメラを開いた時の下準備（AI は呼ばない・枠は数えない）
+  warmUpCapture: from(ai, "warmUpCapture"),
   suggestWordCandidates: from(ai, "suggestWordCandidates"),
   generateCard: from(ai, "generateCard"),
   generatePhraseCard: from(ai, "generatePhraseCard"),

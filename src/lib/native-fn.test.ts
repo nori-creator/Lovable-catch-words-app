@@ -5,6 +5,7 @@ describe("native-fn allowlist", () => {
   it("exposes the capture, card, save and review functions iOS needs", () => {
     for (const name of [
       "suggestWords",
+      "warmUpCapture",
       "suggestWordCandidates",
       "generateCard",
       "saveSticker",
