@@ -71,6 +71,7 @@ import {
   type RawDictionaryRow,
 } from "./dictionary-entry";
 import {
+  aiCallerTier,
   assertWithinDailyCap,
   concreteModelId,
   getAi,
@@ -338,6 +339,31 @@ function recordCardRun(
     if (error) console.warn("generateCard: ai_runs insert failed", error.message);
   });
 }
+
+/**
+ * **撮る前に、候補の道を温めておく**（実測 2026-10-11、本番）。
+ *
+ * しばらく誰も使っていない後の最初の1枚は、サーバの中の接続と覚え（同意・呼ぶ人の種類・使う AI・
+ * 大きな辞書の読み込み）が冷えていた。1日の枠の確保が 4.0 秒（直後の別の新しい人は 1.4 秒）、
+ * サーバに着くまでが 1.5 秒（同 0.2 秒）で、端末から見て 5.5 秒（同 2.8 秒）かかった。
+ * カメラを開いた時（撮るまでに数秒ある）に Web と iOS がこれを呼び、候補と同じ下準備だけを
+ * 先に済ませる。**AI は呼ばない・枠は数えない・何も書かない**（読むだけ）。どれかが失敗しても
+ * 断らない — 撮った時に今までどおり確かめる。
+ */
+export const warmUpCapture = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const startedAt = Date.now();
+    const results = await Promise.allSettled([
+      import("./ai-consent.server").then((m) => m.hasAiConsent(context.userId)),
+      aiCallerTier(context.userId),
+      getAiAttemptChain("scan"),
+      getUserLevelGoal(context.userId),
+      getExplanationLanguage(context.userId),
+      loadReadingCheck(),
+    ]);
+    return { ok: results.every((r) => r.status === "fulfilled"), ms: Date.now() - startedAt };
+  });
 
 export const suggestWords = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])

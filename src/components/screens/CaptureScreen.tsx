@@ -44,7 +44,13 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
-import { suggestWords, generateCard, suggestWordCandidates } from "@/lib/ai.functions";
+import {
+  suggestWords,
+  generateCard,
+  suggestWordCandidates,
+  warmUpCapture,
+} from "@/lib/ai.functions";
+import { shouldWarmCapture } from "@/lib/capture-warm";
 import { isTargetHeadword, keepTargetHeadwords } from "@/lib/target-language";
 import { TARGET_LANG_LABEL_KEYS } from "@/lib/i18n";
 import { listMyStickers, saveSticker, type StickerWithWord } from "@/lib/stickers.functions";
@@ -514,6 +520,16 @@ export function CapturePage() {
   const saveFn = useServerFn(saveSticker);
   const ownedFn = useServerFn(checkOwnedWord);
   const encounterFn = useServerFn(recordEncounter);
+  const warmFn = useServerFn(warmUpCapture);
+
+  /**
+   * **撮るまでの数秒で、候補の道を温めておく**（`warmUpCapture`。実測 2026-10-11: しばらく誰も
+   * 使っていない後の最初の1枚は、端末から見て 5.5 秒 — 温まっていれば 2.8 秒）。AI は呼ばず、
+   * 枠も数えない。1分に1回まで（`capture-warm.ts`）。失敗しても何もしない。
+   */
+  useEffect(() => {
+    if (shouldWarmCapture()) void warmFn().catch(() => {});
+  }, [warmFn]);
 
   /**
    * **撮る画面が出ていることを名乗る。**（`lib/camera-launch.ts`）
