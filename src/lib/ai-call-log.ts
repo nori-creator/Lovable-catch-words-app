@@ -39,7 +39,6 @@ export const AI_TASKS = [
   { id: "phrase_card", feature: "card" }, // フレーズカード
   { id: "section_regen", feature: "card" }, // 項目の作り直し
   { id: "reader_meaning", feature: "card" }, // 読む人の言語での意味
-  { id: "chunk_check", feature: "card" }, // 使い方チャンクの点検（語順・文法・訳）
   // 復習・日記
   { id: "distractors", feature: "review" }, // 4択の誤答の作り置き
   { id: "journal_correct", feature: "journal" }, // 日記の添削

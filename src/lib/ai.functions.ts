@@ -24,7 +24,6 @@ import {
   emptyExtras,
   mergeExtras,
   normalizeExtras,
-  type UsageChunk,
 } from "./extras";
 import { readerText, scrubForReader, scrubForeignNotes } from "./note-language";
 import { explanationKey } from "./word-explanation";
@@ -1526,22 +1525,6 @@ ${data.hintCategory ? `カテゴリのヒント: ${data.hintCategory}` : ""}`;
       ).catch(() => null);
       if (picked) categoryKey = normalizeCategory(resolvedHead, picked);
     }
-    // **チャンクをもう一度点検する**（2026-10-14、`chunk-check.server.ts`）。失敗・時間切れなら作った物のまま。
-    {
-      const ex = (card.extras ?? {}) as { usage_chunks?: UsageChunk[] };
-      if (Array.isArray(ex.usage_chunks) && ex.usage_chunks.length > 0) {
-        const { checkUsageChunks } = await import("./chunk-check.server");
-        ex.usage_chunks = await checkUsageChunks({
-          headword: resolvedHead,
-          languageName: cardProfile.promptName,
-          readerName: NL,
-          levelGoal,
-          posRule: cardProfile.chunkPrompt.posRule,
-          grammarRule: cardProfile.chunkPrompt.formulaGrammar,
-          chunks: ex.usage_chunks,
-        });
-      }
-    }
     const out = {
       ...card,
       // **訳は読む人の言語で**（2026-09-29「例文の訳に中文が混ざってる」）。例文の写しや
@@ -1853,7 +1836,8 @@ const EXAMPLE_PATTERN_RULE =
  * 去冰が動詞になってる」。
  *
  * 型の指示は生成と作り直しの両方が `formulaChunkRule` を通るので、定義はここに1つだけ置く。
- * 返ってきた型は `chunk-check.server.ts` がもう一度点検する（指示だけでは 0 にならない）。
+ * 別の AI で点検し直す呼び出しは置かない（オーナー 2026-10-14「カードの表示が遅くなるからやめて。指示の精度を
+ * 上げてほしいだけ」）— 返す前の自己点検も、この同じ指示の中でさせる。
  */
 const CHUNK_DEFINITION_RULE =
   `**チャンクの定義**: ネイティブがその語を使うときに**最もよく・最も自然に**口にする語の塊（使い方の公式）。` +
@@ -1869,6 +1853,14 @@ const CHUNK_DEFINITION_RULE =
   `5. **量詞の型（一個〇〇・一杯〇〇）は書かない** — 量詞は別の欄で読む。\n` +
   `6. 入れ替えてよく使う所（名詞・形容詞・程度の副詞のバリエーション）だけ slot にする。**学ぶ語そのものは決して slot にしない。**\n` +
   `7. 各型に必ず、型ぜんぶの自然な訳（ja）を付ける。\n` +
+  `**返す前に、型を1つずつ次の順に確かめ、1つでも当てはまれば直すか外す**: ` +
+  `(a) パーツを左から声に出して読むと、ネイティブがそのまま言う句か（語順・目的語の位置・裝 の目的語は中身か）` +
+  `(b) 1語でない物を1パーツにつないでいないか / 1塊の語を分けていないか` +
+  `(c) pos がその型の中の役割と合うか` +
+  `(d) 主語のある文・量詞の型になっていないか` +
+  `(e) 学ぶ語が slot になっていないか、slot の alts はどれを入れても自然か` +
+  `(f) ja が型ぜんぶの自然な訳で、誤訳（✗ 裝熱水馬克杯 を「熱湯マグカップに入れる」）でないか` +
+  `(g) ネイティブが実際によく言う形か（まれ・不自然なら外す）。\n` +
   `迷ったら書かない — 自信のある型を2〜3個返すほうが、怪しい型を5個返すよりよい。`;
 
 /**
@@ -2310,22 +2302,6 @@ async function runSectionRegen(
     out = schema.parse(parseJsonFromAiText(result.text)) as Record<string, unknown>;
   } catch {
     throw new Error("AIが項目を生成できませんでした。もう一度お試しください");
-  }
-  // 作り直したチャンクも点検する（カードを作る時と同じ。`chunk-check.server.ts`）。
-  if (data.section === "usage_chunks" && Array.isArray(out.usage_chunks)) {
-    const { checkUsageChunks } = await import("./chunk-check.server");
-    const checked = await checkUsageChunks({
-      headword: word.headword as string,
-      languageName: regenProfile.promptName,
-      readerName: NL,
-      levelGoal: regenLevelGoal,
-      posRule: regenProfile.chunkPrompt.posRule,
-      grammarRule: regenProfile.chunkPrompt.formulaGrammar,
-      chunks: out.usage_chunks as UsageChunk[],
-    });
-    if (checked.length === 0)
-      throw new Error("AIが項目を生成できませんでした。もう一度お試しください");
-    out.usage_chunks = checked;
   }
 
   // ベース列(meaning/example)は verified 語では守る(constitution §2-1)。

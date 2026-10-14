@@ -139,7 +139,6 @@ export const NATIVE_FNS: Record<string, Loader> = {
   adminGetAiCosts: from(adminAi, "adminGetAiCosts"),
   adminSetAiPrice: from(adminAi, "adminSetAiPrice"),
   // 保存済みの語のチャンクの点検し直し（20 語ずつ）
-  adminRecheckChunks: from(adminAi, "adminRecheckChunks"),
   adminSetImageConfig: from(adminAi, "adminSetImageConfig"),
   adminSetTtsVoice: from(adminAi, "adminSetTtsVoice"),
   adminTestImage: from(images, "adminTestImage"),
@@ -164,7 +163,6 @@ export const NATIVE_ADMIN_FNS = [
   "adminSetAiTask",
   "adminGetAiCosts",
   "adminSetAiPrice",
-  "adminRecheckChunks",
   "adminSetImageConfig",
   "adminSetTtsVoice",
   "adminTestImage",

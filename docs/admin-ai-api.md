@@ -461,14 +461,6 @@ AI の誤答＝意味を使わない。`stickers.functions.ts`）。
 }
 ```
 
-## `adminRecheckChunks`（保存済みの語のチャンクを点検し直す）
-
-`data`: `{ "restart"?: true }`。1回で 20 語ずつ、`chunk-check.server.ts` の点検（語順・文法・パーツ・品詞・文・量詞・訳）を
-通し、変わった語だけ `words.extras.usage_chunks` を書き換える。進み具合は `app_config.chunk_recheck`。
-
-返事: `{ "after": "最後の語の id", "checked": 40, "changed": 12, "done": false, "words": [{ "headword": "紙箱", "before": 3, "after": 2, "changed": true }] }`。
-`done: true` になったら最後まで済み。管理者でなければ 403。点検の AI は用途 `chunk_check`（カードを作る時の点検と同じ）。
-
 ## `adminSetAiPrice`（単価・為替）
 
 - 為替: `{ "usdJpy": 150 }`（50〜500）
