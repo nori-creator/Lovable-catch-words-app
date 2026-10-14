@@ -60,6 +60,7 @@ export const IOS_AI_TASKS: readonly AiTask[] = [
   "word_candidates",
   "card",
   "reader_meaning",
+  "chunk_check",
   "section_regen",
   "report_locate",
   "reading_check_1",
@@ -159,6 +160,14 @@ const TASK_TEXT: Record<string, { label: Label; description: Label }> = {
       "表示言語に合わせた短い意味を作る",
       "Writes the short meaning in the display language",
       "產生顯示語言的簡短意思",
+    ),
+  },
+  chunk_check: {
+    label: L("チャンクの点検", "Chunk check", "語塊的檢查"),
+    description: L(
+      "カードと作り直しで作った使い方チャンクの語順・文法・訳を確かめ、誤りを直す",
+      "Checks the word order, grammar and translation of the usage chunks and fixes errors",
+      "檢查用法語塊的語序、文法與翻譯並修正錯誤",
     ),
   },
   distractors: {
