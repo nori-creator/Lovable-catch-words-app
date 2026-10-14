@@ -74,6 +74,20 @@ export const adminSetAiPrice = createServerFn({ method: "POST" })
     return mod.setAdminAiPrice(d, data);
   });
 
+/**
+ * 保存済みの語のチャンクを点検し直す（20 語ずつ。`chunk-recheck.server.ts`）。`{ restart?: boolean }`。
+ * 管理者でなければ 403。
+ */
+export const adminRecheckChunks = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) => (input ?? {}) as { restart?: boolean })
+  .handler(async ({ context, data }) => {
+    const { deps: d, mod } = await deps(context);
+    if (!(await d.isAdmin())) throw new Error(mod.ADMIN_ONLY_MESSAGE);
+    const { recheckStoredChunks } = await import("./chunk-recheck.server");
+    return recheckStoredChunks({ restart: data.restart === true });
+  });
+
 /** 文字検索の AI 画像を作る会社・モデル（`provider: "off"` で停止）。 */
 export const adminSetImageConfig = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])

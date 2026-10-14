@@ -24,6 +24,7 @@ import {
   emptyExtras,
   mergeExtras,
   normalizeExtras,
+  type UsageChunk,
 } from "./extras";
 import { readerText, scrubForReader, scrubForeignNotes } from "./note-language";
 import { explanationKey } from "./word-explanation";
@@ -1088,6 +1089,7 @@ ${cardProfile.capture.readingRule}
 - example_sentence: ネイティブが「${data.headword}」を使う**いちばん自然で、いちばんよく出会う場面を1つだけ**選び、その場面でそのまま言う一文（${cardProfile.promptName}）。辞書的な作文・説明文にしない。学習者の目標レベルは ${levelGoal} — 語彙・文型はこのレベル以下に抑える（上のレベルほど、その場面らしい言い回しを使ってよい）
   ${worldExampleRule(NL, cardProfile.code)}
 - example_translation: 例文の訳(${NL})
+- extras.example_scene: その例文の場面・気持ちを短く(${NL}で15字前後。例「夜市で値段を聞くとき」「唇が荒れて困ったとき」)
 
 extras 項目（**すべて具体的な内容で必ず埋めること**。空文字・空配列で返さない）:
 
@@ -1111,7 +1113,8 @@ ${l1Gram}`
 - example_chunks: example_sentence をパーツ分解した [{text,pos}]
 ${
   want("examples_extra")
-    ? `- examples_extra: 追加例文2つ {zh, ja, scene:いつ・どんな気持ちで言うか(短く、${NL}で), chunks:[{text,pos}]}（語彙は ${levelGoal} 以下）
+    ? `- examples_extra: 追加例文 {zh, ja, scene:いつ・どんな気持ちで言うか(短く、${NL}で), chunks:[{text,pos}]}（語彙は ${levelGoal} 以下）。
+  ${EXAMPLE_PATTERN_RULE}
   ${worldExampleRule(NL, cardProfile.code)}`
     : ""
 }
@@ -1180,6 +1183,7 @@ ${data.hintCategory ? `カテゴリのヒント: ${data.hintCategory}` : ""}`;
       `extras{ ` +
       [
         want("usage_chunks") && "usage_chunks[{parts:[{text,pos,slot,ja?,alts?:[{text,ja}]}],ja}]",
+        "example_scene",
         "example_chunks[{text,pos}]",
         want("examples_extra") && "examples_extra[{zh,ja,scene,chunks:[{text,pos}]}]",
         "usage_context, frequency_level, register_tag, register_scale, encounter_labels[{kind,label}]",
@@ -1522,6 +1526,22 @@ ${data.hintCategory ? `カテゴリのヒント: ${data.hintCategory}` : ""}`;
       ).catch(() => null);
       if (picked) categoryKey = normalizeCategory(resolvedHead, picked);
     }
+    // **チャンクをもう一度点検する**（2026-10-14、`chunk-check.server.ts`）。失敗・時間切れなら作った物のまま。
+    {
+      const ex = (card.extras ?? {}) as { usage_chunks?: UsageChunk[] };
+      if (Array.isArray(ex.usage_chunks) && ex.usage_chunks.length > 0) {
+        const { checkUsageChunks } = await import("./chunk-check.server");
+        ex.usage_chunks = await checkUsageChunks({
+          headword: resolvedHead,
+          languageName: cardProfile.promptName,
+          readerName: NL,
+          levelGoal,
+          posRule: cardProfile.chunkPrompt.posRule,
+          grammarRule: cardProfile.chunkPrompt.formulaGrammar,
+          chunks: ex.usage_chunks,
+        });
+      }
+    }
     const out = {
       ...card,
       // **訳は読む人の言語で**（2026-09-29「例文の訳に中文が混ざってる」）。例文の写しや
@@ -1788,7 +1808,8 @@ function formulaChunkRule(code: string): string {
   // 日本語のカードに英語の例が渡っていた)。文はいままでと同じ形に組む。
   const chunk = targetProfile(code).chunkPrompt;
   return (
-    `**公式・定理のような型にする。** ネイティブがその語を使うとき、いちばん頻繁に口にする形を、` +
+    CHUNK_DEFINITION_RULE +
+    `\n**公式・定理のような型にする。** ネイティブがその語を使うとき、いちばん頻繁に口にする形を、` +
     `どの語と一緒に・どの語順で使うかが一目で分かる公式として書く` +
     `（例: ${chunk.formulaExample}）。` +
     `\n入れ替えて使う所は「人」「事」「someone」のような広い言い方にしない。` +
@@ -1815,6 +1836,40 @@ function formulaChunkRule(code: string): string {
     CHUNK_INTEGRITY_RULE
   );
 }
+
+/**
+ * **追加の例文は場面・気持ちのパターンごとに1文**（オーナー指示 2026-10-14「この単語をよく使う状況、場面、
+ * 感情のパターン分けをして… パターンが多くある場合は例文も増やして。似たような場面での例文は1文でいい」）。
+ */
+const EXAMPLE_PATTERN_RULE =
+  `ネイティブがその語を使う**状況・場面・気持ちのパターン**を分け、パターン1つにつき例文1つ。` +
+  `よく使うパターンが多い語は多く（最大5つ）、少ない語は少なく（最低2つ）。` +
+  `**似た場面・同じ気持ちの例文を2つ書かない**（1つ目の例文とも重ねない）。` +
+  `scene はそのパターンの短い説明（15字前後。例「唇が荒れて困ったとき」「友達に勧めるとき」）。`;
+
+/**
+ * **チャンクとは何か（2026-10-14 に一から見直した定義）**。オーナー報告「チャンクが文法的に間違っている
+ * 箇所が多くある… 紙箱＋裝＋東西 これ正しくない / 裝＋熱水馬克杯 これ熱湯マグカップみたいな意味になる /
+ * 去冰が動詞になってる」。
+ *
+ * 型の指示は生成と作り直しの両方が `formulaChunkRule` を通るので、定義はここに1つだけ置く。
+ * 返ってきた型は `chunk-check.server.ts` がもう一度点検する（指示だけでは 0 にならない）。
+ */
+const CHUNK_DEFINITION_RULE =
+  `**チャンクの定義**: ネイティブがその語を使うときに**最もよく・最も自然に**口にする語の塊（使い方の公式）。` +
+  `その塊を覚えれば、そのまま会話で言える物だけ。\n` +
+  `1. **語順はネイティブが実際に言う順番を厳守する。** パーツを左から順に読むと、そのまま自然な句になること` +
+  `（✗ 紙箱＋裝＋東西 — この順では言わない → ○ 用＋紙箱＋裝＋東西 / ○ 把＋東西＋裝進＋紙箱）。\n` +
+  `2. **パーツの区切りは品詞が変わる所。** ネイティブが1つの塊として言う語は分けない（○ 半糖・去冰・手搖飲）。` +
+  `**逆に、1語ではない物を1つのパーツにつなげない**（✗ 熱水馬克杯 — そんな語は無く「熱湯マグカップ」に読める → ` +
+  `○ 用＋馬克杯＋裝＋熱水）。\n` +
+  `3. **pos はそのパーツがその型の中で果たす役割の品詞にする**（飲み物の注文の 去冰・少冰・半糖 は飲み物の後ろに置く注文の言い方で、` +
+  `✗ 去冰＋可樂 → ○ 可樂＋去冰）。\n` +
+  `4. **文にしない。** 主語＋動詞＋目的語をすべて書いた文（✗ 我買了一個紙箱）、句点のある文は型ではない。主語は入れない。\n` +
+  `5. **量詞の型（一個〇〇・一杯〇〇）は書かない** — 量詞は別の欄で読む。\n` +
+  `6. 入れ替えてよく使う所（名詞・形容詞・程度の副詞のバリエーション）だけ slot にする。**学ぶ語そのものは決して slot にしない。**\n` +
+  `7. 各型に必ず、型ぜんぶの自然な訳（ja）を付ける。\n` +
+  `迷ったら書かない — 自信のある型を2〜3個返すほうが、怪しい型を5個返すよりよい。`;
 
 /**
  * **崩れた型と、訳になっていない訳を作らせない**（オーナー報告 2026-10-09「嘴邊肉＋切 /
@@ -1909,8 +1964,9 @@ function specificChunkRule(headword: string, levelGoal: string): string {
     `動詞ならその動詞が取る決まった相手・補語、形容詞なら一緒に立つ名詞）。\n` +
     `基準は「**その語を別の語に入れ替えたら成り立たなくなるか**」。成り立つ形は書かない。\n` +
     `語彙のネットワーク（一緒に立つ語）と構文の型（公式）の2種類を混ぜて返す。\n` +
-    `**学習者の目標レベル ${levelGoal} に合わせる** — このレベルで実際に口に出せる` +
-    `語彙・文型に収める。難しい型を並べても言えるようにはならない。\n` +
+    `**学習者の目標レベル ${levelGoal} に合わせる** — 周りの語彙・文型はこのレベルで実際に口に出せる物に収める` +
+    `（TOCFL ならその級以下の語）。難しい型を並べても言えるようにはならない。` +
+    `ただし**ネイティブが最も自然に使う形に限る** — レベルに合わせるために不自然な言い方を作らない。\n` +
     // R14「決して該当の単語はスクロールできるようにはしないで。この単語を学習したいから」。
     `**「${headword}」自身のパーツは必ず slot:false・alts なし**（学ぶ語は入れ替えない）。` +
     `入れ替えられるのは周りの語だけで、alts にはネイティブが実際によく入れる具体語を` +
@@ -2084,8 +2140,9 @@ async function runSectionRegen(
       }),
     },
     example: {
-      prompt: `${base}\nネイティブが「${head}」を使う**いちばん自然で、いちばんよく出会う場面を1つだけ**選び、その場面でそのまま言う例文を1つ。辞書的な作文・説明文にしない。目標レベルは ${regenLevelGoal} — 語彙・文型はこのレベル以下。\n${sharedExampleSourceRule(NL, regenProfile.code)}\n${chunkRule(word.language as string | null)}\n{"example_sentence":"${targetName}の例文","example_translation":"訳(${NL})","example_chunks":[{"text":"","pos":""}]}`,
+      prompt: `${base}\nネイティブが「${head}」を使う**いちばん自然で、いちばんよく出会う場面を1つだけ**選び、その場面でそのまま言う例文を1つ。辞書的な作文・説明文にしない。目標レベルは ${regenLevelGoal} — 語彙・文型はこのレベル以下。example_scene はその場面・気持ちの短い説明(${NL}で15字前後)。\n${sharedExampleSourceRule(NL, regenProfile.code)}\n${chunkRule(word.language as string | null)}\n{"example_scene":"場面(${NL})","example_sentence":"${targetName}の例文","example_translation":"訳(${NL})","example_chunks":[{"text":"","pos":""}]}`,
       schema: z.object({
+        example_scene: z.string().catch(""),
         example_sentence: z.string().min(1),
         example_translation: z.string().catch(""),
         example_chunks: z
@@ -2094,7 +2151,7 @@ async function runSectionRegen(
       }),
     },
     examples_extra: {
-      prompt: `${base}\n追加の例文2つ。それぞれ scene(いつ・どんな気持ちで言うか)と chunks を付ける。目標レベルは ${regenLevelGoal} — 語彙・文型はこのレベル以下。1つ目の例文と違う場面・気持ちにする。\n${sharedExampleSourceRule(NL, regenProfile.code)}\n${chunkRule(word.language as string | null)}\n{"examples_extra":[{"zh":"","ja":"","scene":"","chunks":[{"text":"","pos":""}]}]}`,
+      prompt: `${base}\n追加の例文。それぞれ scene(いつ・どんな気持ちで言うか)と chunks を付ける。目標レベルは ${regenLevelGoal} — 語彙・文型はこのレベル以下。1つ目の例文と違う場面・気持ちにする。\n${EXAMPLE_PATTERN_RULE}\n${sharedExampleSourceRule(NL, regenProfile.code)}\n${chunkRule(word.language as string | null)}\n{"examples_extra":[{"zh":"","ja":"","scene":"","chunks":[{"text":"","pos":""}]}]}`,
       schema: z.object({
         examples_extra: z
           .array(
@@ -2253,6 +2310,22 @@ async function runSectionRegen(
     out = schema.parse(parseJsonFromAiText(result.text)) as Record<string, unknown>;
   } catch {
     throw new Error("AIが項目を生成できませんでした。もう一度お試しください");
+  }
+  // 作り直したチャンクも点検する（カードを作る時と同じ。`chunk-check.server.ts`）。
+  if (data.section === "usage_chunks" && Array.isArray(out.usage_chunks)) {
+    const { checkUsageChunks } = await import("./chunk-check.server");
+    const checked = await checkUsageChunks({
+      headword: word.headword as string,
+      languageName: regenProfile.promptName,
+      readerName: NL,
+      levelGoal: regenLevelGoal,
+      posRule: regenProfile.chunkPrompt.posRule,
+      grammarRule: regenProfile.chunkPrompt.formulaGrammar,
+      chunks: out.usage_chunks as UsageChunk[],
+    });
+    if (checked.length === 0)
+      throw new Error("AIが項目を生成できませんでした。もう一度お試しください");
+    out.usage_chunks = checked;
   }
 
   // ベース列(meaning/example)は verified 語では守る(constitution §2-1)。

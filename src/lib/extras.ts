@@ -185,6 +185,11 @@ export const ExtrasSchema = z.object({
     .catch([]),
   radicals: z.string().catch(""),
   mnemonic: z.string().catch(""),
+  /**
+   * 例文（example_sentence）の場面・気持ちの短い説明（読む人の言語）。追加の例文の `scene` と同じ書き方。
+   * オーナー指示 2026-10-14「例文は追加の例文のように…状況場面感情の説明を短く例文のうえに書いて」。
+   */
+  example_scene: z.string().catch(""),
   examples_extra: z.array(ExampleExtraSchema).catch([]),
   /** 頻度・使う場面(統合): どこで見て使うか+口語/書面+頻度の説明。 */
   usage_context: z.string().catch(""),
