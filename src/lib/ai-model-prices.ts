@@ -47,6 +47,18 @@ export const AI_MODEL_PRICES: readonly ModelPrice[] = [
     outUsd: 10,
     source: "Anthropic models overview (checked 2026-10-11)",
   },
+  {
+    match: /^anthropic:claude-opus-5-5(?:-\d{8})?$/,
+    inUsd: 4,
+    outUsd: 20,
+    source: "Anthropic models overview (checked 2026-10-14)",
+  },
+  {
+    match: /^anthropic:claude-fable-5-1(?:-\d{8})?$/,
+    inUsd: 10,
+    outUsd: 50,
+    source: "Anthropic models overview (checked 2026-10-14)",
+  },
 ];
 
 export function priceOf(model: string): ModelPrice | null {

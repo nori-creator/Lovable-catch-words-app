@@ -5,7 +5,7 @@
  * - 呼べるのは管理者だけ。管理者でない人の読み取りは `{ isAdmin: false }` だけを返し、
  *   書き込みは `Forbidden` で断る（`/api/native-fn` では 403）。
  * - **鍵の値は絶対に返さない。** 返すのは「鍵が入っているか」（`hasKey`）だけ。
- * - 保存先はどれも `app_config`（`ai_models` / `image_generation` / `tts_voice`）。
+ * - 保存先はどれも `app_config`（`ai_models` / `image_generation` / `tts_voice` / `ai_prices`）。
  *
  * 中身は**差し込める道具（`AdminAiDeps`）**の上に書いてある — 試験では DB・鍵・通信を
  * 偽物に差し替えて、権限・秘密の漏れ・保存と読み戻しを確かめる（`admin-ai.test.ts`）。
@@ -22,6 +22,27 @@ import {
   type AiTier,
 } from "./ai-features";
 import { parseModelList, supportsVision } from "./ai-provider-models";
+import type { AiTask } from "./ai-call-log";
+import {
+  AI_TASK_INFOS,
+  OFF,
+  backupValues,
+  buildAiModelsConfig,
+  normalizeBackupValue,
+  parseBackupValue,
+  taskInfo,
+  taskValues,
+} from "./ai-task-settings";
+import {
+  AI_COST_DAYS,
+  AI_PRICES_KEY,
+  computeAiCosts,
+  isPriceModelLabel,
+  normalizePricesConfig,
+  type AiCostDays,
+  type AiCostReport,
+  type AiCostRow,
+} from "./ai-costs";
 import { DICT, UI_LANGS, type UiLang } from "./i18n";
 import {
   DEFAULT_HIGGSFIELD_IMAGE_MODEL,
@@ -46,7 +67,7 @@ import {
 /** 管理者でない人が書こうとした時の文言（`native-fn.ts` が 403 にする）。 */
 export const ADMIN_ONLY_MESSAGE = "Forbidden: 管理者だけが使えます";
 
-export type AppConfigKey = "ai_models" | "image_generation" | "tts_voice";
+export type AppConfigKey = "ai_models" | "image_generation" | "tts_voice" | typeof AI_PRICES_KEY;
 
 /** AI の会社の一覧の1行（鍵の値は持たない）。 */
 export type AiProviderListing = {
@@ -71,6 +92,10 @@ export type AdminAiDeps = {
   describeFeature: (
     feature: AiFeature,
   ) => Promise<{ provider: string; model: string; resolved: string } | { error: string }>;
+  /** その用途がいま実際に使う会社とモデルと控え。 */
+  describeTask: (feature: AiFeature, task: AiTask) => Promise<TaskDescription>;
+  /** AI を呼んだ1回ずつの記録（全員の分。`meta` と時刻だけ）。 */
+  aiCallRows: (since: string) => Promise<{ rows: AiCostRow[]; truncated: boolean }>;
   /** 既定の AI が動くか（鍵が1つも無いと全部止まる）。 */
   aiStatus: () => { ok: boolean; provider: string | null; error: string | null };
   imageKeys: () => Record<Exclude<ImageProviderId, "off">, boolean>;
@@ -139,6 +164,38 @@ export type AdminAiFeatureRow = {
   error: string | null;
 };
 
+export type TaskDescription =
+  | {
+      provider: string;
+      model: string;
+      resolved: string;
+      backup: { provider: string; model: string; resolved: string } | null;
+    }
+  | { error: string };
+
+/** 用途ごとの1行（iOS の開発者画面は `ios: true` の行だけを出す）。 */
+export type AdminAiTaskRow = {
+  id: AiTask;
+  feature: AiFeature;
+  needsVision: boolean;
+  ios: boolean;
+  label: Label;
+  description: Label;
+  /** この用途に保存されている値（`"auto"` = 機能の設定・既定のまま）。 */
+  value: string;
+  /** 控えの値（`"auto"` = 既定の控え、`"off"` = 控えを使わない、`"会社:モデル"`）。 */
+  backup: string;
+  /** いま実際に使う会社・モデル・版付きのモデル。 */
+  provider: string | null;
+  model: string | null;
+  resolved: string | null;
+  /** いま実際に使う控え（無ければ null）。 */
+  backupProvider: string | null;
+  backupModel: string | null;
+  backupResolved: string | null;
+  error: string | null;
+};
+
 export type TtsLanguageRow = {
   /** `default` = 何も選んでいない（これまでの声）。 */
   provider: "default" | "azure" | "gemini" | "elevenlabs";
@@ -156,6 +213,8 @@ export type AdminAiSettings =
       isAdmin: true;
       status: { ok: boolean; provider: string | null; error: string | null };
       features: AdminAiFeatureRow[];
+      /** 用途ごとの AI と控え（2026-10-14〜）。 */
+      tasks: AdminAiTaskRow[];
       providers: AiProviderListing[];
       image: {
         provider: ImageProviderId;
@@ -258,6 +317,47 @@ export async function getAdminAiSettings(deps: AdminAiDeps): Promise<AdminAiSett
     }),
   );
 
+  const tValues = taskValues(aiRaw);
+  const bValues = backupValues(aiRaw);
+  const tasks = await Promise.all(
+    AI_TASK_INFOS.map(async (t): Promise<AdminAiTaskRow> => {
+      const value = parseFeatureValue(tValues[t.id])?.provider ? tValues[t.id] : AUTO;
+      const backupRaw = bValues[t.id];
+      const backup = parseBackupValue(backupRaw) ? backupRaw : AUTO;
+      const d = await deps.describeTask(t.feature, t.id);
+      const ok = "provider" in d ? d : null;
+      const spec = parseFeatureValue(value);
+      const chosenBackup = parseBackupValue(backup);
+      let error: string | null = "error" in d ? d.error : null;
+      if (!error && spec?.provider && ok && ok.provider !== spec.provider)
+        error = `${spec.provider} の鍵が無いため機能の設定・既定の AI で動いています`;
+      if (
+        !error &&
+        chosenBackup &&
+        chosenBackup !== OFF &&
+        ok?.backup?.provider !== chosenBackup.provider
+      )
+        error = `${chosenBackup.provider} の鍵が無いため既定の控えを使います`;
+      return {
+        id: t.id,
+        feature: t.feature,
+        needsVision: t.needsVision,
+        ios: t.ios,
+        label: t.label,
+        description: t.description,
+        value,
+        backup,
+        provider: ok?.provider ?? null,
+        model: ok?.model ?? null,
+        resolved: ok?.resolved ?? null,
+        backupProvider: ok?.backup?.provider ?? null,
+        backupModel: ok?.backup?.model ?? null,
+        backupResolved: ok?.backup?.resolved ?? null,
+        error,
+      };
+    }),
+  );
+
   const saved = (imageRaw ?? null) as { provider?: string; model?: string } | null;
   const effective = resolveImageConfig(deps.imageEnv(), saved);
   const imageKeys = deps.imageKeys();
@@ -267,6 +367,7 @@ export async function getAdminAiSettings(deps: AdminAiDeps): Promise<AdminAiSett
     isAdmin: true,
     status: deps.aiStatus(),
     features,
+    tasks,
     providers,
     image: {
       provider: effective.provider,
@@ -333,25 +434,162 @@ export async function setAdminAiFeature(
     throw new BadRequestError(e instanceof Error ? e.message : String(e));
   }
   if (value !== AUTO) {
-    const spec = parseFeatureValue(value)!;
-    const providers = await deps.aiProviders();
-    const p = providers.find((x) => x.id === spec.provider);
-    if (!p) throw new BadRequestError(`知らない会社です: ${spec.provider}`);
-    if (!p.hasKey)
-      throw new BadRequestError(
-        `${p.name} の鍵がサーバにありません。先に Secrets に鍵を入れてください。`,
-      );
     const info = AI_FEATURES.find((f) => f.id === feature)!;
-    if (info.needsVision && !canReadImages(spec.provider, spec.model))
-      throw new BadRequestError(`${spec.model} は写真を読めないため、スキャンには使えません。`);
+    await checkModelChoice(deps, value, info, "スキャン");
   }
-  // 機能ごとの割り当て**だけ**を残す（古い全体の上書きはここで消える）。
-  const features = featureValues(await deps.readConfig("ai_models"));
+  // 機能ごと・用途ごとの割り当てと控え**だけ**を残す（古い全体の上書きはここで消える）。
+  const raw = await deps.readConfig("ai_models");
+  const features = featureValues(raw);
   if (value === AUTO) delete features[feature];
   else features[feature] = value;
-  await deps.writeConfig("ai_models", { features });
+  await deps.writeConfig(
+    "ai_models",
+    buildAiModelsConfig({ features, tasks: taskValues(raw), backups: backupValues(raw) }),
+  );
   deps.afterWrite?.("ai_models");
   return { ok: true, feature, value };
+}
+
+/** `"会社:モデル"` を使えるか確かめる（知らない会社・鍵の無い会社・写真を読めないモデル）。 */
+async function checkModelChoice(
+  deps: AdminAiDeps,
+  value: string,
+  info: { needsVision: boolean },
+  what: string,
+): Promise<void> {
+  const spec = parseFeatureValue(value)!;
+  const providers = await deps.aiProviders();
+  const p = providers.find((x) => x.id === spec.provider);
+  if (!p) throw new BadRequestError(`知らない会社です: ${spec.provider}`);
+  if (!p.hasKey)
+    throw new BadRequestError(
+      `${p.name} の鍵がサーバにありません。先に Secrets に鍵を入れてください。`,
+    );
+  if (info.needsVision && !canReadImages(spec.provider, spec.model))
+    throw new BadRequestError(`${spec.model} は写真を読めないため、${what}には使えません。`);
+}
+
+// ---- 書き込み: 用途ごとの AI と控え ------------------------------------------
+
+export const SetAiTaskInput = z.object({
+  task: z.string(),
+  /** 使う AI（`"auto"` = 機能の設定・既定のまま）。送らなければ変えない。 */
+  value: z.string().max(200).optional(),
+  /** 控え（`"auto"` = 既定の控え、`"off"` = 使わない）。送らなければ変えない。 */
+  backup: z.string().max(200).optional(),
+});
+
+/**
+ * 1つの用途の AI と控えを変える（オーナー依頼 2026-10-14）。`value` と `backup` の片方だけでもよい。
+ */
+export async function setAdminAiTask(
+  deps: AdminAiDeps,
+  input: unknown,
+): Promise<{ ok: true; task: AiTask; value: string; backup: string }> {
+  await assertAdmin(deps);
+  const data = SetAiTaskInput.parse(input);
+  const info = taskInfo(data.task);
+  if (!info) throw new BadRequestError(`知らない用途です: ${data.task}`);
+  if (data.value === undefined && data.backup === undefined)
+    throw new BadRequestError("value か backup を送ってください。");
+  let value: string | undefined;
+  let backup: string | undefined;
+  try {
+    if (data.value !== undefined) value = normalizeFeatureValue(data.value);
+    if (data.backup !== undefined) backup = normalizeBackupValue(data.backup);
+  } catch (e) {
+    throw new BadRequestError(e instanceof Error ? e.message : String(e));
+  }
+  const what = info.label.ja;
+  if (value && value !== AUTO) await checkModelChoice(deps, value, info, what);
+  if (backup && backup !== AUTO && backup !== OFF)
+    await checkModelChoice(deps, backup, info, `${what}の控え`);
+
+  const raw = await deps.readConfig("ai_models");
+  const tasks = taskValues(raw);
+  const backups = backupValues(raw);
+  if (value !== undefined) {
+    if (value === AUTO) delete tasks[info.id];
+    else tasks[info.id] = value;
+  }
+  if (backup !== undefined) {
+    if (backup === AUTO) delete backups[info.id];
+    else backups[info.id] = backup;
+  }
+  await deps.writeConfig(
+    "ai_models",
+    buildAiModelsConfig({ features: featureValues(raw), tasks, backups }),
+  );
+  deps.afterWrite?.("ai_models");
+  return {
+    ok: true,
+    task: info.id,
+    value: tasks[info.id] ?? AUTO,
+    backup: backups[info.id] ?? AUTO,
+  };
+}
+
+// ---- 費用 --------------------------------------------------------------------
+
+/** 用途ごと・モデルごと・日ごとの AI の費用（`ai-costs.ts`）。`{ days: 1 | 7 | 30 }`。 */
+export async function getAdminAiCosts(
+  deps: AdminAiDeps,
+  input: unknown,
+  now: Date = new Date(),
+): Promise<{ isAdmin: false } | ({ isAdmin: true; truncated: boolean } & AiCostReport)> {
+  if (!(await deps.isAdmin())) return { isAdmin: false };
+  const raw = Number((input as { days?: unknown } | null)?.days);
+  const days: AiCostDays = (AI_COST_DAYS as readonly number[]).includes(raw)
+    ? (raw as AiCostDays)
+    : 30;
+  const since = new Date(now.getTime() - days * 86_400_000).toISOString();
+  const [prices, read] = await Promise.all([
+    deps.readConfig(AI_PRICES_KEY).then(normalizePricesConfig),
+    deps.aiCallRows(since),
+  ]);
+  return {
+    isAdmin: true,
+    truncated: read.truncated,
+    ...computeAiCosts(read.rows, prices, { days, since, now }),
+  };
+}
+
+export const SetAiPriceInput = z.object({
+  /** 1 ドル = 何円。 */
+  usdJpy: z.number().min(50).max(500).optional(),
+  /** 単価を入れるモデル（`会社:モデル`、記録に出る名前）。 */
+  model: z.string().max(200).optional(),
+  /** 米ドル / 100 万トークン。 */
+  inUsd: z.number().min(0).max(1000).optional(),
+  outUsd: z.number().min(0).max(1000).optional(),
+  /** true = 入れた単価を消す（確かめた表の値・未登録に戻る）。 */
+  remove: z.boolean().optional(),
+});
+
+/** 単価・為替を変える（管理者だけ）。 */
+export async function setAdminAiPrice(
+  deps: AdminAiDeps,
+  input: unknown,
+): Promise<{ ok: true; usdJpy: number; models: Record<string, { in: number; out: number }> }> {
+  await assertAdmin(deps);
+  const data = SetAiPriceInput.parse(input);
+  const cur = normalizePricesConfig(await deps.readConfig(AI_PRICES_KEY));
+  if (data.usdJpy === undefined && data.model === undefined)
+    throw new BadRequestError("usdJpy か model を送ってください。");
+  if (data.usdJpy !== undefined) cur.usdJpy = data.usdJpy;
+  if (data.model !== undefined) {
+    if (!isPriceModelLabel(data.model))
+      throw new BadRequestError(`モデルの名前は「会社:モデル」です: ${data.model}`);
+    if (data.remove) delete cur.models[data.model];
+    else {
+      if (data.inUsd === undefined || data.outUsd === undefined)
+        throw new BadRequestError("inUsd と outUsd の両方を送ってください。");
+      cur.models[data.model] = { in: data.inUsd, out: data.outUsd };
+    }
+  }
+  await deps.writeConfig(AI_PRICES_KEY, cur);
+  deps.afterWrite?.(AI_PRICES_KEY);
+  return { ok: true, usdJpy: cur.usdJpy, models: cur.models };
 }
 
 // ---- 書き込み: 画像 ----------------------------------------------------------
@@ -569,14 +807,15 @@ type ConfigClient = {
 export function realAdminAiDeps(context: { supabase: unknown; userId: string }): AdminAiDeps {
   const sb = context.supabase as ConfigClient;
   let adminMemo: Promise<boolean> | null = null;
+  const adminMemoCheck = () =>
+    (adminMemo ??= Promise.resolve(
+      sb.rpc("has_role", { _user_id: context.userId, _role: "admin" }),
+    ).then(({ data, error }) => {
+      if (error) throw new Error(error.message);
+      return Boolean(data);
+    }));
   return {
-    isAdmin: () =>
-      (adminMemo ??= Promise.resolve(
-        sb.rpc("has_role", { _user_id: context.userId, _role: "admin" }),
-      ).then(({ data, error }) => {
-        if (error) throw new Error(error.message);
-        return Boolean(data);
-      })),
+    isAdmin: adminMemoCheck,
     readConfig: async (key) => {
       const { data, error } = await sb
         .from("app_config")
@@ -602,6 +841,32 @@ export function realAdminAiDeps(context: { supabase: unknown; userId: string }):
     describeFeature: async (feature) => {
       const { describeFeature } = await import("./ai-provider.server");
       return describeFeature(feature);
+    },
+    describeTask: async (feature, task) => {
+      const { describeTask } = await import("./ai-provider.server");
+      return describeTask(feature, task);
+    },
+    aiCallRows: async (since) => {
+      // `ai_runs` は本人の行しか読めない（RLS）。管理者と確かめてからサーバの鍵で読む。
+      if (!(await adminMemoCheck())) return { rows: [], truncated: false };
+      const [{ supabaseAdmin }, { readAllPages }] = await Promise.all([
+        import("@/integrations/supabase/client.server"),
+        import("./pagination"),
+      ]);
+      const out = await readAllPages<AiCostRow>(
+        (a, b) =>
+          supabaseAdmin
+            .from("ai_runs")
+            .select("created_at, meta")
+            .eq("loop", "ai_call")
+            .gte("created_at", since)
+            .order("created_at", { ascending: false })
+            .order("id", { ascending: false })
+            .range(a, b),
+        { maxRows: 100_000 },
+      );
+      if (out.truncated) console.warn(`[admin-ai] cost read capped (since ${since})`);
+      return out;
     },
     aiStatus: () => aiStatusNow(),
     imageKeys: () => imageKeysNow(),

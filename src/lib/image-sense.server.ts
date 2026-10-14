@@ -111,10 +111,17 @@ async function sharedWordSense(word: SenseWord): Promise<ImageSense | null> {
   }
 }
 
+/** 1番手のモデル。落ちたら2番手（別の会社の控え）へ1回だけ回す（`ai-backup.server.ts`）。 */
 async function fastVisionModel(task: "image_sense" | "image_verify") {
-  const { getAiAttemptChain } = await import("./ai-provider.server");
-  const chain = await getAiAttemptChain("scan", task);
-  return chain[0]?.model ?? null;
+  const [{ getAiAttemptChain }, { withBackupModel }] = await Promise.all([
+    import("./ai-provider.server"),
+    import("./ai-backup.server"),
+  ]);
+  const [first, second] = await getAiAttemptChain("scan", task);
+  if (!first) return null;
+  return second
+    ? withBackupModel(first.model, () => second.model, `${task} ${first.label} → ${second.label}`)
+    : first.model;
 }
 
 /** 本番の AI の部分（その人の同意・枠で守る）。 */

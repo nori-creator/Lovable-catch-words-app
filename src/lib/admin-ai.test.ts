@@ -3,9 +3,12 @@ import { readFileSync } from "node:fs";
 import {
   ADMIN_ONLY_MESSAGE,
   BadRequestError,
+  getAdminAiCosts,
   getAdminAiSettings,
   resolveAdminImageTest,
   setAdminAiFeature,
+  setAdminAiPrice,
+  setAdminAiTask,
   setAdminImageConfig,
   setAdminTtsVoice,
   type AdminAiDeps,
@@ -17,7 +20,11 @@ import { statusForError } from "./native-fn";
 const SECRET = "sk-THIS-IS-A-SECRET-VALUE";
 
 /** 偽物の道具。DB は手元の表、鍵は「ある・ない」だけを知っている。 */
-function fakeDeps(opts: { admin: boolean; config?: Partial<Record<AppConfigKey, unknown>> }) {
+function fakeDeps(opts: {
+  admin: boolean;
+  config?: Partial<Record<AppConfigKey, unknown>>;
+  callRows?: Array<{ created_at: string; meta: unknown }>;
+}) {
   const db: Partial<Record<AppConfigKey, unknown>> = { ...(opts.config ?? {}) };
   const writes: Array<{ key: AppConfigKey; value: unknown }> = [];
   const afterWrite = vi.fn();
@@ -58,6 +65,32 @@ function fakeDeps(opts: { admin: boolean; config?: Partial<Record<AppConfigKey, 
         ? { provider: "google", model: "latest-flash-lite", resolved: "gemini-3.8-flash-lite" }
         : { provider: "google", model: "latest-flash", resolved: "gemini-3.8-flash" };
     },
+    describeTask: async (feature, task) => {
+      const ai = (db.ai_models ?? {}) as {
+        tasks?: Record<string, string>;
+        backups?: Record<string, string>;
+      };
+      const v = ai.tasks?.[task];
+      const base =
+        v && v.includes(":")
+          ? { provider: v.split(":")[0], model: v.split(":")[1], resolved: v.split(":")[1] }
+          : feature === "scan"
+            ? { provider: "google", model: "latest-flash-lite", resolved: "gemini-3.8-flash-lite" }
+            : { provider: "google", model: "latest-flash", resolved: "gemini-3.8-flash" };
+      const b = ai.backups?.[task];
+      const backup =
+        b === "off"
+          ? null
+          : b && b.includes(":")
+            ? { provider: b.split(":")[0], model: b.split(":")[1], resolved: b.split(":")[1] }
+            : {
+                provider: "lovable",
+                model: "google/gemini-2.5-flash",
+                resolved: "google/gemini-2.5-flash",
+              };
+      return { ...base, backup };
+    },
+    aiCallRows: async () => ({ rows: opts.callRows ?? [], truncated: false }),
     aiStatus: () => ({ ok: true, provider: "google", error: null }),
     imageKeys: () => ({
       lovable: true,
@@ -362,5 +395,117 @@ describe("「試しに1枚作る」は保存前の選び方で試せる", () => 
     const fn = readFileSync(new URL("./images.functions.ts", import.meta.url), "utf8");
     expect(fn).toMatch(/resolveAdminImageTest\(mod\.realAdminAiDeps\(context\), input\)/);
     expect(fn).toMatch(/data\.draft \?\? \(await readImageOverride\(\)\)/);
+  });
+});
+
+describe("用途ごとの AI と控え・費用（2026-10-14）", () => {
+  it("読み取り: 全部の用途に iOS の印・いまの AI・控えが付く", async () => {
+    const { deps } = fakeDeps({ admin: true });
+    const out = await getAdminAiSettings(deps);
+    if (!out.isAdmin) throw new Error("admin");
+    const regen = out.tasks.find((t) => t.id === "section_regen")!;
+    expect(regen).toMatchObject({
+      ios: true,
+      value: "auto",
+      backup: "auto",
+      provider: "google",
+      backupProvider: "lovable",
+    });
+    expect(out.tasks.find((t) => t.id === "journal_correct")?.ios).toBe(false);
+    expect(out.tasks.some((t) => (t.id as string) === "native_ai")).toBe(false);
+  });
+
+  it("保存: 用途の AI と控え。機能の設定は残り、auto で消える", async () => {
+    const { deps, db, afterWrite } = fakeDeps({
+      admin: true,
+      config: { ai_models: { features: { card: "openai:gpt-5-mini" } } },
+    });
+    await setAdminAiTask(deps, {
+      task: "section_regen",
+      value: "google:gemini-3.8-flash",
+      backup: "off",
+    });
+    expect(db.ai_models).toEqual({
+      features: { card: "openai:gpt-5-mini" },
+      tasks: { section_regen: "google:gemini-3.8-flash" },
+      backups: { section_regen: "off" },
+    });
+    expect(afterWrite).toHaveBeenCalledWith("ai_models");
+    // 機能の設定を変えても用途の設定は消えない
+    await setAdminAiFeature(deps, { feature: "card", value: "auto" });
+    expect(db.ai_models).toEqual({
+      features: {},
+      tasks: { section_regen: "google:gemini-3.8-flash" },
+      backups: { section_regen: "off" },
+    });
+    await setAdminAiTask(deps, { task: "section_regen", value: "auto" });
+    await setAdminAiTask(deps, { task: "section_regen", backup: "auto" });
+    expect(db.ai_models).toEqual({ features: {} });
+  });
+
+  it("断る: 管理者でない・知らない用途・鍵の無い会社・写真を読めない控え・何も送らない", async () => {
+    const { deps, writes } = fakeDeps({ admin: true });
+    await expect(setAdminAiTask(deps, { task: "dance", value: "auto" })).rejects.toThrow(
+      /知らない用途/,
+    );
+    await expect(
+      setAdminAiTask(deps, { task: "card", value: "anthropic:claude-sonnet-5-5" }),
+    ).rejects.toThrow(/鍵/);
+    await expect(
+      setAdminAiTask(deps, { task: "image_verify", backup: "openai:gpt-3.5-turbo" }),
+    ).rejects.toThrow(/写真/);
+    await expect(setAdminAiTask(deps, { task: "card" })).rejects.toThrow(/value か backup/);
+    const err = await setAdminAiTask(deps, { task: "card", value: "nope" }).catch((e) => e);
+    expect(statusForError(err)).toBe(400);
+    expect(writes).toEqual([]);
+    const { deps: guest } = fakeDeps({ admin: false });
+    const denied = await setAdminAiTask(guest, { task: "card", value: "auto" }).catch((e) => e);
+    expect(statusForError(denied)).toBe(403);
+    expect(await getAdminAiCosts(guest, { days: 7 })).toEqual({ isAdmin: false });
+    expect(statusForError(await setAdminAiPrice(guest, { usdJpy: 150 }).catch((e) => e))).toBe(403);
+  });
+
+  it("費用: 記録から数え、入れた単価と為替を使う", async () => {
+    const { deps, db } = fakeDeps({
+      admin: true,
+      callRows: [
+        {
+          created_at: new Date().toISOString(),
+          meta: {
+            task: "card",
+            model: "lovable:google/gemini-2.5-flash",
+            ok: true,
+            in: 1_000_000,
+            out: 0,
+          },
+        },
+      ],
+    });
+    let out = await getAdminAiCosts(deps, { days: 30 });
+    if (!out.isAdmin) throw new Error("admin");
+    expect(out.total).toMatchObject({ calls: 1, usd: 0, unpricedCalls: 1 });
+    await setAdminAiPrice(deps, {
+      model: "lovable:google/gemini-2.5-flash",
+      inUsd: 0.3,
+      outUsd: 2.5,
+    });
+    await setAdminAiPrice(deps, { usdJpy: 150 });
+    expect(db.ai_prices).toEqual({
+      usdJpy: 150,
+      models: { "lovable:google/gemini-2.5-flash": { in: 0.3, out: 2.5 } },
+    });
+    out = await getAdminAiCosts(deps, { days: 30 });
+    if (!out.isAdmin) throw new Error("admin");
+    expect(out.total.usd).toBeCloseTo(0.3, 6);
+    expect(out.usdJpy).toBe(150);
+    expect(out.customPrices).toEqual([
+      { model: "lovable:google/gemini-2.5-flash", inUsd: 0.3, outUsd: 2.5 },
+    ]);
+    await setAdminAiPrice(deps, { model: "lovable:google/gemini-2.5-flash", remove: true });
+    expect(db.ai_prices).toEqual({ usdJpy: 150, models: {} });
+    await expect(
+      setAdminAiPrice(deps, { model: "no colon", inUsd: 1, outUsd: 1 }),
+    ).rejects.toThrow();
+    await expect(setAdminAiPrice(deps, { model: "google:x", inUsd: 1 })).rejects.toThrow(/両方/);
   });
 });

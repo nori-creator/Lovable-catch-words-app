@@ -2415,6 +2415,11 @@ export type ReportFixResult = {
   item?: ReportItemId | null;
   /** 誰が確かめたか（`dictionary` は辞書と照らした）。 */
   by: "dictionary" | "jev" | "llm" | "none";
+  /**
+   * AI が答えず、直しの案を作れなかった（控えの AI も失敗した）。報告は記録してあり、開発者の
+   * 確認待ちに残る。iOS は「記録しました。AI が応答せず自動では直せませんでした」と出す。
+   */
+  aiFailed?: boolean;
 };
 
 export const reportAndFixSection = createServerFn({ method: "POST" })
@@ -2610,11 +2615,22 @@ export const reportAndFixSection = createServerFn({ method: "POST" })
     }
 
     // 2b. それ以外 … その項目だけの案を作る（まだ書かない）。
-    const r = await runSectionRegen(
-      context,
-      { word_id: data.word_id, section: item, only_if_empty: false },
-      "propose",
-    );
+    // **AI が答えない時に 500 にしない**（2026-10-11〜14、Google の残高切れで「意味」の報告が
+    // 毎回サーバエラーになった）。報告はもう記録してあるので、「直せなかった」と返す。
+    // 上限・同意・権限の失敗（500 以外）はそのまま返す（画面がそれぞれの案内を出す）。
+    let r: Awaited<ReturnType<typeof runSectionRegen>>;
+    try {
+      r = await runSectionRegen(
+        context,
+        { word_id: data.word_id, section: item, only_if_empty: false },
+        "propose",
+      );
+    } catch (e) {
+      const { statusForError } = await import("./native-fn");
+      if (statusForError(e) !== 500) throw e;
+      console.warn(`[report] section regen failed: ${(e as Error)?.message?.slice(0, 160)}`);
+      return { fixed: false, by: "none", item, aiFailed: true };
+    }
     const proposal = r.proposal;
     if (!proposal) return { fixed: false, by: "none", item };
 
