@@ -19,9 +19,11 @@ import {
   resolveGeminiModelId,
   withGeminiKeywords,
 } from "./gemini-latest.server";
-import { featureTier, parseFeatureValue, type AiFeature } from "./ai-features";
+import { featureTier, parseFeatureValue, tierKeyword, type AiFeature } from "./ai-features";
 import type { AiTask } from "./ai-call-log";
 import { measuredGateway, measuredModel } from "./ai-call-log.server";
+import { backedGateway } from "./ai-backup.server";
+import { OFF, parseBackupValue } from "./ai-task-settings";
 
 /**
  * Single switch point for every AI call in the app.
@@ -34,13 +36,18 @@ import { measuredGateway, measuredModel } from "./ai-call-log.server";
  * When AI_PROVIDER is unset we auto-detect from which key is present, keeping
  * the Lovable-hosted deployment working unchanged.
  *
- * Every feature goes through `getAiFor(feature)` (feature list: `ai-features.ts`).
- * Precedence, highest first — there is no hidden override:
- *   1. per-feature admin setting `app_config.ai_models.features[feature]`
+ * Every feature goes through `getAiFor(feature, task)` (feature list: `ai-features.ts`,
+ * tasks: `ai-call-log.ts`). Precedence, highest first — there is no hidden override:
+ *   1. per-task admin setting `app_config.ai_models.tasks[task]` ("provider:model")
+ *   2. per-feature admin setting `app_config.ai_models.features[feature]`
  *      ("provider:model"; "auto"/empty falls through)
- *   2. env AI_PROVIDER / AI_MODEL_FAST / AI_MODEL_RICH / AI_MODEL_RICH_PREMIUM
- *   3. keyword defaults: scan → latest-flash-lite, everything else → latest-flash
+ *   3. env AI_PROVIDER / AI_MODEL_FAST / AI_MODEL_RICH / AI_MODEL_RICH_PREMIUM
+ *   4. keyword defaults: scan → latest-flash-lite, everything else → latest-flash
  *      (Pro section regeneration → latest-pro), resolved to the newest Gemini at runtime
+ *
+ * Every model `getAiFor` returns falls back once to a backup on another provider when the call
+ * fails (`ai-backup.server.ts`; per-task `app_config.ai_models.backups[task]`, default
+ * `resolveBackupFor`).
  */
 
 const LOVABLE_BASE_URL = "https://ai.gateway.lovable.dev/v1";
@@ -117,9 +124,9 @@ export async function concreteModelId(
 /**
  * 実行時のモデル切替(app_config.key='ai_models')。
  *
- * **機能ごとの割り当てだけ**を持つ(オーナー決定 2026-10-09)。値は `"auto"` か
- * `"会社:モデル"`(形と機能の表は `ai-features.ts`)。鍵そのものは DB に置かない —
- * 会社の名前から環境変数の鍵を引く(`findKey`)。
+ * **機能ごと・用途ごとの割り当てと、用途ごとの控え**だけを持つ(オーナー決定 2026-10-09・
+ * 2026-10-14)。値は `"auto"` か `"会社:モデル"`（控えは `"off"` も。形と表は `ai-features.ts`・
+ * `ai-task-settings.ts`）。鍵そのものは DB に置かない — 会社の名前から環境変数の鍵を引く(`findKey`)。
  *
  * 以前あった全体の上書き(`provider` / `base_url` / `api_key_env` / `fast` / `rich` /
  * `rich_premium`)は**読まない**。画面の「詳しい設定」から書けたが、`provider` を入れると
@@ -127,6 +134,10 @@ export async function concreteModelId(
  */
 export type AiModelOverride = {
   features?: Partial<Record<AiFeature, string>>;
+  /** 用途ごとの AI（機能の設定より先に効く）。 */
+  tasks?: Partial<Record<string, string>>;
+  /** 用途ごとの控え（`"off"` = 控えを使わない、無ければ `resolveBackupFor` の既定）。 */
+  backups?: Partial<Record<string, string>>;
 };
 
 export type { AiFeature } from "./ai-features";
@@ -267,7 +278,70 @@ export function providerConfig(providerId: string, model: string): AiConfig | nu
  * 呼ぶ所は `withModelFallback` で包み、モデルが無い(404)時は控えのモデルへ落とす。
  */
 export async function getAiFor(feature: AiFeature, task?: AiTask): Promise<AiConfig> {
-  return measuredAi(await resolveAiFor(feature), feature, task);
+  const cfg = await resolveAiFor(feature, task);
+  const measured = measuredAi(cfg, feature, task);
+  const primaryName = cfg.name ?? cfg.provider;
+  const backup = await resolveBackupFor(feature, task, primaryName);
+  if (!backup) return measured;
+  // 控えのモデルも呼んだ1回ずつを記録する（どれだけ控えに回ったかが開発者の表に出る）。
+  const tag = { feature, task: task ?? feature, provider: backup.name };
+  let made: ReturnType<AiConfig["gateway"]> | null = null;
+  const makeBackup = () => (made ??= measuredModel(backup.gateway(backup.model), tag));
+  return {
+    ...measured,
+    gateway: backedGateway(
+      measured.gateway,
+      makeBackup,
+      `${task ?? feature} ${primaryName} → ${backup.name}:${backup.model}`,
+    ),
+  };
+}
+
+/** 控えの AI（会社・ゲートウェイ・モデル）。 */
+export type AiBackup = { name: string; gateway: AiConfig["gateway"]; model: string };
+
+/**
+ * **既定の控え**: 1番手と**別の会社**で、鍵のある最初の物。会社ごと止まる失敗（残高切れ 402・
+ * 鍵の失効・障害）は同じ会社の別のモデルでは直らないため。どれも写真を読める（スキャンの控えにも使える）。
+ * 1. Lovable の口の Gemini 2.5 Flash（2026-10-11 の Google の 402 の間も動いていた）
+ * 2. Google の最新の版（機能の段の合言葉）
+ * 3. OpenRouter の Gemini 2.5 Flash
+ */
+export const DEFAULT_BACKUPS: ReadonlyArray<{
+  provider: string;
+  model: (feature: AiFeature) => string;
+}> = [
+  { provider: "lovable", model: () => "google/gemini-2.5-flash" },
+  { provider: "google", model: (f) => tierKeyword(featureTier(f)) },
+  { provider: "openrouter", model: () => "google/gemini-2.5-flash" },
+];
+
+/**
+ * その用途の控え。開発者が選んだ物（`ai_models.backups[用途]`）→ 無ければ既定（`DEFAULT_BACKUPS`）。
+ * `"off"` なら null（控えを使わない）。選んだ会社の鍵が無ければ既定へ落ちる。
+ */
+export async function resolveBackupFor(
+  feature: AiFeature,
+  task: AiTask | undefined,
+  primaryName: string,
+): Promise<AiBackup | null> {
+  const ov = await getAiModelOverride();
+  const chosen = task ? parseBackupValue(ov?.backups?.[task]) : null;
+  if (chosen === OFF) return null;
+  if (chosen) {
+    const cfg = providerConfig(chosen.provider, chosen.model);
+    if (cfg) return { name: chosen.provider, gateway: cfg.gateway, model: chosen.model };
+    console.warn(
+      `[ai] backup for "${task}" wants ${chosen.provider} but no key — using the default`,
+    );
+  }
+  for (const d of DEFAULT_BACKUPS) {
+    if (d.provider === primaryName) continue;
+    const model = d.model(feature);
+    const cfg = providerConfig(d.provider, model);
+    if (cfg) return { name: d.provider, gateway: cfg.gateway, model };
+  }
+  return null;
 }
 
 /**
@@ -282,9 +356,17 @@ export function measuredAi(cfg: AiConfig, feature: AiFeature, task?: AiTask): Ai
   };
 }
 
-/** `getAiFor` の中身（包む前）。 */
-async function resolveAiFor(feature: AiFeature): Promise<AiConfig> {
+/** `getAiFor` の中身（包む前）。用途の設定があれば、それが機能の設定より先に効く。 */
+async function resolveAiFor(feature: AiFeature, task?: string): Promise<AiConfig> {
   const ov = await getAiModelOverride();
+  const taskSpec = task ? parseFeatureValue(ov?.tasks?.[task]) : null;
+  if (taskSpec?.provider) {
+    const cfg = providerConfig(taskSpec.provider, taskSpec.model);
+    if (cfg) return cfg;
+    console.warn(
+      `[ai] task "${task}" wants ${taskSpec.provider} but no key — using the feature's AI`,
+    );
+  }
   const spec = parseFeatureValue(ov?.features?.[feature]);
   if (spec?.provider) {
     const cfg = providerConfig(spec.provider, spec.model);
@@ -307,9 +389,10 @@ async function resolveAiFor(feature: AiFeature): Promise<AiConfig> {
  */
 export async function describeFeature(
   feature: AiFeature,
+  task?: string,
 ): Promise<{ provider: string; model: string; resolved: string } | { error: string }> {
   try {
-    const ai = await resolveAiFor(feature);
+    const ai = await resolveAiFor(feature, task);
     const provider = ai.name ?? ai.provider;
     const model = ai.modelFast;
     let resolved = model;
@@ -317,6 +400,38 @@ export async function describeFeature(
       resolved = await resolveGeminiModelId(model, { apiKey: findKey("google")?.value });
     }
     return { provider, model, resolved };
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : String(e) };
+  }
+}
+
+/** 管理画面の確認用: その用途がいま使う AI と控え（控えが無ければ null）。鍵の値は含めない。 */
+export async function describeTask(
+  feature: AiFeature,
+  task: AiTask,
+): Promise<
+  | {
+      provider: string;
+      model: string;
+      resolved: string;
+      backup: { provider: string; model: string; resolved: string } | null;
+    }
+  | { error: string }
+> {
+  const d = await describeFeature(feature, task);
+  if ("error" in d) return d;
+  try {
+    const b = await resolveBackupFor(feature, task, d.provider);
+    return {
+      ...d,
+      backup: b
+        ? {
+            provider: b.name,
+            model: b.model,
+            resolved: await concreteModelId({ name: b.name }, b.model),
+          }
+        : null,
+    };
   } catch (e) {
     return { error: e instanceof Error ? e.message : String(e) };
   }
@@ -391,14 +506,15 @@ const VISION_FAST_BACKUP: Record<string, string> = {
  * **その機能の AI と、落ちたときの2番手**（監査 2026-10-03「チュートリアルの写真の分析が
  * 45〜50秒待って失敗した」）。
  *
- * 1番手は今までと同じ `getAiFor(feature)` の速いモデル（設定の開発者欄で選んだ物）。
+ * 1番手は今までと同じ `getAiFor(feature, task)` の速いモデル（設定の開発者欄で選んだ物）。
  * 2番手は、**すでに設定・鍵のある物**から、1番手と違う最初の1つ:
+ * 0. 開発者がその用途に選んだ控え（`ai_models.backups[用途]`。`"off"` なら2番手は無し）
  * 1. 環境変数の設定（`getAi`。未設定なら合言葉の既定）の速いモデル
  * 2. 鍵のある会社の、写真を読める速い控え（`VISION_FAST_BACKUP`。別の会社を先に）
  * どれも1番手と同じなら、2番手は無し（1回だけ試す）。設定が欠けていても投げない。
  */
 export async function getAiAttemptChain(feature: AiFeature, task?: AiTask): Promise<AiTarget[]> {
-  const primary = await resolveAiFor(feature);
+  const primary = await resolveAiFor(feature, task);
   const primaryName = primary.name ?? primary.provider;
   const chain: AiTarget[] = [];
   // 重ねないかは設定に書いた名前で見る（前と同じ）。記録の名前は版付きの ID（`concreteModelId`）。
@@ -416,6 +532,14 @@ export async function getAiAttemptChain(feature: AiFeature, task?: AiTask): Prom
     });
   };
   await add(primaryName, primary.gateway, primary.modelFast); // getAiFor が機能の段に揃え済み
+  // 開発者が選んだ控え（`ai_models.backups[用途]`）が先。`"off"` なら2番手は無し。
+  const ov = await getAiModelOverride();
+  const chosen = task ? parseBackupValue(ov?.backups?.[task]) : null;
+  if (chosen === OFF) return chain;
+  if (chosen) {
+    const cfg = providerConfig(chosen.provider, chosen.model);
+    if (cfg) await add(chosen.provider, cfg.gateway, chosen.model);
+  }
   const tryConfig = async (make: () => AiConfig | Promise<AiConfig>) => {
     try {
       const ai = forFeature(await make(), feature);

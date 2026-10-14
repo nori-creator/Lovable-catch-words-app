@@ -32,6 +32,48 @@ export const adminSetAiFeature = createServerFn({ method: "POST" })
     return mod.setAdminAiFeature(d, data);
   });
 
+/**
+ * 1つの用途の AI と控えを変える（2026-10-14〜）。`{ task, value?, backup? }`。
+ * `value` は `"auto"` か `"会社:モデル"`、`backup` はそれに `"off"` を足した物。
+ */
+export const adminSetAiTask = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) => input as { task: string; value?: string; backup?: string })
+  .handler(async ({ context, data }) => {
+    const { mod, deps: d } = await deps(context);
+    return mod.setAdminAiTask(d, data);
+  });
+
+/** 用途ごと・モデルごと・日ごとの AI の費用（`ai-costs.ts`）。`{ days: 1 | 7 | 30 }`。 */
+export const adminGetAiCosts = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) => input)
+  .handler(async ({ context, data }) => {
+    const { mod, deps: d } = await deps(context);
+    return mod.getAdminAiCosts(d, data);
+  });
+
+/**
+ * 単価・為替を変える。`{ usdJpy? }` か `{ model, inUsd, outUsd }`（米ドル / 100 万トークン）か
+ * `{ model, remove: true }`。
+ */
+export const adminSetAiPrice = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator(
+    (input: unknown) =>
+      input as {
+        usdJpy?: number;
+        model?: string;
+        inUsd?: number;
+        outUsd?: number;
+        remove?: boolean;
+      },
+  )
+  .handler(async ({ context, data }) => {
+    const { mod, deps: d } = await deps(context);
+    return mod.setAdminAiPrice(d, data);
+  });
+
 /** 文字検索の AI 画像を作る会社・モデル（`provider: "off"` で停止）。 */
 export const adminSetImageConfig = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])

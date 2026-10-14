@@ -15,6 +15,7 @@ import {
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { z } from "zod";
 import { pregenerateDistractors } from "./reviews.functions";
+import { isNativeRequest } from "./native-request.server";
 import { buildBranchPlan } from "./wordtree";
 import { normalizeCategory } from "./category";
 import { isTruncated, POSTGREST_PAGE } from "./pagination";
@@ -996,7 +997,10 @@ export async function upsertWord(
     // user's own deck when this hasn't landed.
     // **Workers で黙って捨てられないよう、返事の後まで預ける**（`after-response.ts`、L5）。
     // 正解の意味は**共有の行に入れた物**（画面の送った文はプロンプトにも入れない）。
-    if (row.meaning_ja.trim()) {
+    // **iOS で保存した語では作らない**（2026-10-14）。iOS の4択は「意味を見て語を選ぶ」形で、
+    // ここで作る誤答（＝間違った意味）を使わない。誤答はその人の語と、アプリに入っている
+    // 日常の語（`QuizPool.swift`、同じ分類から）で作るので、撮った語が少ない人でも4択になる。
+    if (row.meaning_ja.trim() && !(await isNativeRequest())) {
       const newId = wordId;
       await runAfterResponse("pregenerateDistractors", () =>
         pregenerateDistractors(

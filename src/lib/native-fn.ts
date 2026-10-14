@@ -134,6 +134,10 @@ export const NATIVE_FNS: Record<string, Loader> = {
   // 開発者の「AI の設定」（管理者だけ。`docs/admin-ai-api.md`）
   adminGetAiSettings: from(adminAi, "adminGetAiSettings"),
   adminSetAiFeature: from(adminAi, "adminSetAiFeature"),
+  // 用途ごとの AI と控え・費用（2026-10-14〜）
+  adminSetAiTask: from(adminAi, "adminSetAiTask"),
+  adminGetAiCosts: from(adminAi, "adminGetAiCosts"),
+  adminSetAiPrice: from(adminAi, "adminSetAiPrice"),
   adminSetImageConfig: from(adminAi, "adminSetImageConfig"),
   adminSetTtsVoice: from(adminAi, "adminSetTtsVoice"),
   adminTestImage: from(images, "adminTestImage"),
@@ -155,6 +159,9 @@ export const NATIVE_FNS: Record<string, Loader> = {
 export const NATIVE_ADMIN_FNS = [
   "adminGetAiSettings",
   "adminSetAiFeature",
+  "adminSetAiTask",
+  "adminGetAiCosts",
+  "adminSetAiPrice",
   "adminSetImageConfig",
   "adminSetTtsVoice",
   "adminTestImage",

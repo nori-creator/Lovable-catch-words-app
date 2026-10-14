@@ -13,6 +13,7 @@ import type { AdminAiSettings } from "@/lib/admin-ai.server";
 import { computeAiModelStats, type AiStatsRow } from "@/lib/ai-model-stats";
 import { AI_TEST_PHOTOS } from "@/lib/ai-test-photos";
 import { AI_FEATURES } from "@/lib/ai-features";
+import { AI_TASK_INFOS } from "@/lib/ai-task-settings";
 import { DICT, UI_LANGS, type UiLang } from "@/lib/i18n";
 import { TAIWAN_AZURE_VOICES, TTS_PROVIDERS } from "@/lib/tts-providers";
 
@@ -56,6 +57,23 @@ export function adminAiFixture(overrides: Partial<Ready> = {}): Ready {
           : f.tier === "flash-lite"
             ? "gemini-3.8-flash-lite"
             : "gemini-3.8-flash",
+      error: null,
+    })),
+    tasks: AI_TASK_INFOS.map((t) => ({
+      id: t.id,
+      feature: t.feature,
+      needsVision: t.needsVision,
+      ios: t.ios,
+      label: t.label,
+      description: t.description,
+      value: "auto",
+      backup: "auto",
+      provider: "google",
+      model: t.feature === "scan" ? "latest-flash-lite" : "latest-flash",
+      resolved: t.feature === "scan" ? "gemini-3.8-flash-lite" : "gemini-3.8-flash",
+      backupProvider: "openrouter",
+      backupModel: "google/gemini-2.5-flash",
+      backupResolved: "google/gemini-2.5-flash",
       error: null,
     })),
     providers: [

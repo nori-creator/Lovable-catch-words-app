@@ -331,8 +331,144 @@ Web は同じ関数を `useServerFn` で直に呼ぶ（返事の形は同じ）�
 - `scan` に写真を読めないモデルを選んだ
 
 保存すると、そのサーバでは次の呼び出しから新しい設定で動く（ほかのサーバも 30 秒以内）。
-保存するたびに `ai_models` は `{ "features": { … } }` だけの形に書き直される（昔の全体の上書き
-`provider` / `fast` / `rich` / `rich_premium` は消え、読まれもしない）。
+保存するたびに `ai_models` は `{ "features": { … }, "tasks": { … }, "backups": { … } }` だけの形に
+書き直される（空の表は書かない。昔の全体の上書き `provider` / `fast` / `rich` / `rich_premium` は
+消え、読まれもしない）。
+
+---
+
+## 用途ごとの AI と控え（2026-10-14〜）
+
+オーナー依頼「このアプリで使われている全ての AI の機能を、開発者の私だけ AI のモデル設定、機能と
+モデルごとのコスト管理できるようにして」「すべての AI 機能が失敗したときのバックアップを作って」
+「iOS にない奴は消して」。表と純粋な関数は `src/lib/ai-task-settings.ts`。
+
+- **用途**（`ai-call-log.ts` の `AI_TASKS`。例 `section_regen` = 項目の作り直し）ごとに、使う AI と
+  落ちた時の控えを選べる。保存先は `ai_models.tasks[用途]` / `ai_models.backups[用途]`。
+- 優先順位: 用途の設定 → 機能の設定（`features`）→ 環境変数 → 既定（合言葉）。
+- **控え**: `getAiFor` が返すモデルは全部、失敗したら同じ依頼を控えへ1回だけ送り直す
+  （`src/lib/ai-backup.server.ts`。止めた・締め切りの来た依頼は回さない）。控えは
+  開発者が選んだ物 → 無ければ既定（1番手と**別の会社**で鍵のある最初の物: Lovable の
+  `google/gemini-2.5-flash` → Google の最新の版 → OpenRouter の `google/gemini-2.5-flash`）。
+  `"off"` で控えを使わない。2番手を持つ用途（写真の候補・カード・画像）も、選んだ控えを2番手にする。
+- `adminGetAiSettings` の返事に `tasks` が増えた（全部の用途。`ios: true` が iOS 版で AI が動く用途）:
+
+```json
+{
+  "id": "section_regen",
+  "feature": "card",
+  "needsVision": false,
+  "ios": true,
+  "label": { "ja": "項目の作り直し", "en": "Section rewrite", "zh-TW": "重新產生項目" },
+  "description": { "ja": "…", "en": "…", "zh-TW": "…" },
+  "value": "auto",
+  "backup": "auto",
+  "provider": "google",
+  "model": "latest-flash",
+  "resolved": "gemini-3.8-flash",
+  "backupProvider": "lovable",
+  "backupModel": "google/gemini-2.5-flash",
+  "backupResolved": "google/gemini-2.5-flash",
+  "error": null
+}
+```
+
+iOS 版で AI が動く用途: `photo_candidates` `word_candidates` `card` `reader_meaning` `section_regen`
+`report_locate` `reading_check_1` `reading_check_2` `correction_judge` `image_sense` `image_verify`。
+4択の誤答の作り置き（`distractors`）は **iOS で保存した語では作らない**（iOS の4択は語を選ぶ形で、
+AI の誤答＝意味を使わない。`stickers.functions.ts`）。
+
+## `adminSetAiTask`
+
+`data`（`value` と `backup` の片方だけでもよい）:
+
+```json
+{
+  "task": "section_regen",
+  "value": "anthropic:claude-sonnet-5-5",
+  "backup": "lovable:google/gemini-2.5-flash"
+}
+```
+
+- `value`: `"auto"`（機能の設定・既定のまま）か `"会社:モデル"`
+- `backup`: `"auto"`（既定の控え）・`"off"`（控えを使わない）・`"会社:モデル"`
+
+返事: `{ "ok": true, "task": "section_regen", "value": "…", "backup": "…" }`。
+断る場合（`400`）: 知らない用途・形の違う値・鍵の無い会社・写真を読む用途に写真を読めないモデル・
+`value` も `backup` も無い。
+
+## `adminGetAiCosts`（用途ごと・モデルごと・日ごとの費用）
+
+`data`: `{ "days": 1 | 7 | 30 }`（既定 30）。管理者でなければ `{ "isAdmin": false }`。
+
+数える物は AI を呼んだ1回ずつの記録（`ai_runs` の `ai_call`）の使った量（入力・出力のトークン）×
+単価（米ドル / 100 万トークン）。単価は `src/lib/ai-model-prices.ts` の確かめた表に、開発者が入れた値
+（`app_config.ai_prices`）を重ねる。**単価の分からないモデル（Lovable・OpenRouter の口など）は費用に
+入れず**、`unpricedCalls` に数える。円は `usdJpy`（既定 156、2026-09-16 の公開値）で換算する。
+日付は日本時間。中身は `src/lib/ai-costs.ts` の `AiCostReport`:
+
+```json
+{
+  "isAdmin": true,
+  "truncated": false,
+  "days": 30,
+  "since": "2026-09-14T12:00:00.000Z",
+  "usdJpy": 156,
+  "total": {
+    "calls": 120,
+    "ok": 80,
+    "failed": 40,
+    "tokensIn": 400000,
+    "tokensOut": 90000,
+    "usd": 0.42,
+    "unpricedCalls": 35
+  },
+  "tasks": [
+    {
+      "task": "card",
+      "feature": "card",
+      "ios": true,
+      "label": { "ja": "単語カード", "en": "…", "zh-TW": "…" },
+      "calls": 58,
+      "ok": 33,
+      "failed": 25,
+      "tokensIn": 333000,
+      "tokensOut": 78000,
+      "usd": 0.3,
+      "unpricedCalls": 25,
+      "models": [
+        { "model": "google:gemini-3.8-flash", "calls": 19, "usd": 0.04 },
+        { "model": "lovable:google/gemini-2.5-flash", "calls": 25, "usd": null }
+      ]
+    }
+  ],
+  "models": [
+    {
+      "model": "google:gemini-3.8-flash",
+      "calls": 19,
+      "ok": 3,
+      "failed": 16,
+      "tokensIn": 30487,
+      "tokensOut": 4850,
+      "usd": 0.04,
+      "unpricedCalls": 0,
+      "price": { "inUsd": 0.75, "outUsd": 3.75, "source": "ai.google.dev/…", "custom": false }
+    },
+    { "model": "lovable:google/gemini-2.5-flash", "calls": 25, "price": null, "…": "…" }
+  ],
+  "daily": [{ "day": "2026-10-14", "calls": 12, "usd": 0.05 }],
+  "customPrices": [{ "model": "lovable:google/gemini-2.5-flash", "inUsd": 0.3, "outUsd": 2.5 }]
+}
+```
+
+## `adminSetAiPrice`（単価・為替）
+
+- 為替: `{ "usdJpy": 150 }`（50〜500）
+- 単価を入れる: `{ "model": "lovable:google/gemini-2.5-flash", "inUsd": 0.3, "outUsd": 2.5 }`
+  （`model` は記録に出る `会社:モデル`。米ドル / 100 万トークン、0〜1000）
+- 入れた単価を消す（確かめた表の値・未登録に戻る）: `{ "model": "…", "remove": true }`
+
+返事: `{ "ok": true, "usdJpy": 150, "models": { "…": { "in": 0.3, "out": 2.5 } } }`。
 
 ---
 
