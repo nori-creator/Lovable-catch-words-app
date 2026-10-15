@@ -2733,17 +2733,7 @@ export const DICT: Record<string, Record<UiLang, string>> = {
     en: "Regenerate this section (Pro)",
     "zh-TW": "用 AI 重做這個項目（Pro）",
   },
-  // 口語⇄書面のメーター。**色だけに頼らない**ので、5段それぞれに言葉を置く。
-  "card.register": {
-    ja: "言葉の性質",
-    en: "Spoken or written",
-    "zh-TW": "是口語還是書面語",
-  },
-  "card.regSpoken": { ja: "話し言葉", en: "Spoken", "zh-TW": "口語" },
-  "card.regSpokenish": { ja: "やや話し言葉", en: "Leans spoken", "zh-TW": "偏口語" },
-  "card.regNeutral": { ja: "中立", en: "Neutral", "zh-TW": "中性" },
-  "card.regWrittenish": { ja: "やや書き言葉", en: "Leans written", "zh-TW": "偏書面語" },
-  "card.regWritten": { ja: "書き言葉", en: "Written", "zh-TW": "書面語" },
+  // 口語⇄書面の札（card.register / card.reg*）は 2026-10-15 に画面から外した（オーナー決定）。
   // 「今週出会う見込み」とレア度。**数字と出所は必ず同じ画面に居させる。**
   // 出所。**推定を実測の顔で出さない。**
   // 〇〇限定（オーナー指示 2026-08-27 ⑤「台南限定、台湾限定、ポケモンの
@@ -2967,6 +2957,7 @@ export const DICT: Record<string, Record<UiLang, string>> = {
   "legal.support": { ja: "お問い合わせ・サポート", en: "Contact & Support", "zh-TW": "聯絡與支援" },
   "legal.linksAria": { ja: "規約と表記", en: "Legal documents", "zh-TW": "條款與標示" },
   "legal.sectionTitle": { ja: "規約と表記", en: "Legal", "zh-TW": "條款與標示" },
+  "legal.langSwitchAria": { ja: "表示言語", en: "Language", "zh-TW": "顯示語言" },
   // 待ちの演出の3段。**どの版でも同じ言葉を使う** — 版ごとに直書きしていた
   // せいで、英語にしても日本語のままの版が7つ残っていた(オーナー指摘 2026-08-20)。
   "scan.stageSensing": {

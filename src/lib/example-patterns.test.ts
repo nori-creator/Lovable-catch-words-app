@@ -312,3 +312,23 @@ describe("似た場面は2つに分けない・札は短く（2026-10-15）", ()
     ).toEqual(["友達のメガネをほめる", "", "目印の無い古い札"]);
   });
 });
+
+describe("例文は自然さが先・級は目安（オーナー決定 2026-10-15）", () => {
+  it("級より上の語（質地・黏膩）を含む自然な文も、級を理由に落とさない", () => {
+    const picked = pickExamplePatterns(
+      [
+        {
+          situation: "",
+          share: 70,
+          sentence: "這款防曬乳質地很清爽，擦起來一點都不黏膩。",
+          translation: "この日焼け止めはテクスチャーがさっぱりしていて、塗っても全然べたつかない。",
+          scene: "ドラッグストアで友達に勧めるとき",
+          chunks: [],
+          scene_fits: true,
+        },
+      ],
+      { headword: "防曬乳", language: "zh-TW", readerLang: "ja", max: 4 },
+    );
+    expect(picked.map((p) => p.sentence)).toEqual(["這款防曬乳質地很清爽，擦起來一點都不黏膩。"]);
+  });
+});

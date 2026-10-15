@@ -1,6 +1,5 @@
 import { refineUsageChunks, usableCollocations, type WordExtrasDTO } from "./extras";
 import { looksLikeTargetLanguage } from "./text-language";
-import { registerScaleOf } from "./register-scale";
 import { targetProfile, type ProfileSection } from "./target-profile";
 
 /**

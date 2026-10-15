@@ -1,11 +1,16 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { z } from "zod";
+import type { EntryReportRow, ReportStatus } from "./entry-report";
 
 /**
  * 辞書エラー報告 (A8)。「発音・意味・品詞が違う」をユーザーがその場で
  * 報告 → entry_reports に積み、管理画面のレビューキュー(自己改善パネル)で
  * 人間が確認する。ランダム監査では拾えない実利用者の指摘の受け皿。
+ *
+ * 2026-10-15: 報告は積むだけでなく、**結果を行に残し、開発者に知らせる**（`entry-report.server.ts`）。
+ * 単語の詳細からの報告（項目つき・自動で直す）は `ai.functions.ts` の `reportAndFixSection`。
+ * ここは見出し語だけの古い口と、管理画面・iOS の開発者画面の一覧。
  */
 
 export type EntryReportKind = "pronunciation" | "meaning" | "pos" | "other";
@@ -21,24 +26,50 @@ export const reportEntry = createServerFn({ method: "POST" })
   .inputValidator((input: unknown) => ReportInput.parse(input))
   .handler(async ({ context, data }) => {
     const { supabase, userId } = context;
-    const { error } = await supabase.from("entry_reports").insert({
-      user_id: userId,
+    const [
+      { insertEntryReport, finishEntryReport },
+      { getExplanationLanguage },
+      { runAfterResponse },
+    ] = await Promise.all([
+      import("./entry-report.server"),
+      import("./ai-provider.server"),
+      import("./after-response"),
+    ]);
+    const reporterLang = await getExplanationLanguage(userId).catch(() => null);
+    const id = await insertEntryReport(supabase, {
+      userId,
       headword: data.headword,
       kind: data.kind,
       note: data.note,
+      reporterLang,
     });
-    if (error) throw new Error(error.message);
+    if (!id) throw new Error("報告を保存できませんでした");
+    // 見出し語だけの報告は語の行が分からないので自動では直さない。開発者に知らせて確認待ちに。
+    void runAfterResponse("reportEntry: notify", async () => {
+      const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+      await finishEntryReport(
+        supabaseAdmin,
+        {
+          reportId: id,
+          userId,
+          wordId: null,
+          headword: data.headword,
+          language: null,
+          kind: data.kind,
+          item: null,
+          note: data.note,
+          reporterLang,
+        },
+        {
+          status: "needs_review",
+          outcome: "見出し語だけの報告（語の行が分からないので自動では直さない）",
+        },
+      );
+    });
     return { ok: true };
   });
 
-export type EntryReport = {
-  id: string;
-  headword: string;
-  kind: EntryReportKind;
-  note: string;
-  status: "open" | "resolved" | "dismissed";
-  created_at: string;
-};
+export type EntryReport = EntryReportRow;
 
 async function assertAdmin(supabase: unknown, userId: string): Promise<void> {
   const { data: isAdmin, error } = await (
@@ -53,39 +84,50 @@ async function assertAdmin(supabase: unknown, userId: string): Promise<void> {
   if (!isAdmin) throw new Error("Forbidden: admin role required");
 }
 
-/** 管理画面用: 未対応の報告一覧(service role・admin限定)。 */
-export const listEntryReports = createServerFn({ method: "GET" })
+const ListInput = z
+  .object({
+    /** `open` = 未対応と確認待ち（既定）/ `all` = 最近の全部（直した物・却下も）。 */
+    status: z.enum(["open", "all"]).default("open"),
+    limit: z.number().int().min(1).max(200).default(100),
+  })
+  .default({ status: "open", limit: 100 });
+
+/**
+ * 管理画面・iOS の開発者画面用: 報告の一覧(service role・admin限定)。
+ * 各行に状態（open / fixed / needs_review / resolved / dismissed）・結果の一言・項目・報告者の言語・語の id。
+ */
+export const listEntryReports = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .handler(async ({ context }): Promise<EntryReport[]> => {
+  .inputValidator((input: unknown) => ListInput.parse(input ?? undefined))
+  .handler(async ({ context, data }): Promise<EntryReport[]> => {
     await assertAdmin(context.supabase, context.userId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const { data, error } = await supabaseAdmin
-      .from("entry_reports")
-      .select("id, headword, kind, note, status, created_at")
-      .eq("status", "open")
-      .order("created_at", { ascending: false })
-      .limit(100);
-    if (error) throw new Error(error.message);
-    return (data ?? []) as unknown as EntryReport[];
+    const { listEntryReportRows } = await import("./entry-report.server");
+    return listEntryReportRows(supabaseAdmin, { status: data.status, limit: data.limit });
   });
 
 const ResolveInput = z.object({
   id: z.string().uuid(),
-  status: z.enum(["resolved", "dismissed"]),
+  status: z.enum(["open", "resolved", "dismissed"]),
 });
 
-/** 管理画面用: 報告を処理済み/却下にする(admin限定)。 */
+/** 管理画面用: 報告を処理済み/却下/未対応に戻す(admin限定)。 */
 export const resolveEntryReport = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) => ResolveInput.parse(input))
   .handler(async ({ context, data }) => {
     await assertAdmin(context.supabase, context.userId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const { error } = await supabaseAdmin
-      .from("entry_reports")
-      .update({ status: data.status })
-      .eq("id", data.id);
-    if (error) throw new Error(error.message);
+    const { recordReportOutcome } = await import("./entry-report.server");
+    await recordReportOutcome(supabaseAdmin, data.id, {
+      status: data.status as ReportStatus,
+      outcome:
+        data.status === "resolved"
+          ? "開発者が対応済みにした"
+          : data.status === "dismissed"
+            ? "開発者が却下した"
+            : "開発者が未対応に戻した",
+    });
     return { ok: true };
   });
 

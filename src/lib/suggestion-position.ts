@@ -43,7 +43,40 @@ export function withObjectPoints<T extends { group?: number | null; box_2d?: unk
   }
   return items.map((it) => {
     const { box_2d: raw, ...rest } = it;
-    const box = (typeof it.group === "number" ? byGroup.get(it.group) : null) ?? validBox2d(raw);
+    /**
+     * **自分の枠が在ればそれ、無ければ同じ物の枠**（2026-10-15 オーナー報告: タブレット・コップ・ペン・
+     * ティッシュの4つのタグが全部タブレットの真ん中に重なった）。前は同じ `group` の**最初の枠**を全員に配って
+     * いた。モデルが別々の物に同じ番号を付けた回（4つとも group 0）は、4つの枠が全部1つ目の枠に潰れ、
+     * タグが1か所に重なる。自分の枠を持つ候補はその枠を使えば、番号の付け間違いが位置まで壊さない。
+     * 枠の無い別名（珍奶）は今までどおり同じ物の枠を受け継ぐ。
+     */
+    const own = validBox2d(raw);
+    const box = own ?? (typeof it.group === "number" ? byGroup.get(it.group) : null) ?? null;
     return box ? { ...rest, box_2d: box, point: boxCenter(box) } : rest;
   });
+}
+
+/**
+ * 位置の付き方のまとめ（`ai_runs` の記録用。語は入れない）。次に「タグが重なる」と言われた時に、
+ * モデルが枠を返したか・何個の物に分かれたか・点が何か所に散ったかを後から読める。
+ */
+export function positionStats(
+  items: ReadonlyArray<{ group?: number | null; point?: [number, number] | undefined }>,
+): { n: number; groups: number; with_point: number; distinct_points: number } {
+  const groups = new Set<number>();
+  const points = new Set<string>();
+  let withPoint = 0;
+  for (const it of items) {
+    if (typeof it.group === "number") groups.add(it.group);
+    if (it.point) {
+      withPoint += 1;
+      points.add(it.point.join(","));
+    }
+  }
+  return {
+    n: items.length,
+    groups: groups.size,
+    with_point: withPoint,
+    distinct_points: points.size,
+  };
 }

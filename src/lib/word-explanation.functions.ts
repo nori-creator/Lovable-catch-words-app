@@ -3,7 +3,7 @@ import { readerMeaning, readerText } from "./note-language";
 import { meaningRule, shortMeaning } from "./meaning-rule";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { z } from "zod";
-import { normalizeExtras } from "./extras";
+import { normalizeExtras, publicExtras } from "./extras";
 import { UI_LANGS } from "./i18n";
 import { fillReaderExplanation } from "./shared-word-guard";
 import {
@@ -94,13 +94,30 @@ export const getWordExplanation = createServerFn({ method: "GET" })
       l1: String(r.l1 ?? ""),
       meaning: String(r.meaning ?? ""),
       example_translation: (r.example_translation as string | null) ?? null,
-      extras: normalizeExtras(r.extras),
+      // 退役した欄（口語/書面の札）は返さない（2026-10-15）。
+      extras: publicExtras(r.extras),
       source: (r.source as string | null) ?? "ai",
     }));
-    return {
-      picked: pickExplanation(parsed, explanationKey(data.explain_lang, data.l1)),
-      unavailable: false,
-    };
+    const picked = pickExplanation(parsed, explanationKey(data.explain_lang, data.l1));
+    /**
+     * 台湾華語の語なら、型の札に読み（拼音・注音）を付けて返す（2026-10-15、`chunk-readings.server.ts`）。
+     * 古い解説は読みを持っていないので、読む所で辞書から付ける。語の言語は語の行で見る（1回の読み）。
+     */
+    if (
+      picked?.extras &&
+      (picked.extras.usage_chunks?.length || picked.extras.example_chunks?.length)
+    ) {
+      try {
+        const { data: ws } = await db.from("words").select("language").eq("id", data.word_id);
+        const language = ((ws?.[0]?.language as string | null | undefined) ?? null) as
+          string | null;
+        const { withChunkReadingsInExtras } = await import("./chunk-readings.server");
+        picked.extras = withChunkReadingsInExtras(picked.extras, language);
+      } catch (e) {
+        console.warn("getWordExplanation: 型の読みを付けられなかった", (e as Error)?.message);
+      }
+    }
+    return { picked, unavailable: false };
   });
 
 /**

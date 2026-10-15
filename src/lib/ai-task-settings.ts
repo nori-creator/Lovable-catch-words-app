@@ -153,6 +153,14 @@ const TASK_TEXT: Record<string, { label: Label; description: Label }> = {
       "重新產生單字頁的項目、補上空白、回報時的修正案",
     ),
   },
+  chunk_verify: {
+    label: L("使い方の型の点検", "Usage chunk check", "用法片語的檢查"),
+    description: L(
+      "カードを返す前に型だけを別の AI に見せる（AI_CHUNK_VERIFY=inline の時だけ。既定は使わない）",
+      "Shows the usage chunks to a second AI before the card is returned (only with AI_CHUNK_VERIFY=inline; off by default)",
+      "回傳單字卡前讓另一個 AI 檢查用法片語（僅在 AI_CHUNK_VERIFY=inline 時；預設不用）",
+    ),
+  },
   reader_meaning: {
     label: L("表示言語での意味", "Meaning in your language", "用顯示語言寫的意思"),
     description: L(

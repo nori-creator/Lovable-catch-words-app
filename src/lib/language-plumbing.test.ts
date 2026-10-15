@@ -274,7 +274,7 @@ describe("候補を選んだ直後は「訳と発音」だけ", () => {
     expect(src).toContain("MINIMAL_SECTIONS");
     expect(src).toMatch(/shown\s*=\s*minimal/);
     // 品詞の札も出さない。「訳」でも「発音」でもない。
-    expect(src).toMatch(/\{!minimal &&\s*\(word\.part_of_speech \|\| word\.level \|\|/);
+    expect(src).toMatch(/\{!minimal &&\s*\(word\.part_of_speech \|\| word\.level\)/);
     // **撮った直後は見出しを直す鉛筆も出さない**(「訳と発音以外は出さない」)。
     expect(src).toMatch(/!minimal && onEditHeadword && !editingHead/);
     // 見出し横の頻度の星も、撮った直後は出さない。
@@ -2109,7 +2109,8 @@ describe("どこで出会うかは、整列した札で出す", () => {
     const card = codeOnly(read("components/WordCard.tsx"));
     expect(card).not.toMatch(/case "usage_context"/);
     expect(card).not.toMatch(/FrequencyMeter/);
-    expect(card).toMatch(/\{t\(registerLabelKey\(registerScaleOf\(word\.extras \?\? \{\}\)!\)\)\}/);
+    // 言葉の性質（中立・書き言葉・話し言葉）の札も 2026-10-15 に外した（オーナー決定）。
+    expect(card).not.toMatch(/registerLabelKey|registerScaleOf/);
     expect(card).not.toMatch(/<RegisterMeter/);
   });
 
@@ -5309,7 +5310,8 @@ describe("報告は項目ごと。全部の作り直しは Pro だけ", () => {
   it("**直した案は、別の目で確かめてからしか書かない**（語は全員で共有）", () => {
     const ai = codeOnly(read("lib/ai.functions.ts"));
     const fn = ai.slice(
-      ai.indexOf("export const reportAndFixSection"),
+      // 直す道は `fixReportedWordItem`（その場の道と裏の道が同じ関数を使う、2026-10-15）。
+      ai.indexOf("async function fixReportedWordItemImpl("),
       ai.indexOf("async function judgeCorrection("),
     );
     expect(fn).toMatch(/runSectionRegen\(\s*context,[\s\S]*?"propose",\s*\)/);
@@ -5320,8 +5322,9 @@ describe("報告は項目ごと。全部の作り直しは Pro だけ", () => {
     expect(ai).toMatch(/return pickReportedItem\(parseJsonFromAiText\(res\.text\), candidates\);/);
     // 発音・品詞は AI に作らせず、辞書と照らす。
     expect(fn).toMatch(/dictionaryFixPatch\(/);
-    // 報告は直せても直せなくても残す。
-    expect(fn).toMatch(/from\("entry_reports"\)\s*\.insert\(/);
+    // 報告は直せても直せなくても残す（`entry-report.server.ts` の insertEntryReport、結果も行に残して知らせる）。
+    expect(fn).toMatch(/reports\.insertEntryReport\(/);
+    expect(fn).toMatch(/reports\.finishEntryReport\(/);
   });
 
   it("**全部の作り直し（書く）は Pro のまま。案を作るだけなら誰でも**", () => {

@@ -35,8 +35,24 @@ export const ChunkPartSchema = z.object({
    * もとの単語と同じように訳が表示され」）。古いカードには無い。
    */
   ja: z.string().optional().catch(undefined),
+  /**
+   * **札ごとの読み**（2026-10-15 オーナー「チャンクに拼音と注音を」）。台湾華語のカードだけ。
+   * 拼音は声調記号つき・音節は空白区切り（`shuā zi`）、注音は音節を空白で区切り軽声は前に ˙
+   * （`ㄕㄨㄚ ˙ㄗ`）。AI が書いた物をサーバが字ごとに検め、外れていれば辞書の読みに直す
+   * （`chunk-readings.server.ts`）。**古いカードは持っていない**（作り直した時に付く）。
+   */
+  pinyin: z.string().optional().catch(undefined),
+  zhuyin: z.string().optional().catch(undefined),
   alts: z
-    .array(z.object({ text: z.string(), ja: z.string().catch("") }))
+    .array(
+      z.object({
+        text: z.string(),
+        ja: z.string().catch(""),
+        // 入れ替える語の読み（台湾華語だけ。古いカードには無い）。
+        pinyin: z.string().optional().catch(undefined),
+        zhuyin: z.string().optional().catch(undefined),
+      }),
+    )
     .max(8)
     .optional()
     .catch(undefined),
@@ -50,15 +66,31 @@ export const UsageChunkSchema = z.object({
 export type UsageChunk = z.infer<typeof UsageChunkSchema>;
 
 /**
+ * **AI が返す型1つの形 = 型 + 自己点検**（2026-10-15 刷子「拿刷子刷牙」）。
+ * `fits` は「その物の本来の使い方で、ネイティブがそのまま言う型か」の AI 自身の答え、`why` は一言。
+ * サーバの門（`chunk-quality.ts`）が `fits: false` の型を落とし、**保存する前に2つの欄を外す**
+ * （画面・iOS は受け取らない）。文字列の "false" / "no" も偽と読む（例文の `scene_fits` と同じ）。
+ */
+export const ChunkFitsSchema = z
+  .union([z.boolean(), z.string().transform((s) => !/^(false|no|いいえ|否|×)$/i.test(s.trim()))])
+  .optional()
+  .catch(undefined);
+
+export const AiUsageChunkSchema = UsageChunkSchema.extend({
+  fits: ChunkFitsSchema,
+  why: z.string().optional().catch(undefined),
+});
+export type AiUsageChunk = z.infer<typeof AiUsageChunkSchema>;
+
+/**
  * **項目の作り直し（`runSectionRegen`）で受ける「かたまり」の形。**
  * 部品は `ChunkPartSchema` をそのまま使う — 前は `{text,pos,slot}` だけを書き出して
  * いたので、zod が `ja` と `alts` を**黙って落とし**、作り直した後は入れ替えの候補
  * （跟+男朋友+吵架 → 女朋友・朋友…）が消えていた（2026-10-07）。
+ * 自己点検の欄（`fits` / `why`）も受ける — 門が見てから外す。
  */
 export const RegenUsageChunksSchema = z.object({
-  usage_chunks: z
-    .array(z.object({ parts: z.array(ChunkPartSchema), ja: z.string().catch("") }))
-    .min(1),
+  usage_chunks: z.array(AiUsageChunkSchema).min(1),
 });
 
 export const RelatedWordSchema = z.object({
@@ -220,14 +252,13 @@ export const ExtrasSchema = z.object({
   usage_context: z.string().catch(""),
   /** 使用頻度レベル 1〜5(5=毎日レベル)。視覚メーター用。 */
   frequency_level: z.number().int().min(1).max(5).nullable().catch(null),
-  /** 「口語」「書面」「口語・書面」など。**消さない** — 古いカードの拠り所。 */
-  register_tag: z.string().catch(""),
   /**
-   * 話し言葉⇄書き言葉の目盛り(-2=完全に口語 / 0=中立 / +2=完全に書面)。
-   * 文字列のままでは段階にできずメーターが作れないので、数でも持つ。
-   * 古いカードは持っていないので **null が普通**(`lib/register-scale.ts` が
-   * 文字列から写す)。0 に落とさない — 0 は「どちらでも使う」という主張。
+   * 【退役】「口語」「書面」「口語・書面」の札（オーナー決定 2026-10-15「中立・書き言葉・話し言葉の
+   * 表示を無くす」）。**もう作らない・画面に出さない・返さない**（`withoutRetiredExtras`）。
+   * 形だけ残すのは、保存済みの行の値を**消さないため**（スキーマから外すと次の保存で静かに消える）。
    */
+  register_tag: z.string().catch(""),
+  /** 【退役】話し言葉⇄書き言葉の目盛り。`register_tag` と同じ扱い（作らない・出さない・返さない）。 */
   register_scale: z.number().int().min(-2).max(2).nullable().catch(null),
   /**
    * その語に**どこで出会うか**の分布。鍵は図鑑の部屋
@@ -314,8 +345,12 @@ export const ExtrasSchema = z.object({
     })
     .nullable()
     .catch(null),
-  /** 使い方の型・チャンク(コロケーション+語順を統合、品詞色分け)。 */
-  usage_chunks: z.array(UsageChunkSchema).catch([]),
+  /**
+   * 使い方の型・チャンク(コロケーション+語順を統合、品詞色分け)。
+   * AI の返事は自己点検の欄（`fits` / `why`）を持つことがある（`AiUsageChunkSchema`）。ここで受けないと
+   * zod が**門より先に黙って落とし**、門は何も見られない。保存する物は門が外す（`stripChunkSelfCheck`）。
+   */
+  usage_chunks: z.array(AiUsageChunkSchema).catch([]),
   /** メイン例文のパーツ分解。 */
   example_chunks: z.array(ChunkPartSchema).catch([]),
   /** 類義語・反義語・関連語(使い分けノート付き)。 */
@@ -490,6 +525,25 @@ export function normalizeExtras(raw: unknown): WordExtrasDTO | null {
   if (!raw || typeof raw !== "object") return null;
   const res = ExtrasSchema.safeParse(raw);
   return res.success ? res.data : null;
+}
+
+/**
+ * **もう画面に出さない欄**（オーナー決定 2026-10-15: 中立 / 書き言葉 / 話し言葉の札を無くす）。
+ * 保存済みの値は消さない（`ExtrasSchema` に残す）が、画面と iOS へ返す物からは外す。
+ */
+export const RETIRED_EXTRAS_KEYS = ["register_tag", "register_scale"] as const;
+
+/** 画面・iOS へ返す形: 退役した欄を空にする。保存する物には使わない（値を消さないため）。 */
+export function withoutRetiredExtras<T extends Partial<WordExtrasDTO> | null | undefined>(
+  extras: T,
+): T {
+  if (!extras) return extras;
+  return { ...extras, register_tag: "", register_scale: null };
+}
+
+/** 読む所で使う形（正規化 + 退役した欄を外す）。 */
+export function publicExtras(raw: unknown): WordExtrasDTO | null {
+  return withoutRetiredExtras(normalizeExtras(raw));
 }
 
 /** 読む中身ではなく目印・手がかりの鍵（「中身がある」に数えない）。 */

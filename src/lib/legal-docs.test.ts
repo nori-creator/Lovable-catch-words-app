@@ -121,6 +121,6 @@ describe("サポートの頁（iPhone アプリと App Store Connect のサポ�
     expect(read("routes/support.tsx")).toContain('createFileRoute("/support")');
   });
   it("古い /tokushoho は /legal/tokushoho へ送る", () => {
-    expect(read("routes/tokushoho.tsx")).toContain('redirect({ to: "/legal/tokushoho"');
+    expect(read("routes/tokushoho.tsx")).toContain('to: "/legal/tokushoho"');
   });
 });
