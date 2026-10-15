@@ -12,9 +12,12 @@ export function isAlreadyGraded(dueAt: string | null | undefined, nowMs: number)
   return Number.isFinite(due) && due > nowMs + 60_000;
 }
 
-/** 採点を保存できなかった時の文（日本語。iOS は日本語の画面でそのまま出し、ほかの言語では「もう一度」で自分の文に直す）。 */
+/**
+ * 採点を保存できなかった**理由**（日本語）。iOS は自分の文「採点を保存できませんでした。もう一度答えてください。」の
+ * 次の行にこれを出す（日本語の画面だけ。ほかの言語では iOS の「サーバーエラー（503）」）ので、同じことを繰り返さない。
+ */
 export const GRADE_SAVE_FAILED_MESSAGE =
-  "採点をいま保存できませんでした。少し待ってから、もう一度答えてください。";
+  "一時的に保存先（データベース）につながりませんでした。少し待つと直ります。";
 
 /**
  * **採点を保存できなかった**（DB に届かない・書けない。2026-10-15）。`native-fn.ts` の `statusForError` が

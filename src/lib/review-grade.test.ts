@@ -246,7 +246,9 @@ describe("DB に届かない・書けない時は 503 と読める文（500 に�
     expect(err).toBeInstanceOf(GradeSaveError);
     expect(statusForError(err)).toBe(503);
     expect(publicMessage(err)).toBe(GRADE_SAVE_FAILED_MESSAGE);
-    expect(publicMessage(err)).toMatch(/もう一度/);
+    // iOS の自分の文（採点を保存できませんでした。もう一度答えてください。）を繰り返さず、理由だけを言う。
+    expect(publicMessage(err)).toMatch(/データベース/);
+    expect(publicMessage(err)).not.toMatch(/採点を保存できません/);
   });
 
   it("書けない", async () => {
