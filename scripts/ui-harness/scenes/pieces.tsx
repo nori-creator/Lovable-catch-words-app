@@ -10,7 +10,6 @@
 import { useState } from "react";
 import { getUiLang, localeOf } from "@/lib/i18n";
 import { ChunkLegend, ChunkPills } from "@/components/ChunkPills";
-import { RegisterMeter } from "@/components/WordCard";
 import { SceneBubbles } from "@/components/SceneBubbles";
 import { ForgettingCurveChart } from "@/components/ForgettingCurveChart";
 import { LoadFailed } from "@/components/LoadFailed";
@@ -20,7 +19,6 @@ import type { DexFilter } from "@/lib/dex-filter";
 import { StickerPhotoHistory } from "@/components/StickerPhotoHistory";
 import { UserPanel } from "@/components/AppShell";
 import { PlaceMemoryCard } from "@/components/PlaceMemory";
-import type { RegisterScale } from "@/lib/register-scale";
 import { FULL } from "./word-card";
 import type { GeneratedCard } from "@/lib/ai.functions";
 
@@ -175,24 +173,11 @@ export function PhotoHistoryScene({ q }: { q: URLSearchParams }) {
  * それも最後に並べる — 真ん中に針を置くと「どちらでも使う」と言い切ったことになる。
  */
 export function RegisterMeterScene() {
-  // 目盛りは5段しかないので**全部並べる**。1段でも撮り漏らすと、
-  // その位置と言葉は一度も測られない。
-  const steps: RegisterScale[] = [-2, -1, 0, 1, 2];
   return (
     // 足場はインラインの `style`。雛形にしか無いクラスは生成されない
     // (`styles.css` は `@source "../src"`)。
     <div style={{ display: "grid", gap: 20, padding: 16 }}>
-      {steps.map((v) => (
-        <RegisterMeter key={v} scale={v} />
-      ))}
-      {/* **短い形も5段すべて撮る**(オーナー指摘 2026-08-20 で足した形)。
-          頻度の札の横に並ぶので、実際に並べた姿で見る — 針が端で
-          切れていないか、名前が札からはみ出していないか。 */}
-      <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-        {steps.map((v) => (
-          <RegisterMeter key={`c${v}`} scale={v} compact />
-        ))}
-      </div>
+      {/* 口語⇄書き言葉のメーターは 2026-10-15 に外した（オーナー決定）。残りは場面の札。 */}
       {/* **軸ごとに束ねた札**(オーナー指示 2026-08-27 ⑤ / 2026-08-28 ①②)。
           限定の札(`region_scope` / `season_months` から組む)も一緒に撮る —
           いちばん目立たせる物なので、他の札に埋もれていないかを絵で見る。

@@ -56,13 +56,6 @@ import { ZhuyinWord, useZhuyinUnits } from "@/components/ZhuyinWord";
 import { Term } from "@/components/Term";
 import { realUsageLinks } from "@/lib/real-usage-links";
 import { targetProfile } from "@/lib/target-profile";
-import {
-  REGISTER_MAX,
-  REGISTER_MIN,
-  registerLabelKey,
-  registerScaleOf,
-  type RegisterScale,
-} from "@/lib/register-scale";
 // 節の一覧は画面と生成側で**同じ出所**を見る(別々に書くと静かに食い違う)。
 import {
   isRegenSection,
@@ -1061,30 +1054,25 @@ function HeaderRow({
               />
             </div>
           )}
-          {!minimal &&
-            (word.part_of_speech || word.level || registerScaleOf(word.extras ?? {}) !== null) && (
-              <div className="mt-2 flex flex-wrap items-start gap-1.5">
-                {word.part_of_speech && (
-                  <span className="rounded-full bg-secondary px-2 py-0.5 text-caption font-medium text-foreground ring-1 ring-border">
-                    {posDisplay(word.part_of_speech, uiLang)}
-                  </span>
-                )}
-                {/* 言葉の性質は**言葉だけ**で出す（オーナー指示 2026-09-24。メーターは出さない）。 */}
-                {registerScaleOf(word.extras ?? {}) !== null && (
-                  <span className="rounded-full bg-secondary px-2 py-0.5 text-caption font-medium text-foreground ring-1 ring-border">
-                    {t(registerLabelKey(registerScaleOf(word.extras ?? {})!))}
-                  </span>
-                )}
-                {!guided && reportItems.length > 0 && (
-                  <ReportButton
-                    wordId={wordId}
-                    items={reportItems}
-                    language={word.language ?? null}
-                    cardRef={cardRef}
-                  />
-                )}
-              </div>
-            )}
+          {/* 口語/書面の札（中立・書き言葉・話し言葉）は出さない（オーナー決定 2026-10-15）。
+              保存済みの値は消さないが、画面にも iOS にも返さない（`withoutRetiredExtras`）。 */}
+          {!minimal && (word.part_of_speech || word.level) && (
+            <div className="mt-2 flex flex-wrap items-start gap-1.5">
+              {word.part_of_speech && (
+                <span className="rounded-full bg-secondary px-2 py-0.5 text-caption font-medium text-foreground ring-1 ring-border">
+                  {posDisplay(word.part_of_speech, uiLang)}
+                </span>
+              )}
+              {!guided && reportItems.length > 0 && (
+                <ReportButton
+                  wordId={wordId}
+                  items={reportItems}
+                  language={word.language ?? null}
+                  cardRef={cardRef}
+                />
+              )}
+            </div>
+          )}
         </div>
         {editingHead ? (
           <button
@@ -1402,93 +1390,6 @@ async function swapWithMagic(el: HTMLElement | null, work: () => Promise<void>) 
  * 空の節はもう並ばない（`shown` を「中身が在る節だけ」にした）ので、
  * この枠が描かれる道はどこにも無い。到達しない道は置かない。
  */
-
-/**
- * 話し言葉 ⇄ 書き言葉のメーター。
- *
- * ## 色だけに頼らない
- * 針の**位置**・**文字**・色の3つが同じことを言う。色覚の違う人にも、
- * 明るい屋外で色が飛んでいる人にも、同じだけ伝わる必要がある
- * (このアプリは街を歩きながら使う)。
- *
- * ## 「分からない」を真ん中に置かない
- * 目盛りが無い語ではこの区画そのものを出さない。真ん中に針を置くと
- * 「どちらでも使う」と言い切ったことになる(`lib/register-scale.ts`)。
- */
-export function RegisterMeter({
-  scale,
-  compact = false,
-}: {
-  scale: RegisterScale;
-  /**
-   * 頻度の札の**横に並べる**形(オーナー指摘 2026-08-20)。
-   *
-   * > 「話し言葉と書き言葉のメーターが横長すぎるが、コンパクトにして
-   * >  頻度のバーの横に並べて」
-   *
-   * 幅いっぱいに置くと、たった5段しかない目盛りのために1行を丸ごと使う。
-   * 短い帯にして、名前は帯の左に置く。**両端の言葉(口語/書面)は落とす** —
-   * 帯そのものが左右の向きを示しているし、名前がどちら寄りかを言う。
-   */
-  compact?: boolean;
-}) {
-  const t = useT();
-  const label = t(registerLabelKey(scale));
-  // -2..+2 を 0..100% に。真ん中(0)がちょうど 50%。
-  const pct = ((scale - REGISTER_MIN) / (REGISTER_MAX - REGISTER_MIN)) * 100;
-  if (compact) {
-    return (
-      <span
-        className="usage-register"
-        role="img"
-        aria-label={`${t("card.register")}: ${label}`}
-        title={`${t("card.regSpoken")} ⇄ ${t("card.regWritten")}`}
-      >
-        <span className="usage-register__heading">
-          <span>{t("card.register")}</span>
-          <span className="usage-register__value">{label}</span>
-        </span>
-        <span className="usage-register__dial">
-          <span className="usage-register__rail" />
-          <span className="usage-register__tick usage-register__tick--start" />
-          <span className="usage-register__tick usage-register__tick--middle" />
-          <span className="usage-register__tick usage-register__tick--end" />
-          {/* 針の半径ぶん内側で動かす(端で切れて見えるのを避ける)。 */}
-          <span className="usage-register__needle-path">
-            <span className="usage-register__needle" style={{ left: `${100 - pct}%` }} />
-          </span>
-        </span>
-        <span className="usage-register__labels" aria-hidden>
-          <span>{t("card.regWritten")}</span>
-          <span>{t("card.regNeutral")}</span>
-          <span>{t("card.regSpoken")}</span>
-        </span>
-      </span>
-    );
-  }
-  return (
-    <div className="w-full" role="img" aria-label={`${t("card.register")}: ${label}`} title={label}>
-      <div className="flex items-baseline justify-between text-caption text-muted-foreground">
-        <span>{t("card.regSpoken")}</span>
-        <span className="font-semibold text-foreground">{label}</span>
-        <span>{t("card.regWritten")}</span>
-      </div>
-      <div className="relative mt-1.5 h-2 rounded-full bg-gradient-to-r from-warn/45 via-secondary to-primary/45">
-        {/* 中立の位置に薄い目印。針がそこに在るのか、たまたま近いのかを分ける。 */}
-        <span className="absolute inset-y-0 left-1/2 w-px -translate-x-1/2 bg-border" />
-        {/* **針の通り道を内側に寄せる。** 帯の端に置くと針が半分はみ出して
-            切れて見え、両端の2段だけ別物のように見えた(検査の絵で気づいた)。
-            針の半径(7px)ぶん狭めた中を 0〜100% で動かす。 */}
-        <span className="pointer-events-none absolute inset-y-0 left-[7px] right-[7px] block">
-          <span
-            className="absolute top-1/2 h-3.5 w-3.5 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-background bg-foreground shadow"
-            style={{ left: `${pct}%` }}
-          />
-        </span>
-      </div>
-    </div>
-  );
-}
 
 /**
  * 例文の中の見出し語に印を付ける。

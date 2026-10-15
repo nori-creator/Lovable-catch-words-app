@@ -197,6 +197,56 @@ export function composeWantedBatch<T extends { sticker_id: string }>(
 }
 
 /**
+ * **見出し語を直した札を、書き留めた束から外す**（オーナー報告 2026-10-15: 貓眼 → 門 と直した後も、
+ * 復習は「door はどれ？」と聞きながら答えを 貓眼 のままにしていた）。
+ *
+ * 束は語の字（`headword`・4択）を**書き留めた時のまま**持つ。直した札が束に残っていると、次に復習を
+ * 開いた時に古い字で出る（サーバの `getDueReviews` は新しい語を返すが、束を先に出す設計なので）。
+ * その札だけを外し、残りはそのまま使う（束を丸ごと捨てると、また「準備中」が出る）。
+ * 外して空になった束は `null`（書き留めた物を消す）。壊れた物・別の形は触らずそのまま返す。
+ */
+export function withoutStickerCard(
+  raw: string | null | undefined,
+  stickerId: string,
+): string | null {
+  if (!raw) return null;
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    return raw;
+  }
+  const b = parsed as { cards?: unknown } | null;
+  if (!b || typeof b !== "object" || !Array.isArray(b.cards)) return raw;
+  const cards = (b.cards as Array<{ sticker_id?: string }>).filter(
+    (c) => c?.sticker_id !== stickerId,
+  );
+  if (cards.length === b.cards.length) return raw;
+  if (cards.length === 0) return null;
+  return JSON.stringify({ ...b, cards });
+}
+
+/**
+ * `localStorage` にある両方の束（普通の束・名指しの束）から、その札を外す。
+ */
+export function forgetStickerInReviewCaches(
+  storage: Pick<Storage, "getItem" | "setItem" | "removeItem">,
+  stickerId: string,
+): void {
+  for (const key of [REVIEW_CACHE_KEY, REVIEW_TARGET_CACHE_KEY]) {
+    try {
+      const before = storage.getItem(key);
+      const after = withoutStickerCard(before, stickerId);
+      if (after === before) continue;
+      if (after === null) storage.removeItem(key);
+      else storage.setItem(key, after);
+    } catch {
+      /* storage unavailable */
+    }
+  }
+}
+
+/**
  * **名指しの束の続きを、サーバの新しい束で差し替える**（Codex 指摘 2026-10-07）。
  *
  * 名指しの束は最長 48 時間前に用意した物なので、続きの札が**もう期限でない・1日の上限を

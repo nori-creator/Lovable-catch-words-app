@@ -1,6 +1,7 @@
 import { siteUrlFor } from "@/lib/site-url";
 import { createFileRoute } from "@tanstack/react-router";
-import { tStatic, useUiLang } from "@/lib/i18n";
+import { tStatic } from "@/lib/i18n";
+import { useLegalLang } from "@/components/legal/use-legal-lang";
 import { DataSourcesList } from "@/components/DataSourcesList";
 import { LegalShell } from "@/components/legal/LegalShell";
 import { TermsDocument } from "@/components/legal/LegalDocuments";
@@ -8,6 +9,10 @@ import { EMPTY_LEGAL } from "@/lib/legal-config";
 import { getLegalInfo } from "@/lib/legal.functions";
 
 export const Route = createFileRoute("/terms")({
+  // `?lang=ja|en|zh-TW` で表示言語を決める（iPhone アプリが付けて開く。`legal-lang.ts`）。
+  validateSearch: (search: Record<string, unknown>) => ({
+    lang: typeof search.lang === "string" ? search.lang : undefined,
+  }),
   head: () => ({
     meta: [
       { title: tStatic("page.terms") },
@@ -43,11 +48,13 @@ export const Route = createFileRoute("/terms")({
  * 準拠法は日本法。管轄の裁判所は設定（`LEGAL_JURISDICTION_COURT`）から。
  */
 function TermsPage() {
-  const lang = useUiLang();
+  const { lang: langParam } = Route.useSearch();
+  const lang = useLegalLang(langParam);
   const data = Route.useLoaderData();
   return (
     <LegalShell
       current="/terms"
+      lang={lang}
       footer={
         // 出典は**ここに置く**(オーナー指示「約款の中など全く目立たない所に、
         // 小さい字で」)。CEFR-J は出典明記が利用の条件なので**消せない**が、

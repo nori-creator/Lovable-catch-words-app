@@ -65,6 +65,7 @@ import { HeroPhotoPicker } from "@/components/HeroPhotoPicker";
 import { usePhotoAttach } from "@/lib/use-photo-attach";
 import { usePlaceName } from "@/lib/use-place-name";
 import { Term } from "@/components/Term";
+import { forgetStickerInReviewCaches } from "@/lib/review-cache";
 import type { PhotoRole } from "@/lib/sticker-photo";
 import { resolvePrefer, usePhotoPref } from "@/lib/photo-pref";
 import { localeOf, type UiLang, useT, useUiLang } from "@/lib/i18n";
@@ -320,6 +321,17 @@ export function StickerSheet({ stickerId, onClose, openPhotoPicker, from, local 
       // 札も図鑑もホームも、この語を持っているので全部読み直す。
       await qc.invalidateQueries({ queryKey: ["sticker", stickerId] });
       void qc.invalidateQueries({ queryKey: ["stickers"] });
+      /**
+       * **復習の束からもこの札を外す**（オーナー報告 2026-10-15: 貓眼 → 門 と直しても、復習の答えが
+       * 貓眼 のまま）。束は端末に書き留めてあり（`review-cache.ts`）、React Query にも残っている。
+       * どちらも語の字を直した時のまま持つので、ここで外して読み直させる。
+       */
+      try {
+        forgetStickerInReviewCaches(localStorage, stickerId);
+      } catch {
+        /* storage unavailable */
+      }
+      void qc.invalidateQueries({ queryKey: ["reviews-due"] });
       toast.success(t("card.editHeadDone"));
     } catch (e) {
       const msg = e instanceof Error ? e.message : "";

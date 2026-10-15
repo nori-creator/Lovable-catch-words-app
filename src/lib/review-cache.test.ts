@@ -12,6 +12,8 @@
 import { describe, expect, it } from "vitest";
 import {
   composeWantedBatch,
+  forgetStickerInReviewCaches,
+  withoutStickerCard,
   packBatch,
   replaceContinuation,
   readBatch,
@@ -207,5 +209,55 @@ describe("replaceContinuation — 名指しの束の続きを新しくする", (
   it("名指しの1枚を答えた後に読み直しても、同じ札を二度出さない", () => {
     const got = replaceContinuation([c("w"), c("a")], 0, [c("w"), c("a"), c("b")]);
     expect(ids(got)).toEqual(["w", "a", "b"]);
+  });
+});
+
+describe("見出し語を直した札を、書き留めた束から外す（2026-10-15 貓眼 → 門）", () => {
+  const batch = (cards: Array<{ sticker_id: string; headword: string }>) =>
+    JSON.stringify({ user: "u1", wanted: null, at: NOW, cards });
+
+  it("直した札だけを外し、残りの束はそのまま使う（また「準備中」にしない）", () => {
+    const raw = batch([
+      { sticker_id: "s-cat-eye", headword: "貓眼" },
+      { sticker_id: "s2", headword: "杯子" },
+    ]);
+    const out = withoutStickerCard(raw, "s-cat-eye");
+    expect(JSON.parse(out!).cards).toEqual([{ sticker_id: "s2", headword: "杯子" }]);
+    expect(readBatch(out, "u1", null, NOW)?.cards).toHaveLength(1);
+  });
+
+  it("その札しか無ければ束ごと消す・居なければ触らない・壊れた物は触らない", () => {
+    expect(withoutStickerCard(batch([{ sticker_id: "s1", headword: "貓眼" }]), "s1")).toBeNull();
+    const raw = batch([{ sticker_id: "s2", headword: "杯子" }]);
+    expect(withoutStickerCard(raw, "s1")).toBe(raw);
+    expect(withoutStickerCard("{broken", "s1")).toBe("{broken");
+    expect(withoutStickerCard(null, "s1")).toBeNull();
+  });
+
+  it("普通の束と名指しの束の両方から外す", () => {
+    const store = new Map<string, string>([
+      [
+        REVIEW_CACHE_KEY,
+        batch([
+          { sticker_id: "s1", headword: "貓眼" },
+          { sticker_id: "s2", headword: "杯子" },
+        ]),
+      ],
+      [REVIEW_TARGET_CACHE_KEY, batch([{ sticker_id: "s1", headword: "貓眼" }])],
+    ]);
+    forgetStickerInReviewCaches(
+      {
+        getItem: (k) => store.get(k) ?? null,
+        setItem: (k, v) => void store.set(k, v),
+        removeItem: (k) => void store.delete(k),
+      },
+      "s1",
+    );
+    expect(
+      JSON.parse(store.get(REVIEW_CACHE_KEY)!).cards.map(
+        (c: { sticker_id: string }) => c.sticker_id,
+      ),
+    ).toEqual(["s2"]);
+    expect(store.has(REVIEW_TARGET_CACHE_KEY)).toBe(false);
   });
 });

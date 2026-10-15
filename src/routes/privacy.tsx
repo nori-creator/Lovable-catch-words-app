@@ -1,6 +1,7 @@
 import { siteUrlFor } from "@/lib/site-url";
 import { createFileRoute } from "@tanstack/react-router";
-import { tStatic, useUiLang } from "@/lib/i18n";
+import { tStatic } from "@/lib/i18n";
+import { useLegalLang } from "@/components/legal/use-legal-lang";
 import { LegalShell } from "@/components/legal/LegalShell";
 import { PrivacyDocument } from "@/components/legal/LegalDocuments";
 import { EMPTY_LEGAL } from "@/lib/legal-config";
@@ -15,6 +16,10 @@ import { getLegalInfo } from "@/lib/legal.functions";
  */
 
 export const Route = createFileRoute("/privacy")({
+  // `?lang=ja|en|zh-TW` で表示言語を決める（iPhone アプリが付けて開く。`legal-lang.ts`）。
+  validateSearch: (search: Record<string, unknown>) => ({
+    lang: typeof search.lang === "string" ? search.lang : undefined,
+  }),
   head: () => ({
     meta: [
       { title: tStatic("page.privacy") },
@@ -46,10 +51,11 @@ export const Route = createFileRoute("/privacy")({
 });
 
 function PrivacyPage() {
-  const lang = useUiLang();
+  const { lang: langParam } = Route.useSearch();
+  const lang = useLegalLang(langParam);
   const data = Route.useLoaderData();
   return (
-    <LegalShell current="/privacy">
+    <LegalShell current="/privacy" lang={lang}>
       <PrivacyDocument lang={lang} info={data?.legal ?? EMPTY_LEGAL} />
     </LegalShell>
   );

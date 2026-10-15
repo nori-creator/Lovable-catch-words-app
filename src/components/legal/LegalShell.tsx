@@ -1,5 +1,44 @@
 import { Fragment, type ReactNode } from "react";
-import { useT } from "@/lib/i18n";
+import { UI_LANGS, useT, type UiLang } from "@/lib/i18n";
+import { legalHrefFor } from "@/lib/legal-lang";
+
+/** 言語の切り替えの札。**その言語自身の名前**で書く（読めない言語の名前は役に立たない）。 */
+const LANG_NAMES: Record<UiLang, string> = {
+  ja: "日本語",
+  en: "English",
+  "zh-TW": "繁體中文",
+};
+
+/**
+ * 法務の頁の言語の切り替え（2026-10-15）。`?lang=` を付け替えるだけのリンク — iPhone の Safari で
+ * 開いた時も、app の設定を触らずにその場で言語を変えられる。
+ */
+export function LegalLangSwitch({ current, lang }: { current: string; lang: UiLang }) {
+  const t = useT();
+  return (
+    <nav aria-label={t("legal.langSwitchAria")} className="mt-3 text-footnote">
+      <ul className="flex flex-wrap gap-x-3 gap-y-1">
+        {UI_LANGS.map((l) => (
+          <li key={l}>
+            {l === lang ? (
+              <span aria-current="page" className="inline-block py-3 -my-1 font-semibold">
+                {LANG_NAMES[l]}
+              </span>
+            ) : (
+              <a
+                href={legalHrefFor(current, l)}
+                hrefLang={l}
+                className={`${LEGAL_LINK_CLASS} text-muted-foreground`}
+              >
+                {LANG_NAMES[l]}
+              </a>
+            )}
+          </li>
+        ))}
+      </ul>
+    </nav>
+  );
+}
 
 /** 法務の頁とサポート（同じ順で、どこからでも行き来できる）。 */
 export const LEGAL_LINKS = [
@@ -51,10 +90,13 @@ export function LegalLinks({
  */
 export function LegalShell({
   current,
+  lang,
   children,
   footer,
 }: {
   current: string;
+  /** この頁の表示言語（`useLegalLang`）。渡せば言語の切り替えを出す。 */
+  lang?: UiLang;
   children: ReactNode;
   footer?: ReactNode;
 }) {
@@ -67,6 +109,7 @@ export function LegalShell({
       >
         ← {t("common.back")}
       </a>
+      {lang && <LegalLangSwitch current={current} lang={lang} />}
       {children}
       <LegalLinks current={current} className="mt-8 text-footnote text-muted-foreground" />
       {footer}
