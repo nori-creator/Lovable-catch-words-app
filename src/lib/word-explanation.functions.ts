@@ -381,13 +381,17 @@ export async function mergeIntoReaderExplanation(
     extras: Record<string, unknown>;
     meaning?: string | null;
     example_translation?: string | null;
+    /** 空でも入れ替える鍵（例文を作り直した時の `examples_extra`）。`mergeExtras` は空で上書きしない。 */
+    replaceKeys?: readonly string[];
   },
 ): Promise<boolean> {
   const current = await readReaderExplanation(admin, wordId, key);
   if (!current || current.source === "verified") return false;
   const { mergeExtras } = await import("./extras");
+  const extras: Record<string, unknown> = mergeExtras(current.extras, patch.extras as never);
+  for (const k of patch.replaceKeys ?? []) if (k in patch.extras) extras[k] = patch.extras[k];
   const row: Record<string, unknown> = {
-    extras: mergeExtras(current.extras, patch.extras as never),
+    extras,
     updated_at: new Date().toISOString(),
   };
   if ((patch.meaning ?? "").trim()) row.meaning = patch.meaning;

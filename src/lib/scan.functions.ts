@@ -1,3 +1,4 @@
+import { NAME_REGISTERS, normalizeNameRegister } from "./candidate-register";
 import { createServerFn } from "@tanstack/react-start";
 import { DEFAULT_TARGET_LANGUAGE, normalizeTargetLanguage } from "./target-lang";
 import { keepTargetHeadwords } from "./target-language";
@@ -55,6 +56,14 @@ const DetectItemSchema = z.object({
   point: z.tuple([z.number(), z.number()]),
   confidence: z.number().min(0).max(1).default(0.8),
   alternatives: z.array(z.string()).default([]),
+  /**
+   * どんな言い方か（`candidate-register.ts` の5つ、2026-10-15 — どの候補にも必ず付ける）。スキャンは
+   * 写っている物ごとに1語（ふだんの名前）なので、無い・読めない時は一般的な言い方。
+   */
+  register: z.preprocess(
+    (v) => normalizeNameRegister(v) ?? undefined,
+    z.enum(NAME_REGISTERS).catch("common"),
+  ),
 });
 
 export type DetectedItem = z.infer<typeof DetectItemSchema> & { id: string };
@@ -137,10 +146,12 @@ ${coach.scanSample}
       "pos": "名詞",
       "point": [512, 340],
       "confidence": 0.93,
-      "alternatives": []
+      "alternatives": [],
+      "register": "common"
     }
   ]
-}`;
+}
+register は ${NAME_REGISTERS.join(" / ")} のどれか（headword はその言語を話す人がふだんその物を呼ぶ一般的な言い方 = common にする）。`;
 
 export const detectScan = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])

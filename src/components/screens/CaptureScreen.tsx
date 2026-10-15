@@ -101,6 +101,7 @@ import { useCandidatePick } from "@/lib/use-candidate-pick";
 import type { CandidatePickVia } from "@/lib/funnel-events";
 import { canWarmUp, warmUpTarget } from "@/lib/warm-up";
 import { groupCandidates } from "@/lib/candidate-order";
+import type { NameRegister } from "@/lib/candidate-register";
 import { useCatchLocation } from "@/lib/use-catch-location";
 import { localeOf, useT } from "@/lib/i18n";
 import { formatCount } from "@/lib/count";
@@ -160,8 +161,8 @@ type Suggestion = {
   /** 他の候補との**使い分け**を一言。出ない回もあるので任意。 */
   distinction?: string;
   category_key: string;
-  /** ふだん度（並べ替えと2段目の札に使う）。 */
-  register?: "common" | "casual" | "specific" | "proper" | null;
+  /** どんな言い方か（並べ替えと2段目の札に使う。`candidate-register.ts`）。古い `casual` も受ける。 */
+  register?: NameRegister | "casual" | null;
   /** 写真のどの物か（同じ物の別の呼び方は同じ番号）。無ければ1語で1つ。 */
   group?: number | null;
 };

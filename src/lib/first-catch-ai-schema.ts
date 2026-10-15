@@ -1,3 +1,4 @@
+import { NAME_REGISTERS, normalizeNameRegister } from "./candidate-register";
 import { z } from "zod";
 import { CATEGORY_KEYS } from "./category";
 import { LearningPreferencesSchema } from "./learning-preferences";
@@ -36,6 +37,14 @@ export const FirstCatchSuggestionsSchema = z.object({
         pinyin: z.string().default(""),
         category_key: z.enum(CATEGORY_KEYS).catch("other"),
         distinction: z.string().default(""),
+        /**
+         * どんな言い方か（`candidate-register.ts` の5つ、2026-10-15）。チュートリアルの候補は写真の物ごとに
+         * 1語（ふだんの名前）なので、無い・読めない時は一般的な言い方。
+         */
+        register: z.preprocess(
+          (v) => normalizeNameRegister(v) ?? undefined,
+          z.enum(NAME_REGISTERS).catch("common"),
+        ),
       }),
     )
     // **0件も形としては正しい**（暗い・何も写っていない写真）。0件を形の誤りとして

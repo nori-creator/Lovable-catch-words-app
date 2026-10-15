@@ -34,6 +34,7 @@
  * 外の世界に触れるものをここに入れないこと。
  */
 
+import { hasJapaneseOnlyKanji } from "./kanji-forms";
 import { CEFR_SCALE, JLPT_SCALE, TOCFL_SCALE, type LevelScale } from "./level-scale";
 import { DEFAULT_TARGET_LANGUAGE, normalizeTargetLanguage, speechLangOf } from "./target-lang";
 
@@ -584,6 +585,9 @@ export const ZH_TW_PROFILE: TargetProfile = {
     // 通すと**自分の母語を台湾華語の単語として覚える**ことになる。
     if (KANA.test(s)) return false;
     if (NON_CJK_LETTER.test(s)) return false;
+    // **漢字だけの日本語も通さない**（2026-10-15、`kanji-forms.ts`）。「図鑑」「駅」の 図・駅 は
+    // 台湾では 圖・驛 と書く — 通すと日本語の字のまま台湾華語の語として覚える。
+    if (hasJapaneseOnlyKanji(s)) return false;
     return HAN.test(s);
   },
 };

@@ -84,7 +84,7 @@ export function TextCandidateList({
       >
         {candidates.map((c) => {
           const busy = preparing === c.headword;
-          const label = registerLabelKey(c.register);
+          const label = registerLabelKey(c.style);
           return (
             <li key={c.headword} className="flex min-w-0 items-center gap-2 px-3 py-2.5">
               <button

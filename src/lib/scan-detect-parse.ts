@@ -1,3 +1,4 @@
+import { normalizeNameRegister, type NameRegister } from "./candidate-register";
 /**
  * **スキャンの AI の返事を、寛容に読む。**（オーナー報告 2026-09-23「スキャンモード
  * 検出に失敗と出る」）
@@ -21,6 +22,8 @@ export type ParsedDetectItem = {
   point: [number, number];
   confidence: number;
   alternatives: string[];
+  /** どんな言い方か（5つ、`candidate-register.ts`）。スキャンは物ごとに1語なので、無ければ一般的な言い方。 */
+  register: NameRegister;
 };
 
 const MAX_ITEMS = 6;
@@ -88,6 +91,7 @@ export function normalizeDetectItem(raw: unknown): ParsedDetectItem | null {
     point: p,
     confidence: confidence(o.confidence),
     alternatives,
+    register: normalizeNameRegister(o.register) ?? "common",
   };
 }
 

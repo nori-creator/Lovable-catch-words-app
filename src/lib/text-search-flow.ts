@@ -16,6 +16,7 @@
 import { z } from "zod";
 import { coerceTargetHeadword, isTargetHeadword } from "./target-language";
 import type { QueryLang } from "./text-query-lang";
+import type { NameRegister } from "./candidate-register";
 
 /**
  * 候補の**使われ方**の印（古い形）。画面はもう読まない — 古い iOS が読むので返し続ける
@@ -127,8 +128,13 @@ export const WordCandidatesSchema = z.object({
          * 古い iOS もこの欄を出すので、名前は変えない。
          */
         distinction: z.string().default(""),
-        /** 文体（`CANDIDATE_REGISTERS`）。知らない値は `usage` から読む。 */
+        /**
+         * どんな言い方か（`candidate-register.ts` の5つ。2026-10-15）。古い返事の文体の値
+         * （spoken など）も受け、`normalizeNameRegister` が読む。
+         */
         register: z.string().nullable().optional(),
+        /** 文体（`CANDIDATE_REGISTERS`。2026-10-15 まで `register` に入っていた物）。 */
+        style: z.string().nullable().optional(),
         /** 使う場面（どこで聞く・見るか。例: 「屋台・黑白切の店で注文するとき」）。 */
         scene: z.string().nullable().optional(),
         /** 使われ方（古い形 `CANDIDATE_USAGES`）。古い返事・古い iOS のために受ける。 */
@@ -148,8 +154,10 @@ export type TextCandidate = {
   meaning_ja: string;
   /** 他の候補との違い（比べた一言）。 */
   distinction: string;
-  /** 文体の札（1つだけ）。分からない時は `null`（札を出さない）。 */
-  register: CandidateRegister | null;
+  /** どんな言い方か（5つのどれか。必ず入る — `finalizeNameRegisters`）。 */
+  register: NameRegister;
+  /** 文体の札（1つだけ。Web の候補の一覧が出す）。分からない時は `null`（札を出さない）。 */
+  style: CandidateRegister | null;
   /** 使う場面。無ければ空。 */
   scene: string;
   /** 古い印（古い iOS 用。画面は `register` を読む）。 */
@@ -204,7 +212,8 @@ export function decideTextSearch(input: {
         pinyin: "",
         meaning_ja: "",
         distinction: "",
-        register: null,
+        register: "common",
+        style: null,
         scene: "",
         usage: null,
         image_query: "",

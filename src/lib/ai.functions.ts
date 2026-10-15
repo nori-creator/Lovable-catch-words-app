@@ -14,7 +14,7 @@ import { generateText, type LanguageModelUsage } from "ai";
 import { z } from "zod";
 import { pickReportedItem, reportContext } from "@/lib/report-locate";
 import { CATEGORY_CHOICE_RULES_JA, CATEGORY_KEYS, ROOM_KEYS, normalizeCategory } from "./category";
-import { orderByRegister } from "./candidate-order";
+import { NAME_REGISTER_RULE, finalizeNameRegisters } from "./candidate-register";
 import {
   ConjugationRowSchema,
   CounterSchema,
@@ -34,12 +34,16 @@ import {
   EXAMPLE_PROMPT_VERSION,
   ExamplePatternSchema,
   alignExampleExtras,
+  nearDuplicateExample,
+  sceneMaxChars,
+  toExtraExample,
   applyExamplePatterns,
   sameSentence,
   examplePatternsRule,
   pickExamplePatterns,
 } from "./example-patterns";
 import { exampleLevelRule } from "./level-instruction";
+import { etymologyDiagramRule, normalizeEtymologyDiagram } from "./etymology-diagram";
 import {
   CardReplySchema,
   CardShapeError,
@@ -65,12 +69,19 @@ import { claude5ThinkingOff } from "./claude-thinking";
 import { fitSuggestionsToReader } from "./first-catch-meaning";
 import { withObjectPoints } from "./suggestion-position";
 import { WordCandidatesSchema, legacyUsageOf, normalizeRegister } from "./text-search-flow";
+import { normalizeNameRegister } from "./candidate-register";
 
 // 形は `card-schema.ts` に移したが、**取り込み元は変えない** —
 // 5箇所が `@/lib/ai.functions` から型を取っている。移した都合を
 // 呼ぶ側に押し付けない。
 export type { GeneratedCard };
-import { coerceTargetHeadword, isTargetHeadword, keepTargetHeadwords } from "./target-language";
+import {
+  NOT_TARGET_LANGUAGE,
+  coerceTargetHeadword,
+  isTargetHeadword,
+  keepTargetHeadwords,
+  pickLearningHeadword,
+} from "./target-language";
 import { taiwanUsageFrom } from "./taiwan-usage";
 import {
   REGEN_SECTIONS,
@@ -149,11 +160,11 @@ const SuggestionSchema = z.object({
         // しか残らない。棚は後から直せるので、ここで語を捨てない。
         category_key: z.enum(CATEGORY_KEYS).catch("other"),
         /**
-         * その呼び方の**ふだん度**（2026-09-27）。`common` = ネイティブが日常で
-         * いちばんよく口にする呼び方、`specific` = 正確・専門的な名前、
-         * `proper` = 固有名詞。並べ替えにだけ使う（**消さない**）。
+         * その呼び方の**どんな言い方か**（2026-10-15 にオーナーの5つへ、`candidate-register.ts`）。
+         * 知らない値・無い値も**候補を捨てずに**受け、`finalizeNameRegisters` が埋めて並べる
+         * （前は `z.enum` の外の値が黙って消え、iOS に印が出なかった）。
          */
-        register: z.enum(["common", "casual", "specific", "proper"]).optional().catch(undefined),
+        register: z.string().nullable().optional().catch(undefined),
         /**
          * **写真のどの物か**の番号（2026-09-27）。写っている別々の物に 0,1,2…、
          * 同じ物の別の呼び方には同じ番号。画面はこれで1段目（物ごとに1語）と
@@ -408,7 +419,9 @@ function finishPhotoCandidates(
   targetLanguage: string,
   correctTaiwanReading: Awaited<ReturnType<typeof loadReadingCheck>>,
 ) {
-  return fitSuggestionsToReader(orderByRegister(usable), reader, targetLanguage).map((s) => ({
+  // 全部の候補に印を付け、物ごとに 一般的 → 口語 → より詳しい → 学術的 → 固有名詞 に並べる。
+  // 物の1つ目（写真のタグ）は必ず一般的な言い方（`candidate-register.ts`）。
+  return fitSuggestionsToReader(finalizeNameRegisters(usable), reader, targetLanguage).map((s) => ({
     // 候補の読みも検める（`tw-reading.server.ts`）。
     ...correctTaiwanReading(targetLanguage, s.headword, s),
     // 候補の意味も語の長さに（R17「湯咖哩の英語の単語の候補…が長すぎる」）。
@@ -467,10 +480,9 @@ ${langRule}
 
 **写っている物ごとに分ける（group）:**
 - 写っている**別々の物**に 0 から順に group の番号を振る（確からしい物ほど小さい番号）。
-- 同じ物に別の呼び方（正確な名前・固有名詞・**砕けた言い方（略語・口語）**など）があれば、
-  **同じ group の番号で**続けて出す。register は ふだん=common / 砕けた=casual /
-  くわしい・専門的=specific / 固有名詞=proper。
-  別の呼び方が無い物は1つだけでよい。無理に作らない。
+- 同じ物に別の呼び方（より詳しい名前・学術的な名前・固有名詞・**口語（略語・くだけた言い方）**など）があれば、
+  **同じ group の番号で**続けて出す。別の呼び方が無い物は1つだけでよい。無理に作らない。
+- ${NAME_REGISTER_RULE}
 - 物は最大5つ、1つの物の呼び方は最大3つ。
 - 物ごとに、その物の**最初の呼び方**に box_2d を付ける: 写真の中でその物を囲む枠を
   [ymin, xmin, ymax, xmax]（0〜1000、写真の左上が原点）で。同じ group の2つ目以降の呼び方には付けなくてよい。
@@ -490,7 +502,7 @@ ${distinctionRule(profile.promptName, profile.capture.distinctionExamples)}
   候補の画面は横に動かないので、長い文は読まれない（オーナー指示 2026-09-28
   「単語の説明が長すぎて、横にスクロールしないと見れないことがある。長すぎる文はなしで」）。`;
 
-  const instruction = `${prompt}\n\n必ずJSONだけを返してください。**${profile.promptName}の語を出す。他の言語の語を混ぜない。**\n形式: {"suggestions":[{"headword":"${profile.capture.jsonHeadwordHint}",${profile.capture.jsonReadingHint},"meaning_ja":"意味(上で指定した解説の言語で)","distinction":"使い分けの一言","category_key":"${CATEGORY_KEYS.join("|")} のどれか","register":"common|casual|specific|proper のどれか","group":0,"box_2d":[ymin,xmin,ymax,xmax]}]}。**確からしい順に並べ**、物は3〜5つ返してください(無理に5つに埋めない — 写っていない物を足すぐらいなら少なくてよい)。同じ物の別の呼び方は同じ group で。`;
+  const instruction = `${prompt}\n\n必ずJSONだけを返してください。**${profile.promptName}の語を出す。他の言語の語を混ぜない。**\n形式: {"suggestions":[{"headword":"${profile.capture.jsonHeadwordHint}",${profile.capture.jsonReadingHint},"meaning_ja":"意味(上で指定した解説の言語で)","distinction":"使い分けの一言","category_key":"${CATEGORY_KEYS.join("|")} のどれか","register":"common|colloquial|specific|academic|proper のどれか","group":0,"box_2d":[ymin,xmin,ymax,xmax]}]}。**確からしい順に並べ**、物は3〜5つ返してください(無理に5つに埋めない — 写っていない物を足すぐらいなら少なくてよい)。同じ物の別の呼び方は同じ group で。`;
   return { profile, instruction };
 }
 
@@ -832,19 +844,22 @@ const WordCandidatesInput = z.object({
 const CandidateSchema = WordCandidatesSchema;
 
 /**
- * 候補の文体・場面と、古い iOS が読む印（`usage`）。印は文体から作る — 古い画面にも
- * 同じ物差しの札が出る（土地の印 `local` はもう作らない）。
+ * 候補の「どんな言い方か」（`register`、5つ — `candidate-register.ts`）・文体（`style`）・場面と、
+ * 古い iOS が読む印（`usage`、文体から作る）。`register` はここでは読めた物だけ — 埋めて並べるのは
+ * `finalizeNameRegisters`。古い返事は文体を `register` に入れていたので、`style` が無ければそこから読む。
  */
 function registerFields(c: {
   register?: string | null;
+  style?: string | null;
   scene?: string | null;
   usage?: string | null;
 }) {
-  const register = normalizeRegister(c.register, c.usage);
+  const style = normalizeRegister(c.style ?? c.register, c.usage);
   return {
-    register,
+    register: normalizeNameRegister(c.register) ?? undefined,
+    style,
     scene: (c.scene ?? "").trim().slice(0, 60),
-    usage: legacyUsageOf(register),
+    usage: legacyUsageOf(style),
   };
 }
 
@@ -904,7 +919,9 @@ ${langRule}
   2〜5個を**よく使う順**に並べる。
   例: ${candProfile.capture.distinctionExamples}
 - **どの候補も同じ物差しで説明する**（学習者が並べて比べられるように）。それぞれに次の3つを書く:
-  1. register — 文体を次のどれか**1つだけ**:
+  0. ${NAME_REGISTER_RULE}
+     候補が1つだけなら common。
+  1. style — 文体を次のどれか**1つだけ**:
      spoken（話し言葉: ふだんの会話で口にする）/ written（書き言葉: 文章・ニュース・公文書）/
      both（会話でも文章でも同じように使う）/ technical（専門用語・学術: 料理人・医療・研究などの言葉）/
      signage（表示・メニューの言葉: 店の札・品書き・包装・案内板で目にする）。
@@ -920,11 +937,13 @@ ${langRule}
 - それぞれの image_query に、その物を写真で探すための**短い英語**（2〜4語。例: "lotus root"）を書く。
   物の形が無い語（動詞・形容詞・抽象語）でも、その意味が伝わる場面を短く。
 - meaning_ja は一行の短い訳だけ（その語の意味が分かる程度。使い方・場面・違いはここに書かない）。
+- **headword は必ず${candProfile.promptName}の語だけ**（学習者が打った母語の文字・かな・ローマ字を入れない。
+  打った語が母語なら、${candProfile.promptName}でいちばんよく使う語に訳して1つ目に置く）。
 - 実際に${candProfile.promptName}で使われている語だけ。${candProfile.capture.scriptRule}。
   中国大陸でしか使わない言い方は出さない。
 - **確かなものだけ**。
 
-出力の形: {"query_is_target":true/false,"candidates":[{"headword":"…","reading_zhuyin":"…","pinyin":"…","meaning_ja":"…","register":"spoken","scene":"…","distinction":"…","image_query":"…"}]}`;
+出力の形: {"query_is_target":true/false,"candidates":[{"headword":"…","reading_zhuyin":"…","pinyin":"…","meaning_ja":"…","register":"common","style":"spoken","scene":"…","distinction":"…","image_query":"…"}]}`;
 
     const ask = (extra = "") =>
       generateStructured({
@@ -948,7 +967,7 @@ ${langRule}
      */
     if (raw.candidates.length === 0) {
       raw = await ask(
-        `\n\n出力の形: {"query_is_target":true/false,"candidates":[{"headword":"…","reading_zhuyin":"…","pinyin":"…","meaning_ja":"…","register":"spoken","scene":"…","distinction":"…","image_query":"…"}]} のJSONだけを返す。前後に説明を書かない。headword は${candProfile.promptName}の語だけにし、括弧やローマ字の注釈を付けない。`,
+        `\n\n出力の形: {"query_is_target":true/false,"candidates":[{"headword":"…","reading_zhuyin":"…","pinyin":"…","meaning_ja":"…","register":"common","style":"spoken","scene":"…","distinction":"…","image_query":"…"}]} のJSONだけを返す。前後に説明を書かない。headword は${candProfile.promptName}の語だけにし、括弧やローマ字の注釈を付けない。`,
       );
     }
 
@@ -958,7 +977,7 @@ ${langRule}
     // いない注釈（「烤肉 (BBQ)」）が付いただけで、中身は正しいことがある。
     const correctTaiwanReading = await loadReadingCheck();
     const seen = new Set<string>();
-    const candidates = raw.candidates
+    const listed = raw.candidates
       .map((c) => ({
         ...c,
         headword: coerceTargetHeadword(c.headword, data.targetLanguage) ?? "",
@@ -979,10 +998,13 @@ ${langRule}
         pinyin: c.pinyin,
         meaning_ja: c.meaning_ja,
         distinction: c.distinction.trim().slice(0, 80),
-        // 文体の札と使う場面（2026-10-09。古い画面は読まない — 足しただけ）。
+        // どんな言い方か・文体の札・使う場面（2026-10-09 / 2026-10-15）。
         ...registerFields(c),
         image_query: (c.image_query ?? "").trim().slice(0, 80),
       }));
+    // 全部の候補に5つの印を付け、一般的 → 口語 → より詳しい → 学術的 → 固有名詞 に並べる
+    // （1つ目は必ず一般的な言い方。`candidate-register.ts`）。
+    const candidates = finalizeNameRegisters(listed);
     await recordCandidateReceipts(candProfile.code, candidates);
     // 手元で分かった時はそれを返す（AI の判定より確か）。
     /**
@@ -1087,6 +1109,7 @@ export const generateCard = createServerFn({ method: "POST" })
       levelRule: exampleLevelRule(cardProfile.levels, levels.current, levels.goal, data.headword),
       sourceRule: worldExampleRule(NL, cardProfile.code),
       chunkRoles: cardProfile.chunkRoles.join(" / "),
+      sceneMax: sceneMaxChars(explainLang),
     });
     const prompt = `「${data.headword}」について、${cardProfile.promptName}の語彙カードを生成してください。
 
@@ -1175,7 +1198,8 @@ ${
   want("etymology")
     ? `- etymology: ${cardProfile.capture.etymologyRule}（${NL}）
 ${cardProfile.capture.relativesRule ? `- etymology_relatives: ${cardProfile.capture.relativesRule}（note は${NL}）` : "- etymology_relatives: **空配列**"}
-- radicals: ${cardProfile.capture.radicalsRule}`
+- radicals: ${cardProfile.capture.radicalsRule}
+${etymologyDiagramRule(cardProfile.code, NL)}`
     : ""
 }
 ${want("mnemonic") ? `- mnemonic: ${mnemonicRule(data.targetLanguage, l1Info.code, NL)}` : ""}
@@ -1198,7 +1222,7 @@ ${data.hintCategory ? `カテゴリのヒント: ${data.hintCategory}` : ""}`;
       `（前置き・説明・コードフェンス不要）。含めるキー: ` +
       `headword_zh / reading_zhuyin / pinyin / meaning_ja / part_of_speech / level / ` +
       `category_key / new_shelf / ` +
-      `example_patterns[{situation,share,sentence,translation,scene,chunks:[{text,pos}],scene_fits}] / ` +
+      `example_patterns[{share,sentence,translation,scene,chunks:[{text,pos}],scene_fits}] / ` +
       `extras{ ` +
       [
         want("usage_chunks") && "usage_chunks[{parts:[{text,pos,slot,ja?,alts?:[{text,ja}]}],ja}]",
@@ -1214,7 +1238,8 @@ ${data.hintCategory ? `カテゴリのヒント: ${data.hintCategory}` : ""}`;
         wantOwn("word_origin") && "word_origin",
         want("pronunciation_tips") && "pronunciation_tips",
         want(noteSection) && cardProfile.capture.noteField,
-        want("etymology") && "etymology, radicals",
+        want("etymology") &&
+          "etymology, radicals, etymology_diagram{kind,parts:[{text,components,meaning}],result_meaning,source,note}",
         want("mnemonic") && "mnemonic",
       ]
         .filter(Boolean)
@@ -1458,7 +1483,20 @@ ${data.hintCategory ? `カテゴリのヒント: ${data.hintCategory}` : ""}`;
       throw e;
     }
     cardRun(true);
-    const resolvedHead = card.headword_zh?.trim() || data.headword;
+    /**
+     * **見出し語は学習言語の語だけ**（2026-10-15、`pickLearningHeadword`）。前は
+     * `card.headword_zh || data.headword` で、AI が訳せなかった回（空・かなのまま・日本の字のまま）に
+     * **打った母語がそのまま見出しになった**。直せる物は直し、どちらも学習言語でなければ断る。
+     */
+    const resolvedHead = pickLearningHeadword([card.headword_zh, data.headword], cardLanguage);
+    if (!resolvedHead) {
+      console.warn("generateCard: 学習言語の見出し語が無い", {
+        input: data.headword.slice(0, 40),
+        returned: (card.headword_zh ?? "").slice(0, 40),
+        target: cardLanguage,
+      });
+      throw new Error(NOT_TARGET_LANGUAGE);
+    }
     /**
      * **場面のパターンを確かめて、今までの欄に写す**（2026-10-15 眼鏡、`example-patterns.ts`）。
      * AI はもう呼ばない — 自己点検が false の物・札が無い物・見出し語を含まない文を落とし、よく使う順に並べる。
@@ -1478,6 +1516,22 @@ ${data.hintCategory ? `カテゴリのヒント: ${data.hintCategory}` : ""}`;
         });
       }
       card = applyExamplePatterns(card, picked, { withExtra: want("examples_extra") });
+    }
+    // 語源の図は**必ず描ける形**にする（空・壊れた図を返さない。`etymology-diagram.ts`）。
+    if (want("etymology")) {
+      card = {
+        ...card,
+        extras: {
+          ...card.extras,
+          etymology_diagram: normalizeEtymologyDiagram(card.extras?.etymology_diagram, {
+            headword: resolvedHead,
+            language: cardLanguage,
+            readerLang: explainLang,
+            meaning: card.meaning_ja,
+            etymology: card.extras?.etymology,
+          }),
+        },
+      };
     }
     // **読みは AI のまま通さない**（2026-10-03「拿鐵」が nálǎtiě と出た件）。
     // 字の数と音節の数・字ごとの読み・台湾の読みを検め、外れていれば辞書の読みに直す。
@@ -1761,6 +1815,10 @@ const RegenInput = z.object({
  * 求められた生成は、当たり障りのない物を返すか、丸ごと外す。
  * 記号の一覧は `target-profile.ts` が言語ごとに持つ。
  */
+/** 例文の作り直しの返事の形（生成と同じ鍵）。 */
+const EXAMPLE_PATTERNS_JSON = (targetName: string, nl: string) =>
+  `{"example_patterns":[{"share":0,"sentence":"${targetName}の例文","translation":"訳(${nl})","scene":"短い1行(${nl})","chunks":[{"text":"","pos":""}],"scene_fits":true}]}`;
+
 function chunkRule(language: string | null | undefined): string {
   const p = targetProfile(language);
   return `チャンクは {text: ${p.promptName}のパーツ, pos: 品詞} の配列。${p.chunkPrompt.posRule}${NO_PLUS_PART_RULE}`;
@@ -2144,6 +2202,7 @@ async function runSectionRegen(
     headword: head,
     targetName,
     nl: NL,
+    sceneMax: sceneMaxChars(regenLang),
     levelRule: exampleLevelRule(regenProfile.levels, regenLevels.current, regenLevels.goal, head),
     sourceRule: sharedExampleSourceRule(NL, regenProfile.code),
     chunkRoles: regenProfile.chunkRoles.join(" / "),
@@ -2181,14 +2240,20 @@ async function runSectionRegen(
     },
     /**
      * 例文も**場面のパターン**から作る（2026-10-15、生成と同じ指示 `examplePatternsRule`）。
-     * メインの例文 = いちばんよく使うパターン1つ。札は書いた文の目印（`example_scene_for`）と組で保存する。
+     * iOS は「追加の例文」の節をやめ、**例文の節に全部のパターン**を並べる（2026-10-15）ので、例文を作り直すと
+     * よく使うパターンを上限まで全部作る: 1つ目がメインの例文、残りが `examples_extra`（**入れ替える** — 古い
+     * 追加の例文を残さない。`replaceExtras`）。札はどれも書いた文の目印（`example_scene_for` / `scene_for`）と組。
      */
     example: {
-      prompt: `${base}\n${examplePatternsRule({ ...regenPatternBase, max: 1 })}\n${chunkRule(word.language as string | null)}\n{"example_patterns":[{"situation":"","share":0,"sentence":"${targetName}の例文","translation":"訳(${NL})","scene":"場面(${NL})","chunks":[{"text":"","pos":""}],"scene_fits":true}]}`,
+      prompt: `${base}\n${examplePatternsRule({ ...regenPatternBase, max: MAX_EXAMPLE_PATTERNS })}\n${chunkRule(word.language as string | null)}\n${EXAMPLE_PATTERNS_JSON(targetName, NL)}`,
       schema: z
         .object({ example_patterns: z.array(ExamplePatternSchema).min(1) })
         .transform((r, ctx) => {
-          const [main] = pickExamplePatterns(r.example_patterns, { ...regenPickBase, max: 1 });
+          const picked = pickExamplePatterns(r.example_patterns, {
+            ...regenPickBase,
+            max: MAX_EXAMPLE_PATTERNS,
+          });
+          const [main, ...rest] = picked;
           if (!main) {
             ctx.addIssue({ code: "custom", message: "場面と文の合う例文が無い" });
             return z.NEVER;
@@ -2200,31 +2265,36 @@ async function runSectionRegen(
             example_chunks: main.chunks,
             example_scene_for: main.sentence,
             example_v: EXAMPLE_PROMPT_VERSION,
+            examples_extra: rest.map(toExtraExample),
+            example_pattern_count: picked.length,
           };
         }),
     },
     /**
-     * 追加の例文 = メインの例文の場面**以外**のよく使うパターン。無ければ空でよい（1つの場面でしか使わない語）。
-     * その時は `example_pattern_count: 1` を残し、空の節を開くたびに作り直しに来ないようにする。
+     * 追加の例文 = メインの例文の場面**以外**のよく使うパターン（古い画面と Web のための口）。無ければ空でよい
+     * （1つの場面でしか使わない語）。その時は `example_pattern_count: 1` を残し、空の節を開くたびに作り直しに来ない。
      */
     examples_extra: {
       prompt: `${base}\n${
         word.example_sentence
-          ? `この語には既にメインの例文「${word.example_sentence}」${mainScene ? `（場面「${mainScene}」）` : ""}がある。**そのパターンは除き**、ほかによく使うパターンだけを返す。ほかに無ければ空配列 [] を返す（数を合わせるために作らない）。\n`
+          ? `この語には既にメインの例文「${word.example_sentence}」${mainScene ? `（場面「${mainScene}」）` : ""}がある。**そのパターンと似たパターンは除き**、ほかによく使うパターンだけを返す。ほかに無ければ空配列 [] を返す（数を合わせるために作らない）。\n`
           : ""
-      }${examplePatternsRule({ ...regenPatternBase, max: MAX_EXAMPLE_PATTERNS - 1 })}\n${chunkRule(word.language as string | null)}\n{"example_patterns":[{"situation":"","share":0,"sentence":"","translation":"","scene":"","chunks":[{"text":"","pos":""}],"scene_fits":true}]}`,
+      }${examplePatternsRule({ ...regenPatternBase, max: MAX_EXAMPLE_PATTERNS - 1 })}\n${chunkRule(word.language as string | null)}\n${EXAMPLE_PATTERNS_JSON(targetName, NL)}`,
       schema: z.object({ example_patterns: z.array(ExamplePatternSchema) }).transform((r) => {
+        const main = {
+          sentence: (word.example_sentence as string | null) ?? "",
+          scene: mainScene ?? "",
+        };
         const picked = pickExamplePatterns(r.example_patterns, {
           ...regenPickBase,
           max: MAX_EXAMPLE_PATTERNS - 1,
-        }).filter((e) => !sameSentence(e.sentence, word.example_sentence as string | null));
+        }).filter(
+          (e) =>
+            !sameSentence(e.sentence, main.sentence) &&
+            !(main.sentence && nearDuplicateExample(main, e, head)),
+        );
         return {
-          examples_extra: picked.map((e) => ({
-            zh: e.sentence,
-            ja: e.translation,
-            scene: e.scene,
-            chunks: e.chunks,
-          })),
+          examples_extra: picked.map(toExtraExample),
           example_pattern_count: 1 + picked.length,
         };
       }),
@@ -2255,14 +2325,27 @@ async function runSectionRegen(
       schema: z.object({ pronunciation_tips: z.string().min(1) }),
     },
     etymology: {
-      prompt: `${base}\n${regenProfile.capture.relativesRule ? `etymology_relatives: ${regenProfile.capture.relativesRule}\n` : ""}{"etymology":"${regenProfile.capture.etymologyRule}(${NL})","etymology_relatives":[{"word":"","note":""}],"radicals":"${regenProfile.capture.radicalsRule}"}`,
-      schema: z.object({
-        etymology: z.string().min(1),
-        etymology_relatives: z
-          .array(z.object({ word: z.string().catch(""), note: z.string().catch("") }))
-          .catch([]),
-        radicals: z.string().catch(""),
-      }),
+      prompt: `${base}\n${regenProfile.capture.relativesRule ? `etymology_relatives: ${regenProfile.capture.relativesRule}\n` : ""}${etymologyDiagramRule(regenProfile.code, NL)}\n{"etymology":"${regenProfile.capture.etymologyRule}(${NL})","etymology_relatives":[{"word":"","note":""}],"radicals":"${regenProfile.capture.radicalsRule}","etymology_diagram":{"kind":"compound|single_char|loanword_phonetic|proper|other","parts":[{"text":"","components":[],"meaning":""}],"result_meaning":"","source":"","note":""}}`,
+      // 図は必ず描ける形に直す（`normalizeEtymologyDiagram` — 壊れていれば other と短い説明）。
+      schema: z
+        .object({
+          etymology: z.string().min(1),
+          etymology_relatives: z
+            .array(z.object({ word: z.string().catch(""), note: z.string().catch("") }))
+            .catch([]),
+          radicals: z.string().catch(""),
+          etymology_diagram: z.unknown().optional(),
+        })
+        .transform((r) => ({
+          ...r,
+          etymology_diagram: normalizeEtymologyDiagram(r.etymology_diagram, {
+            headword: head,
+            language: regenProfile.code,
+            readerLang: regenLang,
+            meaning: (word.meaning_ja as string | null) ?? "",
+            etymology: r.etymology,
+          }),
+        })),
     },
     mnemonic: {
       prompt: `${base}\n${mnemonicRule(word.language as string | null, regenL1.code, NL)}\n{"mnemonic":""}`,
@@ -2412,9 +2495,19 @@ async function runSectionRegen(
     }
   }
 
-  const merged = mergeExtras(
-    (word.extras ?? null) as Parameters<typeof mergeExtras>[0],
-    extrasPatch as Parameters<typeof mergeExtras>[1],
+  /**
+   * 例文を作り直した時は、追加の例文を**入れ替える**（空でも — 1つの場面でしか使わない語に古い追加の例文を
+   * 残さない）。`mergeExtras` は空の値で上書きしないので、ここで直に置く。
+   */
+  const replaceExtras = (e: Record<string, unknown>) =>
+    data.section === "example" && Array.isArray(extrasPatch.examples_extra)
+      ? { ...e, examples_extra: extrasPatch.examples_extra }
+      : e;
+  const merged = replaceExtras(
+    mergeExtras(
+      (word.extras ?? null) as Parameters<typeof mergeExtras>[0],
+      extrasPatch as Parameters<typeof mergeExtras>[1],
+    ),
   );
   if (mode === "propose") {
     return {
@@ -2446,6 +2539,7 @@ async function runSectionRegen(
   if (readerRow) {
     await mergeIntoReaderExplanation(supabaseAdmin, data.word_id, readerKey, {
       extras: extrasPatch,
+      replaceKeys: data.section === "example" ? ["examples_extra"] : undefined,
       meaning: data.section === "meaning" ? shortMeaning(String(out.meaning_ja ?? "")) : null,
       example_translation:
         data.section === "example" && !keepVerifiedExample
@@ -2464,9 +2558,11 @@ async function runSectionRegen(
     .eq("id", data.word_id)
     .maybeSingle();
   const latest = fresh
-    ? mergeExtras(
-        ((fresh as { extras?: unknown }).extras ?? null) as Parameters<typeof mergeExtras>[0],
-        extrasPatch as Parameters<typeof mergeExtras>[1],
+    ? replaceExtras(
+        mergeExtras(
+          ((fresh as { extras?: unknown }).extras ?? null) as Parameters<typeof mergeExtras>[0],
+          extrasPatch as Parameters<typeof mergeExtras>[1],
+        ),
       )
     : merged;
   const { error: upErr } = await supabaseAdmin

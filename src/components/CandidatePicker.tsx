@@ -38,7 +38,7 @@ export type PickCandidate = {
   pinyin: string;
   meaning_ja: string;
   distinction?: string;
-  register?: Register | null;
+  register?: Register | "casual" | null;
   group?: number | null;
 };
 
@@ -95,9 +95,11 @@ export function CandidatePicker<T extends PickCandidate>({
                     {t(
                       c.register === "proper"
                         ? "cap.regProper"
-                        : c.register === "casual"
+                        : c.register === "casual" || c.register === "colloquial"
                           ? "cap.regCasual"
-                          : "cap.regSpecific",
+                          : c.register === "academic"
+                            ? "cap.regAcademic"
+                            : "cap.regSpecific",
                     )}
                   </span>
                 )}
