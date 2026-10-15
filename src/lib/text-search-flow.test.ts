@@ -17,7 +17,8 @@ const cand = (headword: string, extra: Partial<TextCandidate> = {}): TextCandida
   pinyin: "x",
   meaning_ja: "意味",
   distinction: "",
-  register: null,
+  register: "common",
+  style: null,
   scene: "",
   usage: null,
   image_query: "",
@@ -140,9 +141,9 @@ describe("2026-10-09: 漢字だけの語は母語として引く（「桃」を�
    * AI が `query_is_target: true` と言い、その語1つで剥がしていた。
    */
   const peach = [
-    cand("桃子", { register: "spoken" }),
-    cand("水蜜桃", { register: "both" }),
-    cand("桃", { register: "written" }),
+    cand("桃子", { style: "spoken" }),
+    cand("水蜜桃", { register: "specific", style: "both" }),
+    cand("桃", { register: "specific", style: "written" }),
   ];
   it("桃・杯・電車は手元では決まらない", () => {
     expect(detectQueryLang("桃", "zh-TW")).toBe("ambiguous");

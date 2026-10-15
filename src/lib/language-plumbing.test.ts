@@ -6015,7 +6015,7 @@ describe("撮った後の候補: 1段目は全部同じ大きさ", () => {
     expect(stage1).not.toMatch(/<HeroWord/);
     expect(stage1).toMatch(/note=\{false\}/);
     expect(src).toMatch(/line-clamp-2/);
-    expect(codeOnly(read("lib/candidate-order.ts"))).toMatch(/casual: 1/);
+    expect(codeOnly(read("lib/candidate-register.ts"))).toMatch(/colloquial: 1/);
     expect(codeOnly(read("lib/ai.functions.ts"))).toMatch(/distinction は15文字以内/);
   });
 });

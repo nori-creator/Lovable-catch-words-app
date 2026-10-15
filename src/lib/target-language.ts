@@ -106,6 +106,25 @@ export function coerceTargetHeadword(raw: string, targetLanguage: string): strin
 }
 
 /**
+ * **見出し語は学習言語の語だけ**（オーナー指示 2026-10-15「打った語が母語でも、結果の見出し語は必ず学習言語。
+ * 台湾華語なら漢字だけ — かな・ローマ字・母語の文字を入れない」）。
+ *
+ * 候補を順に見て、学習言語の見出し語として通る（直せる）最初の物を返す。どれも通らなければ `null` —
+ * 呼ぶ側は**母語のまま見出しにせず**断る（`NOT_TARGET_LANGUAGE`）。台湾華語の関所はかな・欧文に加えて
+ * 日本の新字体だけの字（図・駅）も落とす（`kanji-forms.ts`）。
+ */
+export function pickLearningHeadword(
+  candidates: ReadonlyArray<string | null | undefined>,
+  targetLanguage: string,
+): string | null {
+  for (const raw of candidates) {
+    const head = coerceTargetHeadword(raw ?? "", targetLanguage);
+    if (head) return head;
+  }
+  return null;
+}
+
+/**
  * **AI が返した候補の並びから、学習言語の語だけを残す。**
  *
  * ## なぜ要るか（オーナー報告 2026-10-02「図鑑の英語にノートが入っている」）

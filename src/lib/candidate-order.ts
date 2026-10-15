@@ -1,3 +1,4 @@
+import { nameRegisterRank, type NameRegister } from "./candidate-register";
 /**
  * **候補の並び**（オーナー指示 2026-09-27「ネイティブが一般的によく使う呼び方を
  * 上に。正確な名前や固有名詞は下に、ただし消さない」）。
@@ -8,19 +9,20 @@
  * 固有名詞**の順に並べ直す。同じ段の中は AI の順（確からしさ）を保つ。
  */
 /**
- * 呼び方の種類。`casual` は**砕けた言い方**（略語・若者言葉。オーナー指示 2026-09-28
- * 「ほかの詳しい言い方、専門的な言い方、砕けた言い方、固有名詞などは小さく」）。
- * 並びは ふだん → 砕けた → くわしい → 固有名詞。
+ * 呼び方の種類（`candidate-register.ts`、2026-10-15 にオーナーの5つへ）。
+ * 並びは 一般的 → 口語 → より詳しい → 学術的 → 固有名詞。古い `casual` は口語と同じ段。
  */
-export type Register = "common" | "casual" | "specific" | "proper";
+export type Register = NameRegister;
 
-const RANK: Record<Register, number> = { common: 0, casual: 1, specific: 2, proper: 3 };
-
-export function orderByRegister<T extends { register?: Register | null }>(
+export function orderByRegister<T extends { register?: Register | "casual" | null }>(
   items: readonly T[],
 ): T[] {
   return items
-    .map((it, i) => ({ it, i, r: RANK[it.register ?? "common"] ?? 0 }))
+    .map((it, i) => ({
+      it,
+      i,
+      r: nameRegisterRank(it.register === "casual" ? "colloquial" : it.register),
+    }))
     .sort((a, b) => a.r - b.r || a.i - b.i)
     .map((x) => x.it);
 }
@@ -40,9 +42,9 @@ export function orderByRegister<T extends { register?: Register | null }>(
  */
 export type CandidateGroup<T> = { main: T; others: T[] };
 
-export function groupCandidates<T extends { register?: Register | null; group?: number | null }>(
-  items: readonly T[],
-): CandidateGroup<T>[] {
+export function groupCandidates<
+  T extends { register?: Register | "casual" | null; group?: number | null },
+>(items: readonly T[]): CandidateGroup<T>[] {
   const order: string[] = [];
   const buckets = new Map<string, T[]>();
   items.forEach((it, i) => {

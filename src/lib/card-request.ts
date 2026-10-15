@@ -26,7 +26,7 @@ export const OPTIONAL_EXTRA_KEYS: Partial<Record<SectionId, readonly string[]>> 
   pronunciation_tips: ["pronunciation_tips"],
   taiwan_note: ["taiwan_note"],
   culture_note: ["culture_note"],
-  etymology: ["etymology", "etymology_relatives", "radicals"],
+  etymology: ["etymology", "etymology_relatives", "radicals", "etymology_diagram"],
   mnemonic: ["mnemonic"],
   // 日本語のカードの節(2026-10-01)。既定では見えない物もあるので、見えない節は頼まない。
   kanji_breakdown: ["kanji_breakdown"],

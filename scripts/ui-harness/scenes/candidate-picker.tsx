@@ -26,7 +26,7 @@ const C: PickCandidate[] = [
     pinyin: "iū-á",
     meaning_ja: "ブンタン（台湾語なまり）",
     distinction: "年配の人の口ぐせ",
-    register: "casual",
+    register: "colloquial",
     group: 0,
   },
   {

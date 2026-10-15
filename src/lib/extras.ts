@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { withoutGenericChunks } from "./generic-chunks";
 import { normalizeTargetLanguage } from "./target-lang";
+import { EtymologyDiagramSchema } from "./etymology-diagram";
 import { isBrokenUsageChunk, tidyUsageParts, withoutSeparatorParts } from "./chunk-grammar";
 
 /**
@@ -83,6 +84,11 @@ const ExampleExtraSchema = z.object({
   ja: z.string().catch(""),
   /** いつ・どんな気持ちで言う一文か(例:「夜市で値段を聞くとき」)。 */
   scene: z.string().catch(""),
+  /**
+   * `scene` を**どの文のために書いたか**（その文の文字列。2026-10-15、メインの例文の `example_scene_for` と同じ）。
+   * iOS は例文の節に全部のパターンを並べ、`scene_for` が `zh` と同じ時だけ札を出す。古いカードは空。
+   */
+  scene_for: z.string().optional().catch(undefined),
   chunks: z.array(ChunkPartSchema).catch([]),
 });
 
@@ -184,6 +190,11 @@ export const ExtrasSchema = z.object({
     )
     .catch([]),
   radicals: z.string().catch(""),
+  /**
+   * 語源・部首の**図**（2026-10-15、`etymology-diagram.ts`）。iOS が [字 / 部品+部品 / 意味] + … = [語 / 意味] と描く。
+   * 分解できない語は `kind`（single_char / loanword_phonetic / proper / other）と短い `note`。古いカードは null。
+   */
+  etymology_diagram: EtymologyDiagramSchema.nullable().catch(null).default(null),
   mnemonic: z.string().catch(""),
   /**
    * 例文（example_sentence）の場面・気持ちの短い説明（読む人の言語）。追加の例文の `scene` と同じ書き方。

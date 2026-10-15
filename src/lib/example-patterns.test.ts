@@ -3,7 +3,12 @@ import {
   EXAMPLE_PROMPT_VERSION,
   ExamplePatternSchema,
   alignExampleExtras,
+  alignExtraExamples,
   applyExamplePatterns,
+  nearDuplicateExample,
+  sceneMaxChars,
+  shortScene,
+  similarity,
   exampleMatchesSentence,
   examplePatternsRule,
   guardExampleColumns,
@@ -83,9 +88,13 @@ describe("pickExamplePatterns", () => {
   });
 
   it("上限を守る（追加の例文を頼まない呼び出しは1つ）", () => {
-    const many = [1, 2, 3, 4, 5].map((n) =>
-      p({ share: n, sentence: `眼鏡${n}號在這裡。`, scene: `場面${n}のとき` }),
-    );
+    const many = [
+      p({ share: 50, sentence: "我的眼鏡不見了。", scene: "家でメガネを探して" }),
+      p({ share: 20, sentence: "你戴眼鏡好帥！", scene: "友達の新しいメガネをほめる" }),
+      p({ share: 15, sentence: "眼鏡起霧了，看不到。", scene: "冬に熱いラーメンを食べて" }),
+      p({ share: 10, sentence: "這副眼鏡多少錢？", scene: "眼鏡屋で値段を聞く" }),
+      p({ share: 5, sentence: "睡覺前記得拿下眼鏡。", scene: "寝る前に子どもに言う" }),
+    ];
     expect(pickExamplePatterns(many, { ...zhOpts, max: 1 })).toHaveLength(1);
     expect(pickExamplePatterns(many, zhOpts)).toHaveLength(4);
   });
@@ -139,6 +148,7 @@ describe("applyExamplePatterns", () => {
         zh: "你的眼鏡好好看！",
         ja: "そのメガネいいね！",
         scene: "友達のメガネをほめるとき",
+        scene_for: "你的眼鏡好好看！",
         chunks: [],
       },
     ]);
@@ -253,5 +263,52 @@ describe("examplePatternsRule / CardReplySchema", () => {
       ],
     });
     expect(ok.example_patterns[0].share).toBe(60);
+  });
+});
+
+describe("似た場面は2つに分けない・札は短く（2026-10-15）", () => {
+  it("札がよく似たパターン・同じ文型の文は、よく使う方だけ残す", () => {
+    const out = pickExamplePatterns(
+      [
+        p({ share: 60, sentence: "我要一杯珍珠奶茶。", scene: "手搖飲の店で注文するとき" }),
+        p({ share: 30, sentence: "我要兩杯珍珠奶茶。", scene: "店で友達の分も頼む" }),
+        p({ share: 20, sentence: "珍珠奶茶超好喝！", scene: "手搖飲の店で注文するときに" }),
+        p({ share: 10, sentence: "這家的珍珠奶茶很有名。", scene: "友達に人気の店を教える" }),
+      ],
+      { headword: "珍珠奶茶", language: "zh-TW", readerLang: "ja" },
+    );
+    expect(out.map((e) => e.sentence)).toEqual(["我要一杯珍珠奶茶。", "這家的珍珠奶茶很有名。"]);
+  });
+
+  it("似ていない2つは両方残す", () => {
+    expect(
+      nearDuplicateExample(
+        { scene: "家でメガネを探して", sentence: "我的眼鏡不見了。" },
+        { scene: "友達の新しいメガネをほめる", sentence: "你戴眼鏡好帥！" },
+        "眼鏡",
+      ),
+    ).toBe(false);
+    expect(similarity("abc", "abc")).toBe(1);
+  });
+
+  it("札は読む人の言語ごとの上限まで短くする（区切りがあればそこで）", () => {
+    expect(sceneMaxChars("ja")).toBe(24);
+    expect(sceneMaxChars("zh-TW")).toBe(18);
+    expect(sceneMaxChars("en")).toBe(60);
+    const long = "夜市の屋台で、友達と一緒に食べ歩きをしながら、おいしい物を探しているとき";
+    const short = shortScene(long, "ja");
+    expect([...short].length).toBeLessThanOrEqual(24);
+    expect(short).toBe("夜市の屋台で、友達と一緒に食べ歩きをしながら");
+    expect(shortScene("家でメガネを探して。", "ja")).toBe("家でメガネを探して");
+  });
+
+  it("追加の例文も文の目印で確かめる（別の文のための札は空にする）", () => {
+    expect(
+      alignExtraExamples([
+        { zh: "你戴眼鏡好帥！", scene: "友達のメガネをほめる", scene_for: "你戴眼鏡好帥！" },
+        { zh: "這副眼鏡多少錢？", scene: "家でメガネを探して", scene_for: "我的眼鏡不見了。" },
+        { zh: "舊的", scene: "目印の無い古い札" },
+      ]).map((e) => e.scene),
+    ).toEqual(["友達のメガネをほめる", "", "目印の無い古い札"]);
   });
 });
