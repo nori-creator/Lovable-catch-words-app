@@ -561,19 +561,11 @@ describe("語源の仲間の語と、母語に引っ掛ける覚え方", () => {
     expect(src).toContain("etymology_relatives");
   });
 
-  it("覚え方は**すべての学習言語**で母語に引っ掛ける", () => {
-    // オーナー追記「覚え方のコツはすべての学習言語に適用して」。
+  it("覚え方はもうサーバで作らない（オーナー決定 2026-10-15。前は全ての学習言語で母語に引っ掛けていた）", () => {
     const src = codeOnly(read("lib/ai.functions.ts"));
-    expect(src).toContain("mnemonicRule(");
-    // 「記憶に残るひとことフレーズ・覚え方」の決め打ちが残っていないこと。
+    expect(src).not.toContain("mnemonicRule(");
+    // 「記憶に残るひとことフレーズ・覚え方」の決め打ちも戻さない。
     expect(src).not.toContain("記憶に残るひとことフレーズ・覚え方");
-  });
-
-  it("覚え方の指示は**母語も**受け取る(学習言語だけでは決まらない)", () => {
-    const src = codeOnly(read("lib/ai.functions.ts"));
-    // 一括生成と作り直しの両方で、母語の符号を渡していること。
-    expect(src).toContain("mnemonicRule(data.targetLanguage, l1Info.code");
-    expect(src).toContain("mnemonicRule(word.language as string | null, regenL1.code");
   });
 });
 
@@ -5598,7 +5590,8 @@ describe("単語の詳細は既定で8項目（オーナー指示 2026-09-23）"
 
   it("生成側は頼まれない節の欄をプロンプトから外し、返事からも落とす", () => {
     expect(ai).toMatch(/const want = \(id: SectionId\) => wantsSection\(data\.sections, id\)/);
-    for (const id of ["etymology", "mnemonic", "pronunciation_tips"]) {
+    // 発音のコツ・覚え方はもう頼まない（2026-10-15 `NOT_GENERATED_SECTIONS`、`not-generated-sections.test.ts`）。
+    for (const id of ["etymology"]) {
       expect([id, new RegExp(`\\$\\{\\s*want\\("${id}"\\)\\s*\\?`).test(ai)]).toEqual([id, true]);
     }
     // 追加の例文は場面のパターンの数で頼む（頼まれなければ、いちばんよく使う場面の1つだけ。2026-10-15）。

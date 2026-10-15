@@ -1,4 +1,4 @@
-import type { SectionId } from "./card-sections";
+import { NOT_GENERATED_SECTIONS, type SectionId } from "./card-sections";
 
 /**
  * カードを作るときに**どの節の中身まで書かせるか**。
@@ -64,6 +64,19 @@ export function stripUnrequested<T extends Record<string, unknown>>(
   for (const [id, keys] of Object.entries(OPTIONAL_EXTRA_KEYS)) {
     if (sections.includes(id)) continue;
     for (const k of keys ?? []) delete out[k];
+  }
+  return out as T;
+}
+
+/**
+ * **サーバがもう作らない節の欄を返事から落とす**（発音のコツ・覚え方、2026-10-15 `NOT_GENERATED_SECTIONS`）。
+ * 指示から外してもモデルが書いてくることがあるので、返す前に鍵ごと消す（空で上書きもしない —
+ * 保存済みのカードの中身はそのまま）。
+ */
+export function stripNotGenerated<T extends Record<string, unknown>>(extras: T): T {
+  const out: Record<string, unknown> = { ...extras };
+  for (const id of NOT_GENERATED_SECTIONS) {
+    for (const k of OPTIONAL_EXTRA_KEYS[id] ?? []) delete out[k];
   }
   return out as T;
 }

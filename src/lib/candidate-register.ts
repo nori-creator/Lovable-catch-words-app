@@ -144,4 +144,79 @@ export const NAME_REGISTER_RULE =
   `\n並びは common → colloquial → specific → academic → proper。同じ印の中はよく使う順。` +
   `**1つ目は必ず common**（タグとして写真に出るのはこの語）。詳しい名前・固有名詞を1つ目にしない。` +
   `ただし上位の分類語（衣服・肉・飲み物）に逃げない — その物をふだん何と呼ぶかで決める。` +
-  `例: ボクサーパンツの写真 → common 內褲（台湾の人がふだんそう呼ぶ）、specific 四角褲・平口褲（より狭い種類の名前）。`;
+  `例: ボクサーパンツの写真 → common 內褲（台湾の人がふだんそう呼ぶ。写真のタグは「下着」）、specific 平口褲・四角褲（より狭い種類の名前）。`;
+
+/**
+ * 意味の最初の言い方（読点・カンマ・セミコロン・スラッシュの前、括弧書きを除く）。
+ * 「下着、パンツ」→「下着」、「underwear, briefs」→「underwear」。中黒（ボクサー・パンツ）では切らない。
+ */
+export function firstGloss(meaning: string | null | undefined): string {
+  const t = (meaning ?? "")
+    .replace(/[（(][^）)]*[）)]/g, "")
+    .split(/[、,，;；/／\n]/)[0]
+    .trim();
+  return t.replace(/[。.]+$/u, "").trim();
+}
+
+/**
+ * **写真のタグ（写っている物の名前）は表示言語の一般的な呼び名**（オーナー決定 2026-10-15:
+ * ボクサーパンツの写真のタグは「下着」— 「ボクサーパンツ」「パンツ」ではない。タップすると 內褲（一般的な言い方）、
+ * その下に 平口褲・四角褲（より詳しい言い方））。
+ *
+ * タグは**その物の1つ目の候補（common）の表示言語の言い方**と同じでなければならない:
+ * - 物ごとに、AI が付けた `label`（表示言語のいちばん一般的な呼び名）を読む言語で確かめて使う。無ければ
+ *   1つ目の候補の意味の最初の言い方。
+ * - 1つ目の候補の意味がタグと違う言い方で始まっていたら、意味をタグに合わせる（古い iOS はこの意味の最初の
+ *   言い方をタグに出すので、古い版でもタグが一般的な呼び名になる）。
+ * - 物の全部の候補に `object_label`（タグの文字）を付ける。読む言語の言葉が無ければ空（画面は見出し語を出す）。
+ *
+ * `finalizeNameRegisters` の後に呼ぶ（物の1つ目が common になっている前提）。
+ */
+export function applyObjectLabels<
+  T extends { group?: number | null; meaning_ja?: string; label?: string | null },
+>(
+  items: readonly T[],
+  /** 読む人の言語の言葉か（`common` = その物の1つ目の候補。見出し語の写しを落とすのに使う）。 */
+  isReaderText: (text: string, common: T) => boolean,
+): Array<Omit<T, "label"> & { object_label: string }> {
+  const groups = new Map<string, T[]>();
+  for (const it of items) {
+    const key = typeof it.group === "number" ? `g${it.group}` : "all";
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key)!.push(it);
+  }
+  const labelOf = new Map<string, string>();
+  const fixedMeaning = new Map<T, string>();
+  for (const [key, list] of groups) {
+    const common = list[0];
+    const fromModel = [common, ...list.slice(1)]
+      .map((c) => firstGloss(c.label ?? ""))
+      .find((l) => l && isReaderText(l, common));
+    const fromMeaning = firstGloss(common.meaning_ja);
+    const label =
+      fromModel || (fromMeaning && isReaderText(fromMeaning, common) ? fromMeaning : "");
+    labelOf.set(key, label);
+    if (label && fromMeaning !== label) fixedMeaning.set(common, label);
+  }
+  return items.map((it) => {
+    const { label: _label, ...rest } = it;
+    void _label;
+    const key = typeof it.group === "number" ? `g${it.group}` : "all";
+    const meaning = fixedMeaning.get(it);
+    return {
+      ...rest,
+      ...(meaning !== undefined ? { meaning_ja: meaning } : {}),
+      object_label: labelOf.get(key) ?? "",
+    } as Omit<T, "label"> & { object_label: string };
+  });
+}
+
+/** 指示文に入れるタグの説明（写真の候補）。`nl` は解説の言語の呼び名。 */
+export function objectLabelRule(nl: string): string {
+  return (
+    `物ごとに、**1つ目（common）の候補に label を付ける**: 写っている物の**${nl}でのいちばん一般的な呼び名**` +
+    `（その common の語の${nl}の訳。写真のタグに出る）。細かい種類の名前・説明にしない。` +
+    `例: ボクサーパンツの写真 → label「下着」（內褲の訳。英語なら underwear）。` +
+    `「ボクサーパンツ」「パンツ」「男性用の下着」にしない。common の候補の meaning_ja も label と同じ言い方から始める。`
+  );
+}

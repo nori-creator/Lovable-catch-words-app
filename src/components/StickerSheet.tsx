@@ -583,9 +583,10 @@ export function StickerSheet({ stickerId, onClose, openPhotoPicker, from, local 
         ex.examples_extra,
       ].some(filled);
     // 部分的に欠けたカードも1回だけ作り直す(主要項目が揃っていなければ未完成)。
+    // 発音のコツはもうサーバが作らない（2026-10-15 `NOT_GENERATED_SECTIONS`）ので数えない — 数えると
+    // 開くたびに「未完成」と判じて作り直しに行く。
     const missingNewFields =
-      !ex ||
-      ![ex.usage_chunks, ex.usage_context, ex.related_words, ex.pronunciation_tips].every(filled);
+      !ex || ![ex.usage_chunks, ex.usage_context, ex.related_words].every(filled);
     /**
      * **開くたびの作り直しをここで止める**(2026-08-24)。
      *
