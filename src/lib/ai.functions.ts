@@ -1216,8 +1216,11 @@ export const generateCard = createServerFn({ method: "POST" })
       });
       const reply = reused ? reusedCardReply(reused, data.headword, data.sections) : null;
       if (reused && reply) {
-        const held = await reservation;
-        if (held.ok && held.usageId != null) await releaseAiCall(held.usageId);
+        // 確保した1回は返事の後で返す（確保が終わるのを待たない — 待つと確保の往復ぶん遅くなる）。
+        void runAfterResponse("generateCard: release the reservation (reuse)", async () => {
+          const held = await reservation;
+          if (held.ok && held.usageId != null) await releaseAiCall(held.usageId);
+        });
         const ms = Date.now() - cardStartedAt;
         recordCardReuse(context, { ms, ageMs: Date.now() - Date.parse(reused.created_at) });
         return reply;

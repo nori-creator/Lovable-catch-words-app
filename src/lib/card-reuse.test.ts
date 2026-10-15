@@ -117,7 +117,7 @@ describe("同じ入力のカードは作り直さない（2026-10-15: 草莓蛋�
     expect(reuseAt).toBeGreaterThan(0);
     expect(aiAt).toBeGreaterThan(reuseAt);
     expect(fn).toMatch(
-      /if \(held\.ok && held\.usageId != null\) await releaseAiCall\(held\.usageId\)/,
+      /void runAfterResponse\("generateCard: release the reservation \(reuse\)"[\s\S]{0,160}await releaseAiCall\(held\.usageId\)/,
     );
     expect(fn).toMatch(/recordCardReuse\(context/);
     // 控えには入力の印を付ける。
