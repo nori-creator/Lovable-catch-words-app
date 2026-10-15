@@ -236,6 +236,7 @@ const user = (
 ): AdminUserRow => ({
   id: `${String(n).padStart(8, "0")}-0000-4000-8000-000000000000`,
   display_name,
+  avatar_url: null,
   created_at,
   target_language: n % 3 ? "zh-TW" : "en",
   ui_language: "ja",
