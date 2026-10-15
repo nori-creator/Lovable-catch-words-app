@@ -141,6 +141,11 @@ export const WordCandidatesSchema = z.object({
         usage: z.string().nullable().optional(),
         /** 画像検索用の短い英語（札の絵を探す。`heroSearchQuery` が整える）。 */
         image_query: z.string().nullable().optional(),
+        /**
+         * 図鑑の分類の鍵（2026-10-15）。形は信用しない — サーバが `coerceCategoryKey` と見出し語の規則で直す。
+         * iOS はカードが届く前に保存するとこの分類で図鑑に置く（無いと「その他」に入った — 花束）。
+         */
+        category_key: z.unknown().optional(),
       }),
     )
     .default([]),
@@ -163,6 +168,12 @@ export type TextCandidate = {
   /** 古い印（古い iOS 用。画面は `register` を読む）。 */
   usage: CandidateUsage | null;
   image_query: string;
+  /** 図鑑の分類の鍵（2026-10-15。古い返事には無い）。 */
+  category_key?: string;
+  /** 表示言語の短い意味（`meaning_ja` の最初の言い方。2026-10-15。古い返事には無い）。 */
+  gloss?: string;
+  /** 打った物の表示言語の名前（写真の候補のタグと同じ欄。2026-10-15。古い返事には無い）。 */
+  object_label?: string;
 };
 
 export type TextSearchDecision =

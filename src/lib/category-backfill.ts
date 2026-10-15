@@ -23,6 +23,7 @@ import { z } from "zod";
 import {
   CATEGORY_CHOICE_RULES_JA,
   CATEGORY_KEYS,
+  coerceCategoryKey,
   normalizeCategory,
   wordCategoryKey,
   type CategoryKey,
@@ -91,7 +92,11 @@ export const ReclassifySchema = z.object({
     .array(
       z.object({
         i: z.number().int().min(0),
-        category_key: z.enum(CATEGORY_KEYS).catch("other"),
+        // 「home / furniture」・番号・カテゴリーの名前も鍵1つに読む（`coerceCategoryKey`、2026-10-15）。
+        category_key: z
+          .unknown()
+          .optional()
+          .transform((v) => coerceCategoryKey(v)),
       }),
     )
     .max(RECLASSIFY_BATCH * 2),

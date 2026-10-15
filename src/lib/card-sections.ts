@@ -77,16 +77,27 @@ export const RETIRED_SECTIONS: readonly SectionId[] = [
   "examples_extra",
   "pronunciation_tips",
   "mnemonic",
+  // 語源・部首（オーナー決定 2026-10-15「語源・部首の項目を消して」。サーバも作らない — `NOT_GENERATED_SECTIONS`）。
+  "etymology",
 ];
 
 /**
- * **サーバがもう作らない節**（オーナー決定 2026-10-15「発音のコツと覚え方はサーバで作らない」）。
+ * **サーバがもう作らない節**（オーナー決定 2026-10-15「発音のコツと覚え方はサーバで作らない」、
+ * 同日「語源・部首の項目を消して」）。
  *
  * カード生成の指示から外し（トークンを使わない）、節ごとの作り直し（`regenerateCardSection`）は AI を呼ばずに
  * 空で返す。iOS 1.0.0 など古い版は空の節を自動で埋めに来るので、口は残したまま何もしない。
  * `sectionNeedsFill` も「埋める必要なし」と答える（作り直しの引き金にしない）。保存済みのカードの中身は消さない。
+ *
+ * 語源の節（`etymology`）は欄が4つ: `etymology`（文）/ `etymology_relatives` / `radicals` / `etymology_diagram`
+ * （`card-request.ts` の `OPTIONAL_EXTRA_KEYS`）。日本語のカードの `kanji_breakdown` / `word_origin` は別の節で、
+ * ここには入れていない（頼まれたのは 語源・部首 の節だけ）。
  */
-export const NOT_GENERATED_SECTIONS: readonly SectionId[] = ["pronunciation_tips", "mnemonic"];
+export const NOT_GENERATED_SECTIONS: readonly SectionId[] = [
+  "pronunciation_tips",
+  "mnemonic",
+  "etymology",
+];
 
 /** サーバがもう作らない節か（`NOT_GENERATED_SECTIONS`）。 */
 export function isNotGeneratedSection(id: string): boolean {

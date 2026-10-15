@@ -162,6 +162,33 @@ function editDistance(a: readonly string[], b: readonly string[]): number {
   return prev[b.length];
 }
 
+/** 量詞の前に来る数・指示詞（「一束」「這束」「兩杯」「每個」）。 */
+const MEASURE_LEAD = /[一二兩三四五六七八九十百千幾這那哪每半整好多]$/u;
+
+/**
+ * **量詞と見出し語の字が重なる文**（オーナー報告 2026-10-15: 花束の例文「他在畢業典禮上送了一束花束給女朋友。」—
+ * 一束花束 は重ね言葉で、ネイティブは「送了一束花」と言う）。
+ *
+ * 数・指示詞 ＋ 量詞1字 ＋ 見出し語 で、見出し語がその量詞の字を含む（花束 ⊃ 束、杯子 ⊃ 杯、信封 ⊃ 封）。
+ * 「一個花束」「這個杯子」は重ならない。見出し語が1字の語・漢字でない言語は見ない。
+ */
+export function redundantMeasure(sentence: string, headword: string): boolean {
+  const head = (headword ?? "").trim();
+  const text = sentence ?? "";
+  if ([...head].length < 2 || !/^\p{Script=Han}+$/u.test(head)) return false;
+  let from = 0;
+  for (;;) {
+    const at = text.indexOf(head, from);
+    if (at < 0) return false;
+    const before = [...text.slice(0, at)];
+    const measure = before[before.length - 1];
+    const lead = before.slice(0, -1).join("");
+    if (measure && measure !== head && head.includes(measure) && MEASURE_LEAD.test(lead))
+      return true;
+    from = at + head.length;
+  }
+}
+
 /** 例文1つ（画面に出す形）。 */
 export type PickedExample = {
   sentence: string;
@@ -203,6 +230,8 @@ export function pickExamplePatterns(
     if (!looksLikeTargetLanguage(sentence, opts.language)) return;
     // 入っていない文は別の語の例文。英語・日本語は活用で形が変わるので、ここでは見ない。
     if (literalHeadword && head && !sentence.includes(head)) return;
+    // 量詞と見出し語の字が重なる文（一束花束）は不自然なので使わない（2026-10-15 花束）。
+    if (literalHeadword && redundantMeasure(sentence, head)) return;
     const scene = shortScene(
       readerText((p.scene ?? "").trim(), opts.readerLang, sentence).trim(),
       opts.readerLang,
@@ -240,6 +269,54 @@ export function toExtraExample(e: PickedExample) {
     scene_for: e.sentence,
     chunks: e.chunks,
   };
+}
+
+/**
+ * **チュートリアルのカード**（`first-catch-ai.server.ts`、パターンを頼まない短い指示）の例文を、本番の
+ * カードと同じ形にそろえる（2026-10-15）。AI が1つの要素の中に一緒に書いた文と札を組にする:
+ *
+ * - メインの例文に札（`extras.example_scene`）があれば `example_scene_for` = その文
+ * - 追加の例文は札のある物に `scene_for` = その文。量詞が重なる文（一束花束）は落とす
+ * - メインの例文の量詞が重なっていて、重ならない追加の例文があれば、それをメインに上げる
+ *
+ * 目印が無いと iOS は札を出さない（`WordExtras.shownExampleScene`）— チュートリアルのカードは控えを通して
+ * 共有の語の中身になるので、ここで付ける。
+ */
+export function pairTutorialExamples<
+  C extends {
+    example_sentence: string;
+    example_translation: string;
+    extras: {
+      example_scene?: string;
+      example_scene_for?: string;
+      example_chunks?: unknown[];
+      examples_extra?: Array<{
+        zh: string;
+        ja: string;
+        scene: string;
+        scene_for?: string;
+        chunks: unknown[];
+      }>;
+    };
+  },
+>(card: C, headword: string): C {
+  const head = (headword ?? "").trim();
+  const extras = { ...card.extras };
+  let sentence = card.example_sentence;
+  let translation = card.example_translation;
+  const extra = (extras.examples_extra ?? []).filter(
+    (e) => e && e.zh && !redundantMeasure(e.zh, head),
+  );
+  if (sentence && redundantMeasure(sentence, head) && extra.length > 0) {
+    const [up] = extra.splice(0, 1);
+    sentence = up.zh;
+    translation = up.ja;
+    extras.example_scene = up.scene;
+    extras.example_chunks = up.chunks;
+  }
+  extras.examples_extra = extra.map((e) => (e.scene?.trim() ? { ...e, scene_for: e.zh } : e));
+  if ((extras.example_scene ?? "").trim() && sentence) extras.example_scene_for = sentence;
+  return { ...card, example_sentence: sentence, example_translation: translation, extras };
 }
 
 /**
@@ -385,6 +462,9 @@ export function examplePatternsRule(opts: {
     `     share は、その語が使われる場面全体のうち、そのパターンが占める割合の目安（0〜100 の整数）。`,
     `  4. パターンごとに、**その場面でネイティブが実際にいちばん自然に言う一文**を1つだけ書く（sentence、${targetName}）。` +
       `教科書の作文・説明文にしない。「${headword}」を必ず含める。`,
+    `     **重ね言葉にしない。** 見出し語がもう量詞・名詞の字を含む時、同じ字を量詞にして重ねない` +
+      `（✗「送了一束花束」「這束花束」→ ○「送了一個花束」「這個花束好漂亮」/ ✗「一杯杯子」→ ○「一個杯子」）。` +
+      `ネイティブが言わない言い回し・意味の重なる語の組み合わせを書かない。`,
     `  5. その一文の**ために** scene を書く: その文がまさに口にされる状況の**短い1行**（${nl}で${sceneMax}字以内。` +
       `誰が・どこで・何が起きて・どんな気持ちか が分かる言葉だけ）。画面で例文のすぐ上に出る。`,
     `     **scene と sentence は食い違ってはいけない。** ✗ sentence「我有鑰匙。」に scene「鍵をなくして困ったとき」` +

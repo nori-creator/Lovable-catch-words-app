@@ -5,6 +5,7 @@ import {
   applyObjectLabels,
   finalizeNameRegisters,
   firstGloss,
+  glossesOf,
   normalizeNameRegister,
 } from "./candidate-register";
 import { WordCandidatesSchema } from "./text-search-flow";
@@ -102,13 +103,13 @@ describe("写真のタグは表示言語の一般的な呼び名（2026-10-15: �
   const ja = (text: string, common: { headword: string }) =>
     !!text && text !== common.headword && !/[A-Za-z]{3,}/.test(text);
 
-  it("タグは common の候補の表示言語の言い方。意味もタグの言い方から始まるように直す", () => {
+  it("タグは common の候補の本当の意味の言い方。label はその中に在る時だけ使い、意味は書き換えない", () => {
     const out = applyObjectLabels(
       finalizeNameRegisters([
         {
           headword: "內褲",
           register: "common",
-          meaning_ja: "ボクサーパンツ",
+          meaning_ja: "パンツ、下着",
           label: "下着",
           group: 0,
         },
@@ -119,12 +120,31 @@ describe("写真のタグは表示言語の一般的な呼び名（2026-10-15: �
       ja,
     );
     expect(out.map((c) => [c.headword, c.register, c.object_label, c.meaning_ja])).toEqual([
-      ["內褲", "common", "下着", "下着"],
+      ["內褲", "common", "下着", "パンツ、下着"],
       ["平口褲", "specific", "下着", "ボクサーパンツ"],
       ["四角褲", "specific", "下着", "トランクス"],
       ["杯子", "common", "コップ", "コップ、カップ"],
     ]);
     expect(out[0]).not.toHaveProperty("label");
+  });
+
+  it("#184 の不具合: 細かい語1つにタグ「ケーキ」が付いても、その語の意味をタグに書き換えない", () => {
+    // 2026-10-15 10:03 本番: AI がケーキの物に 草莓蛋糕 だけを返し、意味が「ケーキ」に書き換わっていた
+    // （タグはケーキ、タップすると 草莓蛋糕）。タグは1つ目の候補の本当の意味から取る。
+    const out = applyObjectLabels(
+      [
+        {
+          headword: "草莓蛋糕",
+          register: "common",
+          meaning_ja: "いちごのショートケーキ",
+          label: "ケーキ",
+          group: 0,
+        },
+      ],
+      ja,
+    );
+    expect(out[0].meaning_ja).toBe("いちごのショートケーキ");
+    expect(out[0].object_label).toBe("いちごのショートケーキ");
   });
 
   it("label が読む言語でない（見出し語の写し）なら、common の意味の最初の言い方", () => {
@@ -135,5 +155,7 @@ describe("写真のタグは表示言語の一般的な呼び名（2026-10-15: �
     expect(out[0].object_label).toBe("下着");
     expect(firstGloss("underwear, briefs")).toBe("underwear");
     expect(firstGloss("ボクサー・パンツ")).toBe("ボクサー・パンツ");
+    expect(glossesOf("パンツ、下着（男性用）/ ショーツ")).toEqual(["パンツ", "下着", "ショーツ"]);
+    expect(firstGloss("、下着")).toBe("下着");
   });
 });

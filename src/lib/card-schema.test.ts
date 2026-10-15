@@ -32,7 +32,7 @@ describe("CardSchema — 1項目でカードを落とさない", () => {
 
   // **これが「文字入力が機能してない」の正体。**
   // 54個の外の棚名が返るたびに parse が投げ、カードが消えていた。
-  it.each(["electronics", "remote_control", "ELECTRONICS", "", "家電"])(
+  it.each(["electronics", "remote_control", "ELECTRONICS", "", "家具家電"])(
     "知らない棚 %p でもカードは生き残り、other に落ちる",
     (bad) => {
       const r = CardSchema.safeParse({ ...OK, category_key: bad });
@@ -40,6 +40,21 @@ describe("CardSchema — 1項目でカードを落とさない", () => {
       expect(r.success && r.data.category_key).toBe("other");
     },
   );
+
+  // 2026-10-15: 写真の候補の控えで、写真ごとに全部 "other" になっていた（花束の写真の 波斯菊・花瓶・木桌・木櫃）。
+  // 指示文が見せる「→ category_key: home / furniture / decoration」の並び・番号・カテゴリーの名前を鍵1つに読む。
+  it.each([
+    ["home / furniture / decoration", "home"],
+    ["plant|flower", "plant"],
+    ["Flowers", "flower"],
+    ["17", "plant"],
+    ["家電", "appliance"],
+    ["植物・花", "plant"],
+    [" Dessert ", "dessert"],
+  ])("分類の答え %p は鍵 %p に読む", (raw, key) => {
+    const r = CardSchema.safeParse({ ...OK, category_key: raw });
+    expect(r.success && r.data.category_key).toBe(key);
+  });
 
   it("棚が丸ごと欠けていても落ちない", () => {
     const { category_key: _drop, ...rest } = OK;
