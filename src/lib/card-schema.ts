@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { CATEGORY_KEYS } from "./category";
+import { coerceCategoryKey } from "./category";
 import { ExtrasSchema, emptyExtras } from "./extras";
 import { ExamplePatternSchema } from "./example-patterns";
 
@@ -55,7 +55,11 @@ export const CardSchema = z.object({
    * **`meaning_ja` だけは既定を置かない** — 意味の無いカードはカードでは
    * ないので、そこは正直に失敗させる。
    */
-  category_key: z.enum(CATEGORY_KEYS).catch("other"),
+  // 「home / furniture」・番号・カテゴリーの名前も鍵1つに読む（`coerceCategoryKey`、2026-10-15）。
+  category_key: z
+    .unknown()
+    .optional()
+    .transform((v) => coerceCategoryKey(v)),
   example_sentence: z.string().catch(""),
   example_translation: z.string().catch(""),
   /**

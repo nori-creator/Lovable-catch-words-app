@@ -11,7 +11,8 @@
  * (存在しないキーは upsertWord が 'other' に落とすため。
  *  20260723090000_seed_missing_categories.sql で54キーを投入済み)。
  */
-import { DEX_CATEGORY_GUIDE_JA } from "./dex-category-guide";
+import { DEX_CATEGORY_GUIDES, DEX_CATEGORY_GUIDE_JA } from "./dex-category-guide";
+import { dexCategoryKey } from "./dex-catalog";
 
 export const CATEGORY_KEYS = [
   "fruit",
@@ -87,6 +88,10 @@ export const CATEGORY_CHOICE_RULES_JA =
   `${DEX_CATEGORY_GUIDE_JA}\n` +
   `- 果物は木に生っていても・切ってあっても 3（fruit）。桃・桃子・水蜜桃を nature/plant にしない。` +
   `花（桃花）は 17、地名（桃園）は 14（building）。\n` +
+  `- **花・花束・鉢植え・草木は種類の名前でも 17（植物・花: flower / plant）**。波斯菊・玫瑰・滿天星・花束・捧花・盆栽を ` +
+  `"other" にしない。花瓶・花盆（入れ物）は 6（decoration）。\n` +
+  `- ケーキ・お菓子・パンは種類や味の名前でも 4（dessert）。料理は 2（food）、飲み物は 1（drink）。\n` +
+  `- category_key には**鍵を1つだけ**書く（例 "plant"）。番号・カテゴリーの名前・「plant / flower」のような並びを書かない。\n` +
   `- nature・sky・weather・water・mountain（18 空・自然）は空・天気・山・川・海・岩・景色だけ。` +
   `生き物・食べ物・物に使わない。\n` +
   `- **"other" は最終手段** — 20のどれにも入らない抽象的な語（「見どころ」「考え」）だけ。` +
@@ -174,6 +179,31 @@ const EXACT: Record<string, CategoryKey> = {
   秘書: "job",
   祕書: "job",
   銀河: "sky",
+  // 写真の候補で「その他」に残っていた物（本番の候補の控え 2026-10-11〜15）。
+  指甲: "body",
+  拇指: "body",
+  食指: "body",
+  中指: "body",
+  無名指: "body",
+  小指: "body",
+  腿毛: "body",
+  眉毛: "body",
+  睫毛: "body",
+  鬍子: "body",
+  船: "vehicle",
+  尺: "stationery",
+  地板: "home",
+  天花板: "home",
+  牆壁: "home",
+  窗戶: "home",
+  窗簾: "home",
+  煙囪: "home",
+  水龍頭: "home",
+  手帕: "accessory",
+  數字: "symbol",
+  商標: "sign",
+  品牌: "sign",
+  刺繡: "art",
 };
 
 /**
@@ -262,6 +292,13 @@ const BEFORE_SUFFIX: Array<[RegExp, CategoryKey]> = [
   [/(韭菜花|花椰菜|青花菜|蔥花)$/, "vegetable"],
   // 波の花（浪花）は水
   [/^浪花$/, "water"],
+  // 花の入れ物は花ではない（「〜花」でなくても先に拾う。花瓶が「その他」だった — 2026-10-15）
+  [/(花瓶|花盆|花器)$/, "decoration"],
+  // 「〜花」でも花ではない物（ラテアート・花火・切り紙）。拉花が「花」に入っていた（候補の控え 2026-10-15）。
+  [/^拉花$/, "drink"],
+  [/^(煙花|窗花|印花|繡花)$/, "art"],
+  // 野菜（写真の候補で「その他」だった 四季豆・青蔥）
+  [/(四季豆|豌豆|毛豆|青蔥|蔥|竹筍|蘆筍|筍)$/, "vegetable"],
   // 街の灯り（「〜燈」は家具の規則に当たる）
   [/(紅綠燈|路燈|號誌燈)$/, "street"],
   // 空・天気
@@ -279,8 +316,13 @@ const BEFORE_SUFFIX: Array<[RegExp, CategoryKey]> = [
 
 /** 語末一致(「〜傘」「〜鞋」など、末尾で種類が決まるもの)。 */
 const SUFFIX: Array<[RegExp, CategoryKey]> = [
-  [/(花|玫瑰|櫻花|向日葵|鬱金香|百合)$/, "flower"],
-  [/(樹|竹|草|葉|盆栽)$/, "plant"],
+  // 花・花束（オーナー報告 2026-10-15: 花束が「その他」に入った。写真の候補では波斯菊が "other"）。
+  // 花の種類の名前（〜菊・玫瑰・滿天星…）と、花をまとめた物（花束・捧花・花籃・花圈）。図鑑の「植物・花」。
+  [
+    /(花|花束|捧花|花籃|花圈|玫瑰|櫻花|向日葵|鬱金香|百合|菊|康乃馨|繡球|薰衣草|牡丹|杜鵑|茉莉|水仙|滿天星|洋桔梗|海芋|蝴蝶蘭|紫羅蘭|蒲公英)$/,
+    "flower",
+  ],
+  [/(樹|竹|草|葉|盆栽|多肉|仙人掌|盆栽植物|植物)$/, "plant"],
   // キノコ（蘑菇・香菇・金針菇…）。図鑑の表は香菇を「植物・花」に置くので、それに合わせる
   // （2026-10-09 オーナー報告: 野のキノコの写真の蘑菇が「その他」になり、日用品に並んでいた）。
   [/(菇|蕈|菌菇)$/, "plant"],
@@ -288,7 +330,9 @@ const SUFFIX: Array<[RegExp, CategoryKey]> = [
   [/(鞋|鞋子|運動鞋|拖鞋|靴子|高跟鞋)$/, "shoes"],
   [/(包包|背包|皮包|錢包|手提袋|袋子)$/, "bag"],
   [/(項鍊|戒指|耳環|手鍊|手錶|錶|手環)$/, "jewelry"],
-  [/(椅子|桌子|沙發|床|櫃子|書架|書桌|衣櫃)$/, "furniture"],
+  [/(椅子|椅|桌子|桌|沙發|床|櫃子|櫃|書架|書桌|衣櫃)$/, "furniture"],
+  [/(船|帆船|漁船|遊艇)$/, "vehicle"],
+  [/(直尺|塑膠尺|三角尺)$/, "stationery"],
   [/(鍋|平底鍋|刀|叉|筷子|湯匙|盤子|碗|砧板|鍋子|水壺)$/, "kitchenware"],
   [/(書|小說|字典|漫畫|雜誌|課本|筆記本)$/, "book"],
   [/(證|證件|卡|表格|文件|收據|發票|菜單|地圖)$/, "document"],
@@ -305,7 +349,7 @@ const SUFFIX: Array<[RegExp, CategoryKey]> = [
 const CONTAINS: Array<[RegExp, CategoryKey]> = [
   // テック・ガジェット
   [
-    /(滑鼠|鍵盤|電腦|筆電|螢幕|手機|平板|耳機|喇叭|路由器|插頭|充電器|相機|行動電源|USB|手機架)/,
+    /(滑鼠|鍵盤|電腦|筆電|螢幕|手機|平板|耳機|喇叭|路由器|插頭|充電器|充電線|傳輸線|相機|鏡頭|行動電源|USB|手機架)/,
     "tech",
   ],
   // 交通
@@ -323,11 +367,14 @@ const CONTAINS: Array<[RegExp, CategoryKey]> = [
   [/(蛋糕|布丁|冰淇淋|甜甜圈|巧克力|餅乾|糖果|雪花冰|豆花|芒果冰)/, "dessert"],
   // 家電・調理・日用品
   [/(冰箱|洗衣機|微波爐|電視|冷氣|烤箱|吹風機|電風扇|除濕機)/, "appliance"],
-  [/(衛生紙|面紙|毛巾|清潔劑|洗碗精|洗衣精|沐浴乳|洗髮精|牙膏|牙刷|肥皂|垃圾袋)/, "medicine"],
+  [
+    /(衛生紙|面紙|毛巾|清潔劑|洗碗精|洗衣精|沐浴乳|洗髮精|牙膏|牙刷|肥皂|垃圾袋|塑膠袋)/,
+    "medicine",
+  ],
   // 顔の手入れ（面膜が「その他」に残っていた。2026-10-09）
   [/(面膜|洗面乳|洗面奶|化妝水|卸妝|保養品|化妝品)/, "medicine"],
   [/(護唇膏|護手霜|乳液|防曬|口罩|藥膏|藥品|OK繃|繃帶|藥水|維他命)/, "medicine"],
-  [/(指甲剪|剪刀|螺絲|工具|鎚子|梯子|掃把|拖把)/, "tool"],
+  [/(指甲剪|剪刀|螺絲|工具|鎚子|梯子|掃把|拖把|黏毛器)/, "tool"],
   // 掃除の道具（刷子が「その他」に残っていた。牙刷は上の洗面の規則が先に拾う）
   [/(刷子|鬃刷|馬桶刷|菜瓜布|抹布|畚箕)/, "tool"],
   // 服・アクセ
@@ -367,6 +414,66 @@ export function normalizeCategory(headword: string, cat: string | null | undefin
   const c = cat as CategoryKey;
   if (c && (CATEGORY_KEYS as readonly string[]).includes(c)) return c;
   return "other";
+}
+
+/** 図鑑の20のカテゴリーの日本語の名前 → その代表の鍵。 */
+const DEX_NAME_TO_KEY: Array<[string, string]> = DEX_CATEGORY_GUIDES.map(
+  (g) => [g.ja, dexCategoryKey(g.no)] as [string, string],
+);
+
+/**
+ * **AI の答えた分類を鍵1つに読み直す**（2026-10-15、写真の候補の控えで「その他」が写真ごとにまとまって
+ * 出ていた: 花束の写真の 波斯菊・花瓶・木桌・木櫃 が全部 "other"）。
+ *
+ * 指示文は20のカテゴリーを「→ category_key: home / furniture / decoration」の形で見せるので、モデルが
+ * その並びを写す・番号（"6"）やカテゴリーの名前（「家具・インテリア」）を答える回がある。`z.enum` は
+ * それを全部 "other" に落としていた。読めた最初の鍵を使い、どれでもなければ "other"。
+ */
+export function coerceCategoryKey(raw: unknown): CategoryKey {
+  if (typeof raw !== "string") return "other";
+  const v = raw.trim().toLowerCase();
+  if (!v) return "other";
+  const keys = CATEGORY_KEYS as readonly string[];
+  if (keys.includes(v)) return v as CategoryKey;
+  // 「home / furniture」「plant|flower」「"plant", "flower"」— 読める最初の鍵。
+  const tokens = v.split(/[\s/|,，、・;；:：→>()（）"'「」]+/).filter(Boolean);
+  for (const t of tokens) {
+    if (keys.includes(t)) return t as CategoryKey;
+    // 複数形（plants・flowers）
+    if (t.endsWith("s") && keys.includes(t.slice(0, -1))) return t.slice(0, -1) as CategoryKey;
+  }
+  // 図鑑の番号（"17"・"17."・"No.17"）
+  const no = v.match(/^(?:no\.?\s*)?(\d{1,2})\.?(?:\D|$)/);
+  if (no) {
+    const k = dexCategoryKey(Number(no[1]));
+    if (keys.includes(k)) return k as CategoryKey;
+  }
+  // 図鑑のカテゴリーの名前そのもの（「植物・花」「家具・インテリア」。部分一致にしない — 「服」が「服務」に当たる）
+  const name = raw.trim();
+  for (const [dexName, key] of DEX_NAME_TO_KEY) {
+    if (name === dexName && keys.includes(key)) return key as CategoryKey;
+  }
+  return "other";
+}
+
+/**
+ * **同じ物の別の呼び方から分類を借りる**（写真の候補。`group` が同じ候補は同じ物）。
+ * 波斯菊が "other"、同じ物の 花 が flower なら、波斯菊も flower。借りる物が無ければそのまま。
+ */
+export function shareCategoryWithinGroups<
+  T extends { group?: number | null; category_key?: string | null },
+>(items: readonly T[]): T[] {
+  const best = new Map<number, string>();
+  for (const it of items) {
+    if (typeof it.group !== "number") continue;
+    const k = it.category_key ?? "";
+    if (k && k !== "other" && !best.has(it.group)) best.set(it.group, k);
+  }
+  return items.map((it) =>
+    typeof it.group === "number" && (it.category_key ?? "other") === "other" && best.has(it.group)
+      ? { ...it, category_key: best.get(it.group)! }
+      : it,
+  );
 }
 
 /* ─────────────────────────────────────────────────────────────────

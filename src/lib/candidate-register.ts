@@ -147,30 +147,53 @@ export const NAME_REGISTER_RULE =
   `例: ボクサーパンツの写真 → common 內褲（台湾の人がふだんそう呼ぶ。写真のタグは「下着」）、specific 平口褲・四角褲（より狭い種類の名前）。`;
 
 /**
+ * **写真の物の1つ目（common）は基本の名詞**（オーナー指示 2026-10-15: コスモスの花束 →「花」、
+ * イチゴのショートケーキ →「ケーキ」、ボクサーパンツ →「下着」）。写真・スキャンの指示文に入れる
+ * （打った語の候補には入れない — 打った人が選んだ細かい名前はそのまま返す）。手元の確かめは `basic-level.ts`。
+ */
+export const BASIC_LEVEL_RULE =
+  `**物ごとの1つ目（common）は、子どもでも最初に言う基本の名詞**（花・蛋糕・狗・貓・內褲・椅子・麵包）。` +
+  `種類・品種・味・ブランドの名前（波斯菊・草莓蛋糕・柴犬・四角褲）は1つ目にせず、同じ group の specific に置く。` +
+  `上位の分類語（植物・食物・動物・衣服）にも上げない。` +
+  `\n例（common → specific）: コスモスの花束 → 花 → 波斯菊・花束 / イチゴのショートケーキ → 蛋糕 → 草莓蛋糕・鮮奶油蛋糕 / ` +
+  `柴犬 → 狗 → 柴犬 / ボクサーパンツ → 內褲 → 平口褲・四角褲 / 木の椅子 → 椅子 → 木椅。` +
+  `\n**細かい名前しか思いつかない物にも、その上の基本の語を common として必ず足して1つ目に置く。**` +
+  `料理の名前（三杯雞・牛肉麵）や服の種類（短袖・T恤）のように、その名前自体がふだんの呼び名の物はそのままでよい。`;
+
+/**
  * 意味の最初の言い方（読点・カンマ・セミコロン・スラッシュの前、括弧書きを除く）。
  * 「下着、パンツ」→「下着」、「underwear, briefs」→「underwear」。中黒（ボクサー・パンツ）では切らない。
  */
 export function firstGloss(meaning: string | null | undefined): string {
-  const t = (meaning ?? "")
+  return glossesOf(meaning)[0] ?? "";
+}
+
+/** 意味の言い方を全部（`firstGloss` と同じ区切り。空は落とす）。「パンツ、下着」→ [パンツ, 下着]。 */
+export function glossesOf(meaning: string | null | undefined): string[] {
+  return (meaning ?? "")
     .replace(/[（(][^）)]*[）)]/g, "")
-    .split(/[、,，;；/／\n]/)[0]
-    .trim();
-  return t.replace(/[。.]+$/u, "").trim();
+    .split(/[、,，;；/／\n]/)
+    .map((t) =>
+      t
+        .trim()
+        .replace(/[。.]+$/u, "")
+        .trim(),
+    )
+    .filter(Boolean);
 }
 
 /**
- * **写真のタグ（写っている物の名前）は表示言語の一般的な呼び名**（オーナー決定 2026-10-15:
- * ボクサーパンツの写真のタグは「下着」— 「ボクサーパンツ」「パンツ」ではない。タップすると 內褲（一般的な言い方）、
- * その下に 平口褲・四角褲（より詳しい言い方））。
+ * **写真のタグ（写っている物の名前）は、その物の1つ目の候補（common）の本当の意味の言い方**
+ * （オーナー決定 2026-10-15: ボクサーパンツの写真のタグは「下着」、タップすると 內褲。同日の不具合:
+ * ケーキのタグをタップすると 草莓蛋糕 だった —「ショートケーキが草莓蛋糕だよね」）。
  *
- * タグは**その物の1つ目の候補（common）の表示言語の言い方**と同じでなければならない:
- * - 物ごとに、AI が付けた `label`（表示言語のいちばん一般的な呼び名）を読む言語で確かめて使う。無ければ
- *   1つ目の候補の意味の最初の言い方。
- * - 1つ目の候補の意味がタグと違う言い方で始まっていたら、意味をタグに合わせる（古い iOS はこの意味の最初の
- *   言い方をタグに出すので、古い版でもタグが一般的な呼び名になる）。
- * - 物の全部の候補に `object_label`（タグの文字）を付ける。読む言語の言葉が無ければ空（画面は見出し語を出す）。
+ * - タグは1つ目の候補の意味の言い方のどれか。AI が付けた `label` がその中に在ればそれ（「パンツ、下着」と
+ *   label「下着」→「下着」）、無ければ意味の最初の言い方。読む人の言語でなければ空（画面は見出し語を出す）。
+ * - **候補の意味は書き換えない**（#184 は1つ目の意味をタグに書き換えていて、草莓蛋糕 の意味が「ケーキ」に
+ *   なった）。タグに合う基本の語（蛋糕 = ケーキ）が候補に無い時は、先に `ensureBasicLevel` が足す。
+ * - 物の全部の候補に `object_label`（タグの文字）を付ける。
  *
- * `finalizeNameRegisters` の後に呼ぶ（物の1つ目が common になっている前提）。
+ * `finalizeNameRegisters`（と写真なら `ensureBasicLevel`）の後に呼ぶ（物の1つ目が common になっている前提）。
  */
 export function applyObjectLabels<
   T extends { group?: number | null; meaning_ja?: string; label?: string | null },
@@ -186,28 +209,21 @@ export function applyObjectLabels<
     groups.get(key)!.push(it);
   }
   const labelOf = new Map<string, string>();
-  const fixedMeaning = new Map<T, string>();
   for (const [key, list] of groups) {
     const common = list[0];
-    const fromModel = [common, ...list.slice(1)]
+    const glosses = glossesOf(common.meaning_ja).filter((g) => isReaderText(g, common));
+    const fromModel = list
       .map((c) => firstGloss(c.label ?? ""))
-      .find((l) => l && isReaderText(l, common));
-    const fromMeaning = firstGloss(common.meaning_ja);
-    const label =
-      fromModel || (fromMeaning && isReaderText(fromMeaning, common) ? fromMeaning : "");
-    labelOf.set(key, label);
-    if (label && fromMeaning !== label) fixedMeaning.set(common, label);
+      .find((l) => l && glosses.includes(l));
+    labelOf.set(key, fromModel ?? glosses[0] ?? "");
   }
   return items.map((it) => {
     const { label: _label, ...rest } = it;
     void _label;
     const key = typeof it.group === "number" ? `g${it.group}` : "all";
-    const meaning = fixedMeaning.get(it);
-    return {
-      ...rest,
-      ...(meaning !== undefined ? { meaning_ja: meaning } : {}),
-      object_label: labelOf.get(key) ?? "",
-    } as Omit<T, "label"> & { object_label: string };
+    return { ...rest, object_label: labelOf.get(key) ?? "" } as Omit<T, "label"> & {
+      object_label: string;
+    };
   });
 }
 
@@ -215,8 +231,11 @@ export function applyObjectLabels<
 export function objectLabelRule(nl: string): string {
   return (
     `物ごとに、**1つ目（common）の候補に label を付ける**: 写っている物の**${nl}でのいちばん一般的な呼び名**` +
-    `（その common の語の${nl}の訳。写真のタグに出る）。細かい種類の名前・説明にしない。` +
-    `例: ボクサーパンツの写真 → label「下着」（內褲の訳。英語なら underwear）。` +
-    `「ボクサーパンツ」「パンツ」「男性用の下着」にしない。common の候補の meaning_ja も label と同じ言い方から始める。`
+    `（その common の語の${nl}の訳。写真のタグに出る）。${nl}を話す子どもがその物を見て最初に言う基本の名詞にする — ` +
+    `種類・品種・味・ブランドの名前、説明、上位の分類語（植物・食べ物・衣類）にしない。` +
+    `例: ボクサーパンツ → label「下着」（內褲の訳。英語なら underwear。「ボクサーパンツ」「パンツ」「男性用の下着」にしない）/ ` +
+    `コスモスの花束 → 「花」（「コスモス」「花束」にしない）/ イチゴのショートケーキ → 「ケーキ」（「ストロベリーケーキ」` +
+    `「イチゴのケーキ」にしない）/ 柴犬 → 「犬」/ 木の椅子 → 「椅子」。` +
+    `label と common の語は同じ物を指す（蛋糕 ↔ ケーキ、花 ↔ 花）。common の候補の meaning_ja も label と同じ言い方から始める。`
   );
 }

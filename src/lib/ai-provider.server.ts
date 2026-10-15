@@ -1205,6 +1205,23 @@ export async function reserveAiCallFor(userId: string, kind: string): Promise<Ai
 }
 
 /**
+ * 確保した1回を返す（AI を呼ばずに済んだ回 — 控えのカードを返した `generateCard` など）。その人の
+ * `usage_events` の行を消す。**投げない**（返せなくても、その人の回数が1つ多く数えられるだけ）。
+ */
+export async function releaseAiCall(usageId: number | null | undefined): Promise<boolean> {
+  if (usageId == null) return false;
+  try {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const res = await supabaseAdmin.from("usage_events").delete().eq("id", usageId);
+    if (res.error) console.warn("[usage] release failed", res.error.message);
+    return !res.error;
+  } catch (e) {
+    console.warn("[usage] release failed", (e as Error)?.message ?? e);
+    return false;
+  }
+}
+
+/**
  * 呼ぶ人の種類（匿名・無料・Pro）。匿名かどうかは Supabase の利用者の記録
  * （`is_anonymous`）で見る — `requireSupabaseAuth` の claims を上限の関数まで渡さない
  * 道（`/api/native-ai`・上限を呼ぶ関数の全部）もあるので、ここで1か所で調べる。

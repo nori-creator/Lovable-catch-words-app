@@ -12,8 +12,16 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { generateText, type LanguageModelUsage } from "ai";
 import { z } from "zod";
 import { pickReportedItem, reportContext } from "@/lib/report-locate";
-import { CATEGORY_CHOICE_RULES_JA, CATEGORY_KEYS, ROOM_KEYS, normalizeCategory } from "./category";
 import {
+  CATEGORY_CHOICE_RULES_JA,
+  CATEGORY_KEYS,
+  ROOM_KEYS,
+  coerceCategoryKey,
+  normalizeCategory,
+  shareCategoryWithinGroups,
+} from "./category";
+import {
+  BASIC_LEVEL_RULE,
   NAME_REGISTER_RULE,
   applyObjectLabels,
   finalizeNameRegisters,
@@ -47,14 +55,23 @@ import {
   pickExamplePatterns,
 } from "./example-patterns";
 import { exampleLevelRule } from "./level-instruction";
-import { etymologyDiagramRule, normalizeEtymologyDiagram } from "./etymology-diagram";
 import {
   CardReplySchema,
+  CardSchema,
   CardShapeError,
   type GeneratedCard,
   type GeneratedCardReply,
 } from "./card-schema";
-import { fillSharedWordFromCard, recordGeneratedCards, trustedCardFrom } from "./generated-cards";
+import {
+  CARD_REUSE_VERSION,
+  fillSharedWordFromCard,
+  loadGeneratedCardRows,
+  pickReusableCard,
+  recordGeneratedCards,
+  trustedCardFrom,
+  type CardGenKey,
+  type TrustedCard,
+} from "./generated-cards";
 import { runAfterResponse } from "./after-response";
 import {
   AiAttemptsFailed,
@@ -88,6 +105,18 @@ import {
 } from "./target-language";
 import { taiwanUsageFrom } from "./taiwan-usage";
 import {
+  finishPhotoCandidates as finishPhotoCandidateList,
+  isReaderTagText,
+} from "./photo-candidates";
+import {
+  ensureTypedBasic,
+  preferEverydayCommon,
+  typedObjectLabel,
+  typedQueryLine,
+  typedQueryMode,
+  withTypedLabels,
+} from "./typed-candidates";
+import {
   REGEN_SECTIONS,
   isNotGeneratedSection,
   sectionNeedsFill,
@@ -114,6 +143,8 @@ import {
   aiCallerTier,
   aiTargetFor,
   assertWithinDailyCap,
+  releaseAiCall,
+  reserveAiCallFor,
   concreteModelId,
   getAi,
   getAiFor,
@@ -163,7 +194,11 @@ const SuggestionSchema = z.object({
         // カード側で踏んだのと同じ罠。棚名が一覧の外だと、
         // **5件まとめて**落ちて「AI did not return structured suggestions」
         // しか残らない。棚は後から直せるので、ここで語を捨てない。
-        category_key: z.enum(CATEGORY_KEYS).catch("other"),
+        // 「home / furniture」・番号・カテゴリーの名前も鍵1つに読む（`coerceCategoryKey`、2026-10-15）。
+        category_key: z
+          .unknown()
+          .optional()
+          .transform((v) => coerceCategoryKey(v)),
         /**
          * その呼び方の**どんな言い方か**（2026-10-15 にオーナーの5つへ、`candidate-register.ts`）。
          * 知らない値・無い値も**候補を捨てずに**受け、`finalizeNameRegisters` が埋めて並べる
@@ -395,6 +430,62 @@ function recordCardRun(
 }
 
 /**
+ * 控えのカードを返した1回を `ai_runs` に残す（`loop="card_reuse"`。AI は呼んでいない — 速さの集計の
+ * `card_generate` には混ぜない）。作り直さずに済んだ回数と、返すまでの時間を後で数えられるように。
+ */
+function recordCardReuse(
+  context: { userId: string; supabase: { from: (t: "ai_runs") => unknown } },
+  run: { ms: number; ageMs: number },
+): void {
+  console.info(
+    `generateCard: reused a card made ${Math.round(run.ageMs / 1000)}s ago (${run.ms}ms)`,
+  );
+  void runAfterResponse("generateCard: ai_runs (reuse)", async () => {
+    const table = context.supabase.from("ai_runs") as {
+      insert: (row: unknown) => PromiseLike<{ error: { message: string } | null }>;
+    };
+    const { error } = await table.insert({
+      user_id: context.userId,
+      loop: "card_reuse",
+      iterations: 0,
+      accepted: 1,
+      meta: { ok: true, ms: run.ms, age_s: Math.round(run.ageMs / 1000) },
+    });
+    if (error) console.warn("generateCard: ai_runs insert failed", error.message);
+  });
+}
+
+/**
+ * 控えのカードを `generateCard` の返事の形にする（作った時と同じ `CardSchema` を通す — 形が合わなければ
+ * `null` で、作り直す）。頼まれなかった節の欄・もう作らない節の欄は落とす（作った時に全部の節を頼んでいても、
+ * 今回の頼み方に合わせる）。
+ */
+function reusedCardReply(
+  card: TrustedCard,
+  headword: string,
+  sections: readonly string[] | null | undefined,
+) {
+  const parsed = CardSchema.safeParse({
+    headword_zh: card.headword_zh ?? headword,
+    reading_zhuyin: card.reading_zhuyin ?? "",
+    pinyin: card.pinyin ?? "",
+    meaning_ja: card.meaning_ja ?? "",
+    part_of_speech: card.part_of_speech,
+    level: card.level ?? "",
+    category_key: card.category_key,
+    new_shelf: null,
+    example_sentence: card.example_sentence ?? "",
+    example_translation: card.example_translation ?? "",
+    extras: card.extras ?? {},
+  });
+  if (!parsed.success) return null;
+  return {
+    ...parsed.data,
+    extras: stripNotGenerated(stripUnrequested(parsed.data.extras, sections)),
+  };
+}
+
+/**
  * **撮る前に、候補の道を温めておく**（実測 2026-10-11、本番）。
  *
  * しばらく誰も使っていない後の最初の1枚は、サーバの中の接続と覚え（同意・呼ぶ人の種類・使う AI・
@@ -422,6 +513,7 @@ export const warmUpCapture = createServerFn({ method: "POST" })
 /**
  * 学習言語の語だけにした候補（`keepTargetHeadwords` の後）を、画面に出す順・形にする
  * （本番の `suggestWords` と「固定の写真で試す」で同じ — 試しの順位が画面の順位と同じになる）。
+ * 中身は `photo-candidates.ts`（試験が同じ物を通す）。
  */
 function finishPhotoCandidates(
   usable: z.infer<typeof SuggestionSchema>["suggestions"],
@@ -429,19 +521,7 @@ function finishPhotoCandidates(
   targetLanguage: string,
   correctTaiwanReading: Awaited<ReturnType<typeof loadReadingCheck>>,
 ) {
-  // 全部の候補に印を付け、物ごとに 一般的 → 口語 → より詳しい → 学術的 → 固有名詞 に並べる。
-  // 物の1つ目（写真のタグ）は必ず一般的な言い方（`candidate-register.ts`）。
-  const fitted = fitSuggestionsToReader(finalizeNameRegisters(usable), reader, targetLanguage).map(
-    (s) => ({
-      // 候補の読みも検める（`tw-reading.server.ts`）。
-      ...correctTaiwanReading(targetLanguage, s.headword, s),
-      // 候補の意味も語の長さに（R17「湯咖哩の英語の単語の候補…が長すぎる」）。
-      meaning_ja: shortMeaning(s.meaning_ja),
-      category_key: normalizeCategory(s.headword, s.category_key),
-    }),
-  );
-  // タグ（写っている物の名前）は、その物の1つ目（common）の候補の表示言語の一般的な言い方（2026-10-15）。
-  return applyObjectLabels(fitted, (text, common) => !!readerText(text, reader, common.headword));
+  return finishPhotoCandidateList(usable, reader, targetLanguage, correctTaiwanReading);
 }
 
 /**
@@ -503,6 +583,7 @@ ${langRule}
 - 同じ物に別の呼び方（より詳しい名前・学術的な名前・固有名詞・**口語（略語・くだけた言い方）**など）があれば、
   **同じ group の番号で**続けて出す。別の呼び方が無い物は1つだけでよい。無理に作らない。
 - ${NAME_REGISTER_RULE}
+- ${BASIC_LEVEL_RULE}
 - ${objectLabelRule(explanationLanguageName(reader))}
 - 物は最大5つ、1つの物の呼び方は最大3つ。
 - 物ごとに、その物の**最初の呼び方**に box_2d を付ける: 写真の中でその物を囲む枠を
@@ -900,6 +981,7 @@ export const suggestWordCandidates = createServerFn({ method: "POST" })
     await assertWithinDailyCap(context.userId, "suggest");
     const levelRule = await levelInstruction(context.userId);
     const langRule = await explanationLanguageRule(context.userId, data.targetLanguage);
+    const reader = await getExplanationLanguage(context.userId);
 
     const sceneLine = data.scene?.trim()
       ? `その場の様子: 「${data.scene.trim()}」。**この様子に合うものを優先**する。`
@@ -907,19 +989,19 @@ export const suggestWordCandidates = createServerFn({ method: "POST" })
 
     // 学習言語の名前も分け方の例も、言語の表から取る(決め打たない)。
     const candProfile = targetProfile(data.targetLanguage);
-    const queryLine =
-      data.queryLang === "target"
-        ? `「${data.query}」はすでに${candProfile.promptName}の語として打たれている。query_is_target は true。candidates にはその語1つだけ（読み・意味）を返す。`
-        : data.queryLang === "native"
-          ? `「${data.query}」は学習者の母語（または別の言語）で打たれている。query_is_target は false。`
-          : /**
-             * 漢字だけで決まらない語（「桃」「電車」「杯」）は**母語で打った語として引く**
-             * （オーナー指摘 2026-10-09「桃と日本語で検索したら、そのまま表示された。台湾華語では
-             * 水蜜桃とか、桃子っていう言い方もあるよね？」）。学習者は日本語を母語にするので、
-             * 漢字だけの語は日本語の語でもある。台湾での言い方が割れるなら全部並べる
-             * （打った字そのものが通じるなら、その語も候補の1つに入れる）。
-             */
-            `「${data.query}」は漢字だけなので、学習者の母語（日本語）の語として打たれたと考える。この語が指す物・意味を${candProfile.promptName}で**実際にどう言うか**を候補に並べる。打った字がそのまま${candProfile.promptName}でも通じるなら、その語も候補の1つに入れる（ただし会話でふつうに言う形が別にあれば、それも必ず並べる）。query_is_target は「${data.query}」が${candProfile.promptName}でもその意味でそのまま使え、しかも言い方が他に割れない（候補がその語1つだけ）時だけ true、それ以外は false。`;
+    /**
+     * **打った語をどう読むか**（2026-10-15 `typed-candidates.ts`）。画面が見分けを送らない呼び出し（iOS）は
+     * サーバが同じ物差し（`detectQueryLang`）で見分ける。漢字だけで決まらない語（「犬」「桃」「電車」）を
+     * 日本語で読む人が打ったら、**まず日本語の語として読む**（オーナー指摘 2026-10-09「桃と日本語で検索したら、
+     * そのまま表示された」、2026-10-15「犬 → 狗。同じ字の犬は使い方の印を付けて」）。
+     */
+    const mode = typedQueryMode(data.query, data.targetLanguage, reader, data.queryLang);
+    const queryLine = typedQueryLine({
+      query: data.query,
+      mode,
+      targetName: candProfile.promptName,
+      readerName: explanationLanguageName(reader),
+    });
     const prompt = `学習者が「${data.query}」と書いた。これが指す${candProfile.promptName}の語を挙げてください。
 
 ${queryLine}
@@ -961,6 +1043,8 @@ ${langRule}
      候補はどれも学習者が学ぶ土地で使う語なので、土地の話は**本当に違いがそこにある時だけ**ここに書く
      （例: 「台湾特有の言い方。〇〇は中国語圏で共通」）。候補が1つだけなら distinction は空でよい。
   違いが書けない候補は挙げない — 同じ物の言い換えを並べても選べない。
+- それぞれの category_key に、図鑑の分類の鍵を**1つだけ**書く（${CATEGORY_KEYS.join("/")} のどれか）。
+  花・花束・草木は flower / plant、ケーキ・お菓子・パンは dessert、料理は food、飲み物は drink。物でない語（動詞・形容詞・抽象語）は other。
 - それぞれの image_query に、その物を写真で探すための**短い英語**（2〜4語。例: "lotus root"）を書く。
   物の形が無い語（動詞・形容詞・抽象語）でも、その意味が伝わる場面を短く。
 - meaning_ja は一行の短い訳だけ（その語の意味が分かる程度。使い方・場面・違いはここに書かない）。
@@ -970,7 +1054,7 @@ ${langRule}
   中国大陸でしか使わない言い方は出さない。
 - **確かなものだけ**。
 
-出力の形: {"query_is_target":true/false,"candidates":[{"headword":"…","reading_zhuyin":"…","pinyin":"…","meaning_ja":"…","register":"common","style":"spoken","scene":"…","distinction":"…","image_query":"…"}]}`;
+出力の形: {"query_is_target":true/false,"candidates":[{"headword":"…","reading_zhuyin":"…","pinyin":"…","meaning_ja":"…","register":"common","style":"spoken","scene":"…","distinction":"…","category_key":"…","image_query":"…"}]}`;
 
     const ask = (extra = "") =>
       generateStructured({
@@ -994,7 +1078,7 @@ ${langRule}
      */
     if (raw.candidates.length === 0) {
       raw = await ask(
-        `\n\n出力の形: {"query_is_target":true/false,"candidates":[{"headword":"…","reading_zhuyin":"…","pinyin":"…","meaning_ja":"…","register":"common","style":"spoken","scene":"…","distinction":"…","image_query":"…"}]} のJSONだけを返す。前後に説明を書かない。headword は${candProfile.promptName}の語だけにし、括弧やローマ字の注釈を付けない。`,
+        `\n\n出力の形: {"query_is_target":true/false,"candidates":[{"headword":"…","reading_zhuyin":"…","pinyin":"…","meaning_ja":"…","register":"common","style":"spoken","scene":"…","distinction":"…","category_key":"…","image_query":"…"}]} のJSONだけを返す。前後に説明を書かない。headword は${candProfile.promptName}の語だけにし、括弧やローマ字の注釈を付けない。`,
       );
     }
 
@@ -1028,28 +1112,42 @@ ${langRule}
         // どんな言い方か・文体の札・使う場面（2026-10-09 / 2026-10-15）。
         ...registerFields(c),
         image_query: (c.image_query ?? "").trim().slice(0, 80),
+        // 図鑑の分類（2026-10-15）。iOS はカードが届く前に保存すると、この分類で図鑑に置く — 無いと
+        // 「その他」に入っていた（花束）。見出し語の規則で直す（`normalizeCategory`）。
+        category_key: normalizeCategory(c.headword, coerceCategoryKey(c.category_key)),
       }));
     // 全部の候補に5つの印を付け、一般的 → 口語 → より詳しい → 学術的 → 固有名詞 に並べる
-    // （1つ目は必ず一般的な言い方。`candidate-register.ts`）。
-    const candidates = finalizeNameRegisters(listed);
+    // （1つ目は必ず一般的な言い方。`candidate-register.ts`）。一般的な言い方は会話で言う語
+    // （書き言葉・専門の形を1つ目にしない）、日本語で「犬」と打ったら 狗 が1つ目（`typed-candidates.ts`）。
+    // 学習言語で打った語は、打った語のまま1つ目（並べ替えない）。
+    const registered = finalizeNameRegisters(listed);
+    const ranked = ensureTypedBasic(
+      mode === "learning" ? registered : preferEverydayCommon(registered),
+      data.query,
+      mode,
+      reader,
+      data.targetLanguage,
+    );
+    // 打った物の表示言語の名前（写真のタグと同じ `object_label`）と、候補ごとの短い意味（`gloss`）。
+    const objectLabel = typedObjectLabel(data.query, mode, ranked[0], (text, headword) =>
+      isReaderTagText(text, reader, headword),
+    );
+    const candidates = withTypedLabels(ranked, objectLabel);
     await recordCandidateReceipts(candProfile.code, candidates);
-    // 手元で分かった時はそれを返す（AI の判定より確か）。
     /**
-     * 漢字だけで決まらない語は、候補が2つ以上に割れたら学習言語とは言わない
-     * （「桃」→ 桃子・水蜜桃・桃）。古い画面もこの値で「そのまま剥がす」を決めるので、
-     * ここで直すと古い画面も候補を出す。
+     * 打った語が学習言語の語か。表示言語として読んだ語（`display` / `display_first`）は false — 古い画面は
+     * この値で「打った字のまま剥がす」を決める（漢字だからというだけで 犬 を台湾華語の見出し語にしない）。
+     * 前は漢字だけの語を AI の判定に任せていた（候補が1つの時）。
      */
-    const query_is_target =
-      data.queryLang === "target"
-        ? true
-        : data.queryLang === "native"
-          ? false
-          : candidates.length > 1
-            ? false
-            : typeof raw.query_is_target === "boolean"
-              ? raw.query_is_target
-              : null;
-    return { candidates, query_is_target };
+    const query_is_target = mode === "learning";
+    return {
+      candidates,
+      query_is_target,
+      /** 打った語をどう読んだか（`learning` = 学習言語の語 / `display` = 表示言語の語、`display_first` を含む）。 */
+      query_lang: mode === "learning" ? ("learning" as const) : ("display" as const),
+      /** 打った物の表示言語の名前（写真のタグと同じ。空なら画面は1つ目の候補の見出し語を出す）。 */
+      object_label: objectLabel,
+    };
   });
 
 /**
@@ -1068,29 +1166,67 @@ export const generateCard = createServerFn({ method: "POST" })
     // 外部の AI へ送る前の同意（`ai-consent.ts`）。無ければ何も送らずに断る。
     await (await import("./ai-consent.server")).assertAiConsent(context.userId);
     const cardStartedAt = Date.now();
-    // AI の前の読み出し（使う AI・枠の確保・級・解説の言語・母語・Pro か）は**並べて**待つ。
-    // 前は 10 回の往復を1つずつ待っていた（ほとんどが同じ profiles の行）。枠の確保が
-    // 断られたら、ここで止まる（AI は呼ばない）。
-    // 級は現在と目標の両方を読む（例文は「現在の級で読める・目標の級まで」— `exampleLevelRule`）。
-    const [ai, , levels, levelRule, langRule, explainLang, l1Gram, l1Info, pro] = await Promise.all(
-      [
-        getAiFor("card", "card"),
-        assertWithinDailyCap(context.userId, "card"),
-        getUserLevels(context.userId),
-        levelInstruction(context.userId),
-        explanationLanguageRule(context.userId, data.targetLanguage),
-        // 解説をどの言語で書くか。プロンプト本文に散らばる「日本語で」という
-        // 指示が langRule と矛盾し、英語設定でも日本語の解説が返っていた。
-        // 説明文の言語名をここで差し替えて矛盾を無くす。
-        getExplanationLanguage(context.userId),
-        // 発音のコツ（母語ごとの干渉の表）はもう作らない（2026-10-15、`NOT_GENERATED_SECTIONS`）。
-        // 語順・量詞・「的」の位置などは母語で崩れ方が違う。例文とチャンクを
-        // 「その母語話者が実際に間違える所」に寄せるため、文法側も渡す。
-        l1Rule(context.userId, "wordorder"),
-        getLearnerL1(context.userId),
-        isProUser(context.userId),
-      ],
+    /**
+     * **同じ入力のカードは作り直さない**（2026-10-15 オーナー報告: 保存のやり直しのたびに 草莓蛋糕 のカードが
+     * 5〜7 秒かけて作り直された — 20 分で3回）。控え（`generated_cards`）の行を、下の読み出しと並べて読む。
+     * 枠の確保も今までどおり並べて始め（待ち時間を足さない）、控えを返す回は確保した1回を返す（数えない）。
+     */
+    const { supabaseAdmin: cardAdmin } = await import("@/integrations/supabase/client.server");
+    const copies = loadGeneratedCardRows(cardAdmin, {
+      language: targetProfile(data.targetLanguage).code,
+      headword: data.headword,
+    });
+    const reservation = reserveAiCallFor(context.userId, "card").then(
+      (r) => ({ ok: true as const, usageId: r.usageId }),
+      (error: unknown) => ({ ok: false as const, error }),
     );
+    // AI の前の読み出し（使う AI・級・解説の言語・母語・Pro か）は**並べて**待つ。
+    // 前は 10 回の往復を1つずつ待っていた（ほとんどが同じ profiles の行）。枠の確保が
+    // 断られたら、控えを返せない時はここで止まる（AI は呼ばない）。
+    // 級は現在と目標の両方を読む（例文は「現在の級で読める・目標の級まで」— `exampleLevelRule`）。
+    const [ai, levels, levelRule, langRule, explainLang, l1Gram, l1Info, pro] = await Promise.all([
+      getAiFor("card", "card"),
+      getUserLevels(context.userId),
+      levelInstruction(context.userId),
+      explanationLanguageRule(context.userId, data.targetLanguage),
+      // 解説をどの言語で書くか。プロンプト本文に散らばる「日本語で」という
+      // 指示が langRule と矛盾し、英語設定でも日本語の解説が返っていた。
+      // 説明文の言語名をここで差し替えて矛盾を無くす。
+      getExplanationLanguage(context.userId),
+      // 発音のコツ（母語ごとの干渉の表）はもう作らない（2026-10-15、`NOT_GENERATED_SECTIONS`）。
+      // 語順・量詞・「的」の位置などは母語で崩れ方が違う。例文とチャンクを
+      // 「その母語話者が実際に間違える所」に寄せるため、文法側も渡す。
+      l1Rule(context.userId, "wordorder"),
+      getLearnerL1(context.userId),
+      isProUser(context.userId),
+    ]);
+    const genKey: CardGenKey = {
+      v: CARD_REUSE_VERSION,
+      levels: `${levels.current}>${levels.goal}`,
+      model: pro ? ai.modelRichPremium : ai.modelRich,
+      pro,
+      sections: data.sections ? [...data.sections].sort() : null,
+    };
+    {
+      const readerKey = explanationKey(explainLang, l1Info.code);
+      const reused = pickReusableCard(await copies, {
+        explainLang: readerKey.explainLang,
+        l1: readerKey.l1,
+        gen: genKey,
+      });
+      const reply = reused ? reusedCardReply(reused, data.headword, data.sections) : null;
+      if (reused && reply) {
+        const held = await reservation;
+        if (held.ok && held.usageId != null) await releaseAiCall(held.usageId);
+        const ms = Date.now() - cardStartedAt;
+        recordCardReuse(context, { ms, ageMs: Date.now() - Date.parse(reused.created_at) });
+        return reply;
+      }
+    }
+    {
+      const held = await reservation;
+      if (!held.ok) throw held.error;
+    }
     const cardPreMs = Date.now() - cardStartedAt;
     const levelGoal = levels.goal;
     // **3つある表示言語を2つに潰さない。** ここは
@@ -1114,7 +1250,9 @@ export const generateCard = createServerFn({ method: "POST" })
     // 並べると、AI が `1` と答えて `parseLevelStep` の外に落ちる。
     const levelNames = LEVEL_INDEXES.map((n) => cardProfile.levels.toStored(n)).join(" / ");
     // 見えない節の欄は頼まない（`lib/card-request.ts`）。
-    const want = (id: SectionId) => wantsSection(data.sections, id);
+    // サーバがもう作らない節（発音のコツ・覚え方・語源と部首、`NOT_GENERATED_SECTIONS`）は、節の一覧が
+    // 無い呼び出し（古い iOS・`sections` 省略）でも頼まない。
+    const want = (id: SectionId) => !isNotGeneratedSection(id) && wantsSection(data.sections, id);
     // **その言語のカードに在る節だけ**を頼む欄(日本語の節)。`want` だけで見ると、
     // 節の一覧を渡さない呼び出しで台湾華語・英語のカードにも漢字の内訳を頼むことになる。
     const wantOwn = (id: SectionId) => profileHasSection(cardProfile, id) && want(id);
@@ -1219,16 +1357,8 @@ ${l1Gram}`
 ${want("related_words") ? `- related_words: 類義語(kind:"syn")2〜3・反義語(kind:"ant")0〜2・関連語(kind:"rel")2〜5 の配列。**反義語が無い語(物の名前など)は無理に作らず、その語を使うときに一緒によく使う語を関連語で出す**（例: ${cardProfile.capture.relatedExample}）。各 {word:${cardProfile.promptName}の語, kind, note:使い分け・関係の短い説明(${NL}), reading:その語の${cardReadingNames.primary}${cardReadingNames.alt ? `, reading_alt:その語の${cardReadingNames.alt}` : ""}}。類義語の note には「${data.headword}」とのニュアンスの違いを必ず書く。**note は全部の語に必ず${NL}で書く**${sameLanguage(explainLang, cardProfile.code) ? "" : `。**${cardProfile.promptName}で書かない**(${cardProfile.promptName}なのは word/reading だけ。${cardProfile.promptName}の note は読めないので捨てられ、解説の無い語だけが残る)`}。**reading を空にしない** — 読めない語を並べても覚えられない` : ""}
 ${wantMeasure ? `- measure_words: **名詞の場合のみ**、その名詞に使う量詞を1〜3個 {word:"一張"のように数字1つき繁体字, zhuyin:注音, pinyin:拼音, note:いつその量詞を使うか(複数ある場合は使い分けを短く、${NL}で)}。名詞でなければ空配列。**note を中国語で書かない** — 中国語なのは word/zhuyin/pinyin だけ` : ""}
 ${want(noteSection) ? `- ${cardProfile.capture.noteField}: ${cardProfile.capture.noteRule}（${NL}）` : ""}${jaLines ? `\n${jaLines}` : ""}
-${
-  want("etymology")
-    ? `- etymology: ${cardProfile.capture.etymologyRule}（${NL}）
-${cardProfile.capture.relativesRule ? `- etymology_relatives: ${cardProfile.capture.relativesRule}（note は${NL}）` : "- etymology_relatives: **空配列**"}
-- radicals: ${cardProfile.capture.radicalsRule}
-${etymologyDiagramRule(cardProfile.code, NL)}`
-    : ""
-}
 
-${data.hintCategory ? `カテゴリのヒント: ${data.hintCategory}` : ""}`;
+${data.hintCategory && data.hintCategory !== "other" ? `カテゴリのヒント: ${data.hintCategory}` : ""}`;
 
     const preferredModel = pro ? ai.modelRichPremium : ai.modelRich;
     // Plain text + robust JSON parse (like suggestWords). We deliberately do NOT
@@ -1261,8 +1391,8 @@ ${data.hintCategory ? `カテゴリのヒント: ${data.hintCategory}` : ""}`;
         wantOwn("pitch_accent") && "pitch_accent",
         wantOwn("word_origin") && "word_origin",
         want(noteSection) && cardProfile.capture.noteField,
-        want("etymology") &&
-          "etymology, radicals, etymology_diagram{kind,parts:[{text,components,meaning}],result_meaning,source,note}",
+        // 語源・部首（etymology / radicals / etymology_relatives / etymology_diagram）はもう頼まない
+        // （オーナー決定 2026-10-15、`NOT_GENERATED_SECTIONS`）。
       ]
         .filter(Boolean)
         .join(", ") +
@@ -1538,22 +1668,8 @@ ${data.hintCategory ? `カテゴリのヒント: ${data.hintCategory}` : ""}`;
       }
       card = applyExamplePatterns(card, picked, { withExtra: want("examples_extra") });
     }
-    // 語源の図は**必ず描ける形**にする（空・壊れた図を返さない。`etymology-diagram.ts`）。
-    if (want("etymology")) {
-      card = {
-        ...card,
-        extras: {
-          ...card.extras,
-          etymology_diagram: normalizeEtymologyDiagram(card.extras?.etymology_diagram, {
-            headword: resolvedHead,
-            language: cardLanguage,
-            readerLang: explainLang,
-            meaning: card.meaning_ja,
-            etymology: card.extras?.etymology,
-          }),
-        },
-      };
-    }
+    // 語源の図（`etymology-diagram.ts`）はもう作らない（2026-10-15、`NOT_GENERATED_SECTIONS`）。
+    // モデルが頼まれずに書いてきた語源の欄は、返す前に `stripNotGenerated` が落とす。
     // **読みは AI のまま通さない**（2026-10-03「拿鐵」が nálǎtiě と出た件）。
     // 字の数と音節の数・字ごとの読み・台湾の読みを検め、外れていれば辞書の読みに直す。
     // 共有辞書（下の learnLexiconEntries）にも直した読みが入る。
@@ -1656,7 +1772,7 @@ ${data.hintCategory ? `カテゴリのヒント: ${data.hintCategory}` : ""}`;
       // 返ってきた物のほうを見る(`src/lib/note-language.ts`)。
       extras: {
         // 頼まなかった節の欄は落とす（空の欄で共有の語を上書きしない）。
-        // もう作らない節（発音のコツ・覚え方）の欄も落とす（`stripNotGenerated`）。
+        // もう作らない節（発音のコツ・覚え方・語源と部首）の欄も落とす（`stripNotGenerated`）。
         ...stripNotGenerated(
           stripUnrequested(
             scrubForReader(scrubForeignNotes(card.extras ?? {}, explainLang), explainLang),
@@ -1691,7 +1807,8 @@ ${data.hintCategory ? `カテゴリのヒント: ${data.hintCategory}` : ""}`;
           explainLang: key.explainLang,
           l1: key.l1,
           kind: "card" as const,
-          card: out,
+          // 作った時の入力の印（`gen`）も控える — 同じ入力ならこのカードを作り直さずに返す（`pickReusableCard`）。
+          card: { ...out, gen: genKey },
         })),
       );
       const trusted = trustedCardFrom(out);
@@ -2113,7 +2230,7 @@ async function runSectionRegen(
 ): Promise<{ ok: true; section: RegenSection; filled: boolean; proposal?: SectionProposal }> {
   const { supabase, userId } = context;
   /**
-   * **発音のコツ・覚え方はもう作らない**（オーナー決定 2026-10-15、`NOT_GENERATED_SECTIONS`）。
+   * **発音のコツ・覚え方・語源と部首はもう作らない**（オーナー決定 2026-10-15、`NOT_GENERATED_SECTIONS`）。
    * iOS 1.0.0 など古い版が空の節を埋めに来ても、AI・枠・Pro の確認なしにすぐ空で返す。
    */
   if (isNotGeneratedSection(data.section)) {
@@ -2350,33 +2467,15 @@ async function runSectionRegen(
           .min(1),
       }),
     },
-    // 発音のコツ・覚え方はもう作らない（`NOT_GENERATED_SECTIONS`）。上で AI を呼ばずに返すので、ここには来ない。
+    // 発音のコツ・覚え方・語源はもう作らない（`NOT_GENERATED_SECTIONS`）。上で AI を呼ばずに返すので、ここには来ない。
     pronunciation_tips: {
       prompt: "",
       schema: z.object({ pronunciation_tips: z.string().min(1) }),
     },
+    // 語源・部首もサーバで作らない（オーナー決定 2026-10-15、`NOT_GENERATED_SECTIONS`）。ここにも来ない。
     etymology: {
-      prompt: `${base}\n${regenProfile.capture.relativesRule ? `etymology_relatives: ${regenProfile.capture.relativesRule}\n` : ""}${etymologyDiagramRule(regenProfile.code, NL)}\n{"etymology":"${regenProfile.capture.etymologyRule}(${NL})","etymology_relatives":[{"word":"","note":""}],"radicals":"${regenProfile.capture.radicalsRule}","etymology_diagram":{"kind":"compound|single_char|loanword_phonetic|proper|other","parts":[{"text":"","components":[],"meaning":""}],"result_meaning":"","source":"","note":""}}`,
-      // 図は必ず描ける形に直す（`normalizeEtymologyDiagram` — 壊れていれば other と短い説明）。
-      schema: z
-        .object({
-          etymology: z.string().min(1),
-          etymology_relatives: z
-            .array(z.object({ word: z.string().catch(""), note: z.string().catch("") }))
-            .catch([]),
-          radicals: z.string().catch(""),
-          etymology_diagram: z.unknown().optional(),
-        })
-        .transform((r) => ({
-          ...r,
-          etymology_diagram: normalizeEtymologyDiagram(r.etymology_diagram, {
-            headword: head,
-            language: regenProfile.code,
-            readerLang: regenLang,
-            meaning: (word.meaning_ja as string | null) ?? "",
-            etymology: r.etymology,
-          }),
-        })),
+      prompt: "",
+      schema: z.object({ etymology: z.string().min(1) }),
     },
     mnemonic: {
       prompt: "",
@@ -2620,7 +2719,7 @@ export const regenerateCardSection = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) => RegenInput.parse(input))
   .handler(async ({ context, data }) => {
-    // もう作らない節（発音のコツ・覚え方）は、同意の確認も回数の記録もせずにすぐ空で返す。
+    // もう作らない節（発音のコツ・覚え方・語源と部首）は、同意の確認も回数の記録もせずにすぐ空で返す。
     if (isNotGeneratedSection(data.section)) {
       return { ok: true, section: data.section, filled: false };
     }

@@ -1,6 +1,6 @@
 import { NAME_REGISTERS, normalizeNameRegister } from "./candidate-register";
 import { z } from "zod";
-import { CATEGORY_KEYS } from "./category";
+import { coerceCategoryKey } from "./category";
 import { LearningPreferencesSchema } from "./learning-preferences";
 import { UI_LANGS } from "./i18n";
 import { TARGET_LANGUAGES } from "./target-lang";
@@ -35,7 +35,11 @@ export const FirstCatchSuggestionsSchema = z.object({
         meaning_ja: z.string().max(500).default(""),
         reading_zhuyin: z.string().default(""),
         pinyin: z.string().default(""),
-        category_key: z.enum(CATEGORY_KEYS).catch("other"),
+        // 「home / furniture」・番号・カテゴリーの名前も鍵1つに読む（`coerceCategoryKey`、2026-10-15）。
+        category_key: z
+          .unknown()
+          .optional()
+          .transform((v) => coerceCategoryKey(v)),
         distinction: z.string().default(""),
         /**
          * どんな言い方か（`candidate-register.ts` の5つ、2026-10-15）。チュートリアルの候補は写真の物ごとに

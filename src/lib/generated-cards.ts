@@ -36,6 +36,23 @@ export const GENERATED_CARD_TTL_MS = 14 * 24 * 60 * 60 * 1000;
 /** `card` = カード全体（`generateCard` など） / `candidate` = 候補の意味と読みだけ。 */
 export type GeneratedCardKind = "card" | "candidate";
 
+/**
+ * **カードを作った時の入力の印**（`generateCard` が控えに付ける。2026-10-15）。同じ入力のカードを作り直さずに
+ * 返す（`pickReusableCard`）ための物で、共有の行には書かない（`sharedColumnsFromCard` は列の名前で選ぶ）。
+ */
+export type CardGenKey = {
+  /** 作り方の版（指示を変えたら `CARD_REUSE_VERSION` を上げる — 古い控えは使わない）。 */
+  v: number;
+  /** 級（現在 > 目標）。例文・チャンクの難しさが変わる。 */
+  levels: string;
+  /** 頼んだ AI（管理者が AI を替えたら作り直す）。 */
+  model: string;
+  /** Pro の AI で作ったか。 */
+  pro: boolean;
+  /** 頼んだ節（`null` = 全部）。 */
+  sections: string[] | null;
+};
+
 /** 控えの中身（共有の行に書いてよい所だけ）。 */
 export type TrustedCard = {
   meaning_ja?: string;
@@ -47,6 +64,10 @@ export type TrustedCard = {
   example_sentence?: string;
   example_translation?: string;
   extras?: Record<string, unknown>;
+  /** カードの見出し語（打った語が母語でも学習言語の語。共有の列ではない）。 */
+  headword_zh?: string;
+  /** 作った時の入力の印（共有の列ではない）。 */
+  gen?: CardGenKey;
 };
 
 export type GeneratedCardLookup =
@@ -79,7 +100,141 @@ export function trustedCardFrom(raw: unknown): TrustedCard {
   if (ex && typeof ex === "object" && !Array.isArray(ex)) {
     out.extras = ex as Record<string, unknown>;
   }
+  if (typeof r.headword_zh === "string" && r.headword_zh.trim()) {
+    out.headword_zh = r.headword_zh.trim();
+  }
+  const gen = readGenKey(r.gen);
+  if (gen) out.gen = gen;
   return out;
+}
+
+function readGenKey(raw: unknown): CardGenKey | null {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
+  const g = raw as Record<string, unknown>;
+  if (typeof g.v !== "number" || typeof g.levels !== "string" || typeof g.model !== "string")
+    return null;
+  const sections =
+    g.sections === null
+      ? null
+      : Array.isArray(g.sections) && g.sections.every((x) => typeof x === "string")
+        ? (g.sections as string[])
+        : undefined;
+  if (sections === undefined) return null;
+  return { v: g.v, levels: g.levels, model: g.model, pro: g.pro === true, sections };
+}
+
+/**
+ * 作り方の版。`generateCard` の指示・形を変えたら上げる（上げると、それより前の控えは作り直さずに返す対象から外れる）。
+ * 1 = 2026-10-15（語源・部首を作らない・カテゴリーの読み直し）。
+ */
+export const CARD_REUSE_VERSION = 1;
+
+/**
+ * **作り直さずに返す期間**（2026-10-15 オーナー報告: 同じ 草莓蛋糕 のカードが 20 分で3回作られた — 保存の
+ * やり直しのたびに 5〜7 秒）。同じ語・学習言語・読む人の言語・母語・級・AI・作り方の版なら、控えのカードを
+ * そのまま返す。控え自体は 14 日残る（保存の道が読む）が、返すのは作ってから1日以内の物だけ。
+ */
+export const CARD_REUSE_WINDOW_MS = 24 * 60 * 60 * 1000;
+
+/** 頼まれた節（`requested`）が、控えを作った時に頼んだ節（`stored`）に全部入っているか。 */
+function coversSections(stored: string[] | null, requested: readonly string[] | null): boolean {
+  if (stored === null) return true;
+  if (requested === null) return false;
+  return requested.every((id) => stored.includes(id));
+}
+
+const filledList = (v: unknown) => Array.isArray(v) && v.length > 0;
+const filledString = (v: unknown) => typeof v === "string" && v.trim().length > 0;
+
+/**
+ * **同じ入力で作ったカードを、作り直さずに返してよいか**（純粋関数）。返してよい物の中で新しい物を1つ。
+ *
+ * - カード全体（`kind: "card"`）・同じ読む人の言語と母語・`CARD_REUSE_WINDOW_MS` 以内
+ * - 作った時の印（`gen`）が同じ: 作り方の版・級・AI。Pro の人には Pro の AI で作った物だけ
+ * - 頼まれた節が、作った時に頼んだ節に全部入っている（全部を頼んで作った物は、どの頼み方にも使える）
+ * - 中身がそろっている（意味・例文・使う場面、頼まれていればチャンク・関連語）— 欠けたカードを返し続けない
+ */
+export function pickReusableCard(
+  rows: readonly GeneratedCardRow[] | null | undefined,
+  opts: {
+    explainLang: string;
+    l1: string;
+    gen: CardGenKey;
+    now?: number;
+  },
+): (TrustedCard & { created_at: string }) | null {
+  const now = opts.now ?? Date.now();
+  const want = (id: string) => opts.gen.sections === null || opts.gen.sections.includes(id);
+  const usable = (rows ?? [])
+    .filter((r) => r.kind === "card" && r.explain_lang === opts.explainLang && r.l1 === opts.l1)
+    .filter((r) => {
+      const t = Date.parse(r.created_at);
+      return Number.isFinite(t) && now - t >= 0 && now - t <= CARD_REUSE_WINDOW_MS;
+    })
+    .map((r) => ({ row: r, card: trustedCardFrom(r.card) }))
+    .filter(({ card }) => {
+      const g = card.gen;
+      if (!g || g.v !== CARD_REUSE_VERSION) return false;
+      if (g.levels !== opts.gen.levels || g.model !== opts.gen.model) return false;
+      if (opts.gen.pro && !g.pro) return false;
+      if (!coversSections(g.sections, opts.gen.sections)) return false;
+      const ex = card.extras ?? {};
+      if (!filledString(card.meaning_ja) || !filledString(card.example_sentence)) return false;
+      if (!filledString(ex.usage_context)) return false;
+      if (want("usage_chunks") && !filledList(ex.usage_chunks)) return false;
+      if (want("related_words") && !filledList(ex.related_words)) return false;
+      return true;
+    })
+    .sort((a, b) => Date.parse(b.row.created_at) - Date.parse(a.row.created_at));
+  const best = usable[0];
+  return best ? { ...best.card, created_at: best.row.created_at } : null;
+}
+
+/**
+ * その語の控えの行を全部読む（`pickReusableCard` に渡す）。**投げない** — 読めなければ空（作り直す）。
+ */
+export async function loadGeneratedCardRows(
+  admin: unknown,
+  opts: { language: string; headword: string; now?: number },
+): Promise<GeneratedCardRow[]> {
+  const headword = (opts.headword ?? "").trim();
+  if (!headword || headword.length > 100) return [];
+  try {
+    const db = admin as LooseDb;
+    const q = db.from(TABLE) as {
+      select: (c: string) => {
+        eq: (
+          k: string,
+          v: string,
+        ) => {
+          eq: (
+            k: string,
+            v: string,
+          ) => {
+            gte: (
+              k: string,
+              v: string,
+            ) => PromiseLike<{ data: GeneratedCardRow[] | null; error: LooseError }>;
+          };
+        };
+      };
+    };
+    const now = opts.now ?? Date.now();
+    const { data, error } = await q
+      .select("language, headword, explain_lang, l1, kind, card, created_at")
+      .eq("language", opts.language)
+      .eq("headword", headword)
+      .gte("created_at", new Date(now - CARD_REUSE_WINDOW_MS).toISOString());
+    if (error) {
+      if (!isMissingGeneratedCardsTable(error))
+        console.warn("[generated-cards] 控えを読めない", error.message);
+      return [];
+    }
+    return data ?? [];
+  } catch (e) {
+    console.warn("[generated-cards] 控えを読めない", e instanceof Error ? e.message : e);
+    return [];
+  }
 }
 
 export type GeneratedCardRow = {

@@ -476,11 +476,13 @@ describe("第2段: 語源と地名を言語ごとに正しく", () => {
   it("語源のプロンプトが漢字の話で決め打ちされていない", () => {
     // 英語のカードにも「漢字の語源」「部首と意味」を作らせていた
     // (オーナー指示「英単語の由来 — 接頭語・接尾語 — を解説して」)。
+    // 語源・部首はもうサーバで作らない（オーナー決定 2026-10-15、`not-generated-sections.test.ts`）—
+    // カードの指示にも作り直しの指示にも、語源の決まりは1つも入らない。
     const src = codeOnly(read("lib/ai.functions.ts"));
     expect(src).not.toContain("漢字の語源・成り立ち");
     expect(src).not.toContain("部首と意味");
-    expect(src).toContain("capture.etymologyRule");
-    expect(src).toContain("capture.radicalsRule");
+    expect(src).not.toContain("capture.etymologyRule");
+    expect(src).not.toContain("capture.radicalsRule");
   });
 
   it("英語の語源は接頭辞・接尾辞に触れ、部首には触れない", () => {
@@ -538,11 +540,10 @@ describe("語源の仲間の語と、母語に引っ掛ける覚え方", () => {
     }
   });
 
-  it("プロンプトが `relativesRule` から出ている(決め打ちでない)", () => {
+  it("語源の仲間の語はもう頼まない（2026-10-15 語源・部首をサーバで作らない）", () => {
     const src = codeOnly(read("lib/ai.functions.ts"));
-    expect(src).toContain("capture.relativesRule");
-    // 空の言語では「空配列」と言い切る分岐が在ること。
-    expect(src).toContain("etymology_relatives");
+    expect(src).not.toContain("capture.relativesRule");
+    expect(src).not.toMatch(/- etymology_relatives:/);
   });
 
   it("画面が仲間の語を描く", () => {
@@ -5589,10 +5590,13 @@ describe("単語の詳細は既定で8項目（オーナー指示 2026-09-23）"
   });
 
   it("生成側は頼まれない節の欄をプロンプトから外し、返事からも落とす", () => {
-    expect(ai).toMatch(/const want = \(id: SectionId\) => wantsSection\(data\.sections, id\)/);
-    // 発音のコツ・覚え方はもう頼まない（2026-10-15 `NOT_GENERATED_SECTIONS`、`not-generated-sections.test.ts`）。
-    for (const id of ["etymology"]) {
-      expect([id, new RegExp(`\\$\\{\\s*want\\("${id}"\\)\\s*\\?`).test(ai)]).toEqual([id, true]);
+    // もう作らない節（発音のコツ・覚え方・語源と部首、`NOT_GENERATED_SECTIONS`）は節の一覧が無くても頼まない。
+    expect(ai).toMatch(
+      /const want = \(id: SectionId\) => !isNotGeneratedSection\(id\) && wantsSection\(data\.sections, id\)/,
+    );
+    // 2026-10-15 から語源も頼まない（`not-generated-sections.test.ts`）。
+    for (const id of ["etymology", "pronunciation_tips", "mnemonic"]) {
+      expect([id, new RegExp(`\\$\\{\\s*want\\("${id}"\\)\\s*\\?`).test(ai)]).toEqual([id, false]);
     }
     // 追加の例文は場面のパターンの数で頼む（頼まれなければ、いちばんよく使う場面の1つだけ。2026-10-15）。
     expect(ai).toMatch(/const maxPatterns = want\("examples_extra"\) \? MAX_EXAMPLE_PATTERNS : 1;/);
