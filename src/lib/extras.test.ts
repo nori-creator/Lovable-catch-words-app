@@ -471,3 +471,35 @@ describe("image_query（画像検索用の英語。オーナー報告 2026-10-08
     expect(hasExtrasContent({ image_query: "burdock root" })).toBe(false);
   });
 });
+
+describe("口語/書面の札は退役（オーナー決定 2026-10-15「中立・書き言葉・話し言葉を無くす」）", () => {
+  it("保存済みの値は消さない（スキーマに残る）が、画面・iOS へ返す形からは外す", async () => {
+    const { publicExtras, withoutRetiredExtras } = await import("./extras");
+    const stored = normalizeExtras({
+      register_tag: "口語・書面",
+      register_scale: 0,
+      usage_context: "x",
+    });
+    expect(stored?.register_tag).toBe("口語・書面");
+    const shown = publicExtras({
+      register_tag: "口語・書面",
+      register_scale: 0,
+      usage_context: "x",
+    });
+    expect(shown?.register_tag).toBe("");
+    expect(shown?.register_scale).toBeNull();
+    expect(shown?.usage_context).toBe("x");
+    expect(withoutRetiredExtras(null)).toBeNull();
+    // mergeExtras は空で上書きしないので、返した形を保存し直しても値は消えない。
+    expect(mergeExtras(stored, shown).register_tag).toBe("口語・書面");
+  });
+
+  it("カードの指示文はもう頼まない・単語の画面は出さない", () => {
+    const ai = fs.readFileSync(path.join("src", "lib", "ai.functions.ts"), "utf8");
+    expect(ai).not.toMatch(/- register_tag:/);
+    expect(ai).not.toMatch(/- register_scale:/);
+    expect(ai).not.toMatch(/register_tag, register_scale/);
+    const card = fs.readFileSync(path.join("src", "components", "WordCard.tsx"), "utf8");
+    expect(card).not.toMatch(/registerScaleOf|RegisterMeter/);
+  });
+});

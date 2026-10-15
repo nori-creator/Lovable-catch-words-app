@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { boxCenter, validBox2d, withObjectPoints } from "./suggestion-position";
+import { boxCenter, positionStats, validBox2d, withObjectPoints } from "./suggestion-position";
 
 describe("validBox2d", () => {
   it("keeps a [ymin, xmin, ymax, xmax] box on the 0-1000 scale (rounded)", () => {
@@ -39,12 +39,25 @@ describe("withObjectPoints", () => {
     expect(out[2].box_2d).toEqual([400, 100, 900, 300]);
   });
 
-  it("uses the object's first valid box even when a later name carries another one", () => {
+  it("a name with its own box keeps its own box (a wrong group number must not pile every tag on one object)", () => {
+    // 2026-10-15: tablet, cup, stylus and tissue all came back as group 0 — with "first box of the group"
+    // every tag landed in the middle of the tablet.
     const out = withObjectPoints([
-      { headword: "杯子", group: 2, box_2d: [0, 0, 100, 100] },
-      { headword: "馬克杯", group: 2, box_2d: [500, 500, 900, 900] },
+      { headword: "平板", group: 0, box_2d: [100, 100, 700, 900] },
+      { headword: "杯子", group: 0, box_2d: [600, 50, 900, 250] },
+      { headword: "觸控筆", group: 0, box_2d: [300, 850, 700, 900] },
+      { headword: "面紙", group: 0, box_2d: [50, 800, 300, 1000] },
+      // The other name of the tablet came without a box: it inherits the object's first box.
+      { headword: "平板電腦", group: 0 },
     ]);
-    expect(out[1].point).toEqual([50, 50]);
+    expect(out.map((s) => s.point)).toEqual([
+      [500, 400],
+      [150, 750],
+      [875, 500],
+      [900, 175],
+      [500, 400],
+    ]);
+    expect(positionStats(out)).toEqual({ n: 5, groups: 1, with_point: 5, distinct_points: 4 });
   });
 
   it("leaves names without a usable box (or without a group and box) unpositioned", () => {

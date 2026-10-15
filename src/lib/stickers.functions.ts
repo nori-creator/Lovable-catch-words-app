@@ -22,7 +22,25 @@ import { isTruncated, POSTGREST_PAGE } from "./pagination";
 import { parseStickerPageInput } from "./sticker-pages";
 import { isBuiltinRoom, normalizeShelfProposal, type RawShelfProposal } from "./shelf-proposal";
 import type { UserShelf } from "./shelf-plan";
-import { normalizeExtras, hasExtrasContent, type WordExtrasDTO } from "./extras";
+import { normalizeExtras, hasExtrasContent, publicExtras, type WordExtrasDTO } from "./extras";
+
+/**
+ * 1枚の札を読む時、台湾華語の型の札に読み（拼音・注音）を付ける（`chunk-readings.server.ts`）。
+ * 辞書が大きいので遅延で読み込み、失敗しても読みが無いだけでカードは返す。
+ */
+async function withReadingsOnRead<T extends WordExtrasDTO | null>(
+  extras: T,
+  language: string | null,
+): Promise<T> {
+  if (!extras) return extras;
+  try {
+    const { withChunkReadingsInExtras } = await import("./chunk-readings.server");
+    return withChunkReadingsInExtras(extras, language);
+  } catch (e) {
+    console.warn("getSticker: 型の読みを付けられなかった", (e as Error)?.message);
+    return extras;
+  }
+}
 import {
   BoundedExtrasSchema,
   LanguageCodeSchema,
@@ -517,7 +535,8 @@ export const listMyStickers = createServerFn({ method: "GET" })
           ? (urlMap.get(row.placeholder_image_url) ?? null)
           : null,
         placeholder_credit: row.placeholder_credit ?? null,
-        word: { ...wRaw, extras: normalizeExtras(wRaw.extras) },
+        // 一覧では読みは付けない（枚数が多い）。退役した欄だけ外す。
+        word: { ...wRaw, extras: publicExtras(wRaw.extras) },
       });
     }
     /**
@@ -722,7 +741,15 @@ export const getSticker = createServerFn({ method: "GET" })
       placeholder_credit: r.placeholder_credit ?? null,
       branch_plan: (r.branch_plan as StickerWithWord["branch_plan"]) ?? null,
       review_count: reviewCount,
-      word: { ...wRaw, extras: normalizeExtras(wRaw.extras) },
+      // 退役した欄（口語/書面の札）は返さない。台湾華語の型の札には読み（拼音・注音）を付けて返す —
+      // 古いカードは読みを持っていないので、読む所で辞書から付ける（`chunk-readings.server.ts`）。
+      word: {
+        ...wRaw,
+        extras: await withReadingsOnRead(
+          publicExtras(wRaw.extras),
+          (wRaw as { language?: string | null }).language ?? null,
+        ),
+      },
     };
     return res;
   });

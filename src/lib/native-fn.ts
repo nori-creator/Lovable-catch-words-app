@@ -47,6 +47,7 @@ const candidatePick = () => import("./candidate-pick.functions");
 const adminUsers = () => import("./admin-users.functions");
 const metrics = () => import("./metrics.functions");
 const betaMetrics = () => import("./beta-metrics.functions");
+const reports = () => import("./reports.functions");
 
 function from<M>(mod: () => Promise<M>, name: keyof M & string): Loader {
   return async () => (await mod())[name] as unknown as ServerFn;
@@ -154,6 +155,12 @@ export const NATIVE_FNS: Record<string, Loader> = {
   adminGetOverview: from(adminUsers, "getAdminOverview"),
   adminGetDashboard: from(metrics, "getAdminDashboard"),
   adminGetBetaMetrics: from(betaMetrics, "getBetaMetrics"),
+  // 開発者の「エラー報告」（管理者だけ。利用者の「内容の誤りを報告」の一覧と、状態の変更。2026-10-15）
+  // 入力 { status?: "open" | "all", limit?: number } → [{ id, headword, kind, item, note, status, outcome,
+  // reporter_lang, word_id, created_at, outcome_at }]。status は open / fixed / needs_review / resolved / dismissed。
+  adminListEntryReports: from(reports, "listEntryReports"),
+  // 入力 { id, status: "open" | "resolved" | "dismissed" } → { ok: true }
+  adminSetEntryReportStatus: from(reports, "resolveEntryReport"),
 };
 
 /** 管理者だけが使える口（名前は必ず `admin` で始める）。試験が一覧と突き合わせる。 */
@@ -176,6 +183,8 @@ export const NATIVE_ADMIN_FNS = [
   "adminGetOverview",
   "adminGetDashboard",
   "adminGetBetaMetrics",
+  "adminListEntryReports",
+  "adminSetEntryReportStatus",
 ] as const;
 
 /** 失敗の中身から、iOS に返す状態コードを決める。 */

@@ -130,9 +130,10 @@ export function levelRuleText(
   return (
     `学習者の現在レベル: ${currentName}、目標レベル: ${goalName}。` +
     `目標レベルの目安 — ${bandDescription(scale, goalIndex)} ` +
-    `**語彙・文法・話題は必ずこの範囲に収める**。${vocabAuthority}に無いような難語や、` +
-    `目標級より上の文法は使わない。どうしても必要なときだけ短い注釈を添える。` +
-    `例文は現在レベル(${currentName})でも読めることを優先する。` +
+    `解説・注記の**語彙・文法・話題はこの範囲に収める**。${vocabAuthority}に無いような難語や、` +
+    `目標級より上の文法をわざわざ使わない。どうしても必要なときだけ短い注釈を添える。` +
+    // 2026-10-15 オーナー「例文はTOCFLのある程度検定の難易度に合わせて。ただし最も重要なのはネイティブが最も自然に使う例文。」
+    `例文と使い方の型は別 — **ネイティブが最も自然に言う形を最優先**にし、級は目安（例文の指示に従う）。` +
     (grammar ? ` ${grammar}` : "")
   );
 }
@@ -212,10 +213,14 @@ export function exampleLevelRule(
   const currentName = `${scale.id} ${stepLabel(scale, currentIndex)}`;
   const goalName = `${scale.id} ${stepLabel(scale, goalIndex)}`;
   return (
-    `例文のレベル: 現在 ${currentName} の人がそのまま読める文にする — ${exampleBandDescription(scale, currentIndex)}` +
+    `例文のレベル（目安）: 現在 ${currentName} の人が読める文を目指す — ${exampleBandDescription(scale, currentIndex)}` +
     (goalIndex > currentIndex
-      ? ` どうしても必要なときだけ、目標 ${goalName} の範囲（${exampleBandDescription(scale, goalIndex)}）まで使ってよい。それより上の語彙・文法は使わない。`
-      : ` それより上の語彙・文法は使わない。`) +
-    ` **見出し語「${headword}」だけは、レベルより上でもそのまま使う**（言い換えない）。`
+      ? ` 目標 ${goalName} の範囲（${exampleBandDescription(scale, goalIndex)}）までは自由に使ってよい。`
+      : "") +
+    // 2026-10-15 オーナー「例文はTOCFLのある程度検定の難易度に合わせて。ただし最も重要なのはネイティブが最も自然に使う例文。」
+    ` **ただし、いちばん大事なのは「ネイティブがその場面で最も自然に言う一文」であること。** ` +
+    `レベルに合わせるために言い換えて不自然になるなら、自然な文のまま書く（級より上の語 — 例: 防曬乳 の文の 質地・黏膩 — が要るなら、そのまま使う）。` +
+    `同じくらい自然な言い方が2つあれば、レベルに合う方を選ぶ。難しい語を**わざわざ**選ばない。` +
+    ` 見出し語「${headword}」はレベルに関係なくそのまま使う（言い換えない）。`
   );
 }
