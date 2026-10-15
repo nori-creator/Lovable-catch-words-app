@@ -29,7 +29,23 @@ import { readerText, scrubForReader, scrubForeignNotes } from "./note-language";
 import { explanationKey } from "./word-explanation";
 import { mergeIntoReaderExplanation, readReaderExplanation } from "./word-explanation.functions";
 import { worldExampleRule, sharedExampleSourceRule } from "./example-sources";
-import { CardSchema, CardShapeError, type GeneratedCard } from "./card-schema";
+import {
+  MAX_EXAMPLE_PATTERNS,
+  EXAMPLE_PROMPT_VERSION,
+  ExamplePatternSchema,
+  alignExampleExtras,
+  applyExamplePatterns,
+  sameSentence,
+  examplePatternsRule,
+  pickExamplePatterns,
+} from "./example-patterns";
+import { exampleLevelRule } from "./level-instruction";
+import {
+  CardReplySchema,
+  CardShapeError,
+  type GeneratedCard,
+  type GeneratedCardReply,
+} from "./card-schema";
 import { fillSharedWordFromCard, recordGeneratedCards, trustedCardFrom } from "./generated-cards";
 import { runAfterResponse } from "./after-response";
 import {
@@ -87,6 +103,7 @@ import {
   getAiFor,
   getAiAttemptChain,
   getUserLevelGoal,
+  getUserLevels,
   getUserTargetLanguage,
   levelInstruction,
   explanationLanguageRule,
@@ -1005,11 +1022,12 @@ export const generateCard = createServerFn({ method: "POST" })
     // AI の前の読み出し（使う AI・枠の確保・級・解説の言語・母語・Pro か）は**並べて**待つ。
     // 前は 10 回の往復を1つずつ待っていた（ほとんどが同じ profiles の行）。枠の確保が
     // 断られたら、ここで止まる（AI は呼ばない）。
-    const [ai, , levelGoal, levelRule, langRule, explainLang, l1, l1Gram, l1Info, pro] =
+    // 級は現在と目標の両方を読む（例文は「現在の級で読める・目標の級まで」— `exampleLevelRule`）。
+    const [ai, , levels, levelRule, langRule, explainLang, l1, l1Gram, l1Info, pro] =
       await Promise.all([
         getAiFor("card", "card"),
         assertWithinDailyCap(context.userId, "card"),
-        getUserLevelGoal(context.userId),
+        getUserLevels(context.userId),
         levelInstruction(context.userId),
         explanationLanguageRule(context.userId, data.targetLanguage),
         // 解説をどの言語で書くか。プロンプト本文に散らばる「日本語で」という
@@ -1026,6 +1044,7 @@ export const generateCard = createServerFn({ method: "POST" })
         isProUser(context.userId),
       ]);
     const cardPreMs = Date.now() - cardStartedAt;
+    const levelGoal = levels.goal;
     // **3つある表示言語を2つに潰さない。** ここは
     // `explainLang === "en" ? "英語" : "日本語"` だった — 繁體中文を
     // 選んだ人が「日本語」に落ち、AI が日本語で解説を書いていた
@@ -1058,6 +1077,17 @@ export const generateCard = createServerFn({ method: "POST" })
     // 日本語の節の行。日本語以外のカードでは空 — **空なら行ごと足さない**
     // (台湾華語・英語の指示文を1文字も変えないため)。
     const jaLines = japaneseSectionLines(wantOwn, NL);
+    // 場面のパターンの上限。追加の例文の節を頼まない呼び出し（Web の既定）は、いちばんよく使う場面の1つだけ。
+    const maxPatterns = want("examples_extra") ? MAX_EXAMPLE_PATTERNS : 1;
+    const examplesRule = examplePatternsRule({
+      headword: data.headword,
+      targetName: cardProfile.promptName,
+      nl: NL,
+      max: maxPatterns,
+      levelRule: exampleLevelRule(cardProfile.levels, levels.current, levels.goal, data.headword),
+      sourceRule: worldExampleRule(NL, cardProfile.code),
+      chunkRoles: cardProfile.chunkRoles.join(" / "),
+    });
     const prompt = `「${data.headword}」について、${cardProfile.promptName}の語彙カードを生成してください。
 
 ${langRule}
@@ -1085,10 +1115,7 @@ ${cardProfile.capture.readingRule}
   emoji: 絵文字1つ, room_key: ${ROOM_KEYS.join("/")} のどれか、または新しい部屋の英小文字の鍵,
   room_label: 部屋の名前(${NL}・24字まで)}。
   棚は「街で見かけて集めたくなるまとまり」の粒度で。1語専用の棚は作らない。
-- example_sentence: ネイティブが「${data.headword}」を使う**いちばん自然で、いちばんよく出会う場面を1つだけ**選び、その場面でそのまま言う一文（${cardProfile.promptName}）。辞書的な作文・説明文にしない。学習者の目標レベルは ${levelGoal} — 語彙・文型はこのレベル以下に抑える（上のレベルほど、その場面らしい言い回しを使ってよい）
-  ${worldExampleRule(NL, cardProfile.code)}
-- example_translation: 例文の訳(${NL})
-- extras.example_scene: その例文の場面・気持ちを短く(${NL}で15字前後。例「夜市で値段を聞くとき」「唇が荒れて困ったとき」)
+${examplesRule}
 
 extras 項目（**すべて具体的な内容で必ず埋めること**。空文字・空配列で返さない）:
 
@@ -1107,14 +1134,6 @@ ${
   ${cardProfile.chunkPrompt.styleRule}
   **${learnerL1}が崩しやすい型を優先する**。該当する型があれば ja に「母語だとこう言いたくなるが${cardProfile.promptName}ではこの形」と一言添える。
 ${l1Gram}`
-    : ""
-}
-- example_chunks: example_sentence をパーツ分解した [{text,pos}]
-${
-  want("examples_extra")
-    ? `- examples_extra: 追加例文 {zh, ja, scene:いつ・どんな気持ちで言うか(短く、${NL}で), chunks:[{text,pos}]}（語彙は ${levelGoal} 以下）。
-  ${EXAMPLE_PATTERN_RULE}
-  ${worldExampleRule(NL, cardProfile.code)}`
     : ""
 }
 - usage_context: ネイティブがこの語をどこで見て・使うか（スーパー/夜市/レストラン/ニュース/SNS/新聞など具体的な場所・メディア）と頻度感を1〜2文(${NL})で
@@ -1178,13 +1197,11 @@ ${data.hintCategory ? `カテゴリのヒント: ${data.hintCategory}` : ""}`;
       `\n\n**出力は上記をすべて内容で埋めた JSON オブジェクト1つだけ**` +
       `（前置き・説明・コードフェンス不要）。含めるキー: ` +
       `headword_zh / reading_zhuyin / pinyin / meaning_ja / part_of_speech / level / ` +
-      `category_key / new_shelf / example_sentence / example_translation / ` +
+      `category_key / new_shelf / ` +
+      `example_patterns[{situation,share,sentence,translation,scene,chunks:[{text,pos}],scene_fits}] / ` +
       `extras{ ` +
       [
         want("usage_chunks") && "usage_chunks[{parts:[{text,pos,slot,ja?,alts?:[{text,ja}]}],ja}]",
-        "example_scene",
-        "example_chunks[{text,pos}]",
-        want("examples_extra") && "examples_extra[{zh,ja,scene,chunks:[{text,pos}]}]",
         "usage_context, frequency_level, register_tag, register_scale, encounter_labels[{kind,label}]",
         "scene_weights, season_months, region_scope, region_scope_kind, image_query, image_avoid[]",
         want("related_words") && "related_words[{word,kind,note}]",
@@ -1276,7 +1293,7 @@ ${data.hintCategory ? `カテゴリのヒント: ${data.hintCategory}` : ""}`;
     const cardAttempts: CardAttemptRecord[] = [];
     let cardVia: string | undefined;
     let cardTokens: CardTokens | undefined;
-    const readCard = (text: string, via: string): GeneratedCard => {
+    const readCard = (text: string, via: string): GeneratedCardReply => {
       // **失敗の理由を飲まない。**
       //
       // ここは `catch {}` で全部を握り潰し、"AI did not return a structured
@@ -1296,7 +1313,7 @@ ${data.hintCategory ? `カテゴリのヒント: ${data.hintCategory}` : ""}`;
         });
         throw new CardShapeError("JSONとして読めない返答");
       }
-      const checked = CardSchema.safeParse(raw);
+      const checked = CardReplySchema.safeParse(raw);
       if (checked.success) return checked.data;
       const why = checked.error.issues
         .slice(0, 3)
@@ -1310,7 +1327,7 @@ ${data.hintCategory ? `カテゴリのヒント: ${data.hintCategory}` : ""}`;
       });
       throw new CardShapeError(why);
     };
-    const genOnce = async (extraPush = "", round = 0): Promise<GeneratedCard> => {
+    const genOnce = async (extraPush = "", round = 0): Promise<GeneratedCardReply> => {
       const cardPrompt = `${prompt}${jsonTail}${extraPush}`;
       try {
         const outcome = await runAiAttempts(
@@ -1348,7 +1365,7 @@ ${data.hintCategory ? `カテゴリのヒント: ${data.hintCategory}` : ""}`;
         throw e;
       }
     };
-    const extrasLookEmpty = (c: GeneratedCard): boolean => {
+    const extrasLookEmpty = (c: GeneratedCardReply): boolean => {
       const e = c.extras;
       if (!e) return true;
       const filled =
@@ -1370,10 +1387,10 @@ ${data.hintCategory ? `カテゴリのヒント: ${data.hintCategory}` : ""}`;
       return !filled;
     };
     const aiStartedAt = Date.now();
-    const generate = async (): Promise<GeneratedCard> => {
+    const generate = async (): Promise<GeneratedCardReply> => {
       // 形が合わなかったときも**1度だけ**やり直す。以前は一発勝負で、
       // モデルが1項目外しただけでその語が永久にカードにならなかった。
-      let card: GeneratedCard;
+      let card: GeneratedCardReply;
       try {
         card = await genOnce();
       } catch (e) {
@@ -1406,7 +1423,6 @@ ${data.hintCategory ? `カテゴリのヒント: ${data.hintCategory}` : ""}`;
                 want("related_words") && "related_words",
                 want("pronunciation_tips") && "pronunciation_tips",
                 want(noteSection) && cardProfile.capture.noteField,
-                want("examples_extra") && "examples_extra",
               ]
                 .filter(Boolean)
                 .join(" / ") +
@@ -1434,7 +1450,7 @@ ${data.hintCategory ? `カテゴリのヒント: ${data.hintCategory}` : ""}`;
         sections: data.sections?.length ?? null,
         pro: !!pro,
       });
-    let card: GeneratedCard;
+    let card: GeneratedCardReply;
     try {
       card = await generate();
     } catch (e) {
@@ -1443,6 +1459,26 @@ ${data.hintCategory ? `カテゴリのヒント: ${data.hintCategory}` : ""}`;
     }
     cardRun(true);
     const resolvedHead = card.headword_zh?.trim() || data.headword;
+    /**
+     * **場面のパターンを確かめて、今までの欄に写す**（2026-10-15 眼鏡、`example-patterns.ts`）。
+     * AI はもう呼ばない — 自己点検が false の物・札が無い物・見出し語を含まない文を落とし、よく使う順に並べる。
+     * 1つも残らなければ例文は空のまま（単語の詳細を開いた時の節の自動生成が埋める）。
+     */
+    {
+      const picked = pickExamplePatterns(card.example_patterns, {
+        headword: resolvedHead,
+        language: cardLanguage,
+        readerLang: explainLang,
+        max: maxPatterns,
+      });
+      if (card.example_patterns.length > 0 && picked.length < card.example_patterns.length) {
+        console.info("generateCard: 例文のパターンを落とした", {
+          returned: card.example_patterns.length,
+          kept: picked.length,
+        });
+      }
+      card = applyExamplePatterns(card, picked, { withExtra: want("examples_extra") });
+    }
     // **読みは AI のまま通さない**（2026-10-03「拿鐵」が nálǎtiě と出た件）。
     // 字の数と音節の数・字ごとの読み・台湾の読みを検め、外れていれば辞書の読みに直す。
     // 共有辞書（下の learnLexiconEntries）にも直した読みが入る。
@@ -1525,8 +1561,11 @@ ${data.hintCategory ? `カテゴリのヒント: ${data.hintCategory}` : ""}`;
       ).catch(() => null);
       if (picked) categoryKey = normalizeCategory(resolvedHead, picked);
     }
+    // パターンの生の配列は返さない・控えない（写した欄だけが正）。
+    const { example_patterns: _patterns, ...cardFields } = card;
+    void _patterns;
     const out = {
-      ...card,
+      ...cardFields,
       // **訳は読む人の言語で**（2026-09-29「例文の訳に中文が混ざってる」）。例文の写しや
       // 別の言語で返ってきた訳は落とす（空なら画面は訳を出さず、作り直しが埋める）。
       example_translation: readerText(card.example_translation, explainLang, card.example_sentence),
@@ -1821,16 +1860,6 @@ function formulaChunkRule(code: string): string {
 }
 
 /**
- * **追加の例文は場面・気持ちのパターンごとに1文**（オーナー指示 2026-10-14「この単語をよく使う状況、場面、
- * 感情のパターン分けをして… パターンが多くある場合は例文も増やして。似たような場面での例文は1文でいい」）。
- */
-const EXAMPLE_PATTERN_RULE =
-  `ネイティブがその語を使う**状況・場面・気持ちのパターン**を分け、パターン1つにつき例文1つ。` +
-  `よく使うパターンが多い語は多く（最大5つ）、少ない語は少なく（最低2つ）。` +
-  `**似た場面・同じ気持ちの例文を2つ書かない**（1つ目の例文とも重ねない）。` +
-  `scene はそのパターンの短い説明（15字前後。例「唇が荒れて困ったとき」「友達に勧めるとき」）。`;
-
-/**
  * **チャンクとは何か（2026-10-14 に一から見直した定義）**。オーナー報告「チャンクが文法的に間違っている
  * 箇所が多くある… 紙箱＋裝＋東西 これ正しくない / 裝＋熱水馬克杯 これ熱湯マグカップみたいな意味になる /
  * 去冰が動詞になってる」。
@@ -2109,6 +2138,25 @@ async function runSectionRegen(
   const targetName = regenProfile.promptName;
   const regenReadingNames = readingPromptNames(regenProfile);
   const base = `${targetName}の単語「${head}」(意味: ${word.meaning_ja})について、カードの一項目だけを作り直します。${langRule} ${levelRule} 出力はJSONオブジェクト1つだけ(前置き不要)。`;
+  // 例文の2つの節に共通の材料（生成と同じ指示・同じ確かめ方）。
+  const regenLevels = await getUserLevels(userId);
+  const regenPatternBase = {
+    headword: head,
+    targetName,
+    nl: NL,
+    levelRule: exampleLevelRule(regenProfile.levels, regenLevels.current, regenLevels.goal, head),
+    sourceRule: sharedExampleSourceRule(NL, regenProfile.code),
+    chunkRoles: regenProfile.chunkRoles.join(" / "),
+  };
+  const regenPickBase = {
+    headword: head,
+    language: regenProfile.code,
+    readerLang: regenLang,
+  };
+  const mainScene = (() => {
+    const ex = normalizeExtras(word.extras);
+    return ex && alignExampleExtras(ex, word.example_sentence as string | null).example_scene;
+  })();
 
   // 各項目のプロンプトと出力形。extras へのマージで反映する。
   const spec: Record<RegenSection, { prompt: string; schema: z.ZodTypeAny }> = {
@@ -2131,30 +2179,54 @@ async function runSectionRegen(
           .min(1),
       }),
     },
+    /**
+     * 例文も**場面のパターン**から作る（2026-10-15、生成と同じ指示 `examplePatternsRule`）。
+     * メインの例文 = いちばんよく使うパターン1つ。札は書いた文の目印（`example_scene_for`）と組で保存する。
+     */
     example: {
-      prompt: `${base}\nネイティブが「${head}」を使う**いちばん自然で、いちばんよく出会う場面を1つだけ**選び、その場面でそのまま言う例文を1つ。辞書的な作文・説明文にしない。目標レベルは ${regenLevelGoal} — 語彙・文型はこのレベル以下。example_scene はその場面・気持ちの短い説明(${NL}で15字前後)。\n${sharedExampleSourceRule(NL, regenProfile.code)}\n${chunkRule(word.language as string | null)}\n{"example_scene":"場面(${NL})","example_sentence":"${targetName}の例文","example_translation":"訳(${NL})","example_chunks":[{"text":"","pos":""}]}`,
-      schema: z.object({
-        example_scene: z.string().catch(""),
-        example_sentence: z.string().min(1),
-        example_translation: z.string().catch(""),
-        example_chunks: z
-          .array(z.object({ text: z.string(), pos: z.string().catch("") }))
-          .catch([]),
-      }),
+      prompt: `${base}\n${examplePatternsRule({ ...regenPatternBase, max: 1 })}\n${chunkRule(word.language as string | null)}\n{"example_patterns":[{"situation":"","share":0,"sentence":"${targetName}の例文","translation":"訳(${NL})","scene":"場面(${NL})","chunks":[{"text":"","pos":""}],"scene_fits":true}]}`,
+      schema: z
+        .object({ example_patterns: z.array(ExamplePatternSchema).min(1) })
+        .transform((r, ctx) => {
+          const [main] = pickExamplePatterns(r.example_patterns, { ...regenPickBase, max: 1 });
+          if (!main) {
+            ctx.addIssue({ code: "custom", message: "場面と文の合う例文が無い" });
+            return z.NEVER;
+          }
+          return {
+            example_scene: main.scene,
+            example_sentence: main.sentence,
+            example_translation: main.translation,
+            example_chunks: main.chunks,
+            example_scene_for: main.sentence,
+            example_v: EXAMPLE_PROMPT_VERSION,
+          };
+        }),
     },
+    /**
+     * 追加の例文 = メインの例文の場面**以外**のよく使うパターン。無ければ空でよい（1つの場面でしか使わない語）。
+     * その時は `example_pattern_count: 1` を残し、空の節を開くたびに作り直しに来ないようにする。
+     */
     examples_extra: {
-      prompt: `${base}\n追加の例文。それぞれ scene(いつ・どんな気持ちで言うか)と chunks を付ける。目標レベルは ${regenLevelGoal} — 語彙・文型はこのレベル以下。1つ目の例文と違う場面・気持ちにする。\n${EXAMPLE_PATTERN_RULE}\n${sharedExampleSourceRule(NL, regenProfile.code)}\n${chunkRule(word.language as string | null)}\n{"examples_extra":[{"zh":"","ja":"","scene":"","chunks":[{"text":"","pos":""}]}]}`,
-      schema: z.object({
-        examples_extra: z
-          .array(
-            z.object({
-              zh: z.string(),
-              ja: z.string().catch(""),
-              scene: z.string().catch(""),
-              chunks: z.array(z.object({ text: z.string(), pos: z.string().catch("") })).catch([]),
-            }),
-          )
-          .min(1),
+      prompt: `${base}\n${
+        word.example_sentence
+          ? `この語には既にメインの例文「${word.example_sentence}」${mainScene ? `（場面「${mainScene}」）` : ""}がある。**そのパターンは除き**、ほかによく使うパターンだけを返す。ほかに無ければ空配列 [] を返す（数を合わせるために作らない）。\n`
+          : ""
+      }${examplePatternsRule({ ...regenPatternBase, max: MAX_EXAMPLE_PATTERNS - 1 })}\n${chunkRule(word.language as string | null)}\n{"example_patterns":[{"situation":"","share":0,"sentence":"","translation":"","scene":"","chunks":[{"text":"","pos":""}],"scene_fits":true}]}`,
+      schema: z.object({ example_patterns: z.array(ExamplePatternSchema) }).transform((r) => {
+        const picked = pickExamplePatterns(r.example_patterns, {
+          ...regenPickBase,
+          max: MAX_EXAMPLE_PATTERNS - 1,
+        }).filter((e) => !sameSentence(e.sentence, word.example_sentence as string | null));
+        return {
+          examples_extra: picked.map((e) => ({
+            zh: e.sentence,
+            ja: e.translation,
+            scene: e.scene,
+            chunks: e.chunks,
+          })),
+          example_pattern_count: 1 + picked.length,
+        };
       }),
     },
     usage_chunks: {
@@ -2319,9 +2391,17 @@ async function runSectionRegen(
     if (word.source !== "verified")
       baseUpdate.meaning_ja = shortMeaning(String(out.meaning_ja ?? ""));
   }
+  // 人が確かめた語（verified）は例文の列を書き換えない。その時、新しい文のために書いた札・パーツ・訳を
+  // 古い文の横に置かない（2026-10-15 眼鏡と同じ食い違いになる）。
+  const keepVerifiedExample = data.section === "example" && word.source === "verified";
   if (data.section === "example") {
     delete extrasPatch.example_sentence;
     delete extrasPatch.example_translation;
+    if (keepVerifiedExample) {
+      for (const k of ["example_scene", "example_chunks", "example_scene_for", "example_v"]) {
+        delete extrasPatch[k];
+      }
+    }
     if (word.source !== "verified") {
       baseUpdate.example_sentence = out.example_sentence;
       baseUpdate.example_translation = readerText(
@@ -2368,7 +2448,9 @@ async function runSectionRegen(
       extras: extrasPatch,
       meaning: data.section === "meaning" ? shortMeaning(String(out.meaning_ja ?? "")) : null,
       example_translation:
-        data.section === "example" ? ((out.example_translation as string | null) ?? null) : null,
+        data.section === "example" && !keepVerifiedExample
+          ? ((out.example_translation as string | null) ?? null)
+          : null,
     });
   }
   // 共有の行に既に在る項目は、裏の自動生成では書き換えない（他の人のカードも

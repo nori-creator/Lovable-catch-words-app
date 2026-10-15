@@ -190,6 +190,20 @@ export const ExtrasSchema = z.object({
    * オーナー指示 2026-10-14「例文は追加の例文のように…状況場面感情の説明を短く例文のうえに書いて」。
    */
   example_scene: z.string().catch(""),
+  /**
+   * `example_scene` と `example_chunks` を**どの例文のために書いたか**（その例文の文字列）。
+   * オーナー報告 2026-10-15「眼鏡: 我戴眼鏡。の上に『友達が眼鏡をしていないことに気づいたとき』」— 共有の行は
+   * 空の欄だけ埋めるので、前から在った例文の横に別の生成の札が入っていた。表示する例文と違えば札を出さない
+   * （`example-patterns.ts` の `alignExampleExtras`）。古いカードは空（確かめようがない）。
+   */
+  example_scene_for: z.string().catch(""),
+  /** 例文の作り方の版（`EXAMPLE_PROMPT_VERSION`）。古いカードは null。 */
+  example_v: z.number().int().nullable().catch(null),
+  /**
+   * その語がよく使われる場面のパターンの数（メインの例文を含む）。1 なら追加の例文は無いのが正しい
+   * （「1つの状況でしか使わない語なら例文は1つでいい」2026-10-15）。古いカードは null。
+   */
+  example_pattern_count: z.number().int().min(1).max(10).nullable().catch(null),
   examples_extra: z.array(ExampleExtraSchema).catch([]),
   /** 頻度・使う場面(統合): どこで見て使うか+口語/書面+頻度の説明。 */
   usage_context: z.string().catch(""),
@@ -467,13 +481,24 @@ export function normalizeExtras(raw: unknown): WordExtrasDTO | null {
   return res.success ? res.data : null;
 }
 
+/** 読む中身ではなく目印・手がかりの鍵（「中身がある」に数えない）。 */
+const EXTRAS_MARKER_KEYS = new Set([
+  "explain_lang",
+  "explain_l1",
+  "image_query",
+  "image_avoid",
+  "example_scene_for",
+  "example_v",
+  "example_pattern_count",
+]);
+
 /** True when an extras object carries at least one non-empty field. */
 export function hasExtrasContent(e: Partial<WordExtrasDTO> | null | undefined): boolean {
   if (!e) return false;
   // explain_lang / explain_l1 は内容ではなく目印、image_query / image_avoid は画像検索の
   // 手がかりで読む物ではないので「中身がある」判定から外す。
   return Object.entries(e).some(([k, v]) =>
-    k === "explain_lang" || k === "explain_l1" || k === "image_query" || k === "image_avoid"
+    EXTRAS_MARKER_KEYS.has(k)
       ? false
       : Array.isArray(v)
         ? v.length > 0

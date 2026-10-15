@@ -319,6 +319,9 @@ export function relatedWordsLackNotes(extras: WordExtrasDTO | null | undefined):
  * 永久に直らない節になる — `sectionHasContent` の注と同じ理由）。
  */
 export function sectionNeedsFill(id: SectionId, input: SectionContentInput): boolean {
+  // 「1つの場面でしか使わない語」（`example_pattern_count === 1`、2026-10-15）は追加の例文が無いのが正しい。
+  // 描く物は無い（`sectionHasContent` は false のまま）が、作り直しにも行かない — 行くと場面を水増しした例文が入る。
+  if (id === "examples_extra" && input.extras?.example_pattern_count === 1) return false;
   if (!sectionHasContent(id, input)) return true;
   if (id === "related_words") return relatedWordsLackNotes(input.extras);
   return false;

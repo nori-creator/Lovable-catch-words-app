@@ -5598,9 +5598,11 @@ describe("単語の詳細は既定で8項目（オーナー指示 2026-09-23）"
 
   it("生成側は頼まれない節の欄をプロンプトから外し、返事からも落とす", () => {
     expect(ai).toMatch(/const want = \(id: SectionId\) => wantsSection\(data\.sections, id\)/);
-    for (const id of ["etymology", "mnemonic", "examples_extra", "pronunciation_tips"]) {
+    for (const id of ["etymology", "mnemonic", "pronunciation_tips"]) {
       expect([id, new RegExp(`\\$\\{\\s*want\\("${id}"\\)\\s*\\?`).test(ai)]).toEqual([id, true]);
     }
+    // 追加の例文は場面のパターンの数で頼む（頼まれなければ、いちばんよく使う場面の1つだけ。2026-10-15）。
+    expect(ai).toMatch(/const maxPatterns = want\("examples_extra"\) \? MAX_EXAMPLE_PATTERNS : 1;/);
     expect(ai).toMatch(
       /stripUnrequested\(\s*scrubForReader\(scrubForeignNotes\(card\.extras \?\? \{\}, explainLang\), explainLang\),\s*data\.sections,?\s*\)/,
     );
