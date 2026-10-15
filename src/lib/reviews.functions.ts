@@ -29,7 +29,9 @@ import {
   MAX_INTERVAL_DAYS,
 } from "@/lib/srs";
 import { pickInterval } from "@/lib/jev-tasks";
-import { isAlreadyGraded } from "@/lib/review-grade-guard";
+import { GradeSaveError, MAX_RESPONSE_MS, isAlreadyGraded } from "@/lib/review-grade-guard";
+import type { SupabaseClient } from "@supabase/supabase-js";
+import type { Database } from "@/integrations/supabase/types";
 import {
   buildRetentionSeries,
   type RetentionCard,
@@ -818,6 +820,17 @@ const GradeInput = z.object({
   response_ms: z.number().int().nonnegative().default(0),
 });
 
+/** 採点の入力（iOS `ReviewStore.grade` と Web の復習が同じ形で送る）。 */
+export type GradeInputData = z.infer<typeof GradeInput>;
+
+/**
+ * 採点の入力を読む。**形が違えば ZodError**（`native-fn.ts` の `statusForError` が 400 と
+ * 「送った内容の形が違います。アプリを最新にしてください。」にする — 500 にしない）。
+ */
+export function parseGradeInput(input: unknown): GradeInputData {
+  return GradeInput.parse(input);
+}
+
 /**
  * 今日の復習が「上限で止まっている」のか「もう出る語が無い」のかを返す。
  *
@@ -892,219 +905,308 @@ export const getReviewCapState = createServerFn({ method: "GET" })
 
 export const gradeReview = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => GradeInput.parse(input))
-  .handler(async ({ context, data }) => {
-    const { supabase, userId } = context;
-    const { data: row, error } = await supabase
+  .inputValidator((input: unknown) => parseGradeInput(input))
+  .handler(async ({ context, data }) => gradeReviewWith(context, data));
+
+/** 採点が使う Jev の記録（`jev-tasks.server.ts`。試験では差し替える）。 */
+type GradeJev = Pick<
+  typeof import("./jev-tasks.server"),
+  "jevIntervalMode" | "jevScheduleDays" | "logScheduleDecision" | "recordRecallShadow"
+>;
+
+/** 採点の返事（iOS `ReviewStore.grade` は `score` と `interval_days` だけを読む。どちらも null でよい）。 */
+export type GradeResult = {
+  score: number | null;
+  next_due_at: string | null;
+  interval_days: number | null;
+  /** もう採点済みだった（通信のやり直し・二重送信・同時に2回届いた後の方）。何も進めていない。 */
+  duplicate: boolean;
+  /**
+   * **札がもう無い**（図鑑から消した札 — 復習の行も一緒に消える — か、この人の札ではない）。何も書いていない。
+   * 古い画面はこれを「保存できた」として次へ進む（何度も「もう一度答えてください」と出さない）。
+   */
+  gone?: true;
+  history_saved?: boolean;
+};
+
+const GONE: GradeResult = {
+  score: null,
+  next_due_at: null,
+  interval_days: null,
+  duplicate: false,
+  gone: true,
+};
+
+const REVIEW_COLUMNS =
+  "id, sticker_id, ease, interval_days, repetitions, blur_seen, last_reviewed_at, due_at, last_score";
+
+/**
+ * **採点の本体**（`gradeReview`。試験から直に呼ぶ）。
+ *
+ * 2026-10-15 18:53（台湾）本番: iOS の復習で 內褲 を答えると「採点を保存できませんでした…サーバーエラー（500）」。
+ * その札（sticker 71282f52…）と復習の行は今は無い（図鑑から消すと復習の行も連鎖で消える。同じ回のほかの 49 枚は
+ * 保存されている）。前はここで `.single()` で行を読み、**行が無いと PostgREST の英語の失敗（PGRST116 "Cannot coerce
+ * the result to a single JSON object"）をそのまま投げて 500** にしていた（iOS は英語の文を日本語の画面に出さず
+ * 「サーバーエラー（500）」と出す）。iOS は回の札を最初に読んだまま使い、保存に失敗した札を回の最後に戻す（iOS #32）
+ * ので、回の途中で消えた札は何度答えても 500 になる。DB に一瞬届かなかった時も同じ 500 だった。
+ *
+ * - 行が無い → 何も書かずに `gone: true`（200）。もう一度届いても同じ（冪等）。
+ * - もう採点済み（期限が先）・同時に2回届いた後の方 → 今の状態を `duplicate: true` で返す（1回分しか進めない）。
+ * - DB に届かない・書けない → 503 と読める文（`GradeSaveError`。もう一度答えれば保存される）。500 にしない。
+ * - 形の違う入力 → 400（`parseGradeInput` の ZodError、`native-fn.ts` の `statusForError`）。
+ * - Jev の記録が読み込めなくても採点は止めない（予定は FSRS のまま）。
+ */
+export async function gradeReviewWith(
+  context: { supabase: SupabaseClient<Database>; userId: string },
+  data: GradeInputData,
+  deps: { loadJev?: () => Promise<GradeJev>; now?: () => number } = {},
+): Promise<GradeResult> {
+  const { supabase, userId } = context;
+  const readRow = () =>
+    supabase
       .from("reviews")
-      .select(
-        "id, sticker_id, ease, interval_days, repetitions, blur_seen, last_reviewed_at, due_at, last_score",
-      )
+      .select(REVIEW_COLUMNS)
       .eq("id", data.review_id)
       .eq("user_id", userId)
-      .single();
-    if (error) throw new Error(error.message);
+      .maybeSingle();
+  const { data: row, error } = await readRow();
+  if (error) {
+    console.error("[reviews] gradeReview: review read failed", {
+      reviewId: data.review_id,
+      message: error.message,
+    });
+    throw new GradeSaveError();
+  }
+  if (!row) {
+    console.info("[reviews] gradeReview: review gone (card deleted or not this account's)", {
+      reviewId: data.review_id,
+    });
+    return GONE;
+  }
 
-    /**
-     * **同じ答えが2回届いても、1回分しか進めない**（2026-10-01）。
-     * 復習に出す札は期限が来た物だけ（`getDueReviews` の `due_at <= 今`）。採点すると
-     * 期限が先へ動くので、期限がまだ先の札への採点は「もう採点済み」— 通信のやり直し・
-     * 二重送信・別の端末で先に済ませた札。進めずに今の状態を返す。
-     */
-    const nowMs = Date.now();
-    // 期限は「最後の復習 + 180 日」で頭を打つ（`effectiveDueMs`）。2026-10-03 より前の
-    // 数年先の期限の札も、出題された（`dueNowOrFilter`）なら採点できる。
-    if (isAlreadyGraded(effectiveDueIso(row.due_at, row.last_reviewed_at), nowMs)) {
-      return {
-        score: row.last_score ?? 0,
-        next_due_at: row.due_at as string,
-        interval_days: row.interval_days,
-        duplicate: true,
-      };
-    }
+  /**
+   * **同じ答えが2回届いても、1回分しか進めない**（2026-10-01）。
+   * 復習に出す札は期限が来た物だけ（`getDueReviews` の `due_at <= 今`）。採点すると
+   * 期限が先へ動くので、期限がまだ先の札への採点は「もう採点済み」— 通信のやり直し・
+   * 二重送信・別の端末で先に済ませた札。進めずに今の状態を返す。
+   */
+  const nowMs = deps.now?.() ?? Date.now();
+  // 期限は「最後の復習 + 180 日」で頭を打つ（`effectiveDueMs`）。2026-10-03 より前の
+  // 数年先の期限の札も、出題された（`dueNowOrFilter`）なら採点できる。
+  if (isAlreadyGraded(effectiveDueIso(row.due_at, row.last_reviewed_at), nowMs)) {
+    return {
+      score: row.last_score ?? 0,
+      next_due_at: row.due_at as string,
+      interval_days: row.interval_days,
+      duplicate: true,
+    };
+  }
 
-    // Score: correct=5 base; blur penalty -1; slow (>8s) -1; wrong=1.
-    let score = 1;
-    if (data.correct) {
-      score = 5;
-      if (data.blur_seen) score -= 1;
-      if (data.response_ms > 8000) score -= 1;
-    }
-    score = Math.max(0, Math.min(5, score));
+  // Score: correct=5 base; blur penalty -1; slow (>8s) -1; wrong=1.
+  let score = 1;
+  if (data.correct) {
+    score = 5;
+    if (data.blur_seen) score -= 1;
+    if (data.response_ms > 8000) score -= 1;
+  }
+  score = Math.max(0, Math.min(5, score));
 
-    const elapsedDays = row.last_reviewed_at
-      ? (Date.now() - new Date(row.last_reviewed_at).getTime()) / 86400_000
+  const elapsedDays = row.last_reviewed_at
+    ? (nowMs - new Date(row.last_reviewed_at).getTime()) / 86400_000
+    : null;
+  const srs = nextSrs(
+    { ease: row.ease, interval_days: row.interval_days, repetitions: row.repetitions },
+    score,
+    // 復習はすべて 4択（`LightModeCard`）。見分けた証拠なので伸びは控えめ（srs.ts の冒頭）。
+    { elapsedDays, evidence: "choice" },
+  );
+
+  /**
+   * **次の復習の日を誰が決めるか**（`jevIntervalMode`）。
+   *
+   * 既定はアプリの式（FSRS、`srs.ts`。オーナー判断 2026-10-01「影の実行に戻す」）。
+   * Jev の答えは記録だけ（採点の後に聞くので、採点は Jev を待たない）。`live` のとき
+   * だけ、FSRS の日数を基準にして Jev の日数を柵の中に収める（`pickInterval`:
+   * 思い出せなかった語は FSRS の学び直しの日のまま、Jev の答えが無ければ FSRS のまま、
+   * FSRS の半分〜2倍まで）。`interval_days` 列は安定度 S そのもの（出す日 = S）なので、
+   * live で Jev の日数を入れると、その語の S は Jev の日数になる。
+   */
+  const lastMs = row.last_reviewed_at ? new Date(row.last_reviewed_at).getTime() : null;
+  const now = nowMs;
+  const daysSince = lastMs == null ? null : Math.round(((now - lastMs) / 86400_000) * 10) / 10;
+  const recalled = score >= LAPSE_SCORE;
+  // Jev の記録が読み込めなくても採点は止めない（予定は FSRS、記録は無し）。
+  let jevTasks: GradeJev | null = null;
+  try {
+    jevTasks = await (deps.loadJev ?? (() => import("./jev-tasks.server")))();
+  } catch (e) {
+    console.warn("[reviews] gradeReview: Jev tasks unavailable, FSRS only", (e as Error)?.message);
+  }
+  const noJev: GradeJev = {
+    jevIntervalMode: async () => "shadow",
+    jevScheduleDays: async () => null,
+    logScheduleDecision: async () => undefined,
+    recordRecallShadow: async () => undefined,
+  };
+  const { jevIntervalMode, jevScheduleDays, logScheduleDecision, recordRecallShadow } =
+    jevTasks ?? noJev;
+  const mode = await jevIntervalMode();
+  const scheduleArgs = {
+    userId,
+    stickerId: row.sticker_id,
+    state: {
+      headword: "",
+      daysSinceLastReview: daysSince,
+      intervalDaysBefore: row.interval_days,
+      ease: row.ease,
+      repetitionsBefore: row.repetitions,
+      recalled,
+      score,
+      responseSeconds: data.response_ms > 0 ? Math.round(data.response_ms / 100) / 10 : null,
+    },
+  };
+  const jev =
+    mode === "live" && score >= LAPSE_SCORE
+      ? await jevScheduleDays(supabase as never, scheduleArgs)
       : null;
-    const srs = nextSrs(
-      { ease: row.ease, interval_days: row.interval_days, repetitions: row.repetitions },
-      score,
-      // 復習はすべて 4択（`LightModeCard`）。見分けた証拠なので伸びは控えめ（srs.ts の冒頭）。
-      { elapsedDays, evidence: "choice" },
-    );
+  const picked = pickInterval(srs.interval_days, jev?.days ?? null, score, LAPSE_SCORE);
+  // Jev（live）の日数も上限 180 日の中に収める（`MAX_INTERVAL_DAYS`。4択だけの証拠）。
+  const next = { ...srs, interval_days: Math.min(picked.days, MAX_INTERVAL_DAYS) };
+  const dueAt = new Date(now + next.interval_days * 86400 * 1000).toISOString();
 
-    /**
-     * **次の復習の日を誰が決めるか**（`jevIntervalMode`）。
-     *
-     * 既定はアプリの式（FSRS、`srs.ts`。オーナー判断 2026-10-01「影の実行に戻す」）。
-     * Jev の答えは記録だけ（採点の後に聞くので、採点は Jev を待たない）。`live` のとき
-     * だけ、FSRS の日数を基準にして Jev の日数を柵の中に収める（`pickInterval`:
-     * 思い出せなかった語は FSRS の学び直しの日のまま、Jev の答えが無ければ FSRS のまま、
-     * FSRS の半分〜2倍まで）。`interval_days` 列は安定度 S そのもの（出す日 = S）なので、
-     * live で Jev の日数を入れると、その語の S は Jev の日数になる。
-     */
-    const lastMs = row.last_reviewed_at ? new Date(row.last_reviewed_at).getTime() : null;
-    const now = nowMs;
-    const daysSince = lastMs == null ? null : Math.round(((now - lastMs) / 86400_000) * 10) / 10;
-    const recalled = score >= LAPSE_SCORE;
-    const { jevIntervalMode, jevScheduleDays, logScheduleDecision, recordRecallShadow } =
-      await import("./jev-tasks.server");
-    const mode = await jevIntervalMode();
-    const scheduleArgs = {
+  // 読んだ時の期限のままの時だけ書く（同時に2回届いた時、後の方は0行になる）。
+  const updateQuery = supabase
+    .from("reviews")
+    .update({
+      ease: next.ease,
+      interval_days: next.interval_days,
+      repetitions: next.repetitions,
+      last_score: score,
+      last_reviewed_at: new Date(now).toISOString(),
+      due_at: dueAt,
+      blur_seen: row.blur_seen || data.blur_seen,
+    })
+    .eq("id", data.review_id)
+    .eq("user_id", userId);
+  const { data: updated, error: upErr } = await (
+    row.due_at ? updateQuery.eq("due_at", row.due_at) : updateQuery.is("due_at", null)
+  ).select("id");
+  if (upErr) {
+    console.error("[reviews] gradeReview: review update failed", {
+      reviewId: data.review_id,
+      message: upErr.message,
+    });
+    throw new GradeSaveError();
+  }
+  if (!updated || updated.length === 0) {
+    // 同じ答えが同時に2回届き、先の方がもう書いた（か、その間に札が消えた）。こちらは何も進めず、
+    // 先の方が書いた今の状態を返す。読めなければ、こちらで計算した値（どちらにしても進めていない）。
+    const { data: now2, error: reErr } = await readRow();
+    if (!reErr && !now2) return GONE;
+    return {
+      score: now2?.last_score ?? score,
+      next_due_at: (now2?.due_at as string | undefined) ?? dueAt,
+      interval_days: now2?.interval_days ?? next.interval_days,
+      duplicate: true,
+    };
+  }
+
+  /**
+   * 忘却曲線の記録。**落ちたら黙らない**（2026-10-01）— 前は失敗を見ていなかったので、
+   * 曲線と「今日やった枚数」が静かに欠けていた。1回だけやり直し、それでも駄目なら
+   * サーバの記録に残す（採点そのものは済んでいるので、利用者は止めない）。
+   */
+  const historyRow = {
+    user_id: userId,
+    review_id: data.review_id,
+    sticker_id: row.sticker_id,
+    score,
+    correct: data.correct,
+    blur_seen: data.blur_seen,
+    // 列は integer（2^31 − 1 ms ≒ 24 日）。開いたまま放っておいた札で記録が落ちないよう頭を打つ。
+    response_ms: Math.min(data.response_ms, MAX_RESPONSE_MS),
+    interval_days_after: next.interval_days,
+    ease_after: next.ease,
+    repetitions_after: next.repetitions,
+  };
+  let { error: histErr } = await supabase.from("review_history").insert(historyRow);
+  if (histErr) ({ error: histErr } = await supabase.from("review_history").insert(historyRow));
+  if (histErr) {
+    console.error("[reviews] review_history insert failed", {
       userId,
-      stickerId: row.sticker_id,
-      state: {
-        headword: "",
-        daysSinceLastReview: daysSince,
-        intervalDaysBefore: row.interval_days,
-        ease: row.ease,
-        repetitionsBefore: row.repetitions,
-        recalled,
-        score,
-        responseSeconds: data.response_ms > 0 ? Math.round(data.response_ms / 100) / 10 : null,
-      },
-    };
-    const jev =
-      mode === "live" && score >= LAPSE_SCORE
-        ? await jevScheduleDays(supabase as never, scheduleArgs)
-        : null;
-    const picked = pickInterval(srs.interval_days, jev?.days ?? null, score, LAPSE_SCORE);
-    // Jev（live）の日数も上限 180 日の中に収める（`MAX_INTERVAL_DAYS`。4択だけの証拠）。
-    const next = { ...srs, interval_days: Math.min(picked.days, MAX_INTERVAL_DAYS) };
-    const dueAt = new Date(now + next.interval_days * 86400 * 1000).toISOString();
+      reviewId: data.review_id,
+      message: histErr.message,
+    });
+  }
 
-    // 読んだ時の期限のままの時だけ書く（同時に2回届いた時、後の方は0行になる）。
-    const updateQuery = supabase
-      .from("reviews")
-      .update({
-        ease: next.ease,
-        interval_days: next.interval_days,
-        repetitions: next.repetitions,
-        last_score: score,
-        last_reviewed_at: new Date().toISOString(),
-        due_at: dueAt,
-        blur_seen: row.blur_seen || data.blur_seen,
-      })
-      .eq("id", data.review_id)
-      .eq("user_id", userId);
-    const { data: updated, error: upErr } = await (
-      row.due_at ? updateQuery.eq("due_at", row.due_at) : updateQuery.is("due_at", null)
-    ).select("id");
-    if (upErr) throw new Error(upErr.message);
-    if (!updated || updated.length === 0) {
-      // 同じ答えが同時に2回届き、先の方がもう書いた。こちらは何も進めない。
-      return {
-        score,
-        next_due_at: dueAt,
-        interval_days: next.interval_days,
-        duplicate: true,
-      };
-    }
-
-    /**
-     * 忘却曲線の記録。**落ちたら黙らない**（2026-10-01）— 前は失敗を見ていなかったので、
-     * 曲線と「今日やった枚数」が静かに欠けていた。1回だけやり直し、それでも駄目なら
-     * サーバの記録に残す（採点そのものは済んでいるので、利用者は止めない）。
-     */
-    const historyRow = {
-      user_id: userId,
-      review_id: data.review_id,
-      sticker_id: row.sticker_id,
-      score,
-      correct: data.correct,
-      blur_seen: data.blur_seen,
-      response_ms: data.response_ms,
-      interval_days_after: next.interval_days,
-      ease_after: next.ease,
-      repetitions_after: next.repetitions,
-    };
-    let { error: histErr } = await supabase.from("review_history").insert(historyRow);
-    if (histErr) ({ error: histErr } = await supabase.from("review_history").insert(historyRow));
-    if (histErr) {
-      console.error("[reviews] review_history insert failed", {
+  /**
+   * **記録**（待たない — 復習の返事を遅らせない）。
+   *  ・決めた間隔（Jev の日数・SM-2 の日数・使った日数）
+   *  ・答える**前**の状態だけで Jev が出した「いま思い出せるか」と、
+   *    このアプリの式の見込み・実際の正誤（較正を見るため）
+   * 鍵が無ければ何もしない。
+   */
+  // **返事の後も記録を落とさない**（2026-10-03 監査）。Workers は返事の後の `void …` を
+  // 待たずに止めてよいので、影の記録が黙って消えていた。`runAfterResponse` が
+  // `waitUntil` に預ける（採点の返事は待たせない。見つからない Workers では最大2秒待つ）。
+  const baseline = retentionNow(row.interval_days, row.ease, lastMs, now) / 100;
+  const shadowTasks: Array<() => Promise<unknown>> = [];
+  if (jev) {
+    shadowTasks.push(() =>
+      logScheduleDecision(supabase as never, {
         userId,
-        reviewId: data.review_id,
-        message: histErr.message,
-      });
-    }
-
-    /**
-     * **記録**（待たない — 復習の返事を遅らせない）。
-     *  ・決めた間隔（Jev の日数・SM-2 の日数・使った日数）
-     *  ・答える**前**の状態だけで Jev が出した「いま思い出せるか」と、
-     *    このアプリの式の見込み・実際の正誤（較正を見るため）
-     * 鍵が無ければ何もしない。
-     */
-    // **返事の後も記録を落とさない**（2026-10-03 監査）。Workers は返事の後の `void …` を
-    // 待たずに止めてよいので、影の記録が黙って消えていた。`runAfterResponse` が
-    // `waitUntil` に預ける（採点の返事は待たせない。見つからない Workers では最大2秒待つ）。
-    const baseline = retentionNow(row.interval_days, row.ease, lastMs, now) / 100;
-    const shadowTasks: Array<() => Promise<unknown>> = [];
-    if (jev) {
-      shadowTasks.push(() =>
-        logScheduleDecision(supabase as never, {
+        stickerId: row.sticker_id,
+        model: jev.model,
+        confidence: jev.confidence,
+        jevDays: jev.days,
+        srsDays: srs.interval_days,
+        usedDays: next.interval_days,
+        mode,
+      }),
+    );
+  } else if (mode === "shadow" && score >= LAPSE_SCORE) {
+    // 影の実行: 採点の後で Jev に聞き、答えを記録するだけ（予定は FSRS のまま）。
+    shadowTasks.push(() =>
+      jevScheduleDays(supabase as never, scheduleArgs).then((shadow) => {
+        if (!shadow) return;
+        return logScheduleDecision(supabase as never, {
           userId,
           stickerId: row.sticker_id,
-          model: jev.model,
-          confidence: jev.confidence,
-          jevDays: jev.days,
+          model: shadow.model,
+          confidence: shadow.confidence,
+          jevDays: shadow.days,
           srsDays: srs.interval_days,
           usedDays: next.interval_days,
           mode,
-        }),
-      );
-    } else if (mode === "shadow" && score >= LAPSE_SCORE) {
-      // 影の実行: 採点の後で Jev に聞き、答えを記録するだけ（予定は FSRS のまま）。
-      shadowTasks.push(() =>
-        jevScheduleDays(supabase as never, scheduleArgs).then((shadow) => {
-          if (!shadow) return;
-          return logScheduleDecision(supabase as never, {
-            userId,
-            stickerId: row.sticker_id,
-            model: shadow.model,
-            confidence: shadow.confidence,
-            jevDays: shadow.days,
-            srsDays: srs.interval_days,
-            usedDays: next.interval_days,
-            mode,
-          });
-        }),
-      );
-    }
-    shadowTasks.push(() =>
-      recordRecallShadow(supabase as never, {
-        userId,
-        stickerId: row.sticker_id,
-        outcome: recalled,
-        state: {
-          headword: "",
-          daysSinceLastReview: daysSince,
-          intervalDays: row.interval_days,
-          ease: row.ease,
-          repetitions: row.repetitions,
-          baselineRecall: Math.max(0, Math.min(1, baseline)),
-        },
+        });
       }),
     );
-    await runAfterResponse("review shadow log", () => Promise.all(shadowTasks.map((t) => t())));
+  }
+  shadowTasks.push(() =>
+    recordRecallShadow(supabase as never, {
+      userId,
+      stickerId: row.sticker_id,
+      outcome: recalled,
+      state: {
+        headword: "",
+        daysSinceLastReview: daysSince,
+        intervalDays: row.interval_days,
+        ease: row.ease,
+        repetitions: row.repetitions,
+        baselineRecall: Math.max(0, Math.min(1, baseline)),
+      },
+    }),
+  );
+  await runAfterResponse("review shadow log", () => Promise.all(shadowTasks.map((t) => t())));
 
-    return {
-      score,
-      next_due_at: dueAt,
-      interval_days: next.interval_days,
-      duplicate: false,
-      history_saved: !histErr,
-    };
-  });
+  return {
+    score,
+    next_due_at: dueAt,
+    interval_days: next.interval_days,
+    duplicate: false,
+    history_saved: !histErr,
+  };
+}
 
 // --- Forgetting curve data ---------------------------------------------------
 

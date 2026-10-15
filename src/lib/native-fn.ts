@@ -203,6 +203,8 @@ export function statusForError(e: unknown): number {
   if (name === "ZodError") return 400;
   // 送った値が使えない（`admin-ai.server.ts` の BadRequestError。知らない会社・鍵の無い会社 等）。
   if (name === "BadRequestError") return 400;
+  // いま保存できない（DB に届かない等。`review-grade-guard.ts` の GradeSaveError）— 少し待てば通る。
+  if (name === "ServiceUnavailableError") return 503;
   return 500;
 }
 

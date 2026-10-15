@@ -11,3 +11,22 @@ export function isAlreadyGraded(dueAt: string | null | undefined, nowMs: number)
   const due = new Date(dueAt).getTime();
   return Number.isFinite(due) && due > nowMs + 60_000;
 }
+
+/** 採点を保存できなかった時の文（日本語。iOS は日本語の画面でそのまま出し、ほかの言語では「もう一度」で自分の文に直す）。 */
+export const GRADE_SAVE_FAILED_MESSAGE =
+  "採点をいま保存できませんでした。少し待ってから、もう一度答えてください。";
+
+/**
+ * **採点を保存できなかった**（DB に届かない・書けない。2026-10-15）。`native-fn.ts` の `statusForError` が
+ * **503** にする — 前は PostgREST の英語の失敗をそのまま投げて 500 になり、iOS は「サーバーエラー（500）」としか
+ * 出せなかった。もう一度答えれば保存される種類の失敗（iOS は札を回の最後に戻す）。中身の理由はサーバの記録に残す。
+ */
+export class GradeSaveError extends Error {
+  override name = "ServiceUnavailableError";
+  constructor(message: string = GRADE_SAVE_FAILED_MESSAGE) {
+    super(message);
+  }
+}
+
+/** `review_history.response_ms` は integer。開いたまま放っておいた札（何日も）で記録が落ちないよう頭を打つ。 */
+export const MAX_RESPONSE_MS = 2_147_483_647;
