@@ -132,16 +132,19 @@ export function ensureTypedBasic<T extends TypedCandidate>(
 
 /**
  * 打った物の**表示言語の名前**（写真のタグと同じ `object_label`）。表示言語で打ったなら打った語そのもの
- * （表示言語の言葉として読める時）、学習言語で打ったなら1つ目の候補の意味の最初の言い方。
+ * （表示言語の言葉として読める時）、学習言語で打ったなら1つ目の候補の意味の最初の言い方 — 1つ目が表の基本の語
+ * なら表の名前（`rowTag`: 貓 → 猫。写真のタグと同じ `rowTagOf`）。
  */
 export function typedObjectLabel(
   query: string,
   mode: TypedQueryMode,
   common: { meaning_ja?: string; headword: string } | undefined,
   isReaderText: (text: string, headword: string) => boolean,
+  rowTag?: string | null,
 ): string {
   const q = query.trim().slice(0, 40);
   if (mode !== "learning" && q && isReaderText(q, common?.headword ?? "")) return q;
+  if (rowTag?.trim()) return rowTag.trim();
   const gloss = firstGloss(common?.meaning_ja ?? "");
   return gloss && isReaderText(gloss, common?.headword ?? "") ? gloss : "";
 }

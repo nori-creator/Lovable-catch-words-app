@@ -156,7 +156,7 @@ export const BASIC_LEVEL_RULE =
   `種類・品種・味・ブランドの名前（波斯菊・草莓蛋糕・柴犬・四角褲）は1つ目にせず、同じ group の specific に置く。` +
   `上位の分類語（植物・食物・動物・衣服）にも上げない。` +
   `\n例（common → specific）: コスモスの花束 → 花 → 波斯菊・花束 / イチゴのショートケーキ → 蛋糕 → 草莓蛋糕・鮮奶油蛋糕 / ` +
-  `柴犬 → 狗 → 柴犬 / ボクサーパンツ → 內褲 → 平口褲・四角褲 / 木の椅子 → 椅子 → 木椅。` +
+  `柴犬 → 狗 → 柴犬 / キジトラの猫 → 貓 → 虎斑貓 / ボクサーパンツ → 內褲 → 平口褲・四角褲 / 木の椅子 → 椅子 → 木椅。` +
   `\n**細かい名前しか思いつかない物にも、その上の基本の語を common として必ず足して1つ目に置く。**` +
   `料理の名前（三杯雞・牛肉麵）や服の種類（短袖・T恤）のように、その名前自体がふだんの呼び名の物はそのままでよい。`;
 
@@ -187,7 +187,10 @@ export function glossesOf(meaning: string | null | undefined): string[] {
  * （オーナー決定 2026-10-15: ボクサーパンツの写真のタグは「下着」、タップすると 內褲。同日の不具合:
  * ケーキのタグをタップすると 草莓蛋糕 だった —「ショートケーキが草莓蛋糕だよね」）。
  *
- * - タグは1つ目の候補の意味の言い方のどれか。AI が付けた `label` がその中に在ればそれ（「パンツ、下着」と
+ * - 1つ目が表の基本の語（貓・狗・內褲… `basic-level.ts`）なら、タグは表の表示言語の名前（猫 / cat / 貓）—
+ *   呼ぶ側が `rowTag` で渡す。基本の語の名前は表が知っているので、AI の label・意味の書き間違い（2026-10-15:
+ *   貓 に「犬」）をタグにしない。
+ * - それ以外は1つ目の候補の意味の言い方のどれか。AI が付けた `label` がその中に在ればそれ（「パンツ、下着」と
  *   label「下着」→「下着」）、無ければ意味の最初の言い方。読む人の言語でなければ空（画面は見出し語を出す）。
  * - **候補の意味は書き換えない**（#184 は1つ目の意味をタグに書き換えていて、草莓蛋糕 の意味が「ケーキ」に
  *   なった）。タグに合う基本の語（蛋糕 = ケーキ）が候補に無い時は、先に `ensureBasicLevel` が足す。
@@ -201,6 +204,8 @@ export function applyObjectLabels<
   items: readonly T[],
   /** 読む人の言語の言葉か（`common` = その物の1つ目の候補。見出し語の写しを落とすのに使う）。 */
   isReaderText: (text: string, common: T) => boolean,
+  /** 1つ目の候補が表の基本の語なら、そのタグ（`rowTagOf`）。無ければ `null`（意味から選ぶ）。 */
+  rowTag?: (common: T) => string | null | undefined,
 ): Array<Omit<T, "label"> & { object_label: string }> {
   const groups = new Map<string, T[]>();
   for (const it of items) {
@@ -211,6 +216,11 @@ export function applyObjectLabels<
   const labelOf = new Map<string, string>();
   for (const [key, list] of groups) {
     const common = list[0];
+    const fixed = rowTag?.(common)?.trim();
+    if (fixed) {
+      labelOf.set(key, fixed);
+      continue;
+    }
     const glosses = glossesOf(common.meaning_ja).filter((g) => isReaderText(g, common));
     const fromModel = list
       .map((c) => firstGloss(c.label ?? ""))
@@ -235,7 +245,9 @@ export function objectLabelRule(nl: string): string {
     `種類・品種・味・ブランドの名前、説明、上位の分類語（植物・食べ物・衣類）にしない。` +
     `例: ボクサーパンツ → label「下着」（內褲の訳。英語なら underwear。「ボクサーパンツ」「パンツ」「男性用の下着」にしない）/ ` +
     `コスモスの花束 → 「花」（「コスモス」「花束」にしない）/ イチゴのショートケーキ → 「ケーキ」（「ストロベリーケーキ」` +
-    `「イチゴのケーキ」にしない）/ 柴犬 → 「犬」/ 木の椅子 → 「椅子」。` +
-    `label と common の語は同じ物を指す（蛋糕 ↔ ケーキ、花 ↔ 花）。common の候補の meaning_ja も label と同じ言い方から始める。`
+    `「イチゴのケーキ」にしない）/ 柴犬 → 「犬」/ キジトラの猫 → 「猫」/ 木の椅子 → 「椅子」。` +
+    `label と common の語は同じ物を指す（蛋糕 ↔ ケーキ、花 ↔ 花）。common の候補の meaning_ja も label と同じ言い方から始める。` +
+    `**label と meaning_ja は、その写真の物の common の headword そのものを${nl}に訳した語**（上の例の語を写さない。` +
+    `例: 貓 → 日本語「猫」・英語 cat、狗 → 日本語「犬」・英語 dog）。`
   );
 }

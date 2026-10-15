@@ -280,8 +280,10 @@ export const detectScan = createServerFn({ method: "POST" })
     // 自動で貯まる共有辞書: AIが今調べた読み・意味を蓄積(fire-and-forget)。
     // 次のスキャンからは辞書ヒット=AI再問い合わせゼロで即表示になる。
     // ついでに1日1回の自己改善(辞書監査+ニュースコーパス観察)も起動。
-    void import("./lexicon.server").then((m) => {
-      void m.learnLexiconEntries(parsed.items);
+    // 意味は読む人の言語で返ってくる。日本語だけが辞書の `meaning_ja`、ほかの言語は `meanings[言語]`（2026-10-15）。
+    void import("./lexicon.server").then(async (m) => {
+      const { getExplanationLanguage } = await import("./ai-provider.server");
+      void m.learnLexiconEntries(parsed.items, await getExplanationLanguage(userId));
       void m.maybeRunDailySelfImprovement(userId);
     });
 
@@ -390,9 +392,11 @@ export const detectParts = createServerFn({ method: "POST" })
       parsed.items.filter((it) => isNounLike(it.pos)),
       partsTarget,
     );
-    void import("./lexicon.server").then(({ learnLexiconEntries }) =>
-      learnLexiconEntries(parsed.items),
-    );
+    // 意味は読む人の言語（日本語だけが辞書の `meaning_ja`。上の `detectScan` と同じ）。
+    void import("./lexicon.server").then(async ({ learnLexiconEntries }) => {
+      const { getExplanationLanguage } = await import("./ai-provider.server");
+      return learnLexiconEntries(parsed.items, await getExplanationLanguage(context.userId));
+    });
 
     // Also log parts into scan_events so recollection notifications can surface them.
     if (parsed.items.length > 0) {
