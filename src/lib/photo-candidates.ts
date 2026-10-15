@@ -1,6 +1,6 @@
 import { normalizeCategory, shareCategoryWithinGroups } from "./category";
 import { applyObjectLabels, finalizeNameRegisters } from "./candidate-register";
-import { ensureBasicLevel } from "./basic-level";
+import { alignRowMeanings, ensureBasicLevel, rowTagOf } from "./basic-level";
 import { fitSuggestionsToReader } from "./first-catch-meaning";
 import { shortMeaning } from "./meaning-rule";
 import { readerText } from "./note-language";
@@ -35,7 +35,9 @@ export type ReadingCheck = <T extends { pinyin?: string; reading_zhuyin?: string
  * 1. 全部の候補に印を付け、物ごとに 一般的 → 口語 → より詳しい → 学術的 → 固有名詞 に並べる（`finalizeNameRegisters`）。
  * 2. 物の1つ目は基本の名詞（波斯菊 → 花、草莓蛋糕 → 蛋糕。`ensureBasicLevel`、2026-10-15）。
  * 3. 意味は読む人の言語・語の長さに。読みを検め、分類は見出し語の規則で直し、同じ物の別の呼び方から借りる。
- * 4. タグ（`object_label`）は物の1つ目の候補の本当の意味の言い方（`applyObjectLabels`）。**意味は書き換えない。**
+ * 4. 表の基本の語の意味は、その語の物の意味だけ（貓 に「犬」と返ってきても「猫」。`alignRowMeanings`、2026-10-15）。
+ * 5. タグ（`object_label`）は物の1つ目の候補の本当の意味の言い方。1つ目が表の基本の語なら表の名前（猫 / cat / 貓。
+ *    `applyObjectLabels` + `rowTagOf`）。**細かい語の意味は書き換えない。**
  */
 export function finishPhotoCandidates<T extends PhotoSuggestion>(
   usable: readonly T[],
@@ -51,10 +53,14 @@ export function finishPhotoCandidates<T extends PhotoSuggestion>(
     meaning_ja: shortMeaning(s.meaning_ja),
     category_key: normalizeCategory(s.headword, s.category_key),
   }));
+  // 基本の語の意味を表で確かめる（別の物の名前・細かい名前・空 → 表の名前。細かい語は別の物の名前なら空）。
+  const aligned = alignRowMeanings(fitted, reader, targetLanguage);
   // 同じ物の別の呼び方から分類を借りる（波斯菊が "other" でも、同じ物の 花 が flower なら flower）。
-  const categorized = shareCategoryWithinGroups(fitted);
-  return applyObjectLabels(categorized, (text, common) =>
-    isReaderTagText(text, reader, common.headword),
+  const categorized = shareCategoryWithinGroups(aligned);
+  return applyObjectLabels(
+    categorized,
+    (text, common) => isReaderTagText(text, reader, common.headword),
+    (common) => rowTagOf(common.headword, reader, targetLanguage),
   );
 }
 

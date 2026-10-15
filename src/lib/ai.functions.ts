@@ -114,6 +114,7 @@ import {
   typedQueryMode,
   withTypedLabels,
 } from "./typed-candidates";
+import { alignRowMeanings, rowTagOf } from "./basic-level";
 import {
   REGEN_SECTIONS,
   isNotGeneratedSection,
@@ -1119,16 +1120,25 @@ ${langRule}
     // （書き言葉・専門の形を1つ目にしない）、日本語で「犬」と打ったら 狗 が1つ目（`typed-candidates.ts`）。
     // 学習言語で打った語は、打った語のまま1つ目（並べ替えない）。
     const registered = finalizeNameRegisters(listed);
-    const ranked = ensureTypedBasic(
-      mode === "learning" ? registered : preferEverydayCommon(registered),
-      data.query,
-      mode,
+    // 表の基本の語の意味は、その語の物の意味だけ（写真の候補と同じ確かめ。貓 に「犬」を出さない）。
+    const ranked = alignRowMeanings(
+      ensureTypedBasic(
+        mode === "learning" ? registered : preferEverydayCommon(registered),
+        data.query,
+        mode,
+        reader,
+        data.targetLanguage,
+      ),
       reader,
       data.targetLanguage,
     );
     // 打った物の表示言語の名前（写真のタグと同じ `object_label`）と、候補ごとの短い意味（`gloss`）。
-    const objectLabel = typedObjectLabel(data.query, mode, ranked[0], (text, headword) =>
-      isReaderTagText(text, reader, headword),
+    const objectLabel = typedObjectLabel(
+      data.query,
+      mode,
+      ranked[0],
+      (text, headword) => isReaderTagText(text, reader, headword),
+      ranked[0] ? rowTagOf(ranked[0].headword, reader, data.targetLanguage) : null,
     );
     const candidates = withTypedLabels(ranked, objectLabel);
     await recordCandidateReceipts(candProfile.code, candidates);
@@ -1709,24 +1719,29 @@ ${data.hintCategory && data.hintCategory !== "other" ? `カテゴリのヒント
     const level = resolveLevel({ scale: cardProfile.levels, dictStep, aiLevel: card.level });
     // 入力キャッチ・派生キャッチで生まれた語も共有辞書に蓄積(SNS/日常語彙)。
     void import("./lexicon.server").then(({ learnLexiconEntries }) =>
-      learnLexiconEntries([
-        {
-          headword: resolvedHead,
-          zhuyin: card.reading_zhuyin,
-          pinyin: card.pinyin,
-          meaning_ja: card.meaning_ja,
-          pos: card.part_of_speech,
-          // **地の文を入れない。** ここは制約付きの列で、
-          // `usage_context`(「スーパーや夜市でよく見かける」)を直に入れていた。
-          // 一括 upsert なので、その1行のせいで**その回の語が1つも入らない**。
-          taiwan_usage: taiwanUsageFrom({
-            registerTag: card.extras?.register_tag,
-            frequencyLevel: card.extras?.frequency_level,
-            prose: card.extras?.usage_context || card.extras?.common_situation,
-          }),
-          notes: card.extras?.usage_context || card.extras?.common_situation || null,
-        },
-      ]),
+      learnLexiconEntries(
+        [
+          {
+            headword: resolvedHead,
+            zhuyin: card.reading_zhuyin,
+            pinyin: card.pinyin,
+            meaning_ja: card.meaning_ja,
+            pos: card.part_of_speech,
+            // **地の文を入れない。** ここは制約付きの列で、
+            // `usage_context`(「スーパーや夜市でよく見かける」)を直に入れていた。
+            // 一括 upsert なので、その1行のせいで**その回の語が1つも入らない**。
+            taiwan_usage: taiwanUsageFrom({
+              registerTag: card.extras?.register_tag,
+              frequencyLevel: card.extras?.frequency_level,
+              prose: card.extras?.usage_context || card.extras?.common_situation,
+            }),
+            notes: card.extras?.usage_context || card.extras?.common_situation || null,
+          },
+        ],
+        // 意味は読む人の言語。日本語だけが `meaning_ja`、ほかの言語は `meanings[言語]`（英語の表示で作った
+        // 虎斑貓 の「tabby cat」が日本語の辞書の意味になっていた、2026-10-15）。
+        explainLang,
+      ),
     );
     /**
      * **「その他」に逃げたときだけ** Jev に棚を聞く（`jev-tasks.server.ts`）。

@@ -42,8 +42,17 @@ export type LexiconCandidate = {
 
 const CJK_ONLY = /^[㐀-鿿\u{20000}-\u{2FFFF}]{1,8}$/u;
 
-export async function learnLexiconEntries(candidates: LexiconCandidate[]): Promise<void> {
+/**
+ * `meaningLang` = 意味（`meaning_ja` に入れて渡す欄）の言語 = 読む人の言語。**日本語だけが古い列 `meaning_ja` に入る**。
+ * 英語・繁體中文で読む人の意味は `meanings[言語]` に入れる（2026-10-15: 英語の表示で作ったカードの「tabby cat」が
+ * `meaning_ja` に入り、日本語で読む人の辞書の意味になっていた — `resolveDictionaryFields` は日本語で `meaning_ja` を読む）。
+ */
+export async function learnLexiconEntries(
+  candidates: LexiconCandidate[],
+  meaningLang: string = "ja",
+): Promise<void> {
   try {
+    const japanese = meaningLang === "ja";
     const rows = candidates
       .filter(
         (c) =>
@@ -54,7 +63,8 @@ export async function learnLexiconEntries(candidates: LexiconCandidate[]): Promi
         headword: c.headword,
         zhuyin: c.zhuyin!,
         pinyin: c.pinyin || null,
-        meaning_ja: c.meaning_ja!,
+        meaning_ja: japanese ? c.meaning_ja! : null,
+        ...(japanese ? {} : { meanings: { [meaningLang]: c.meaning_ja! } }),
         pos: c.pos || null,
         taiwan_usage: c.taiwan_usage ?? null,
         notes: c.notes?.trim() || null,
