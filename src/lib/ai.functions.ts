@@ -1,6 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
 import { meaningRule, distinctionRule, shortMeaning, withShortMeaning } from "@/lib/meaning-rule";
-import { mnemonicRule } from "@/lib/mnemonic-rule";
 import { DEFAULT_TARGET_LANGUAGE } from "./target-lang";
 import {
   hasSection as profileHasSection,
@@ -14,7 +13,12 @@ import { generateText, type LanguageModelUsage } from "ai";
 import { z } from "zod";
 import { pickReportedItem, reportContext } from "@/lib/report-locate";
 import { CATEGORY_CHOICE_RULES_JA, CATEGORY_KEYS, ROOM_KEYS, normalizeCategory } from "./category";
-import { NAME_REGISTER_RULE, finalizeNameRegisters } from "./candidate-register";
+import {
+  NAME_REGISTER_RULE,
+  applyObjectLabels,
+  finalizeNameRegisters,
+  objectLabelRule,
+} from "./candidate-register";
 import {
   ConjugationRowSchema,
   CounterSchema,
@@ -85,11 +89,12 @@ import {
 import { taiwanUsageFrom } from "./taiwan-usage";
 import {
   REGEN_SECTIONS,
+  isNotGeneratedSection,
   sectionNeedsFill,
   type RegenSection,
   type SectionId,
 } from "./card-sections";
-import { stripUnrequested, wantsSection } from "./card-request";
+import { stripNotGenerated, stripUnrequested, wantsSection } from "./card-request";
 import {
   consensusFixPatch,
   dictionaryFixPatch,
@@ -165,6 +170,11 @@ const SuggestionSchema = z.object({
          * （前は `z.enum` の外の値が黙って消え、iOS に印が出なかった）。
          */
         register: z.string().nullable().optional().catch(undefined),
+        /**
+         * **写っている物の表示言語の一般的な呼び名**（写真のタグ、2026-10-15）。物の1つ目の候補にだけ付く。
+         * 返事では `object_label` に直して物の全部の候補に配る（`applyObjectLabels`）。
+         */
+        label: z.string().nullable().optional().catch(undefined),
         /**
          * **写真のどの物か**の番号（2026-09-27）。写っている別々の物に 0,1,2…、
          * 同じ物の別の呼び方には同じ番号。画面はこれで1段目（物ごとに1語）と
@@ -421,20 +431,30 @@ function finishPhotoCandidates(
 ) {
   // 全部の候補に印を付け、物ごとに 一般的 → 口語 → より詳しい → 学術的 → 固有名詞 に並べる。
   // 物の1つ目（写真のタグ）は必ず一般的な言い方（`candidate-register.ts`）。
-  return fitSuggestionsToReader(finalizeNameRegisters(usable), reader, targetLanguage).map((s) => ({
-    // 候補の読みも検める（`tw-reading.server.ts`）。
-    ...correctTaiwanReading(targetLanguage, s.headword, s),
-    // 候補の意味も語の長さに（R17「湯咖哩の英語の単語の候補…が長すぎる」）。
-    meaning_ja: shortMeaning(s.meaning_ja),
-    category_key: normalizeCategory(s.headword, s.category_key),
-  }));
+  const fitted = fitSuggestionsToReader(finalizeNameRegisters(usable), reader, targetLanguage).map(
+    (s) => ({
+      // 候補の読みも検める（`tw-reading.server.ts`）。
+      ...correctTaiwanReading(targetLanguage, s.headword, s),
+      // 候補の意味も語の長さに（R17「湯咖哩の英語の単語の候補…が長すぎる」）。
+      meaning_ja: shortMeaning(s.meaning_ja),
+      category_key: normalizeCategory(s.headword, s.category_key),
+    }),
+  );
+  // タグ（写っている物の名前）は、その物の1つ目（common）の候補の表示言語の一般的な言い方（2026-10-15）。
+  return applyObjectLabels(fitted, (text, common) => !!readerText(text, reader, common.headword));
 }
 
 /**
  * **撮った後の候補の指示文**（本番の `suggestWords` と、開発者の「固定の写真で試す」
  * — `adminTestPhotoCandidates` — が同じ物を使う。試しの結果が本番の指示と食い違わないように）。
  */
-function photoCandidatesInstruction(targetLanguage: string, levelGoal: string, langRule: string) {
+function photoCandidatesInstruction(
+  targetLanguage: string,
+  levelGoal: string,
+  langRule: string,
+  /** 解説の言語（写真のタグの言葉。`objectLabelRule`）。 */
+  reader: Parameters<typeof explanationLanguageName>[0],
+) {
   const profile = targetProfile(targetLanguage);
   // **JLPT は数字の向きが逆**(N5 が入門)。数字を拾うと N5 の人が「上位」になり、
   // 専門の名前ばかり出る。JLPT だけは段(N5→1 … N1→5)で読む。
@@ -483,6 +503,7 @@ ${langRule}
 - 同じ物に別の呼び方（より詳しい名前・学術的な名前・固有名詞・**口語（略語・くだけた言い方）**など）があれば、
   **同じ group の番号で**続けて出す。別の呼び方が無い物は1つだけでよい。無理に作らない。
 - ${NAME_REGISTER_RULE}
+- ${objectLabelRule(explanationLanguageName(reader))}
 - 物は最大5つ、1つの物の呼び方は最大3つ。
 - 物ごとに、その物の**最初の呼び方**に box_2d を付ける: 写真の中でその物を囲む枠を
   [ymin, xmin, ymax, xmax]（0〜1000、写真の左上が原点）で。同じ group の2つ目以降の呼び方には付けなくてよい。
@@ -502,7 +523,7 @@ ${distinctionRule(profile.promptName, profile.capture.distinctionExamples)}
   候補の画面は横に動かないので、長い文は読まれない（オーナー指示 2026-09-28
   「単語の説明が長すぎて、横にスクロールしないと見れないことがある。長すぎる文はなしで」）。`;
 
-  const instruction = `${prompt}\n\n必ずJSONだけを返してください。**${profile.promptName}の語を出す。他の言語の語を混ぜない。**\n形式: {"suggestions":[{"headword":"${profile.capture.jsonHeadwordHint}",${profile.capture.jsonReadingHint},"meaning_ja":"意味(上で指定した解説の言語で)","distinction":"使い分けの一言","category_key":"${CATEGORY_KEYS.join("|")} のどれか","register":"common|colloquial|specific|academic|proper のどれか","group":0,"box_2d":[ymin,xmin,ymax,xmax]}]}。**確からしい順に並べ**、物は3〜5つ返してください(無理に5つに埋めない — 写っていない物を足すぐらいなら少なくてよい)。同じ物の別の呼び方は同じ group で。`;
+  const instruction = `${prompt}\n\n必ずJSONだけを返してください。**${profile.promptName}の語を出す。他の言語の語を混ぜない。**\n形式: {"suggestions":[{"headword":"${profile.capture.jsonHeadwordHint}",${profile.capture.jsonReadingHint},"meaning_ja":"意味(上で指定した解説の言語で)","distinction":"使い分けの一言","category_key":"${CATEGORY_KEYS.join("|")} のどれか","register":"common|colloquial|specific|academic|proper のどれか","label":"写っている物の一般的な呼び名(解説の言語・物の1つ目の候補だけ)","group":0,"box_2d":[ymin,xmin,ymax,xmax]}]}。**確からしい順に並べ**、物は3〜5つ返してください(無理に5つに埋めない — 写っていない物を足すぐらいなら少なくてよい)。同じ物の別の呼び方は同じ group で。`;
   return { profile, instruction };
 }
 
@@ -558,6 +579,7 @@ export const suggestWords = createServerFn({ method: "POST" })
       data.targetLanguage,
       levelGoal,
       langRule,
+      reader,
     );
     /**
      * **1番手が遅い時は2番手を並べて追いかける**（`ai-attempts.ts`、チュートリアルと同じ）。
@@ -725,7 +747,12 @@ export const adminTestPhotoCandidates = createServerFn({ method: "POST" })
       getExplanationLanguage(context.userId),
       loadReadingCheck(),
     ]);
-    const { instruction } = photoCandidatesInstruction(data.targetLanguage, levelGoal, langRule);
+    const { instruction } = photoCandidatesInstruction(
+      data.targetLanguage,
+      levelGoal,
+      langRule,
+      reader,
+    );
     const thinkingOff = data.thinking === "off" ? claude5ThinkingOff(target.label) : null;
     const started = Date.now();
     let heads: string[] = [];
@@ -1045,8 +1072,8 @@ export const generateCard = createServerFn({ method: "POST" })
     // 前は 10 回の往復を1つずつ待っていた（ほとんどが同じ profiles の行）。枠の確保が
     // 断られたら、ここで止まる（AI は呼ばない）。
     // 級は現在と目標の両方を読む（例文は「現在の級で読める・目標の級まで」— `exampleLevelRule`）。
-    const [ai, , levels, levelRule, langRule, explainLang, l1, l1Gram, l1Info, pro] =
-      await Promise.all([
+    const [ai, , levels, levelRule, langRule, explainLang, l1Gram, l1Info, pro] = await Promise.all(
+      [
         getAiFor("card", "card"),
         assertWithinDailyCap(context.userId, "card"),
         getUserLevels(context.userId),
@@ -1056,15 +1083,14 @@ export const generateCard = createServerFn({ method: "POST" })
         // 指示が langRule と矛盾し、英語設定でも日本語の解説が返っていた。
         // 説明文の言語名をここで差し替えて矛盾を無くす。
         getExplanationLanguage(context.userId),
-        // 発音のコツは**母語ごとに全く変わる**(有気音が無い/そり舌が無い等)。
-        // 設定の母語から具体的な干渉項目を流し込む。
-        l1Rule(context.userId, "pronunciation"),
+        // 発音のコツ（母語ごとの干渉の表）はもう作らない（2026-10-15、`NOT_GENERATED_SECTIONS`）。
         // 語順・量詞・「的」の位置などは母語で崩れ方が違う。例文とチャンクを
         // 「その母語話者が実際に間違える所」に寄せるため、文法側も渡す。
         l1Rule(context.userId, "wordorder"),
         getLearnerL1(context.userId),
         isProUser(context.userId),
-      ]);
+      ],
+    );
     const cardPreMs = Date.now() - cardStartedAt;
     const levelGoal = levels.goal;
     // **3つある表示言語を2つに潰さない。** ここは
@@ -1192,7 +1218,6 @@ ${l1Gram}`
   **迷ったら空文字にする。** 誤って限定と書くほうが、書かないより害が大きい
 ${want("related_words") ? `- related_words: 類義語(kind:"syn")2〜3・反義語(kind:"ant")0〜2・関連語(kind:"rel")2〜5 の配列。**反義語が無い語(物の名前など)は無理に作らず、その語を使うときに一緒によく使う語を関連語で出す**（例: ${cardProfile.capture.relatedExample}）。各 {word:${cardProfile.promptName}の語, kind, note:使い分け・関係の短い説明(${NL}), reading:その語の${cardReadingNames.primary}${cardReadingNames.alt ? `, reading_alt:その語の${cardReadingNames.alt}` : ""}}。類義語の note には「${data.headword}」とのニュアンスの違いを必ず書く。**note は全部の語に必ず${NL}で書く**${sameLanguage(explainLang, cardProfile.code) ? "" : `。**${cardProfile.promptName}で書かない**(${cardProfile.promptName}なのは word/reading だけ。${cardProfile.promptName}の note は読めないので捨てられ、解説の無い語だけが残る)`}。**reading を空にしない** — 読めない語を並べても覚えられない` : ""}
 ${wantMeasure ? `- measure_words: **名詞の場合のみ**、その名詞に使う量詞を1〜3個 {word:"一張"のように数字1つき繁体字, zhuyin:注音, pinyin:拼音, note:いつその量詞を使うか(複数ある場合は使い分けを短く、${NL}で)}。名詞でなければ空配列。**note を中国語で書かない** — 中国語なのは word/zhuyin/pinyin だけ` : ""}
-${want("pronunciation_tips") ? `- pronunciation_tips: **${learnerL1}が${cardProfile.promptName}でつまずくポイントに絞った発音アドバイス**（2〜3文、${NL}）。\n${l1}\n  ${cardProfile.capture.pronunciationFocus}と、上の干渉項目のうち**この語に実際に当てはまるものだけ**を具体的に書く` : ""}
 ${want(noteSection) ? `- ${cardProfile.capture.noteField}: ${cardProfile.capture.noteRule}（${NL}）` : ""}${jaLines ? `\n${jaLines}` : ""}
 ${
   want("etymology")
@@ -1202,7 +1227,6 @@ ${cardProfile.capture.relativesRule ? `- etymology_relatives: ${cardProfile.capt
 ${etymologyDiagramRule(cardProfile.code, NL)}`
     : ""
 }
-${want("mnemonic") ? `- mnemonic: ${mnemonicRule(data.targetLanguage, l1Info.code, NL)}` : ""}
 
 ${data.hintCategory ? `カテゴリのヒント: ${data.hintCategory}` : ""}`;
 
@@ -1236,11 +1260,9 @@ ${data.hintCategory ? `カテゴリのヒント: ${data.hintCategory}` : ""}`;
         wantOwn("counters") && "counters[{word,reading,note}]",
         wantOwn("pitch_accent") && "pitch_accent",
         wantOwn("word_origin") && "word_origin",
-        want("pronunciation_tips") && "pronunciation_tips",
         want(noteSection) && cardProfile.capture.noteField,
         want("etymology") &&
           "etymology, radicals, etymology_diagram{kind,parts:[{text,components,meaning}],result_meaning,source,note}",
-        want("mnemonic") && "mnemonic",
       ]
         .filter(Boolean)
         .join(", ") +
@@ -1446,7 +1468,6 @@ ${data.hintCategory ? `カテゴリのヒント: ${data.hintCategory}` : ""}`;
                 want("usage_chunks") && "usage_chunks",
                 "usage_context",
                 want("related_words") && "related_words",
-                want("pronunciation_tips") && "pronunciation_tips",
                 want(noteSection) && cardProfile.capture.noteField,
               ]
                 .filter(Boolean)
@@ -1635,9 +1656,12 @@ ${data.hintCategory ? `カテゴリのヒント: ${data.hintCategory}` : ""}`;
       // 返ってきた物のほうを見る(`src/lib/note-language.ts`)。
       extras: {
         // 頼まなかった節の欄は落とす（空の欄で共有の語を上書きしない）。
-        ...stripUnrequested(
-          scrubForReader(scrubForeignNotes(card.extras ?? {}, explainLang), explainLang),
-          data.sections,
+        // もう作らない節（発音のコツ・覚え方）の欄も落とす（`stripNotGenerated`）。
+        ...stripNotGenerated(
+          stripUnrequested(
+            scrubForReader(scrubForeignNotes(card.extras ?? {}, explainLang), explainLang),
+            data.sections,
+          ),
         ),
         // **辞書の事実で上書きする。** AI が書いた物より後に置く。
         exam_tags: examTags,
@@ -2088,6 +2112,13 @@ async function runSectionRegen(
   mode: "write" | "propose",
 ): Promise<{ ok: true; section: RegenSection; filled: boolean; proposal?: SectionProposal }> {
   const { supabase, userId } = context;
+  /**
+   * **発音のコツ・覚え方はもう作らない**（オーナー決定 2026-10-15、`NOT_GENERATED_SECTIONS`）。
+   * iOS 1.0.0 など古い版が空の節を埋めに来ても、AI・枠・Pro の確認なしにすぐ空で返す。
+   */
+  if (isNotGeneratedSection(data.section)) {
+    return { ok: true, section: data.section, filled: false };
+  }
   const {
     isProUser: proCheck,
     levelInstruction: lvl,
@@ -2182,7 +2213,6 @@ async function runSectionRegen(
   // 表示言語は3つある(2026-08-25)。`=== "en" ? … : "日本語"` と書くと、
   // 台湾の人の解説だけが黙って日本語で作られる。呼び名の表は1つ。
   const NL = explanationLanguageName(regenLang);
-  const l1Pron = await l1Rule(userId, "pronunciation");
   // 語順・コロケーション側にも母語を渡す。単体で作り直したときも
   // 一括生成(generateCard)と同じ観点になるようにする。
   const l1Gram = await l1Rule(userId, "wordorder");
@@ -2320,8 +2350,9 @@ async function runSectionRegen(
           .min(1),
       }),
     },
+    // 発音のコツ・覚え方はもう作らない（`NOT_GENERATED_SECTIONS`）。上で AI を呼ばずに返すので、ここには来ない。
     pronunciation_tips: {
-      prompt: `${base}\n${learnerL1}が「${head}」の発音でつまずくポイントに絞ったアドバイス2〜3文(${NL})。\n${l1Pron}\nこの語に実際に当てはまるものだけを具体的に。\n{"pronunciation_tips":""}`,
+      prompt: "",
       schema: z.object({ pronunciation_tips: z.string().min(1) }),
     },
     etymology: {
@@ -2348,7 +2379,7 @@ async function runSectionRegen(
         })),
     },
     mnemonic: {
-      prompt: `${base}\n${mnemonicRule(word.language as string | null, regenL1.code, NL)}\n{"mnemonic":""}`,
+      prompt: "",
       schema: z.object({ mnemonic: z.string().min(1) }),
     },
     taiwan_note: {
@@ -2589,6 +2620,10 @@ export const regenerateCardSection = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) => RegenInput.parse(input))
   .handler(async ({ context, data }) => {
+    // もう作らない節（発音のコツ・覚え方）は、同意の確認も回数の記録もせずにすぐ空で返す。
+    if (isNotGeneratedSection(data.section)) {
+      return { ok: true, section: data.section, filled: false };
+    }
     // 外部の AI へ送る前の同意（`ai-consent.ts`）。無ければ何も送らずに断る。
     await (await import("./ai-consent.server")).assertAiConsent(context.userId);
     const r = await runSectionRegen(context, data, "write");

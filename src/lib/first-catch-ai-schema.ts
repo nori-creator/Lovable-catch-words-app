@@ -45,6 +45,8 @@ export const FirstCatchSuggestionsSchema = z.object({
           (v) => normalizeNameRegister(v) ?? undefined,
           z.enum(NAME_REGISTERS).catch("common"),
         ),
+        /** 写真のタグ（表示言語の一般的な呼び名、2026-10-15）。チュートリアルは意味の最初の言い方を使うので空でよい。 */
+        object_label: z.string().catch("").default(""),
       }),
     )
     // **0件も形としては正しい**（暗い・何も写っていない写真）。0件を形の誤りとして

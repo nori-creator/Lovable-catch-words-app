@@ -80,6 +80,20 @@ export const RETIRED_SECTIONS: readonly SectionId[] = [
 ];
 
 /**
+ * **サーバがもう作らない節**（オーナー決定 2026-10-15「発音のコツと覚え方はサーバで作らない」）。
+ *
+ * カード生成の指示から外し（トークンを使わない）、節ごとの作り直し（`regenerateCardSection`）は AI を呼ばずに
+ * 空で返す。iOS 1.0.0 など古い版は空の節を自動で埋めに来るので、口は残したまま何もしない。
+ * `sectionNeedsFill` も「埋める必要なし」と答える（作り直しの引き金にしない）。保存済みのカードの中身は消さない。
+ */
+export const NOT_GENERATED_SECTIONS: readonly SectionId[] = ["pronunciation_tips", "mnemonic"];
+
+/** サーバがもう作らない節か（`NOT_GENERATED_SECTIONS`）。 */
+export function isNotGeneratedSection(id: string): boolean {
+  return (NOT_GENERATED_SECTIONS as readonly string[]).includes(id);
+}
+
+/**
  * その学習言語のカードに出る節を、**その言語の並び順で**返す。
  *
  * 出所は `target-profile.ts` の `sections` ただ1つ。画面の既定の並びも、
@@ -319,6 +333,8 @@ export function relatedWordsLackNotes(extras: WordExtrasDTO | null | undefined):
  * 永久に直らない節になる — `sectionHasContent` の注と同じ理由）。
  */
 export function sectionNeedsFill(id: SectionId, input: SectionContentInput): boolean {
+  // サーバがもう作らない節（発音のコツ・覚え方）は、空でも埋めに行かない。
+  if (isNotGeneratedSection(id)) return false;
   // 「1つの場面でしか使わない語」（`example_pattern_count === 1`、2026-10-15）は追加の例文が無いのが正しい。
   // 描く物は無い（`sectionHasContent` は false のまま）が、作り直しにも行かない — 行くと場面を水増しした例文が入る。
   if (id === "examples_extra" && input.extras?.example_pattern_count === 1) return false;

@@ -2,7 +2,9 @@ import { describe, expect, it } from "vitest";
 import {
   NAME_REGISTERS,
   NAME_REGISTER_LABELS,
+  applyObjectLabels,
   finalizeNameRegisters,
+  firstGloss,
   normalizeNameRegister,
 } from "./candidate-register";
 import { WordCandidatesSchema } from "./text-search-flow";
@@ -93,5 +95,45 @@ describe("どの道の候補にも印が付く", () => {
       ],
     });
     expect(tut.suggestions.map((s) => s.register)).toEqual(["common", "colloquial"]);
+  });
+});
+
+describe("写真のタグは表示言語の一般的な呼び名（2026-10-15: ボクサーパンツ → 下着）", () => {
+  const ja = (text: string, common: { headword: string }) =>
+    !!text && text !== common.headword && !/[A-Za-z]{3,}/.test(text);
+
+  it("タグは common の候補の表示言語の言い方。意味もタグの言い方から始まるように直す", () => {
+    const out = applyObjectLabels(
+      finalizeNameRegisters([
+        {
+          headword: "內褲",
+          register: "common",
+          meaning_ja: "ボクサーパンツ",
+          label: "下着",
+          group: 0,
+        },
+        { headword: "平口褲", register: "specific", meaning_ja: "ボクサーパンツ", group: 0 },
+        { headword: "四角褲", register: "specific", meaning_ja: "トランクス", group: 0 },
+        { headword: "杯子", register: "common", meaning_ja: "コップ、カップ", group: 1 },
+      ]),
+      ja,
+    );
+    expect(out.map((c) => [c.headword, c.register, c.object_label, c.meaning_ja])).toEqual([
+      ["內褲", "common", "下着", "下着"],
+      ["平口褲", "specific", "下着", "ボクサーパンツ"],
+      ["四角褲", "specific", "下着", "トランクス"],
+      ["杯子", "common", "コップ", "コップ、カップ"],
+    ]);
+    expect(out[0]).not.toHaveProperty("label");
+  });
+
+  it("label が読む言語でない（見出し語の写し）なら、common の意味の最初の言い方", () => {
+    const out = applyObjectLabels(
+      [{ headword: "內褲", meaning_ja: "下着（パンツ類）", label: "內褲", group: 0 }],
+      ja,
+    );
+    expect(out[0].object_label).toBe("下着");
+    expect(firstGloss("underwear, briefs")).toBe("underwear");
+    expect(firstGloss("ボクサー・パンツ")).toBe("ボクサー・パンツ");
   });
 });
