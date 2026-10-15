@@ -929,13 +929,14 @@ export type GradeResult = {
   history_saved?: boolean;
 };
 
-const GONE: GradeResult = {
+/** 札がもう無い時の返事（呼ぶたびに新しい物 — 返した物を誰かが書き換えても次に響かない）。 */
+const gone = (): GradeResult => ({
   score: null,
   next_due_at: null,
   interval_days: null,
   duplicate: false,
   gone: true,
-};
+});
 
 const REVIEW_COLUMNS =
   "id, sticker_id, ease, interval_days, repetitions, blur_seen, last_reviewed_at, due_at, last_score";
@@ -981,7 +982,7 @@ export async function gradeReviewWith(
     console.info("[reviews] gradeReview: review gone (card deleted or not this account's)", {
       reviewId: data.review_id,
     });
-    return GONE;
+    return gone();
   }
 
   /**
@@ -1102,7 +1103,7 @@ export async function gradeReviewWith(
     // 同じ答えが同時に2回届き、先の方がもう書いた（か、その間に札が消えた）。こちらは何も進めず、
     // 先の方が書いた今の状態を返す。読めなければ、こちらで計算した値（どちらにしても進めていない）。
     const { data: now2, error: reErr } = await readRow();
-    if (!reErr && !now2) return GONE;
+    if (!reErr && !now2) return gone();
     return {
       score: now2?.last_score ?? score,
       next_due_at: (now2?.due_at as string | undefined) ?? dueAt,
