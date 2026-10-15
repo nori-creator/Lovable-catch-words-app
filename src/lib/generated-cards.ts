@@ -23,6 +23,7 @@
  * 移行 `20261003130100_generated_cards.sql` を先に当てること。
  */
 
+import { alignExampleExtras, guardExampleColumns } from "./example-patterns";
 import {
   fillEmptySharedColumns,
   fillEmptySharedExtras,
@@ -322,12 +323,24 @@ export async function fillSharedWordFromCard(
     }
     let written = 0;
     for (const row of rows ?? []) {
-      const update: Record<string, unknown> = fillEmptySharedColumns(
-        row as never,
-        sharedColumnsFromCard(opts.card as Record<string, unknown>),
-        { verified: row.source === "verified" },
+      // 例文の訳・場面の札・パーツは**文と組で**埋める（2026-10-15 眼鏡、`example-patterns.ts`）。
+      // 前から在る文の横に、別の文のために書いた訳・札を入れない。
+      const update: Record<string, unknown> = guardExampleColumns(
+        fillEmptySharedColumns(
+          row as never,
+          sharedColumnsFromCard(opts.card as Record<string, unknown>),
+          { verified: row.source === "verified" },
+        ),
+        row as { example_sentence?: string | null },
+        opts.card,
       );
-      const extras = fillEmptySharedExtras(row.extras, opts.card.extras ?? null);
+      const sentence =
+        (update.example_sentence as string | undefined) ??
+        (row.example_sentence as string | null | undefined);
+      const extras = fillEmptySharedExtras(
+        row.extras,
+        alignExampleExtras(opts.card.extras ?? null, sentence),
+      );
       if (extras) update.extras = extras;
       if (Object.keys(update).length === 0) continue;
       const { error: upErr } = await db.from("words").update(update).eq("id", row.id);
