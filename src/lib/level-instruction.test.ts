@@ -140,3 +140,24 @@ describe("levelRuleText — 渡す文まるごと", () => {
     }
   });
 });
+
+describe("exampleLevelRule（例文1文の目安、2026-10-15）", () => {
+  it("現在の級の目安を狙い、目標の級までを上限にし、見出し語は言い換えない", async () => {
+    const { exampleLevelRule } = await import("./level-instruction");
+    const { TOCFL_SCALE } = await import("./level-scale");
+    const r = exampleLevelRule(TOCFL_SCALE, "TOCFL-1", "TOCFL-4", "珍珠奶茶");
+    expect(r).toMatch(/8〜12字/);
+    expect(r).toMatch(/把・被・複文・補語は使わない/);
+    expect(r).toMatch(/25〜30字/);
+    expect(r).toMatch(/見出し語「珍珠奶茶」だけは、レベルより上でもそのまま使う/);
+  });
+
+  it("体系ごとに別の表（英語の学習者に華語の字数を渡さない）", async () => {
+    const { exampleLevelRule } = await import("./level-instruction");
+    const { CEFR_SCALE, JLPT_SCALE } = await import("./level-scale");
+    const en = exampleLevelRule(CEFR_SCALE, "A1", "A1", "umbrella");
+    expect(en).toMatch(/5〜8語/);
+    expect(en).not.toMatch(/字/);
+    expect(exampleLevelRule(JLPT_SCALE, "JLPT-N5", "JLPT-N5", "傘")).toMatch(/です・ます/);
+  });
+});
