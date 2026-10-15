@@ -38,6 +38,11 @@ import {
 } from "./shared-word-guard";
 import { findGeneratedCard, type GeneratedCardLookup, type TrustedCard } from "./generated-cards";
 import { explanationKey } from "./word-explanation";
+import {
+  alignExampleExtras,
+  exampleMatchesSentence,
+  guardExampleColumns,
+} from "./example-patterns";
 import { keepShownFields } from "./explanation-cache";
 import { runAfterResponse } from "./after-response";
 
@@ -1589,13 +1594,26 @@ export async function applyWordExtrasUpdate(
     typeof prevRaw === "object" &&
     !Array.isArray(prevRaw) &&
     (!lookup.available || sharedExtrasInLang(prevRaw, key.explainLang));
+  /**
+   * **例文の訳・場面の札・パーツは文と組で書く**（オーナー報告 2026-10-15「眼鏡: 我戴眼鏡。の上に
+   * 『友達が眼鏡をしていないことに気づいたとき』」、`example-patterns.ts`）。共有の行は空の所だけ埋めるので、
+   * 前から在る例文の横に、別の文のために作った札（2026-10-14 に足した空の欄）だけが入っていた。
+   * 表示に使う文（埋める文 → 無ければいまの文）と違う文のために書かれた札・パーツ・訳は使わない。
+   */
+  const update: Record<string, unknown> = guardExampleColumns(
+    fillEmptySharedColumns(shared, content.patch, {
+      verified: shared.source === "verified",
+    }),
+    shared,
+    lookup.available ? lookup.card : null,
+  );
+  const shownSentence =
+    (update.example_sentence as string | undefined) ?? shared.example_sentence ?? null;
+  const contentExtras = alignExampleExtras(content.extras, shownSentence);
   const merged: Record<string, unknown> = mergePrev
-    ? { ...(prevRaw as Record<string, unknown>), ...content.extras }
-    : content.extras;
-  const update: Record<string, unknown> = fillEmptySharedColumns(shared, content.patch, {
-    verified: shared.source === "verified",
-  });
-  const filledExtras = fillEmptySharedExtras(prevRaw, content.extras);
+    ? { ...(prevRaw as Record<string, unknown>), ...contentExtras }
+    : contentExtras;
+  const filledExtras = fillEmptySharedExtras(prevRaw, contentExtras);
   if (filledExtras) update.extras = filledExtras;
   if (Object.keys(update).length > 0) {
     const { error } = await supabaseAdmin
@@ -1634,7 +1652,11 @@ export async function applyWordExtrasUpdate(
       content.readerMeaning?.trim() || content.patch?.meaning_ja || shared.meaning_ja || "",
     ),
     example_translation:
-      (lookup.available ? lookup.card?.example_translation : data.patch?.example_translation) ??
+      (lookup.available
+        ? exampleMatchesSentence(lookup.card?.example_sentence, shownSentence)
+          ? lookup.card?.example_translation
+          : undefined
+        : data.patch?.example_translation) ??
       shared.example_translation ??
       null,
     extras: merged,

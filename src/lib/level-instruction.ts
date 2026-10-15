@@ -144,3 +144,78 @@ function indexOf(raw: string | null | undefined, fallback: LevelIndex): LevelInd
     ? (step as LevelIndex)
     : fallback;
 }
+
+/**
+ * **例文1文の目安を段ごとに書き下した表**（オーナー報告 2026-10-15「眼鏡の例文と場面が合わない」と同時の指示:
+ * 「パターンごとの例文の語彙・文法は、設定したレベルに合わせて」）。
+ *
+ * `TOCFL_BANDS` などは語彙量と文法項目の名前だけで、**1文の長さ**も**使ってはいけない型**も言っていなかった。
+ * 例文はそこが一番ぶれる（入門の人に複文・補語の入った長い文が出る）ので、例文だけの目安を別に持つ。
+ * 字数・語数は目安（検定の公式の数字ではない）。
+ */
+const TOCFL_EXAMPLE: Record<LevelIndex, string> = {
+  1: "1文・8〜12字ほど。是/有/在/要/想/喜歡/去 などの基本動詞、很＋形容詞、嗎/呢 の疑問、這/那/我的、文末の了。把・被・複文・補語は使わない。",
+  2: "1文・10〜15字ほど。動詞＋了/過、在＋動詞、比、會/能/可以、有一點、太…了。把・被・複文は使わない。",
+  3: "1〜2文・20字ほどまで。把・被、因為…所以、雖然…但是、程度補語（得）、結果補語まで。成語・書き言葉は使わない。",
+  4: "25〜30字ほどまで。方向補語・可能補語、不但…而且・如果…就 などの接続詞、よく使う書き言葉の語まで。成語は日常で口にする物だけ。",
+  5: "35字ほどまで。成語・慣用句・抽象的な語も使ってよい。ただし話し言葉として自然な文。",
+  6: "長さの制限なし。含みのある言い回し・文語的な表現も使ってよい。ただし話し言葉として自然な文。",
+};
+
+const CEFR_EXAMPLE: Record<LevelIndex, string> = {
+  1: "1文・5〜8語。現在形の be 動詞・一般動詞、like/have/want、簡単な疑問文。過去形・完了形・関係詞は使わない。",
+  2: "1文・6〜10語。過去形、be going to、can/must、比較級、頻度の副詞まで。完了形・関係詞・受動態は使わない。",
+  3: "1文・8〜14語。現在完了、受動態、if、関係代名詞、不定詞・動名詞まで。",
+  4: "18語ほどまで。過去完了、仮定法、分詞構文、談話標識まで。",
+  5: "長さの制限は緩め。抽象的な語・慣用表現も使ってよい。ただし話し言葉として自然な文。",
+  6: "長さの制限なし。比喩・慣用表現・文体の使い分けも使ってよい。ただし話し言葉として自然な文。",
+};
+
+const JLPT_EXAMPLE: Record<LevelIndex, string> = {
+  1: "1文・15字ほど。です・ます、は/が/を/に/で、ます形・て形、い形容詞・な形容詞の現在。普通形・敬語・複文は使わない。",
+  2: "1文・20字ほど。普通形、〜たい/〜たことがある、可能形、〜てもいい、〜から/〜けど まで。",
+  3: "25字ほどまで。受身・使役、〜そう/〜らしい、ば/たら/なら、基本の敬語まで。",
+  4: "35字ほどまで。書き言葉の接続、敬語の使い分けまで。",
+  5: "長さの制限は緩め。慣用句・四字熟語・硬い表現も使ってよい。ただし話し言葉として自然な文。",
+  6: "長さの制限なし。ただし話し言葉として自然な文。",
+};
+
+const EXAMPLE_BANDS: Record<string, Record<LevelIndex, string>> = {
+  TOCFL: TOCFL_EXAMPLE,
+  CEFR: CEFR_EXAMPLE,
+  JLPT: JLPT_EXAMPLE,
+};
+
+/** 例文1文の目安。知らない体系は TOCFL の表、読めない段は既定の段(2)。 */
+export function exampleBandDescription(scale: LevelScale, index: LevelIndex): string {
+  const table = EXAMPLE_BANDS[scale.id] ?? TOCFL_EXAMPLE;
+  return table[index] ?? table[2];
+}
+
+/**
+ * 例文に掛ける級の指示（カード生成と例文の作り直しで同じ文）。
+ *
+ * 狙いは**現在の級で読める文**、上限は**目標の級**（`levelRuleText` の「例文は現在レベルでも読めることを優先」と同じ考え）。
+ * 見出し語そのものは級より上でもそのまま使う — その語を覚えるための例文なので。
+ */
+export function exampleLevelRule(
+  scale: LevelScale,
+  current: string,
+  goal: string,
+  headword: string,
+): string {
+  const goalIndex = indexOf(goal, 2);
+  const currentIndex = Math.min(
+    indexOf(current, Math.max(1, goalIndex - 1) as LevelIndex),
+    goalIndex,
+  ) as LevelIndex;
+  const currentName = `${scale.id} ${stepLabel(scale, currentIndex)}`;
+  const goalName = `${scale.id} ${stepLabel(scale, goalIndex)}`;
+  return (
+    `例文のレベル: 現在 ${currentName} の人がそのまま読める文にする — ${exampleBandDescription(scale, currentIndex)}` +
+    (goalIndex > currentIndex
+      ? ` どうしても必要なときだけ、目標 ${goalName} の範囲（${exampleBandDescription(scale, goalIndex)}）まで使ってよい。それより上の語彙・文法は使わない。`
+      : ` それより上の語彙・文法は使わない。`) +
+    ` **見出し語「${headword}」だけは、レベルより上でもそのまま使う**（言い換えない）。`
+  );
+}

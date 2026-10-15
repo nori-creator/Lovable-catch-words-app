@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { CATEGORY_KEYS } from "./category";
 import { ExtrasSchema, emptyExtras } from "./extras";
+import { ExamplePatternSchema } from "./example-patterns";
 
 /**
  * AIが返す「カード1枚」の形。
@@ -82,3 +83,15 @@ export const CardSchema = z.object({
 });
 
 export type GeneratedCard = z.infer<typeof CardSchema>;
+
+/**
+ * AI の返事の形 = カード + **場面のパターンごとの例文**（2026-10-15、`example-patterns.ts`）。
+ * サーバが確かめて `example_sentence` / `extras.example_scene` / `extras.examples_extra` に写し、
+ * 配列そのものは返さない・控えない（画面とiOSが受け取る形は `CardSchema` のまま）。
+ * 壊れていても例文が無いだけでカードは使えるので、落とさず空にする。
+ */
+export const CardReplySchema = CardSchema.extend({
+  example_patterns: z.array(ExamplePatternSchema).catch([]).default([]),
+});
+
+export type GeneratedCardReply = z.infer<typeof CardReplySchema>;
