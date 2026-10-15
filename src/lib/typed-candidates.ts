@@ -33,6 +33,8 @@ export function typedQueryMode(
   const lang = given ?? detectQueryLang(query, targetLanguage);
   if (lang === "target") return "learning";
   if (lang === "native") return "display";
+  // 漢字の言語でない学習言語（英語）で決まらない語は、別の言語で打った語として引く。
+  if (!targetLanguage.toLowerCase().startsWith("zh")) return "display";
   // 漢字だけで決まらない語。表示言語が漢字の言語（日本語）で、学習言語と別なら表示言語として先に読む。
   // 英語・繁體中文で読む人が漢字だけを打ったら、それは学習言語（台湾華語）の字。
   const readerUsesHan = reader === "ja";

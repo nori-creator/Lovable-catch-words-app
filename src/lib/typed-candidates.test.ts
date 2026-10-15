@@ -39,6 +39,9 @@ describe("打って調べた語は、まず表示言語の語として読む（�
     expect(typedQueryMode("花", "zh-TW", "en")).toBe("learning");
     expect(typedQueryMode("花", "zh-TW", "zh-TW")).toBe("learning");
     expect(typedQueryMode("dog", "zh-TW", "en")).toBe("display");
+    // 英語を学ぶ人: かな・漢字は表示言語、英語の語は学習言語。
+    expect(typedQueryMode("犬", "en", "ja")).toBe("display");
+    expect(typedQueryMode("dog", "en", "ja")).toBe("learning");
     // 画面が見分けを送ってきたら、それを使う（ambiguous は上と同じ読み方）。
     expect(typedQueryMode("犬", "zh-TW", "ja", "target")).toBe("learning");
     expect(typedQueryMode("犬", "zh-TW", "ja", "ambiguous")).toBe("display_first");
