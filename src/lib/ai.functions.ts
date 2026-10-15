@@ -23,7 +23,6 @@ import {
 import {
   BASIC_LEVEL_RULE,
   NAME_REGISTER_RULE,
-  applyObjectLabels,
   finalizeNameRegisters,
   objectLabelRule,
 } from "./candidate-register";
@@ -87,7 +86,6 @@ import {
   testPhotoRank,
 } from "./ai-test-photos";
 import { claude5ThinkingOff } from "./claude-thinking";
-import { fitSuggestionsToReader } from "./first-catch-meaning";
 import { withObjectPoints } from "./suggestion-position";
 import { WordCandidatesSchema, legacyUsageOf, normalizeRegister } from "./text-search-flow";
 import { normalizeNameRegister } from "./candidate-register";
