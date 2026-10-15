@@ -61,6 +61,8 @@ function warnIfTruncated(where: string, reads: Record<string, { truncated: boole
 export type AdminUserRow = {
   id: string;
   display_name: string | null;
+  /** プロフィールの写真（公開 URL）。開発者の一覧で名前の横に出す（2026-10-15）。 */
+  avatar_url: string | null;
   created_at: string;
   target_language: string | null;
   ui_language: string | null;
@@ -89,6 +91,7 @@ export const listAdminUsers = createServerFn({ method: "GET" })
       readAllPages<{
         id: string;
         display_name: string | null;
+        avatar_url: string | null;
         created_at: string;
         target_language: string | null;
         ui_language: string | null;
@@ -96,7 +99,7 @@ export const listAdminUsers = createServerFn({ method: "GET" })
       }>((a, b) =>
         db
           .from("profiles")
-          .select("id, display_name, created_at, target_language, ui_language, plan")
+          .select("id, display_name, avatar_url, created_at, target_language, ui_language, plan")
           .order("created_at", { ascending: false })
           .order("id")
           .range(a, b),
@@ -133,6 +136,7 @@ export const listAdminUsers = createServerFn({ method: "GET" })
     return profiles.rows.map((p) => ({
       id: p.id,
       display_name: p.display_name,
+      avatar_url: p.avatar_url ?? null,
       created_at: p.created_at,
       target_language: p.target_language,
       ui_language: p.ui_language,
@@ -168,7 +172,7 @@ async function buildDetail(userId: string) {
     db
       .from("profiles")
       .select(
-        "id, display_name, created_at, native_language, ui_language, target_language, level_goal, current_level, pronunciation_strictness, review_mode, review_daily_limit, review_stage_focus, plan, album_bg, onboarded",
+        "id, display_name, avatar_url, created_at, native_language, ui_language, target_language, level_goal, current_level, pronunciation_strictness, review_mode, review_daily_limit, review_stage_focus, plan, album_bg, onboarded",
       )
       .eq("id", userId)
       .maybeSingle(),
