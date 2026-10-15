@@ -20,15 +20,9 @@ import { normalizeTargetLanguage } from "./target-lang";
  * ほどなので 0.8〜1.2 秒の見込みで、**1 秒の予算をはみ出す回が半分近くある**。だから既定は `off` にし、
  * 開発者が試す時だけ `inline` にする（はみ出した回は門の結果のまま返すので、体感は最大 +1 秒）。
  */
-export type ChunkVerifyMode = "off" | "inline";
+export { chunkVerifyMode, type ChunkVerifyMode } from "./chunk-quality";
 
 export const CHUNK_VERIFY_BUDGET_MS = 1000;
-
-export function chunkVerifyMode(
-  env: Record<string, string | undefined> = process.env,
-): ChunkVerifyMode {
-  return (env.AI_CHUNK_VERIFY ?? "").trim().toLowerCase() === "inline" ? "inline" : "off";
-}
 
 export type ChunkVerifyOutcome = {
   kept: UsageChunk[];

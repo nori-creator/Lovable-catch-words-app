@@ -544,3 +544,15 @@ export function describeChunkGate(result: ChunkGateResult): string {
   const tail = [...reasons.entries()].map(([r, n]) => `${r}×${n}`).join(", ");
   return `kept ${result.kept.length}, dropped ${result.dropped.length}${tail ? ` (${tail})` : ""}`;
 }
+
+/**
+ * 別の AI でもう一度見るか（`AI_CHUNK_VERIFY`。既定は off。`chunk-verify.server.ts` の注）。
+ * ここ（純粋な所）に置くのは、画面の束にも入る `ai.functions.ts` から `.server.ts` を静的に読まないため。
+ */
+export type ChunkVerifyMode = "off" | "inline";
+
+export function chunkVerifyMode(
+  env: Record<string, string | undefined> = typeof process === "undefined" ? {} : process.env,
+): ChunkVerifyMode {
+  return (env.AI_CHUNK_VERIFY ?? "").trim().toLowerCase() === "inline" ? "inline" : "off";
+}

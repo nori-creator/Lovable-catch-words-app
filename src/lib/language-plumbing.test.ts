@@ -5311,7 +5311,7 @@ describe("報告は項目ごと。全部の作り直しは Pro だけ", () => {
     const ai = codeOnly(read("lib/ai.functions.ts"));
     const fn = ai.slice(
       // 直す道は `fixReportedWordItem`（その場の道と裏の道が同じ関数を使う、2026-10-15）。
-      ai.indexOf("export async function fixReportedWordItem("),
+      ai.indexOf("async function fixReportedWordItemImpl("),
       ai.indexOf("async function judgeCorrection("),
     );
     expect(fn).toMatch(/runSectionRegen\(\s*context,[\s\S]*?"propose",\s*\)/);

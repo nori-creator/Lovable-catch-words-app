@@ -25,6 +25,13 @@ export function createIsomorphicFn() {
   return { server: (_fn: AnyFn) => ({ client: <T extends AnyFn>(fn: T) => fn }) };
 }
 
+/** サーバーだけの関数（`createServerOnlyFn`）。ハーネスでは呼ばれたら投げる（ブラウザで動く物ではない）。 */
+export function createServerOnlyFn<T extends AnyFn>(_fn: T): T {
+  return (() => {
+    throw new Error("createServerOnlyFn() called in the UI harness");
+  }) as unknown as T;
+}
+
 /** サーバー関数の定義。ハーネスでは呼ばれない印だけを持つ。 */
 export function createServerFn() {
   const chain = {

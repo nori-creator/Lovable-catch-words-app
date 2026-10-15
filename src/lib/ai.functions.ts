@@ -1,4 +1,4 @@
-import { createServerFn } from "@tanstack/react-start";
+import { createServerFn, createServerOnlyFn } from "@tanstack/react-start";
 import { meaningRule, distinctionRule, shortMeaning, withShortMeaning } from "@/lib/meaning-rule";
 import { DEFAULT_TARGET_LANGUAGE } from "./target-lang";
 import {
@@ -38,8 +38,7 @@ import {
   withoutRetiredExtras,
   type UsageChunk,
 } from "./extras";
-import { describeChunkGate, gateUsageChunks } from "./chunk-quality";
-import { chunkVerifyMode } from "./chunk-verify.server";
+import { chunkVerifyMode, describeChunkGate, gateUsageChunks } from "./chunk-quality";
 import { normalizeTargetLanguage } from "./target-lang";
 import { readerText, scrubForReader, scrubForeignNotes } from "./note-language";
 import { explanationKey } from "./word-explanation";
@@ -2967,7 +2966,7 @@ const DEFAULT_REPORT_CANDIDATES: ReportItemId[] = [
  * - それ以外 … `allowAi` の時だけ、その項目の案を作り（`runSectionRegen` の propose）、別の目が通せば書く。
  * 書けたら `fixed: true`。
  */
-export async function fixReportedWordItem(
+async function fixReportedWordItemImpl(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   context: { supabase: any; userId: string },
   p: { wordId: string; item: ReportItemId; note: string; allowAi?: boolean },
@@ -3086,7 +3085,7 @@ export async function fixReportedWordItem(
 }
 
 /** 裏の道（`entry-report.server.ts`）から呼ぶ、項目の特定。見つからなければ null。 */
-export async function locateReportedItemForReport(
+async function locateReportedItemForReportImpl(
   wordId: string,
   headword: string,
   language: string | null,
@@ -3094,6 +3093,13 @@ export async function locateReportedItemForReport(
 ): Promise<ReportItemId | null> {
   return locateReportedItem(wordId, headword, language, note, DEFAULT_REPORT_CANDIDATES);
 }
+
+/**
+ * 裏の道（`entry-report.server.ts`）から呼ぶ口。**サーバだけ**（`createServerOnlyFn`）— 素の関数で外に出すと、
+ * 画面の束にこのファイルの裏の処理（返事の後の仕事 → サーバの要求）まで残り、ビルドが止まる。
+ */
+export const fixReportedWordItem = createServerOnlyFn(fixReportedWordItemImpl);
+export const locateReportedItemForReport = createServerOnlyFn(locateReportedItemForReportImpl);
 
 export const reportAndFixSection = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
@@ -3191,7 +3197,7 @@ export const reportAndFixSection = createServerFn({ method: "POST" })
 
     let r: ReportFixResult;
     try {
-      r = await fixReportedWordItem(context, {
+      r = await fixReportedWordItemImpl(context, {
         wordId: data.word_id,
         item,
         note: data.note,
