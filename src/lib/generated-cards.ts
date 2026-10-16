@@ -126,8 +126,9 @@ function readGenKey(raw: unknown): CardGenKey | null {
 /**
  * 作り方の版。`generateCard` の指示・形を変えたら上げる（上げると、それより前の控えは作り直さずに返す対象から外れる）。
  * 1 = 2026-10-15（語源・部首を作らない・カテゴリーの読み直し）。
+ * 2 = 2026-10-16（前から在るメインの例文に札を付けて作る — `applyFixedMainExample`）。
  */
-export const CARD_REUSE_VERSION = 1;
+export const CARD_REUSE_VERSION = 2;
 
 /**
  * **作り直さずに返す期間**（2026-10-15 オーナー報告: 同じ 草莓蛋糕 のカードが 20 分で3回作られた — 保存の
@@ -234,6 +235,48 @@ export async function loadGeneratedCardRows(
   } catch (e) {
     console.warn("[generated-cards] 控えを読めない", e instanceof Error ? e.message : e);
     return [];
+  }
+}
+
+/**
+ * **共有の語にもう在るメインの例文**（`generateCard`、2026-10-16 冰淇淋）。共有の行の例文は空の時だけ埋まるので、
+ * 在る文は保存の後も残る — カードはその文に札を付けて作る。**投げない** — 読めなければ null（今までどおり作る）。
+ */
+export async function readExistingMainSentence(
+  admin: unknown,
+  opts: { language: string; headword: string },
+): Promise<string | null> {
+  const headword = (opts.headword ?? "").trim();
+  if (!headword || headword.length > 100) return null;
+  try {
+    const q = (admin as LooseDb).from("words") as {
+      select: (c: string) => {
+        eq: (
+          k: string,
+          v: string,
+        ) => {
+          eq: (
+            k: string,
+            v: string,
+          ) => {
+            maybeSingle: () => PromiseLike<{
+              data: { example_sentence?: string | null } | null;
+              error: LooseError;
+            }>;
+          };
+        };
+      };
+    };
+    const { data, error } = await q
+      .select("example_sentence")
+      .eq("language", opts.language)
+      .eq("headword", headword)
+      .maybeSingle();
+    if (error) return null;
+    const s = (data?.example_sentence ?? "").trim();
+    return s || null;
+  } catch {
+    return null;
   }
 }
 

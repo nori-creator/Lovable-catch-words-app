@@ -80,6 +80,9 @@ export const DAILY_CAPS: Readonly<Record<string, number>> = {
   // 「その他」のまま保存された語の分け直し（`category-backfill.functions.ts`。速いモデルの
   // 小さな呼び出し1回で最大50語。図鑑を開いた時に1度だけ。ふつうは1〜2回で終わる）。
   category_fix: 10,
+  // 札の無い古いメインの例文に札だけを書く（`example-scene-label.server.ts`。速いモデルの小さな呼び出し。
+  // 単語の詳細を開いた時に、札の無い語だけ1回。同じ語は 30 分呼び直さない）。
+  scene_label: 200,
 };
 
 /**
@@ -106,6 +109,7 @@ export const ANONYMOUS_DAILY_CAPS: Readonly<Record<string, number>> = {
   pro_image: 0, // Pro だけの機能
   image_sense: 20, // チュートリアルの文字検索でも絵の意味を確かめられるように少しだけ
   category_fix: 1,
+  scene_label: 10,
 };
 
 /** 呼ぶ人の種類。枠の大きさが変わる。 */

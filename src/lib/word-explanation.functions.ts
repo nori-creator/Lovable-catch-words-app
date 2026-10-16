@@ -99,22 +99,67 @@ export const getWordExplanation = createServerFn({ method: "GET" })
       source: (r.source as string | null) ?? "ai",
     }));
     const picked = pickExplanation(parsed, explanationKey(data.explain_lang, data.l1));
+    if (!picked) return { picked, unavailable: false };
+    // 語の行（言語・見出し語・メインの例文）。読みを付ける時と、メインの例文の札を確かめる時に使う（1回の読み）。
+    let word: {
+      language: string | null;
+      headword: string;
+      example_sentence: string | null;
+    } | null = null;
+    try {
+      const { data: ws } = await db
+        .from("words")
+        .select("language, headword, example_sentence")
+        .eq("id", data.word_id);
+      const w = ws?.[0];
+      if (w) {
+        word = {
+          language: (w.language as string | null | undefined) ?? null,
+          headword: String(w.headword ?? ""),
+          example_sentence: (w.example_sentence as string | null | undefined) ?? null,
+        };
+      }
+    } catch (e) {
+      console.warn("getWordExplanation: 語の行を読めない", (e as Error)?.message);
+    }
     /**
      * 台湾華語の語なら、型の札に読み（拼音・注音）を付けて返す（2026-10-15、`chunk-readings.server.ts`）。
-     * 古い解説は読みを持っていないので、読む所で辞書から付ける。語の言語は語の行で見る（1回の読み）。
+     * 古い解説は読みを持っていないので、読む所で辞書から付ける。
      */
     if (
-      picked?.extras &&
+      picked.extras &&
       (picked.extras.usage_chunks?.length || picked.extras.example_chunks?.length)
     ) {
       try {
-        const { data: ws } = await db.from("words").select("language").eq("id", data.word_id);
-        const language = ((ws?.[0]?.language as string | null | undefined) ?? null) as
-          string | null;
         const { withChunkReadingsInExtras } = await import("./chunk-readings.server");
-        picked.extras = withChunkReadingsInExtras(picked.extras, language);
+        picked.extras = withChunkReadingsInExtras(picked.extras, word?.language ?? null);
       } catch (e) {
         console.warn("getWordExplanation: 型の読みを付けられなかった", (e as Error)?.message);
+      }
+    }
+    /**
+     * **札の無い古いメインの例文**（2026-10-16 冰淇淋「夏天吃冰淇淋。」）。返事の後で札だけを書く小さな呼び出しを
+     * 1回する（文は変えない。次に開いた時に出る — `example-scene-label.server.ts`）。返事は待たせない。
+     */
+    if (word) {
+      try {
+        const label = await import("./example-scene-label.server");
+        if (
+          label.mainExampleNeedsWork(
+            picked.extras,
+            word.example_sentence,
+            word.headword,
+            word.language,
+          )
+        ) {
+          await label.scheduleMainExampleLabel({
+            userId: context.userId,
+            wordId: data.word_id,
+            key: { explainLang: picked.explain_lang, l1: picked.l1 },
+          });
+        }
+      } catch (e) {
+        console.warn("getWordExplanation: 例文の札を頼めなかった", (e as Error)?.message);
       }
     }
     return { picked, unavailable: false };
