@@ -49,6 +49,7 @@ export const APP_EVENTS = [
   "bg_failed_reader_explain",
   "bg_failed_first_catch_ai",
   "bg_failed_sticker_storage",
+  "bg_failed_scene_label",
   // ベータの計測（2026-10-03、ロードマップ Phase 9.4）: 撮る・復習・課金の段
   // （`funnel-events.ts`）。種類と時刻だけで、写真・語・答えは送らない。
   ...MEMBER_FUNNEL_EVENTS,

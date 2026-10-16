@@ -25,7 +25,9 @@ export type BackgroundFailureArea =
   // チュートリアルの写真の分析・カード（2026-10-03。画面は「もう一度試す」を出す）。
   | "first_catch_ai"
   // 札を消した後の写真の掃除（2026-10-03。札は消えている。写真が残るだけ）。
-  | "sticker_storage";
+  | "sticker_storage"
+  // 古いメインの例文に札を付ける裏の仕事（2026-10-16。サーバで動く — `background-failure.server.ts`）。
+  | "scene_label";
 
 const lastLogged = new Map<BackgroundFailureArea, number>();
 const THROTTLE_MS = 60_000;

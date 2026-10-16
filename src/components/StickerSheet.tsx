@@ -38,6 +38,7 @@ import { useAutoHero } from "@/hooks/use-auto-hero";
 import { generateCard } from "@/lib/ai.functions";
 import { getMyProfile } from "@/lib/profile.functions";
 import { getWordExplanation } from "@/lib/word-explanation.functions";
+import { useRefreshStickerAfterLabel } from "@/hooks/use-explanation-label-refresh";
 import {
   readerExplanationSaveInput,
   readExplanationCache,
@@ -279,6 +280,8 @@ export function StickerSheet({ stickerId, onClose, openPhotoPicker, from, local 
     ...wordExplanationQuery(fetchExplanation, s?.word_id, wantKey, cachedExplanation),
     enabled: !!s?.word_id && !local,
   });
+  // 例文の札を返事の後で書きに行った時は、札の控えを古くして次に開いた時に読み直す（共有の行も直るので）。
+  useRefreshStickerAfterLabel(explanation, stickerId);
   const [flipped, setFlipped] = useState(false);
   const [editing, setEditing] = useState(false);
   const [enriching, setEnriching] = useState(false);

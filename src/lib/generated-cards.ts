@@ -23,7 +23,8 @@
  * 移行 `20261003130100_generated_cards.sql` を先に当てること。
  */
 
-import { alignExampleExtras, guardExampleColumns } from "./example-patterns";
+import { alignExampleExtras, guardExampleColumns, sameSentence } from "./example-patterns";
+import { normDexHeadword } from "./dex-catalog";
 import {
   fillEmptySharedColumns,
   fillEmptySharedExtras,
@@ -126,8 +127,9 @@ function readGenKey(raw: unknown): CardGenKey | null {
 /**
  * 作り方の版。`generateCard` の指示・形を変えたら上げる（上げると、それより前の控えは作り直さずに返す対象から外れる）。
  * 1 = 2026-10-15（語源・部首を作らない・カテゴリーの読み直し）。
+ * 2 = 2026-10-16（前から在るメインの例文に札を付けて作る — `applyFixedMainExample`）。
  */
-export const CARD_REUSE_VERSION = 1;
+export const CARD_REUSE_VERSION = 2;
 
 /**
  * **作り直さずに返す期間**（2026-10-15 オーナー報告: 同じ 草莓蛋糕 のカードが 20 分で3回作られた — 保存の
@@ -234,6 +236,96 @@ export async function loadGeneratedCardRows(
   } catch (e) {
     console.warn("[generated-cards] 控えを読めない", e instanceof Error ? e.message : e);
     return [];
+  }
+}
+
+/**
+ * 控えのカードを、**いまの共有のメインの例文**のまま返してよいか（PR #189 の点検 P2）。カードは決まった文に
+ * 札を付けて作るので、控えた後に共有の文が変わっていたら（作り直し・直し）、古い文と札を返さない。
+ * 見出し語が入力と変わったカード（手紙 → 信）は入力の語の文を使わないので、比べない。
+ */
+export function reusableForMainSentence(
+  card: { example_sentence?: string; headword_zh?: string },
+  opts: { inputHeadword: string; currentMain: string | null; language: string },
+): boolean {
+  if (!opts.currentMain) return true;
+  const head = (card.headword_zh ?? "").trim();
+  if (head && !sameHeadword(head, opts.inputHeadword, opts.language)) return true;
+  return sameSentence(card.example_sentence ?? "", opts.currentMain);
+}
+
+/**
+ * 同じ見出し語か（学習言語ごとの比べ方 — 図鑑と同じ `normDexHeadword`: 大文字小文字・前後の空白・英語の冠詞・
+ * かなの違いは同じ語）。`Apple` と `apple` を別の語として、決まった文を外さない（PR #189 の点検）。
+ */
+export function sameHeadword(a: string, b: string, language: string): boolean {
+  const x = normDexHeadword(a, language);
+  return x.length > 0 && x === normDexHeadword(b, language);
+}
+
+/**
+ * `sameHeadword` が同じ語と言う書き方を、行を引くために並べる（語の行は見出し語そのままで引くので）。
+ * 打った形・小文字・図鑑の比べ方の形（`normDexHeadword`）に加えて、英語は冠詞つき（a / an / the）、
+ * 日本語はひらがなとカタカナの両方。比べ方と引き方を同じ物（`normDexHeadword`）から作るので、ずれない。
+ */
+export function headwordVariants(headword: string, language: string): string[] {
+  const h = headword.trim();
+  const core = normDexHeadword(h, language);
+  const out = [h, h.toLowerCase(), core];
+  if (core && language === "en") out.push(`a ${core}`, `an ${core}`, `the ${core}`);
+  if (core && language === "ja") {
+    out.push(core.replace(/[ぁ-ゖ]/g, (c) => String.fromCharCode(c.charCodeAt(0) + 0x60)));
+  }
+  return [...new Set(out.filter((x) => x.length > 0))];
+}
+
+/**
+ * **共有の語にもう在るメインの例文**（`generateCard`、2026-10-16 冰淇淋）。共有の行の例文は空の時だけ埋まるので、
+ * 在る文は保存の後も残る — カードはその文に札を付けて作る。**投げない** — 読めなければ null（今までどおり作る）。
+ */
+export async function readExistingMainSentence(
+  admin: unknown,
+  opts: { language: string; headword: string },
+): Promise<string | null> {
+  const headword = (opts.headword ?? "").trim();
+  if (!headword || headword.length > 100) return null;
+  // 同じ語の書き方（`headwordVariants` — 大文字小文字・英語の冠詞・かな）で引き、`sameHeadword` が同じ語と
+  // 言う行だけを使う。打った形の行が在ればそれを先に。
+  const candidates = headwordVariants(headword, opts.language);
+  try {
+    const q = (admin as LooseDb).from("words") as {
+      select: (c: string) => {
+        eq: (
+          k: string,
+          v: string,
+        ) => {
+          in: (
+            k: string,
+            v: string[],
+          ) => PromiseLike<{
+            data: Array<{ headword?: string | null; example_sentence?: string | null }> | null;
+            error: LooseError;
+          }>;
+        };
+      };
+    };
+    const { data, error } = await q
+      .select("headword, example_sentence")
+      .eq("language", opts.language)
+      .in("headword", candidates);
+    if (error || !data) return null;
+    // 同じ語の行のうち、並べた順（打った形 → 小文字 → 比べ方の形 → ほか）で先の物。
+    const rank = (h: string | null | undefined) => {
+      const i = candidates.indexOf(h ?? "");
+      return i < 0 ? candidates.length : i;
+    };
+    const pick = data
+      .filter((r) => sameHeadword(r.headword ?? "", headword, opts.language))
+      .sort((a, b) => rank(a.headword) - rank(b.headword))[0];
+    const s = (pick?.example_sentence ?? "").trim();
+    return s || null;
+  } catch {
+    return null;
   }
 }
 

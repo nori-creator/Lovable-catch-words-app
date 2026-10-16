@@ -96,6 +96,16 @@ export type GeneratedCard = z.infer<typeof CardSchema>;
  */
 export const CardReplySchema = CardSchema.extend({
   example_patterns: z.array(ExamplePatternSchema).catch([]).default([]),
+  /**
+   * メインの例文がもう決まっている語（前から在る共有の文）の、**その文のための札**（2026-10-16 冰淇淋、
+   * `mainExampleLabelRule`）。確かめるのは `checkMainExampleLabel`。返さない・控えない。
+   */
+  example_main: z.unknown().optional().catch(undefined),
+  /**
+   * 決まった文がある時の**予備の例文**（見出し語が入力と変わった回 — 手紙 → 信 — にだけメインにする）。
+   * 返さない・控えない。壊れていれば無いのと同じ。
+   */
+  example_fallback: ExamplePatternSchema.optional().catch(undefined),
 });
 
 export type GeneratedCardReply = z.infer<typeof CardReplySchema>;

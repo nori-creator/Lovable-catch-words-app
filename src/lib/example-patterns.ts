@@ -399,6 +399,19 @@ export function alignExampleExtras<E extends Record<string, unknown> | null | un
   if (sameSentence(forSentence, sentence)) return extras;
   const out: Record<string, unknown> = { ...extras };
   for (const k of PAIRED_EXTRAS) delete out[k];
+  /**
+   * メインの例文が別の文に決まった（前から在る文が残る）時は、追加の例文もその文に合わせる（2026-10-16 冰淇淋）:
+   * その文と同じ文を落とし、パターンの数を 1 + 残った数にする（数は別の文をメインとして数えていた）。
+   */
+  if (norm(sentence)) {
+    const list = Array.isArray(out.examples_extra) ? (out.examples_extra as unknown[]) : null;
+    if (list) {
+      const kept = list.filter((x) => !sameSentence(extraAsExample(x).sentence, sentence));
+      out.examples_extra = kept;
+      if (typeof out.example_pattern_count === "number")
+        out.example_pattern_count = 1 + kept.length;
+    }
+  }
   return out as E;
 }
 
@@ -477,4 +490,383 @@ export function examplePatternsRule(opts: {
     `  ${levelRule}`,
     `  ${sourceRule.replace(/\n/g, "\n  ")}`,
   ].join("\n");
+}
+
+/*
+ * ---------------------------------------------------------------------------------------------
+ * **前から在るメインの例文に、札だけを付ける**（オーナー報告 2026-10-16: 冰淇淋 の1つ目の例文
+ * 「夏天吃冰淇淋。」に場面の札が無く、2つ目には有る）。
+ *
+ * 共有の行（`words.example_sentence`）は空の時だけ埋めるので、場面の札（2026-10-14）より前に出来た例文は
+ * そのまま残る（オーナー決定: 古い例文の文そのものは作り直さない）。ところがカードを作るたびに AI は
+ * **別の新しい文**をメインに書き、その札は保存の時に「別の文の札」として外される（`alignExampleExtras`）。
+ * 一方で追加の例文と `example_pattern_count` は空の欄に入るので、古い文はパターン1つ目と数えられたまま、
+ * 札が付かなかった。
+ *
+ * 直し方: メインの例文が決まっている時は、その文を**与えられた文**として指示に入れ、同じ呼び出しの中で
+ * **その文のための札**（`example_main`）と、それ**以外の**パターンだけを書かせる。古い行は、単語の詳細を
+ * 開いた時に札だけを書く小さな呼び出しで埋める（`example-scene-label.server.ts`）。
+ * ---------------------------------------------------------------------------------------------
+ */
+
+/**
+ * 番号として受け取ってよい物だけを番号にする（PR #189 の点検 P2）。0 以上の整数か、数字だけの文字列（"2"）。
+ * `null` / `false` / `""` / 空白 / "1.5" / "x" は捨てる — `z.coerce.number()` はこれらを 0 にして、1つ目の
+ * 追加の例文を「メインと同じ」として消していた。
+ */
+function strictIndex(x: unknown): number | null {
+  if (typeof x === "number") return Number.isSafeInteger(x) && x >= 0 ? x : null;
+  if (typeof x === "string" && /^\s*\d{1,4}\s*$/.test(x)) return Number(x.trim());
+  return null;
+}
+
+/** 決まったメインの例文のために、モデルが返す札（`example_main`）。型違いは落とさず空にする。 */
+export const MainExampleLabelSchema = z.object({
+  scene: z.string().catch(""),
+  translation: z.string().catch(""),
+  chunks: z.array(ChunkPartSchema).catch([]),
+  scene_fits: ExamplePatternSchema.shape.scene_fits,
+  /** 追加の例文（番号つきで渡した物）のうち、メインの例文と同じパターンの物の番号。 */
+  same_as_main: z
+    .array(z.unknown())
+    .catch([])
+    .transform((xs) => xs.map(strictIndex).filter((n): n is number => n !== null)),
+});
+export type MainExampleLabel = z.infer<typeof MainExampleLabelSchema>;
+
+/** 文を比べる形（空白・句読点・記号を除き、小文字に）。パーツをつないだ物と文を突き合わせる。 */
+const chunkKey = (s: string) => s.replace(/[\s\p{P}\p{S}]/gu, "").toLowerCase();
+
+/**
+ * パーツ（`example_chunks`）が**その文を分けた物**か: パーツの文字をつなぐと文になる（空白・句読点・記号の違いは
+ * 同じとみなす）。古い行のパーツは、AI が書いて保存で外れた別の文の物のことがある（本番 2026-10-16: 目印の無い
+ * 144 行のうち 65 行 — 床「我的床很舒服。」に「我|昨天|太|累|了|…」）。
+ */
+export function chunksMatchSentence(chunks: unknown, sentence: string | null | undefined): boolean {
+  if (!Array.isArray(chunks) || chunks.length === 0) return false;
+  const joined = chunks.map((c) => String((c as { text?: unknown })?.text ?? "")).join("");
+  const key = chunkKey(joined);
+  return key.length > 0 && key === chunkKey(sentence ?? "");
+}
+
+/** 確かめた札（画面に出せる物）。 */
+export type CheckedMainLabel = {
+  scene: string;
+  translation: string;
+  chunks: z.infer<typeof ChunkPartSchema>[];
+  sameAsMain: number[];
+};
+
+type ExtrasLike = Record<string, unknown> | null | undefined;
+
+/**
+ * メインの例文 `sentence` に、**その文のために書いた札**が無いか（`example_scene` が空、または
+ * `example_scene_for` が違う文・無い）。文が無ければ札も要らない（false）。
+ */
+export function needsMainSceneLabel(
+  sentence: string | null | undefined,
+  extras: ExtrasLike,
+): boolean {
+  if (!norm(sentence)) return false;
+  const e = (extras ?? {}) as Record<string, unknown>;
+  const scene = typeof e.example_scene === "string" ? e.example_scene.trim() : "";
+  const forSentence = typeof e.example_scene_for === "string" ? e.example_scene_for : "";
+  return !(scene && sameSentence(forSentence, sentence));
+}
+
+/** `extras` の中で、メインの例文 `sentence` のために書かれた札（無ければ空）。 */
+export function mainSceneFor(sentence: string | null | undefined, extras: ExtrasLike): string {
+  if (needsMainSceneLabel(sentence, extras)) return "";
+  return String((extras as Record<string, unknown>).example_scene ?? "").trim();
+}
+
+/**
+ * 決まったメインの例文のための札を頼む指示（カード生成・例文の作り直し・札だけの呼び出しで共通）。
+ * 札の決まりは `examplePatternsRule` の scene と同じ（短い1行・読む人の言語・字数の上限・文と食い違わない）。
+ *
+ * - `translation`: その文の訳も書かせる（読む人の行に訳が無い時・カード生成）
+ * - `chunks`: その文のパーツ分解も書かせる（`chunkRoles` = pos の候補）
+ * - `extras`: 追加の例文（番号つき）。同じパターンの物の番号を `same_as_main` に書かせる
+ */
+export function mainExampleLabelRule(opts: {
+  sentence: string;
+  headword: string;
+  targetName: string;
+  nl: string;
+  sceneMax?: number;
+  translation?: boolean;
+  chunkRoles?: string;
+  extras?: readonly string[];
+}): string {
+  const { sentence, headword, targetName, nl } = opts;
+  const sceneMax = opts.sceneMax ?? SCENE_MAX_CHARS.ja;
+  const fields = [
+    `scene: その文の短い1行(${nl})`,
+    opts.translation ? `translation: その文の自然な訳(${nl})` : "",
+    opts.chunkRoles
+      ? `chunks: その文をパーツ分解した [{text,pos}]（pos は ${opts.chunkRoles}）`
+      : "",
+    `scene_fits: true/false`,
+    opts.extras && opts.extras.length > 0 ? `same_as_main: 番号の配列` : "",
+  ].filter(Boolean);
+  return [
+    `- example_main: **「${headword}」のメインの例文はもう決まっている:「${sentence}」。この文は変えない**（書き直さない・別の文にしない・直した文を返さない）。`,
+    `  この文の**ために** scene を書く: ネイティブ（${targetName}の話し手）がこの文をまさに口にする状況の**短い1行**` +
+      `（${nl}で${sceneMax}字以内。誰が・どこで・何が起きて・どんな気持ちか が分かる言葉だけ）。画面でこの文のすぐ上に出る。`,
+    `  **scene とこの文は食い違ってはいけない。** この文だけを読んだネイティブが思い浮かべる場面と scene が同じか確かめる。` +
+      `scene_fits はこの確認の結果（直して合っていれば true）。`,
+    ...(opts.extras && opts.extras.length > 0
+      ? [
+          `  次の追加の例文のうち、この文と**同じパターン**（同じ場所・同じ相手・同じ用件・同じ気持ちの状況、または名詞を入れ替えただけの同じ形の文）の物の番号を same_as_main に入れる（無ければ []）:`,
+          ...opts.extras.map((s, i) => `    ${i}. ${s}`),
+        ]
+      : []),
+    `  形: example_main = {${fields.join(", ")}}`,
+  ].join("\n");
+}
+
+/**
+ * 返ってきた札を**機械的に**確かめる（AI は呼ばない）。自己点検が false・札が空・読む人の言語でない物は使わない。
+ * 札は読む人の言語ごとの上限まで短くする。訳も読む人の言語の物だけ。
+ */
+export function checkMainExampleLabel(
+  raw: unknown,
+  opts: { sentence: string; readerLang: string },
+): CheckedMainLabel | null {
+  const parsed = MainExampleLabelSchema.safeParse(raw ?? {});
+  if (!parsed.success) return null;
+  const l = parsed.data;
+  if (l.scene_fits === false) return null;
+  const scene = shortScene(
+    readerText(l.scene.trim(), opts.readerLang, opts.sentence).trim(),
+    opts.readerLang,
+  );
+  if (!scene) return null;
+  return {
+    scene,
+    translation: readerText(l.translation.trim(), opts.readerLang, opts.sentence).trim(),
+    // パーツはその文を分けた物だけ（AI が別の文・直した文を分けて返した回は使わない）。
+    chunks: chunksMatchSentence(l.chunks, opts.sentence) ? l.chunks : [],
+    sameAsMain: [...new Set(l.same_as_main)],
+  };
+}
+
+/** メインの例文と同じパターンの追加の例文か（同じ文・似た場面・同じ文型、または AI が同じと言った物）。 */
+function duplicatesMain(
+  main: { sentence: string; scene: string },
+  extra: { sentence: string; scene: string },
+  headword: string,
+): boolean {
+  if (sameSentence(extra.sentence, main.sentence)) return true;
+  // 札の無いメイン（札を作れなかった回）は、文の形だけで比べることになる（空の札は何とも似ない — `similarity`）。
+  return nearDuplicateExample(main, extra, headword);
+}
+
+/**
+ * **メインの例文が決まっている時**のカードの例文の欄（カード生成・例文の作り直し）。
+ *
+ * - `example_sentence` = 決まった文（変えない）。札があれば `example_scene` / `example_scene_for`（= その文）/
+ *   `example_chunks`、訳があれば `example_translation`
+ * - 札が無ければ（作れなかった回）、別の文の札・パーツを残さない（古い文に札が付かないだけ。次に開いた時に埋まる）
+ * - 追加の例文（`withExtra`）: メインと同じパターンの物を落とし、上限まで。`example_pattern_count` = 1 + 残った数
+ *   （メインはいつも別のパターンとして数える — 同じパターンの追加の例文は落としたので）
+ */
+export function applyFixedMainExample<T extends CardLike>(
+  card: T,
+  opts: {
+    sentence: string;
+    label: CheckedMainLabel | null;
+    extras: readonly PickedExample[];
+    withExtra: boolean;
+    headword: string;
+    max?: number;
+  },
+): T {
+  const max = Math.max(1, opts.max ?? MAX_EXAMPLE_PATTERNS);
+  const main = { sentence: opts.sentence, scene: opts.label?.scene ?? "" };
+  const rest = opts.extras.filter((e) => !duplicatesMain(main, e, opts.headword)).slice(0, max - 1);
+  const extras: Record<string, unknown> = { ...(card.extras ?? {}) };
+  for (const k of PAIRED_EXTRAS) delete extras[k];
+  if (opts.label) {
+    extras.example_scene = opts.label.scene;
+    extras.example_scene_for = opts.sentence;
+    if (opts.label.chunks.length > 0) extras.example_chunks = opts.label.chunks;
+  }
+  extras.example_v = EXAMPLE_PROMPT_VERSION;
+  if (opts.withExtra) {
+    extras.examples_extra = rest.map(toExtraExample);
+    extras.example_pattern_count = 1 + rest.length;
+  }
+  const keptTranslation = sameSentence(card.example_sentence, opts.sentence)
+    ? (card.example_translation ?? "")
+    : "";
+  return {
+    ...card,
+    example_sentence: opts.sentence,
+    example_translation: opts.label?.translation || keptTranslation,
+    extras,
+  };
+}
+
+/** 追加の例文1つ（保存の形）を、比べる形に。 */
+function extraAsExample(e: unknown): { sentence: string; scene: string } {
+  const x = (e ?? {}) as { zh?: unknown; scene?: unknown };
+  return {
+    sentence: typeof x.zh === "string" ? x.zh : "",
+    scene: typeof x.scene === "string" ? x.scene : "",
+  };
+}
+
+/**
+ * **保存済みの行**のメインの例文に札を付ける差分（札だけの呼び出しの後、`example-scene-label.server.ts`）。
+ *
+ * - `example_scene` / `example_scene_for`（= その文）
+ * - メインと同じパターンの追加の例文を落とす（`samePattern` の文・似た場面・同じ文型）。落とした時は
+ *   `examples_extra` を入れ替える（`replaceKeys` に入る）
+ * - AI が同じパターンと言った物は**文で**渡す（`samePattern`）。番号（`label.sameAsMain`）は AI に見せた
+ *   一覧の中の位置で、読む人の行と共有の行では一覧が違うので、ここでは使わない（PR #189 の点検 P1）
+ * - `example_pattern_count` は 1 + 残った数（数が在った行・落とした行だけ。無い行に新しく数を置かない）
+ *
+ * `label` が null（札は既に在る）なら、同じパターンの追加の例文を落とすだけ。変える物が無ければ null。
+ */
+export function mainExamplePatch(
+  extras: ExtrasLike,
+  opts: {
+    sentence: string;
+    headword: string;
+    label: CheckedMainLabel | null;
+    /** AI がメインと同じパターンと言った追加の例文の**文**（どの行の一覧でも、文で突き合わせる）。 */
+    samePattern?: readonly string[];
+  },
+): { patch: Record<string, unknown>; replaceKeys: string[] } | null {
+  const e = (extras ?? {}) as Record<string, unknown>;
+  const scene = opts.label?.scene ?? mainSceneFor(opts.sentence, e);
+  const main = { sentence: opts.sentence, scene };
+  const list = Array.isArray(e.examples_extra) ? (e.examples_extra as unknown[]) : [];
+  const same = (opts.samePattern ?? []).filter((x) => norm(x));
+  const kept = list.filter((x) => {
+    const ex = extraAsExample(x);
+    if (same.some((s) => sameSentence(s, ex.sentence))) return false;
+    return !duplicatesMain(main, ex, opts.headword);
+  });
+  const patch: Record<string, unknown> = {};
+  const replaceKeys: string[] = [];
+  if (opts.label) {
+    patch.example_scene = opts.label.scene;
+    patch.example_scene_for = opts.sentence;
+    /**
+     * 目印でこの文を正と記すので、パーツもこの文の物にそろえる（PR #189 の点検 P2）。在るパーツがこの文を
+     * 分けた物なら残す。そうでなければ、札と一緒に書かせたパーツ（この文の物だけ — `checkMainExampleLabel`）に
+     * 入れ替え、それも無ければ空にする（`replaceKeys` — 空で上書きする）。
+     */
+    if (!chunksMatchSentence(e.example_chunks, opts.sentence)) {
+      const hadChunks = Array.isArray(e.example_chunks) && e.example_chunks.length > 0;
+      if (opts.label.chunks.length > 0) {
+        patch.example_chunks = opts.label.chunks;
+      } else if (hadChunks) {
+        patch.example_chunks = [];
+        replaceKeys.push("example_chunks");
+      }
+    }
+  }
+  const dropped = kept.length < list.length;
+  if (dropped) {
+    patch.examples_extra = kept;
+    replaceKeys.push("examples_extra");
+  }
+  const count = typeof e.example_pattern_count === "number" ? e.example_pattern_count : null;
+  if ((dropped || count !== null) && count !== 1 + kept.length) {
+    patch.example_pattern_count = 1 + kept.length;
+  }
+  return Object.keys(patch).length > 0 ? { patch, replaceKeys } : null;
+}
+
+/**
+ * 札は既に在る行で、AI を呼ばずに直せる物が在るか（メインと同じパターンの追加の例文・合わないパターンの数）。
+ */
+export function mainExampleNeedsTidy(
+  extras: ExtrasLike,
+  sentence: string | null | undefined,
+  headword: string,
+): boolean {
+  if (!norm(sentence) || needsMainSceneLabel(sentence, extras)) return false;
+  return mainExamplePatch(extras, { sentence: sentence ?? "", headword, label: null }) !== null;
+}
+
+/**
+ * **保存済みの行を直す引数**（`apply_main_example_label` に渡す。PR #189 の点検 P1）。
+ *
+ * 行を丸ごと書き戻さない — 書く時点の行に、名前を挙げた鍵だけを重ねる（ほかの処理が間に書いた鍵を消さない）。
+ * だから「何を足す・何を落とす」を値で渡す:
+ * - `scene`: 札（目印 = その文は SQL が付ける）。札が要らなければ null
+ * - `chunks`: その文のパーツ（置き換える）。`staleChunks`: いまのパーツがこの値のままなら空にする
+ * - `drop`: 落とす追加の例文の文（zh。読んだ行の文そのまま）
+ * - `recount`: パターンの数を書く時点の 1 + 残った数にする
+ *
+ * 直す物が無ければ null。中身は `mainExamplePatch` と同じ決まり。
+ */
+export type MainExampleRepair = {
+  scene: string | null;
+  chunks: z.infer<typeof ChunkPartSchema>[] | null;
+  staleChunks: unknown[] | null;
+  drop: string[];
+  recount: boolean;
+};
+
+export function mainExampleRepair(
+  extras: ExtrasLike,
+  opts: Parameters<typeof mainExamplePatch>[1],
+): MainExampleRepair | null {
+  const fix = mainExamplePatch(extras, opts);
+  if (!fix) return null;
+  const e = (extras ?? {}) as Record<string, unknown>;
+  const list = Array.isArray(e.examples_extra) ? (e.examples_extra as unknown[]) : [];
+  const kept = Array.isArray(fix.patch.examples_extra)
+    ? (fix.patch.examples_extra as unknown[])
+    : null;
+  const drop = kept
+    ? list
+        .filter((x) => !kept.includes(x))
+        .map((x) => extraAsExample(x).sentence)
+        .filter((s) => s.length > 0)
+    : [];
+  const ch = fix.patch.example_chunks;
+  const repair: MainExampleRepair = {
+    scene: typeof fix.patch.example_scene === "string" ? fix.patch.example_scene : null,
+    chunks: Array.isArray(ch) && ch.length > 0 ? (ch as MainExampleRepair["chunks"]) : null,
+    staleChunks:
+      Array.isArray(ch) && ch.length === 0 && Array.isArray(e.example_chunks)
+        ? (e.example_chunks as unknown[])
+        : null,
+    drop: [...new Set(drop)],
+    recount: "example_pattern_count" in fix.patch,
+  };
+  const empty =
+    !repair.scene &&
+    !repair.chunks &&
+    !repair.staleChunks &&
+    repair.drop.length === 0 &&
+    !repair.recount;
+  return empty ? null : repair;
+}
+
+/**
+ * **その行のメインの例文に札を書いてよいか**（PR #189 の点検 — 行の札を消さない決まり）。書いてよいのは:
+ * - 札が無い（`example_scene` が空）
+ * - 札は在るが、目印（`example_scene_for`）が**別の文**を指している — 別の文の札だと分かる時だけ入れ替える
+ *
+ * 目印の無い札（人が書いた・目印より前の札）は、どの文の札か分からないので**入れ替えない**。その文の札が
+ * もう在る行も書かない。人が確かめた行（verified）は呼ぶ側が外す（どんな札も入れ替えない）。
+ * 同じ決まりは SQL の `apply_main_example_label` にもある（DB の側でも入れ替えない）。
+ */
+export function mayWriteMainLabel(
+  sentence: string | null | undefined,
+  extras: ExtrasLike,
+): boolean {
+  if (!norm(sentence)) return false;
+  const e = (extras ?? {}) as Record<string, unknown>;
+  const scene = typeof e.example_scene === "string" ? e.example_scene.trim() : "";
+  if (!scene) return true;
+  const forSentence = typeof e.example_scene_for === "string" ? e.example_scene_for.trim() : "";
+  return !!forSentence && !sameSentence(forSentence, sentence);
 }

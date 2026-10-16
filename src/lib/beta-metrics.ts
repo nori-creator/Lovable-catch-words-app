@@ -53,6 +53,7 @@ export const DEFAULT_UNIT_COST_USD: Readonly<Record<string, number>> = {
   first_catch_ai: 0.003,
   reader_meaning: 0.002,
   native_text: 0.002,
+  scene_label: 0.001,
   "guest:first_catch_ai": 0.003,
   "run:review_distractor_pregen": 0.001,
 };

@@ -42,7 +42,10 @@ export function wordExplanationQuery(
     initialData: cached,
     // 覚えた物は「少し古い」扱いにして、開くたびに裏で確かめ直す。
     initialDataUpdatedAt: cached ? 0 : undefined,
-    staleTime: 30 * 60 * 1000,
+    // 例文の札を返事の後で書きに行った返事（`labelPending`）はすぐ古くする — 次に開いた時に読み直して札を出す
+    // （PR #189 の点検 P2。30 分そのままだと、書けた札が出ない）。
+    staleTime: (q: { state: { data?: WordExplanationResult } }) =>
+      q.state.data?.labelPending ? 0 : 30 * 60 * 1000,
     gcTime: 60 * 60 * 1000,
   };
 }

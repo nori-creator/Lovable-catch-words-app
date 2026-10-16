@@ -41,6 +41,7 @@ import {
 import { chunkVerifyMode, describeChunkGate, gateUsageChunks } from "./chunk-quality";
 import { normalizeTargetLanguage } from "./target-lang";
 import { readerText, scrubForReader, scrubForeignNotes } from "./note-language";
+import { looksLikeTargetLanguage } from "./text-language";
 import { explanationKey } from "./word-explanation";
 import { mergeIntoReaderExplanation, readReaderExplanation } from "./word-explanation.functions";
 import { worldExampleRule, sharedExampleSourceRule } from "./example-sources";
@@ -48,7 +49,6 @@ import {
   MAX_EXAMPLE_PATTERNS,
   EXAMPLE_PROMPT_VERSION,
   ExamplePatternSchema,
-  alignExampleExtras,
   nearDuplicateExample,
   sceneMaxChars,
   toExtraExample,
@@ -56,6 +56,12 @@ import {
   sameSentence,
   examplePatternsRule,
   pickExamplePatterns,
+  applyFixedMainExample,
+  checkMainExampleLabel,
+  chunksMatchSentence,
+  mainExampleLabelRule,
+  mainSceneFor,
+  type CheckedMainLabel,
 } from "./example-patterns";
 import { exampleLevelRule } from "./level-instruction";
 import {
@@ -69,6 +75,9 @@ import {
   CARD_REUSE_VERSION,
   fillSharedWordFromCard,
   loadGeneratedCardRows,
+  readExistingMainSentence,
+  reusableForMainSentence,
+  sameHeadword,
   pickReusableCard,
   recordGeneratedCards,
   trustedCardFrom,
@@ -1193,6 +1202,15 @@ export const generateCard = createServerFn({ method: "POST" })
       language: targetProfile(data.targetLanguage).code,
       headword: data.headword,
     });
+    /**
+     * **共有の語にもう在るメインの例文**（2026-10-16 冰淇淋）。共有の行の例文は空の時だけ埋めるので、在る文は
+     * 保存の後も残る。その文を「与えられた文」として指示に入れ、その文のための札と、それ以外のパターンだけを
+     * 書かせる（新しい文をメインに書くと、その札は保存で外れ、古い文に札が付かないまま数だけ増える）。
+     */
+    const existingMain = readExistingMainSentence(cardAdmin, {
+      language: targetProfile(data.targetLanguage).code,
+      headword: data.headword,
+    });
     const reservation = reserveAiCallFor(context.userId, "card").then(
       (r) => ({ ok: true as const, usageId: r.usageId }),
       (error: unknown) => ({ ok: false as const, error }),
@@ -1231,8 +1249,21 @@ export const generateCard = createServerFn({ method: "POST" })
         l1: readerKey.l1,
         gen: genKey,
       });
-      const reply = reused ? reusedCardReply(reused, data.headword, data.sections) : null;
-      if (reused && reply) {
+      // 控えた後に共有のメインの例文が変わっていたら返さない（決まった文と札を作り直す — PR #189 の点検 P2）。
+      const currentMain = reused
+        ? await existingMain.then((m) =>
+            m && looksLikeTargetLanguage(m, targetProfile(data.targetLanguage).code) ? m : null,
+          )
+        : null;
+      const fits =
+        !!reused &&
+        reusableForMainSentence(reused, {
+          inputHeadword: data.headword,
+          currentMain,
+          language: targetProfile(data.targetLanguage).code,
+        });
+      const reply = reused && fits ? reusedCardReply(reused, data.headword, data.sections) : null;
+      if (reused && fits && reply) {
         // 確保した1回は返事の後で返す（確保が終わるのを待たない — 待つと確保の往復ぶん遅くなる）。
         void runAfterResponse("generateCard: release the reservation (reuse)", async () => {
           const held = await reservation;
@@ -1285,16 +1316,41 @@ export const generateCard = createServerFn({ method: "POST" })
     const jaLines = japaneseSectionLines(wantOwn, NL);
     // 場面のパターンの上限。追加の例文の節を頼まない呼び出し（Web の既定）は、いちばんよく使う場面の1つだけ。
     const maxPatterns = want("examples_extra") ? MAX_EXAMPLE_PATTERNS : 1;
-    const examplesRule = examplePatternsRule({
+    // 前から在るメインの例文（学習言語で書かれた物だけ。そうでない文は例文の節の作り直しが入れ替える）。
+    const fixedMain = await existingMain.then((s) =>
+      s && looksLikeTargetLanguage(s, cardLanguage) ? s : null,
+    );
+    const patternBase = {
       headword: data.headword,
       targetName: cardProfile.promptName,
       nl: NL,
-      max: maxPatterns,
       levelRule: exampleLevelRule(cardProfile.levels, levels.current, levels.goal, data.headword),
       sourceRule: worldExampleRule(NL, cardProfile.code),
       chunkRoles: cardProfile.chunkRoles.join(" / "),
       sceneMax: sceneMaxChars(explainLang),
-    });
+    };
+    const examplesRule = fixedMain
+      ? [
+          mainExampleLabelRule({
+            sentence: fixedMain,
+            headword: data.headword,
+            targetName: cardProfile.promptName,
+            nl: NL,
+            sceneMax: patternBase.sceneMax,
+            translation: true,
+            chunkRoles: patternBase.chunkRoles,
+          }),
+          want("examples_extra")
+            ? `- example_patterns: メインの例文「${fixedMain}」の**パターンと似たパターンは除き**、ほかによく使うパターンだけを返す。ほかに無ければ空配列 []（数を合わせるために作らない）。\n` +
+              examplePatternsRule({ ...patternBase, max: MAX_EXAMPLE_PATTERNS - 1 })
+            : `- example_patterns: 空配列 [] を返す（メインの例文は上で決まっている）。`,
+          // 見出し語は AI が決める（母語の入力なら別の語になる — 手紙 → 信）。その時、決まった文は別の語の物で
+          // 使えないので、**予備の例文**を1つ必ず書かせる（PR #189 の点検 P2。往復は増やさない）。
+          `- example_fallback: **予備の例文1つ**（example_patterns の1つと同じ形 {share,sentence,translation,scene,chunks,scene_fits}）。` +
+            `headword_zh が「${data.headword}」と違う語になった時だけ、その語のメインの例文として使う（その時は headword_zh の語を入れた文にする）。` +
+            `同じなら使わないので短くてよいが、必ず書く。`,
+        ].join("\n")
+      : examplePatternsRule({ ...patternBase, max: maxPatterns });
     const prompt = `「${data.headword}」について、${cardProfile.promptName}の語彙カードを生成してください。
 
 ${langRule}
@@ -1396,6 +1452,9 @@ ${data.hintCategory && data.hintCategory !== "other" ? `カテゴリのヒント
       `headword_zh / reading_zhuyin / pinyin / meaning_ja / part_of_speech / level / ` +
       `category_key / new_shelf / ` +
       `example_patterns[{share,sentence,translation,scene,chunks:[{text,pos}],scene_fits}] / ` +
+      (fixedMain
+        ? `example_main{scene,translation,chunks:[{text,pos}],scene_fits} / example_fallback{share,sentence,translation,scene,chunks:[{text,pos}],scene_fits} / `
+        : "") +
       `extras{ ` +
       [
         want("usage_chunks") &&
@@ -1679,7 +1738,8 @@ ${data.hintCategory && data.hintCategory !== "other" ? `カテゴリのヒント
         headword: resolvedHead,
         language: cardLanguage,
         readerLang: explainLang,
-        max: maxPatterns,
+        // メインが決まっている時は、メインと似た物を落としてから上限まで詰めるので、多めに受け取る。
+        max: fixedMain ? MAX_EXAMPLE_PATTERNS : maxPatterns,
       });
       if (card.example_patterns.length > 0 && picked.length < card.example_patterns.length) {
         console.info("generateCard: 例文のパターンを落とした", {
@@ -1687,7 +1747,45 @@ ${data.hintCategory && data.hintCategory !== "other" ? `カテゴリのヒント
           kept: picked.length,
         });
       }
-      card = applyExamplePatterns(card, picked, { withExtra: want("examples_extra") });
+      // メインの例文が決まっている語は、その文に札を付け、ほかのパターンを追加の例文にする。
+      // 見出し語が入力と変わった回（母語で打った語）は、引いた文が別の語の物なので使わない。
+      if (fixedMain && sameHeadword(resolvedHead, data.headword, cardLanguage)) {
+        const label = checkMainExampleLabel(card.example_main, {
+          sentence: fixedMain,
+          readerLang: explainLang,
+        });
+        if (!label) {
+          console.info("generateCard: 前から在る例文の札を作れなかった", {
+            headword: resolvedHead,
+          });
+        }
+        card = applyFixedMainExample(card, {
+          sentence: fixedMain,
+          label,
+          extras: picked,
+          withExtra: want("examples_extra"),
+          headword: resolvedHead,
+        });
+      } else if (fixedMain) {
+        // 見出し語が変わった（決まった文は別の語の物）: 予備の例文をメインに、ほかのパターンを追加の例文にする。
+        const fallback = pickExamplePatterns(
+          [...(card.example_fallback ? [card.example_fallback] : []), ...card.example_patterns],
+          {
+            headword: resolvedHead,
+            language: cardLanguage,
+            readerLang: explainLang,
+            max: maxPatterns,
+          },
+        );
+        console.info("generateCard: 見出し語が変わったので予備の例文を使う", {
+          input: data.headword,
+          headword: resolvedHead,
+          kept: fallback.length,
+        });
+        card = applyExamplePatterns(card, fallback, { withExtra: want("examples_extra") });
+      } else {
+        card = applyExamplePatterns(card, picked, { withExtra: want("examples_extra") });
+      }
     }
     // 語源の図（`etymology-diagram.ts`）はもう作らない（2026-10-15、`NOT_GENERATED_SECTIONS`）。
     // モデルが頼まれずに書いてきた語源の欄は、返す前に `stripNotGenerated` が落とす。
@@ -1822,8 +1920,15 @@ ${data.hintCategory && data.hintCategory !== "other" ? `カテゴリのヒント
       if (picked) categoryKey = normalizeCategory(resolvedHead, picked);
     }
     // パターンの生の配列は返さない・控えない（写した欄だけが正）。
-    const { example_patterns: _patterns, ...cardFields } = card;
+    const {
+      example_patterns: _patterns,
+      example_main: _main,
+      example_fallback: _fallback,
+      ...cardFields
+    } = card;
     void _patterns;
+    void _main;
+    void _fallback;
     const out = {
       ...cardFields,
       // **訳は読む人の言語で**（2026-09-29「例文の訳に中文が混ざってる」）。例文の写しや
@@ -2027,8 +2132,8 @@ const RegenInput = z.object({
  * 記号の一覧は `target-profile.ts` が言語ごとに持つ。
  */
 /** 例文の作り直しの返事の形（生成と同じ鍵）。 */
-const EXAMPLE_PATTERNS_JSON = (targetName: string, nl: string) =>
-  `{"example_patterns":[{"share":0,"sentence":"${targetName}の例文","translation":"訳(${nl})","scene":"短い1行(${nl})","chunks":[{"text":"","pos":""}],"scene_fits":true}]}`;
+const EXAMPLE_PATTERNS_JSON = (targetName: string, nl: string, withMain = false) =>
+  `{${withMain ? `"example_main":{"scene":"短い1行(${nl})","translation":"訳(${nl})","chunks":[{"text":"","pos":""}],"scene_fits":true},` : ""}"example_patterns":[{"share":0,"sentence":"${targetName}の例文","translation":"訳(${nl})","scene":"短い1行(${nl})","chunks":[{"text":"","pos":""}],"scene_fits":true}]}`;
 
 function chunkRule(language: string | null | undefined): string {
   const p = targetProfile(language);
@@ -2488,10 +2593,45 @@ async function runSectionRegen(
     language: regenProfile.code,
     readerLang: regenLang,
   };
-  const mainScene = (() => {
-    const ex = normalizeExtras(word.extras);
-    return ex && alignExampleExtras(ex, word.example_sentence as string | null).example_scene;
-  })();
+  /**
+   * メインの例文と、**その文のために書かれた札**（画面が見ている読む人の行 → 共有の行の順）。
+   * 札の無い古い文（2026-10-16 冰淇淋「夏天吃冰淇淋。」）には、例文の節を作る同じ呼び出しで札だけを書かせる
+   * （文は変えない — `mainExampleLabelRule`）。
+   */
+  const mainSentence = ((word.example_sentence as string | null) ?? "").trim();
+  const mainUsable = !!mainSentence && looksLikeTargetLanguage(mainSentence, regenProfile.code);
+  const readerMainScene = mainSceneFor(
+    mainSentence,
+    readerRow?.extras as Record<string, unknown> | null | undefined,
+  );
+  const sharedMainScene = mainSceneFor(
+    mainSentence,
+    normalizeExtras(word.extras) as Record<string, unknown> | null,
+  );
+  const mainScene = readerMainScene || sharedMainScene;
+  /**
+   * 読む人の行へ写してよい共有の札: 共有の解説が読む人の言語で書かれていて、札そのものも読む人の言語の物だけ
+   * （英語で読む人の行に日本語の札を写さない — PR #189 の点検）。違えば、読む人の行には札を書かせる。
+   */
+  const sharedExtrasLang =
+    String((word.extras as Record<string, unknown> | null)?.explain_lang ?? "").trim() || "ja";
+  const sharedSceneForReader =
+    sharedExtrasLang === regenLang && readerText(sharedMainScene, regenLang, mainSentence).trim()
+      ? sharedMainScene
+      : "";
+  const needMainLabel = mainUsable && !readerMainScene && !sharedSceneForReader;
+  /** 人が確かめた語（verified）の例文は書き換えないので、例文を作り直す時もその文を決まった文として扱う。 */
+  const fixedExampleMain = data.section === "example" && word.source === "verified" && mainUsable;
+  const mainLabelRule = (extraOpts: { translation: boolean }) =>
+    mainExampleLabelRule({
+      sentence: mainSentence,
+      headword: head,
+      targetName,
+      nl: NL,
+      sceneMax: regenPatternBase.sceneMax,
+      chunkRoles: regenPatternBase.chunkRoles,
+      translation: extraOpts.translation,
+    });
 
   // 各項目のプロンプトと出力形。extras へのマージで反映する。
   const spec: Record<RegenSection, { prompt: string; schema: z.ZodTypeAny }> = {
@@ -2520,32 +2660,77 @@ async function runSectionRegen(
      * よく使うパターンを上限まで全部作る: 1つ目がメインの例文、残りが `examples_extra`（**入れ替える** — 古い
      * 追加の例文を残さない。`replaceExtras`）。札はどれも書いた文の目印（`example_scene_for` / `scene_for`）と組。
      */
-    example: {
-      prompt: `${base}\n${examplePatternsRule({ ...regenPatternBase, max: MAX_EXAMPLE_PATTERNS })}\n${chunkRule(word.language as string | null)}\n${EXAMPLE_PATTERNS_JSON(targetName, NL)}`,
-      schema: z
-        .object({ example_patterns: z.array(ExamplePatternSchema).min(1) })
-        .transform((r, ctx) => {
-          const picked = pickExamplePatterns(r.example_patterns, {
-            ...regenPickBase,
-            max: MAX_EXAMPLE_PATTERNS,
-          });
-          const [main, ...rest] = picked;
-          if (!main) {
-            ctx.addIssue({ code: "custom", message: "場面と文の合う例文が無い" });
-            return z.NEVER;
-          }
-          return {
-            example_scene: main.scene,
-            example_sentence: main.sentence,
-            example_translation: main.translation,
-            example_chunks: main.chunks,
-            example_scene_for: main.sentence,
-            example_v: EXAMPLE_PROMPT_VERSION,
-            examples_extra: rest.map(toExtraExample),
-            example_pattern_count: picked.length,
-          };
-        }),
-    },
+    example: fixedExampleMain
+      ? {
+          // 人が確かめた語: メインの文はそのまま。その文の札と、ほかのパターンだけを作る（`applyFixedMainExample` と同じ形）。
+          prompt: `${base}\n${mainLabelRule({ translation: false })}\n- example_patterns: メインの例文「${mainSentence}」の**パターンと似たパターンは除き**、ほかによく使うパターンだけを返す。ほかに無ければ空配列 []（数を合わせるために作らない）。\n${examplePatternsRule({ ...regenPatternBase, max: MAX_EXAMPLE_PATTERNS - 1 })}\n${chunkRule(word.language as string | null)}\n${EXAMPLE_PATTERNS_JSON(targetName, NL, true)}`,
+          schema: z
+            .object({
+              example_patterns: z.array(ExamplePatternSchema).catch([]),
+              example_main: z.unknown().optional(),
+            })
+            .transform((r) => {
+              const label = checkMainExampleLabel(r.example_main, {
+                sentence: mainSentence,
+                readerLang: regenLang,
+              });
+              const card = applyFixedMainExample(
+                { example_sentence: mainSentence, example_translation: "", extras: {} },
+                {
+                  sentence: mainSentence,
+                  label,
+                  extras: pickExamplePatterns(r.example_patterns, {
+                    ...regenPickBase,
+                    max: MAX_EXAMPLE_PATTERNS,
+                  }),
+                  withExtra: true,
+                  headword: head,
+                },
+              );
+              // 札は extras の書き戻しに混ぜず、`persistMainLabel` が名前を挙げた鍵だけを書く（PR #189 の点検）。
+              const {
+                example_scene: _scene,
+                example_scene_for: _for,
+                example_chunks: _chunks,
+                ...rest
+              } = card.extras as Record<string, unknown>;
+              void _scene;
+              void _for;
+              void _chunks;
+              return {
+                ...rest,
+                ...(label
+                  ? { main_label: { scene: label.scene, chunks: label.chunks, translation: "" } }
+                  : {}),
+              };
+            }),
+        }
+      : {
+          prompt: `${base}\n${examplePatternsRule({ ...regenPatternBase, max: MAX_EXAMPLE_PATTERNS })}\n${chunkRule(word.language as string | null)}\n${EXAMPLE_PATTERNS_JSON(targetName, NL)}`,
+          schema: z
+            .object({ example_patterns: z.array(ExamplePatternSchema).min(1) })
+            .transform((r, ctx) => {
+              const picked = pickExamplePatterns(r.example_patterns, {
+                ...regenPickBase,
+                max: MAX_EXAMPLE_PATTERNS,
+              });
+              const [main, ...rest] = picked;
+              if (!main) {
+                ctx.addIssue({ code: "custom", message: "場面と文の合う例文が無い" });
+                return z.NEVER;
+              }
+              return {
+                example_scene: main.scene,
+                example_sentence: main.sentence,
+                example_translation: main.translation,
+                example_chunks: main.chunks,
+                example_scene_for: main.sentence,
+                example_v: EXAMPLE_PROMPT_VERSION,
+                examples_extra: rest.map(toExtraExample),
+                example_pattern_count: picked.length,
+              };
+            }),
+        },
     /**
      * 追加の例文 = メインの例文の場面**以外**のよく使うパターン（古い画面と Web のための口）。無ければ空でよい
      * （1つの場面でしか使わない語）。その時は `example_pattern_count: 1` を残し、空の節を開くたびに作り直しに来ない。
@@ -2555,25 +2740,56 @@ async function runSectionRegen(
         word.example_sentence
           ? `この語には既にメインの例文「${word.example_sentence}」${mainScene ? `（場面「${mainScene}」）` : ""}がある。**そのパターンと似たパターンは除き**、ほかによく使うパターンだけを返す。ほかに無ければ空配列 [] を返す（数を合わせるために作らない）。\n`
           : ""
-      }${examplePatternsRule({ ...regenPatternBase, max: MAX_EXAMPLE_PATTERNS - 1 })}\n${chunkRule(word.language as string | null)}\n${EXAMPLE_PATTERNS_JSON(targetName, NL)}`,
-      schema: z.object({ example_patterns: z.array(ExamplePatternSchema) }).transform((r) => {
-        const main = {
-          sentence: (word.example_sentence as string | null) ?? "",
-          scene: mainScene ?? "",
-        };
-        const picked = pickExamplePatterns(r.example_patterns, {
-          ...regenPickBase,
-          max: MAX_EXAMPLE_PATTERNS - 1,
-        }).filter(
-          (e) =>
-            !sameSentence(e.sentence, main.sentence) &&
-            !(main.sentence && nearDuplicateExample(main, e, head)),
-        );
-        return {
-          examples_extra: picked.map(toExtraExample),
-          example_pattern_count: 1 + picked.length,
-        };
-      }),
+      }${needMainLabel ? `${mainLabelRule({ translation: !!readerRow && !(readerRow.example_translation ?? "").trim() })}\n` : ""}${examplePatternsRule({ ...regenPatternBase, max: MAX_EXAMPLE_PATTERNS - 1 })}\n${chunkRule(word.language as string | null)}\n${EXAMPLE_PATTERNS_JSON(targetName, NL, needMainLabel)}`,
+      schema: z
+        .object({
+          example_patterns: z.array(ExamplePatternSchema),
+          example_main: z.unknown().optional(),
+        })
+        .transform((r) => {
+          // 札の無い古いメインの例文には、同じ呼び出しで書かせた札を付ける（文は変えない）。
+          const label = needMainLabel
+            ? checkMainExampleLabel(r.example_main, {
+                sentence: mainSentence,
+                readerLang: regenLang,
+              })
+            : null;
+          const main = {
+            sentence: (word.example_sentence as string | null) ?? "",
+            scene: mainScene || label?.scene || "",
+          };
+          const picked = pickExamplePatterns(r.example_patterns, {
+            ...regenPickBase,
+            max: MAX_EXAMPLE_PATTERNS - 1,
+          }).filter(
+            (e) =>
+              !sameSentence(e.sentence, main.sentence) &&
+              !(main.sentence && nearDuplicateExample(main, e, head)),
+          );
+          // 共有の行にだけ札が在る（読む人の行に無い）時は、その札を読む人の行へ写す（パーツもその文の物なら）。
+          const sharedChunks = (normalizeExtras(word.extras) as Record<string, unknown> | null)
+            ?.example_chunks;
+          const copied =
+            !label && mainUsable && !readerMainScene && sharedSceneForReader
+              ? {
+                  scene: sharedSceneForReader,
+                  chunks: chunksMatchSentence(sharedChunks, mainSentence)
+                    ? (sharedChunks as unknown[])
+                    : [],
+                }
+              : null;
+          // 札は extras の書き戻しに混ぜない（下で `persistMainLabel` が名前を挙げた鍵だけを書く — PR #189 の点検）。
+          const mainLabel = label
+            ? { scene: label.scene, chunks: label.chunks, translation: label.translation }
+            : copied
+              ? { scene: copied.scene, chunks: copied.chunks, translation: "" }
+              : null;
+          return {
+            ...(mainLabel ? { main_label: mainLabel } : {}),
+            examples_extra: picked.map(toExtraExample),
+            example_pattern_count: 1 + picked.length,
+          };
+        }),
     },
     usage_chunks: {
       prompt: `${base}\n${chunkCountRule(head)}\n${chunkSenseRule(head, String(word.meaning_ja ?? ""))}\n${formulaChunkRule(regenProfile.code)}\n${specificChunkRule(head, regenLevelGoal)}\n**短くする**: ${regenProfile.chunkPrompt.lengthRule}\nそのまま声に出せる形にする。${regenProfile.chunkPrompt.styleRule}\n${learnerL1}が崩しやすい型を優先する（ja は訳だけ）。\n${l1Gram}\n${chunkRule(word.language as string | null)}\nja はその型の自然な訳だけ（説明・注釈・括弧書きは書かない）。\n${CHUNK_SELF_CHECK_RULE}\n{"usage_chunks":[{"parts":[{"text":"","pos":"","slot":false,"ja":"","pinyin":"","zhuyin":"","alts":[{"text":"","ja":"","pinyin":"","zhuyin":""}]}],"ja":"訳","fits":true,"why":""}]}`,
@@ -2766,9 +2982,32 @@ async function runSectionRegen(
   // 人が確かめた語（verified）は例文の列を書き換えない。その時、新しい文のために書いた札・パーツ・訳を
   // 古い文の横に置かない（2026-10-15 眼鏡と同じ食い違いになる）。
   const keepVerifiedExample = data.section === "example" && word.source === "verified";
+  /**
+   * 札の無い古いメインの例文の札（追加の例文の節で一緒に書かせた・共有の行から写す物）。extras の書き戻しには
+   * 入れず、書き終えた後で `persistMainLabel` が**名前を挙げた鍵だけ**を書く（行を丸ごと書き戻さない。
+   * 別の文のパーツの片付け・訳もそこで — PR #189 の点検）。
+   */
+  const mainLabel = (extrasPatch.main_label ?? null) as {
+    scene: string;
+    chunks: CheckedMainLabel["chunks"];
+    translation: string;
+  } | null;
+  delete extrasPatch.main_label;
+  const persistLabel = async () => {
+    if (!mainLabel) return;
+    const { persistMainLabel } = await import("./example-scene-label.server");
+    await persistMainLabel({
+      userId,
+      wordId: data.word_id,
+      key: readerKey,
+      sentence: mainSentence,
+      label: mainLabel,
+    });
+  };
   if (data.section === "example") {
     delete extrasPatch.example_sentence;
     delete extrasPatch.example_translation;
+    // 決まった文（`fixedExampleMain`）の札は `main_label` で別に書く（`persistMainLabel`）。
     if (keepVerifiedExample) {
       for (const k of ["example_scene", "example_chunks", "example_scene_for", "example_v"]) {
         delete extrasPatch[k];
@@ -2839,6 +3078,7 @@ async function runSectionRegen(
   // 共有の行に既に在る項目は、裏の自動生成では書き換えない（他の人のカードも
   // 同じ行を見ている）。その人向けの行だけを埋めれば足りる。
   if (data.only_if_empty && sharedHas) {
+    await persistLabel();
     return { ok: true, section: data.section, filled: true };
   }
   const { data: fresh } = await supabaseAdmin
@@ -2859,6 +3099,7 @@ async function runSectionRegen(
     .update({ ...baseUpdate, extras: latest as never } as never)
     .eq("id", data.word_id);
   if (upErr) throw new Error(upErr.message);
+  await persistLabel();
 
   return { ok: true, section: data.section, filled: true };
 }

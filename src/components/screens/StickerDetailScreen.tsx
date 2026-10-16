@@ -32,6 +32,7 @@ import { Suspense, useRef, useState, type ComponentProps } from "react";
 import { lazyWithRetry } from "@/lib/chunk-reload";
 import { ArrowLeft, MapPin, Brain, ChevronDown, Clock } from "lucide-react";
 import { useAutoHero } from "@/hooks/use-auto-hero";
+import { useReaderExplanationForDetail } from "@/hooks/use-explanation-label-refresh";
 import { HeroImageChoices } from "@/components/HeroImageChoices";
 import { getMyProfile } from "@/lib/profile.functions";
 import { localeOf, useT } from "@/lib/i18n";
@@ -63,6 +64,8 @@ export function StickerDetailPage() {
     initialData: seed,
     initialDataUpdatedAt: seed ? SEED_UPDATED_AT : undefined,
   });
+  // 札のシートと同じ解説を引く（古い例文の札の直しがこの入り口からも始まる・控えを共有する）。
+  useReaderExplanationForDetail(s?.word_id, stickerId);
   const { data: mem } = useQuery({
     queryKey: ["memory", stickerId],
     queryFn: () => fetchMemory({ data: { sticker_id: stickerId } }),
