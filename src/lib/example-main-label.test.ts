@@ -18,8 +18,12 @@ import {
 } from "./example-patterns";
 import { CardReplySchema } from "./card-schema";
 import { wordExplanationQuery } from "./reader-explanation";
+import { reusableForMainSentence } from "./generated-cards";
+import { updateReaderExplanationIfUnchanged } from "./word-explanation.functions";
 import {
   allowSceneLabel,
+  casSceneFor,
+  shouldLabelMainExample,
   forgetMainExampleLabelAttempts,
   labelMainExample,
   mainExampleNeedsWork,
@@ -415,11 +419,32 @@ function fakeDb(state: { word: Row; owned: boolean }) {
           }),
         }),
       }),
+      // 条件つきの更新（`casSceneFor`）: 条件に合う行だけを書き、書いた行を返す。
       update: (row: Row) => ({
-        eq: async () => {
-          updates.push(row);
-          state.word = { ...state.word, ...row };
-          return { error: null };
+        eq: () => {
+          const conds: Array<(extras: Row | null) => boolean> = [];
+          const sceneFor = (e: Row | null) =>
+            typeof e?.example_scene_for === "string" ? (e.example_scene_for as string) : null;
+          const q = {
+            eq: (k: string, v: string) => {
+              if (k === "extras->>example_scene_for") conds.push((e) => sceneFor(e) === v);
+              return q;
+            },
+            is: (k: string, v: null) => {
+              if (k === "extras->>example_scene_for") conds.push((e) => sceneFor(e) === v);
+              return q;
+            },
+            select: () => q,
+            then: (resolve: (r: { data: unknown; error: null }) => unknown) => {
+              const ok = conds.every((c) => c((state.word.extras ?? null) as Row | null));
+              if (ok) {
+                updates.push(row);
+                state.word = { ...state.word, ...row };
+              }
+              return Promise.resolve(resolve({ data: ok ? [{ id: "w1" }] : [], error: null }));
+            },
+          };
+          return q;
         },
       }),
     }),
@@ -458,8 +483,12 @@ function setup(opts: {
   const deps: MainExampleLabelDeps = {
     admin: db,
     readReader: async () => reader as never,
-    mergeReader: async (_a, _w, key, patch) => {
-      merges.push({ key, patch: patch as Record<string, unknown> });
+    // 書く直前に読み直した行（ここでは同じ行）から差分を作らせ、作れたら書いたとする。
+    writeReader: async (_a, _w, key, build) => {
+      if (!reader || (reader as Row).source === "verified") return false;
+      const built = build(reader as never);
+      if (!built) return false;
+      merges.push({ key, patch: built as unknown as Record<string, unknown> });
       return true;
     },
     allow: opts.allow ?? (async () => undefined),
@@ -780,15 +809,33 @@ describe("どの道もメインの例文の札を作る（配線）", () => {
 
   it("単語の詳細を開いた時: 札の無い行は返事の後で札だけを書く（読む人の行が無い語は共有の行 — P2）", () => {
     const we = src("word-explanation.functions.ts");
-    expect(we).toMatch(/mainExampleNeedsWork\(/);
+    expect(we).toMatch(/shouldLabelMainExample\(/);
     expect(we).toMatch(/scheduleMainExampleLabel\(/);
     // 読む人の行が無くても、返す前に共有の行（同じ言語）の札を頼む
     expect(we).toMatch(
-      /if \(!picked\) \{[\s\S]{0,600}scheduleLabelIfNeeded\(\{[\s\S]{0,200}extras: sharedExtrasIn\(word\.extras, data\.explain_lang\)/,
+      /if \(!picked\) \{[\s\S]{0,600}scheduleLabelIfNeeded\(\{[\s\S]{0,200}shown: \{ extras: sharedExtrasIn\(word\.extras, data\.explain_lang\) \}/,
     );
     expect(we).toMatch(/labelPending/);
+    // 画面に出す行の出どころ（verified か）も渡す
+    expect(we).toMatch(/shown: \{ extras: picked\.extras, source: picked\.source \}/);
     // サーバだけの道具は handler の中で読み込む（画面の束に入れない）
     expect(we).not.toMatch(/^import .*example-scene-label\.server/m);
+  });
+
+  it("Web: 札を書きに行った返事で札の控えを古くする・図鑑から開いた詳細でも同じ解説を引く", () => {
+    const hook = fs.readFileSync(
+      path.join(__dirname, "../hooks/use-explanation-label-refresh.ts"),
+      "utf8",
+    );
+    expect(hook).toMatch(/queryKey: \["sticker", stickerId\], refetchType: "none"/);
+    expect(hook).toMatch(/\.\.\.wordExplanationQuery\(fetchExplanation, wordId, wantKey, cached\)/);
+    const sheet = fs.readFileSync(path.join(__dirname, "../components/StickerSheet.tsx"), "utf8");
+    expect(sheet).toMatch(/useRefreshStickerAfterLabel\(explanation, stickerId\)/);
+    const detail = fs.readFileSync(
+      path.join(__dirname, "../components/screens/StickerDetailScreen.tsx"),
+      "utf8",
+    );
+    expect(detail).toMatch(/useReaderExplanationForDetail\(s\?\.word_id, stickerId\)/);
   });
 
   it("項目の作り直しでも、札を付けた行の別の文のパーツは行ごとに確かめて消す（P2）", () => {
@@ -796,5 +843,279 @@ describe("どの道もメインの例文の札を作る（配線）", () => {
     expect(ai).toMatch(/clear_main_chunks: true/);
     expect(ai).toMatch(/const clearReaderChunks = staleChunks\(readerRow\.extras\)/);
     expect(ai).toMatch(/return staleChunks\(out\) \? \{ \.\.\.out, example_chunks: \[\] \} : out;/);
+  });
+});
+
+describe("same_as_main は番号として確かな物だけ（PR #189 の点検 — 1つ目の追加の例文を消さない）", () => {
+  it.each([[null], [false], [""], [" "], ["1.5"], ["x"], [-1], [1.5], [true], [{}]])(
+    "%j は捨てる",
+    (bad) => {
+      const label = checkMainExampleLabel(
+        { scene: LABELS.ja, same_as_main: [bad] },
+        { sentence: MAIN, readerLang: "ja" },
+      );
+      expect(label?.sameAsMain).toEqual([]);
+    },
+  );
+  it('整数と数字だけの文字列（" 2 "）は番号にする', () => {
+    const label = checkMainExampleLabel(
+      { scene: LABELS.ja, same_as_main: [1, " 2 ", null, 1] },
+      { sentence: MAIN, readerLang: "ja" },
+    );
+    expect(label?.sameAsMain).toEqual([1, 2]);
+  });
+  it("壊れた番号の返事では、古い行の追加の例文を1つも消さない", async () => {
+    forgetMainExampleLabelAttempts();
+    const t = setup({
+      lang: "ja",
+      reply: JSON.stringify({
+        example_main: { scene: LABELS.ja, same_as_main: [null, "", false] },
+      }),
+    });
+    await labelMainExample(t.deps, {
+      userId: "u1",
+      wordId: "w1",
+      key: { explainLang: "ja", l1: "ja" },
+    });
+    expect((t.merges[0].patch.extras as Row).examples_extra).toBeUndefined();
+    expect((t.state.word.extras as Row).examples_extra).toEqual(productionExtras().examples_extra);
+  });
+});
+
+describe("reusableForMainSentence — 控えのカードはいまの共有の文と同じ時だけ返す（PR #189 の点検）", () => {
+  it("共有の文が変わっていたら返さない・同じなら返す・文が無ければ返す", () => {
+    const card = { example_sentence: "我要一個巧克力冰淇淋。", headword_zh: "冰淇淋" };
+    expect(reusableForMainSentence(card, { inputHeadword: "冰淇淋", currentMain: MAIN })).toBe(
+      false,
+    );
+    expect(
+      reusableForMainSentence(
+        { ...card, example_sentence: "夏天吃冰淇淋" },
+        { inputHeadword: "冰淇淋", currentMain: MAIN },
+      ),
+    ).toBe(true);
+    expect(reusableForMainSentence(card, { inputHeadword: "冰淇淋", currentMain: null })).toBe(
+      true,
+    );
+  });
+  it("見出し語が入力と変わったカード（手紙 → 信）は入力の語の文と比べない", () => {
+    expect(
+      reusableForMainSentence(
+        { example_sentence: "我收到一封信。", headword_zh: "信" },
+        { inputHeadword: "手紙", currentMain: "我寫了一封手紙。" },
+      ),
+    ).toBe(true);
+  });
+  it("generateCard は控えを返す前にいまの共有の文と比べる", () => {
+    const ai = fs.readFileSync(path.join(__dirname, "ai.functions.ts"), "utf8");
+    expect(ai).toMatch(
+      /reusableForMainSentence\(reused, \{ inputHeadword: data\.headword, currentMain \}\)/,
+    );
+  });
+});
+
+describe("同じ行の仕事は1つずつ・書く時の条件（PR #189 の点検）", () => {
+  beforeEach(() => forgetMainExampleLabelAttempts());
+
+  it("同時に来た2つの仕事は、AI を1回だけ呼ぶ", async () => {
+    const t = setup({ lang: "ja" });
+    const input = { userId: "u1", wordId: "w1", key: { explainLang: "ja", l1: "ja" } };
+    const [a, b] = await Promise.all([
+      labelMainExample(t.deps, input),
+      labelMainExample(t.deps, { ...input, userId: "u2" }),
+    ]);
+    expect([a.outcome, b.outcome].sort()).toEqual(["labelled", "skipped"]);
+    expect(t.deps.generate).toHaveBeenCalledTimes(1);
+  });
+
+  it("同意の無い人の仕事が終われば、次の人はすぐ札を付けられる（取った印は外す）", async () => {
+    const denied = setup({
+      lang: "ja",
+      allow: async () => {
+        throw new Error("AI_CONSENT_REQUIRED");
+      },
+    });
+    const input = { userId: "u1", wordId: "w1", key: { explainLang: "ja", l1: "ja" } };
+    await labelMainExample(denied.deps, input);
+    const ok = setup({ lang: "ja" });
+    expect((await labelMainExample(ok.deps, { ...input, userId: "u2" })).outcome).toBe("labelled");
+  });
+
+  it("ほかの実行環境が先に共有の行へ札を付けていたら、上書きしない", async () => {
+    const t = setup({ lang: "ja", reader: null });
+    const other = { ...productionExtras(), example_scene: "先に付いた札", example_scene_for: MAIN };
+    // AI を待つ間に、ほかの実行環境が書いた
+    t.deps.generate = vi.fn(async () => {
+      t.state.word = { ...t.state.word, extras: other };
+      return JSON.stringify({ example_main: { scene: LABELS.ja } });
+    });
+    await labelMainExample(t.deps, {
+      userId: "u1",
+      wordId: "w1",
+      key: { explainLang: "ja", l1: "ja" },
+    });
+    expect((t.state.word.extras as Row).example_scene).toBe("先に付いた札");
+  });
+
+  it("casSceneFor: 読んだ時に目印が無ければ「まだ無い行」、在ればその値の行だけ", () => {
+    const calls: string[] = [];
+    const q = {
+      eq: (k: string, v: string) => (calls.push(`eq ${k} ${v}`), q),
+      is: (k: string, v: null) => (calls.push(`is ${k} ${v}`), q),
+      select: (c: string) => (calls.push(`select ${c}`), q),
+      then: () => undefined,
+    } as never;
+    casSceneFor(q, null, "id");
+    casSceneFor(q, "我要一個巧克力冰淇淋。", "word_id");
+    expect(calls).toEqual([
+      "is extras->>example_scene_for null",
+      "select id",
+      "eq extras->>example_scene_for 我要一個巧克力冰淇淋。",
+      "select word_id",
+    ]);
+  });
+});
+
+describe("updateReaderExplanationIfUnchanged — 読む人の行は読み直した時のままなら書く", () => {
+  function readerDb(row: Row | null, updated: unknown[] = [{ word_id: "w1" }]) {
+    const log: string[] = [];
+    let written: Row | null = null;
+    const chain = (end: () => unknown) => {
+      const q: Record<string, unknown> = {
+        eq: (k: string, v: string) => (log.push(`eq ${k}=${v}`), q),
+        is: (k: string) => (log.push(`is ${k}`), q),
+        select: () => q,
+        maybeSingle: async () => ({ data: row, error: null }),
+        then: (resolve: (r: unknown) => unknown) => Promise.resolve(resolve(end())),
+      };
+      return q;
+    };
+    const db = {
+      from: () => ({
+        select: () => chain(() => ({ data: row, error: null })),
+        update: (r: Row) => {
+          written = r;
+          return chain(() => ({ data: updated, error: null }));
+        },
+      }),
+    };
+    return { db, log, written: () => written };
+  }
+
+  it("札を付け、読み直した時の目印（無い）を条件に書く", async () => {
+    const t = readerDb({ extras: productionExtras(), example_translation: "x", source: "ai" });
+    const ok = await updateReaderExplanationIfUnchanged(
+      t.db,
+      "w1",
+      { explainLang: "ja", l1: "ja" },
+      () => ({ extras: { example_scene: LABELS.ja, example_scene_for: MAIN } }),
+    );
+    expect(ok).toBe(true);
+    expect(t.log).toContain("is extras->>example_scene_for");
+    expect((t.written()?.extras as Row).example_scene_for).toBe(MAIN);
+  });
+
+  it("人が確かめた行・差分が無い時は書かない", async () => {
+    const v = readerDb({
+      extras: productionExtras(),
+      example_translation: "x",
+      source: "verified",
+    });
+    expect(
+      await updateReaderExplanationIfUnchanged(v.db, "w1", { explainLang: "ja", l1: "ja" }, () => ({
+        extras: { example_scene: LABELS.ja },
+      })),
+    ).toBe(false);
+    expect(v.written()).toBeNull();
+    const n = readerDb({ extras: productionExtras(), example_translation: "x", source: "ai" });
+    expect(
+      await updateReaderExplanationIfUnchanged(
+        n.db,
+        "w1",
+        { explainLang: "ja", l1: "ja" },
+        () => null,
+      ),
+    ).toBe(false);
+    expect(n.written()).toBeNull();
+  });
+
+  it("条件に合う行が無かった（先に書かれた）時は false", async () => {
+    const t = readerDb({ extras: productionExtras(), example_translation: "x", source: "ai" }, []);
+    expect(
+      await updateReaderExplanationIfUnchanged(t.db, "w1", { explainLang: "ja", l1: "ja" }, () => ({
+        extras: { example_scene: LABELS.ja, example_scene_for: MAIN },
+      })),
+    ).toBe(false);
+  });
+});
+
+describe("shouldLabelMainExample — 直せる行・同意のある人だけ頼む（PR #189 の点検）", () => {
+  const word = { language: "zh-TW", headword: "冰淇淋", example_sentence: MAIN };
+  const agreed = vi.fn(async () => ({ agreed: true, recorded: true }));
+  beforeEach(() => agreed.mockClear());
+
+  it("人が確かめた行は頼まない（同意も読まない）", async () => {
+    expect(
+      await shouldLabelMainExample({
+        userId: "u1",
+        wordId: "w1",
+        owns: async () => true,
+        shown: { extras: productionExtras(), source: "verified" },
+        word,
+        consentStatus: agreed,
+      }),
+    ).toBe(false);
+    expect(agreed).not.toHaveBeenCalled();
+  });
+  it("札がもう在る行は頼まない", async () => {
+    expect(
+      await shouldLabelMainExample({
+        userId: "u1",
+        wordId: "w1",
+        owns: async () => true,
+        shown: {
+          extras: { ...productionExtras(), example_scene: LABELS.ja, example_scene_for: MAIN },
+        },
+        word,
+        consentStatus: agreed,
+      }),
+    ).toBe(false);
+  });
+  it("記録された同意が無い人には頼まない（開くたびに頼み直さない）", async () => {
+    expect(
+      await shouldLabelMainExample({
+        userId: "u1",
+        wordId: "w1",
+        owns: async () => true,
+        shown: { extras: productionExtras(), source: "ai" },
+        word,
+        consentStatus: async () => ({ agreed: false, recorded: true }),
+      }),
+    ).toBe(false);
+  });
+  it("自分の図鑑に無い語には頼まない", async () => {
+    expect(
+      await shouldLabelMainExample({
+        userId: "u1",
+        wordId: "w1",
+        owns: async () => false,
+        shown: { extras: productionExtras(), source: "ai" },
+        word,
+        consentStatus: agreed,
+      }),
+    ).toBe(false);
+  });
+
+  it("札の無い行・同意のある人には頼む", async () => {
+    expect(
+      await shouldLabelMainExample({
+        userId: "u1",
+        wordId: "w1",
+        owns: async () => true,
+        shown: { extras: productionExtras(), source: "ai" },
+        word,
+        consentStatus: agreed,
+      }),
+    ).toBe(true);
   });
 });

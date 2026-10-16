@@ -75,6 +75,7 @@ import {
   fillSharedWordFromCard,
   loadGeneratedCardRows,
   readExistingMainSentence,
+  reusableForMainSentence,
   pickReusableCard,
   recordGeneratedCards,
   trustedCardFrom,
@@ -1246,8 +1247,16 @@ export const generateCard = createServerFn({ method: "POST" })
         l1: readerKey.l1,
         gen: genKey,
       });
-      const reply = reused ? reusedCardReply(reused, data.headword, data.sections) : null;
-      if (reused && reply) {
+      // 控えた後に共有のメインの例文が変わっていたら返さない（決まった文と札を作り直す — PR #189 の点検 P2）。
+      const currentMain = reused
+        ? await existingMain.then((m) =>
+            m && looksLikeTargetLanguage(m, targetProfile(data.targetLanguage).code) ? m : null,
+          )
+        : null;
+      const fits =
+        !!reused && reusableForMainSentence(reused, { inputHeadword: data.headword, currentMain });
+      const reply = reused && fits ? reusedCardReply(reused, data.headword, data.sections) : null;
+      if (reused && fits && reply) {
         // 確保した1回は返事の後で返す（確保が終わるのを待たない — 待つと確保の往復ぶん遅くなる）。
         void runAfterResponse("generateCard: release the reservation (reuse)", async () => {
           const held = await reservation;

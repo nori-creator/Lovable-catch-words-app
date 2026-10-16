@@ -509,6 +509,17 @@ export function examplePatternsRule(opts: {
  * ---------------------------------------------------------------------------------------------
  */
 
+/**
+ * 番号として受け取ってよい物だけを番号にする（PR #189 の点検 P2）。0 以上の整数か、数字だけの文字列（"2"）。
+ * `null` / `false` / `""` / 空白 / "1.5" / "x" は捨てる — `z.coerce.number()` はこれらを 0 にして、1つ目の
+ * 追加の例文を「メインと同じ」として消していた。
+ */
+function strictIndex(x: unknown): number | null {
+  if (typeof x === "number") return Number.isSafeInteger(x) && x >= 0 ? x : null;
+  if (typeof x === "string" && /^\s*\d{1,4}\s*$/.test(x)) return Number(x.trim());
+  return null;
+}
+
 /** 決まったメインの例文のために、モデルが返す札（`example_main`）。型違いは落とさず空にする。 */
 export const MainExampleLabelSchema = z.object({
   scene: z.string().catch(""),
@@ -516,7 +527,10 @@ export const MainExampleLabelSchema = z.object({
   chunks: z.array(ChunkPartSchema).catch([]),
   scene_fits: ExamplePatternSchema.shape.scene_fits,
   /** 追加の例文（番号つきで渡した物）のうち、メインの例文と同じパターンの物の番号。 */
-  same_as_main: z.array(z.coerce.number().int()).catch([]),
+  same_as_main: z
+    .array(z.unknown())
+    .catch([])
+    .transform((xs) => xs.map(strictIndex).filter((n): n is number => n !== null)),
 });
 export type MainExampleLabel = z.infer<typeof MainExampleLabelSchema>;
 
@@ -633,7 +647,7 @@ export function checkMainExampleLabel(
     translation: readerText(l.translation.trim(), opts.readerLang, opts.sentence).trim(),
     // パーツはその文を分けた物だけ（AI が別の文・直した文を分けて返した回は使わない）。
     chunks: chunksMatchSentence(l.chunks, opts.sentence) ? l.chunks : [],
-    sameAsMain: [...new Set(l.same_as_main.filter((n) => Number.isInteger(n) && n >= 0))],
+    sameAsMain: [...new Set(l.same_as_main)],
   };
 }
 

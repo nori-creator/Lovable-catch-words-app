@@ -23,7 +23,7 @@
  * 移行 `20261003130100_generated_cards.sql` を先に当てること。
  */
 
-import { alignExampleExtras, guardExampleColumns } from "./example-patterns";
+import { alignExampleExtras, guardExampleColumns, sameSentence } from "./example-patterns";
 import {
   fillEmptySharedColumns,
   fillEmptySharedExtras,
@@ -236,6 +236,21 @@ export async function loadGeneratedCardRows(
     console.warn("[generated-cards] 控えを読めない", e instanceof Error ? e.message : e);
     return [];
   }
+}
+
+/**
+ * 控えのカードを、**いまの共有のメインの例文**のまま返してよいか（PR #189 の点検 P2）。カードは決まった文に
+ * 札を付けて作るので、控えた後に共有の文が変わっていたら（作り直し・直し）、古い文と札を返さない。
+ * 見出し語が入力と変わったカード（手紙 → 信）は入力の語の文を使わないので、比べない。
+ */
+export function reusableForMainSentence(
+  card: { example_sentence?: string; headword_zh?: string },
+  opts: { inputHeadword: string; currentMain: string | null },
+): boolean {
+  if (!opts.currentMain) return true;
+  const head = (card.headword_zh ?? "").trim();
+  if (head && head !== opts.inputHeadword.trim()) return true;
+  return sameSentence(card.example_sentence ?? "", opts.currentMain);
 }
 
 /**

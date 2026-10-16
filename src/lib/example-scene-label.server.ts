@@ -10,6 +10,7 @@ import {
   type CheckedMainLabel,
 } from "./example-patterns";
 import { normalizeExtras } from "./extras";
+import { casSceneFor, rawSceneFor, type CasQuery } from "./scene-label-cas";
 import { looksLikeTargetLanguage } from "./text-language";
 import { targetProfile } from "./target-profile";
 import type { UiLang } from "./i18n";
@@ -28,16 +29,27 @@ import type { UiLang } from "./i18n";
  * - 札がもう片方の行（読む人の行 ⇔ 共有の行）に在れば AI を呼ばずに写す。札が在って同じパターンの追加の
  *   例文だけが残っている行も、AI を呼ばずに直す
  * - 同じ語・同じ読む人には、しばらく呼び直さない（`RETRY_AFTER_MS`。AI が札を書けなかった語で開くたびに呼ばない）
+ *
+ * **重なり**（PR #189 の点検）: 同じ行の仕事は1つずつ（`inFlight` — 読む前に同期で取るので、同時に来た2つ目は
+ * 何もしない）。実行環境をまたぐ重なりは、書く時の条件で止める: 読んだ時の `example_scene_for` のままの行
+ * にだけ書く（`casSceneFor`）。先に誰かが札を付けた行には書かない — 同じ行に2度書かない。
  */
 
 /** 同じ行を呼び直すまでの間（同じ実行環境の中だけ）。 */
 export const RETRY_AFTER_MS = 30 * 60 * 1000;
 const recent = new Map<string, number>();
+/** いま仕事中の行（同じ実行環境の中だけ。読む前に取り、終わったら外す）。 */
+const inFlight = new Set<string>();
 
 /** 試験用: 呼び直しの記録を消す。 */
 export function forgetMainExampleLabelAttempts(): void {
   recent.clear();
+  inFlight.clear();
 }
+
+export { casSceneFor, rawSceneFor };
+
+const wroteRows = (data: unknown) => Array.isArray(data) && data.length > 0;
 
 type ExplanationKey = { explainLang: string; l1: string };
 
@@ -47,21 +59,27 @@ type ReaderRow = {
   source: string;
 };
 
+/** 読む人の行に書く差分（`build` が、書く直前に読み直した行から作る）。 */
+export type ReaderWrite = {
+  extras: Record<string, unknown>;
+  replaceKeys?: readonly string[];
+  example_translation?: string | null;
+};
+
 export type MainExampleLabelDeps = {
   /** service role の Supabase クライアント（`words` / `stickers` を読み書きする）。 */
   admin: unknown;
   /** 読む人の行を1つ引く（`readReaderExplanation`）。 */
   readReader: (admin: unknown, wordId: string, key: ExplanationKey) => Promise<ReaderRow | null>;
-  /** 読む人の行に重ねて書く（`mergeIntoReaderExplanation`）。 */
-  mergeReader: (
+  /**
+   * 読む人の行に書く（`updateReaderExplanationIfUnchanged`）: 書く直前に読み直した行から `build` で差分を作り、
+   * 読み直した時の `example_scene_for` のままの行にだけ書く。人が確かめた行・差分が無い時は書かない。書けたら true。
+   */
+  writeReader: (
     admin: unknown,
     wordId: string,
     key: ExplanationKey,
-    patch: {
-      extras: Record<string, unknown>;
-      example_translation?: string | null;
-      replaceKeys?: readonly string[];
-    },
+    build: (current: ReaderRow) => ReaderWrite | null,
   ) => Promise<boolean>;
   /** AI を呼んでよいか（同意・その日の枠）。駄目なら投げる。 */
   allow: (userId: string) => Promise<void>;
@@ -94,7 +112,7 @@ type LooseDb = {
       };
     };
     update: (row: unknown) => {
-      eq: (k: string, v: string) => PromiseLike<{ error: unknown }>;
+      eq: (k: string, v: string) => CasQuery;
     };
   };
 };
@@ -148,6 +166,9 @@ export async function labelMainExample(
   const memo = `${input.wordId}:${input.key.explainLang}:${input.key.l1}`;
   const last = recent.get(memo);
   if (last !== undefined && now - last < RETRY_AFTER_MS) return skipped("recently tried");
+  // 同じ行の仕事は1つずつ。確かめて取るまでの間に await を挟まない（同時に来た2つ目はここで止まる）。
+  if (inFlight.has(memo)) return skipped("in flight");
+  inFlight.add(memo);
   try {
     const word = await readWord(deps.admin, input.wordId);
     if (!word) return skipped("no word");
@@ -238,23 +259,27 @@ export async function labelMainExample(
       recent.set(memo, now);
     }
 
-    let wrote = false;
-    if (readerTodo && reader) {
-      const fix = mainExamplePatch(readerExtras, {
+    /** 書く直前に読み直した行から差分を作る（その間に札が付いていれば札は書かず、要る掃除だけ）。 */
+    const patchFor = (extras: Record<string, unknown> | null) =>
+      mainExamplePatch(extras, {
         sentence,
         headword: head,
-        label: needsMainSceneLabel(sentence, readerExtras) ? label : null,
+        label: needsMainSceneLabel(sentence, extras) ? label : null,
         samePattern,
       });
-      if (fix) {
-        wrote =
-          (await deps.mergeReader(deps.admin, input.wordId, input.key, {
+    let wrote = false;
+    if (readerTodo) {
+      wrote =
+        (await deps.writeReader(deps.admin, input.wordId, input.key, (current) => {
+          const fix = patchFor(current.extras);
+          if (!fix) return null;
+          return {
             extras: fix.patch,
             replaceKeys: fix.replaceKeys,
             example_translation:
-              viaAi && !(reader.example_translation ?? "").trim() ? label?.translation : null,
-          })) || wrote;
-      }
+              viaAi && !(current.example_translation ?? "").trim() ? label?.translation : null,
+          };
+        })) || wrote;
     }
     if (sharedTodo) {
       // 書く直前に読み直す（裏の項目の生成と重なるので — `runSectionRegen` と同じ理由）。
@@ -264,20 +289,20 @@ export async function labelMainExample(
         sameText(fresh.example_sentence, sentence) &&
         sharedInLang(fresh.extras, input.key.explainLang)
       ) {
-        const fix = mainExamplePatch(fresh.extras, {
-          sentence,
-          headword: head,
-          label: needsMainSceneLabel(sentence, fresh.extras) ? label : null,
-          samePattern,
-        });
+        const fix = patchFor(fresh.extras);
         if (fix) {
           // 共有の extras は ExtrasSchema に無いキー（復習の足場の控えなど）も残す（丸ごと重ねるだけ）。
-          const { error } = await (deps.admin as LooseDb)
-            .from("words")
-            .update({ extras: { ...(fresh.extras ?? {}), ...fix.patch } })
-            .eq("id", input.wordId);
+          // 読み直した時の目印のままの行にだけ書く（ほかの実行環境が先に書いていたら書かない）。
+          const { data, error } = await casSceneFor(
+            (deps.admin as LooseDb)
+              .from("words")
+              .update({ extras: { ...(fresh.extras ?? {}), ...fix.patch } })
+              .eq("id", input.wordId),
+            rawSceneFor(fresh.extras),
+            "id",
+          );
           if (error) console.warn("labelMainExample: 共有の行に書けない", error);
-          else wrote = true;
+          else wrote = wroteRows(data) || wrote;
         }
       }
     }
@@ -285,6 +310,8 @@ export async function labelMainExample(
     return { outcome: viaAi || needLabel ? "labelled" : "tidied" };
   } catch (e) {
     return { outcome: "failed", reason: e instanceof Error ? e.message : String(e) };
+  } finally {
+    inFlight.delete(memo);
   }
 }
 
@@ -344,7 +371,7 @@ export async function runMainExampleLabel(input: {
             }
           : null;
       },
-      mergeReader: explanation.mergeIntoReaderExplanation,
+      writeReader: explanation.updateReaderExplanationIfUnchanged,
       allow: (userId) =>
         allowSceneLabel(userId, {
           consentStatus: (id) => consent.getAiConsentStatus(id),
@@ -366,6 +393,52 @@ export async function runMainExampleLabel(input: {
     },
     input,
   );
+}
+
+/**
+ * `getWordExplanation` から、札を付けに行くか。**画面に出す行**（`extras`・`source`）で決める:
+ * - 人が確かめた行（verified）は書き換えないので頼まない（頼んでも直せず、開くたびに頼み直すだけ — PR #189 の点検）
+ * - その行のメインの例文に札が無い・同じパターンの追加の例文が残っている時だけ
+ * - 記録された AI の同意がある人・自分の図鑑に在る語だけ（どちらかが無ければ仕事は何もできず、開くたびに
+ *   頼み直すだけになる。`labelPending` も立てない）
+ */
+export async function shouldLabelMainExample(input: {
+  userId: string;
+  wordId: string;
+  shown: { extras: unknown; source?: string | null } | null;
+  word: { language: string | null; headword: string; example_sentence: string | null };
+  consentStatus?: (userId: string) => Promise<{ agreed: boolean; recorded: boolean }>;
+  owns?: (userId: string, wordId: string) => Promise<boolean>;
+}): Promise<boolean> {
+  if (!input.shown?.extras || input.shown.source === "verified") return false;
+  if (
+    !mainExampleNeedsWork(
+      input.shown.extras,
+      input.word.example_sentence,
+      input.word.headword,
+      input.word.language,
+    )
+  ) {
+    return false;
+  }
+  const status = input.consentStatus
+    ? await input.consentStatus(input.userId)
+    : await (await import("./ai-consent.server")).getAiConsentStatus(input.userId);
+  if (!status.recorded || !status.agreed) return false;
+  return (input.owns ?? ownsWord)(input.userId, input.wordId);
+}
+
+/** 自分の図鑑にその語の札が在るか（`labelMainExample` と同じ確かめ）。 */
+async function ownsWord(userId: string, wordId: string): Promise<boolean> {
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  const { data } = await (supabaseAdmin as unknown as LooseDb)
+    .from("stickers")
+    .select("id")
+    .eq("user_id", userId)
+    .eq("word_id", wordId)
+    .limit(1)
+    .maybeSingle();
+  return !!data;
 }
 
 /**
