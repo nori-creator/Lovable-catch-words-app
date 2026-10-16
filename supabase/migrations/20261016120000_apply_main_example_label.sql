@@ -16,7 +16,9 @@
 -- - p_translation: 読む人の行の訳が空の時だけ入れる
 --
 -- 書く先: p_l1 が null なら共有の行（words.extras。解説がその言語で書かれている時だけ）、そうでなければ
--- 読む人の行（word_explanations。人が確かめた行は触らない）。どちらも、語のメインの例文がまだ p_sentence
+-- 読む人の行（word_explanations）。**人が確かめた行（source = 'verified'）はどちらも触らない。**
+-- 札を置くのは、札が無い行か、目印が**別の文**を指す行だけ（`main_example_label_writable`）。目印の無い札
+-- （人が書いた・目印より前の札）は、どの文の札か分からないので入れ替えない。どちらも、語のメインの例文がまだ p_sentence
 -- の時だけ（語の行を共有ロックで押さえて確かめる）。何か書いたら true。
 --
 -- 呼ぶのはサーバ（service role）だけ（`src/lib/example-scene-label.server.ts`）。何度流しても同じ結果になる。
@@ -65,6 +67,20 @@ begin
 end;
 $$;
 
+-- 札を置いてよい行か（JS の `mayWriteMainLabel` と同じ決まり）: 札が無い、または目印が別の文を指す。
+create or replace function public.main_example_label_writable(p_extras jsonb, p_sentence text)
+returns boolean
+language sql
+immutable
+set search_path to 'public'
+as $$
+  select coalesce(btrim(p_extras ->> 'example_scene'), '') = ''
+    or (
+      coalesce(btrim(p_extras ->> 'example_scene_for'), '') <> ''
+      and btrim(p_extras ->> 'example_scene_for') <> btrim(p_sentence)
+    );
+$$;
+
 create or replace function public.apply_main_example_label(
   p_word_id uuid,
   p_explain_lang text,
@@ -102,8 +118,9 @@ begin
       set extras = public.main_example_label_patch(
         w.extras, btrim(p_sentence), p_scene, p_chunks, p_stale_chunks, p_drop, p_recount)
       where w.id = p_word_id
+        and w.source is distinct from 'verified'
         and coalesce(nullif(btrim(w.extras ->> 'explain_lang'), ''), 'ja') = p_explain_lang
-        and (p_scene is null or (w.extras ->> 'example_scene_for') is distinct from btrim(p_sentence))
+        and (p_scene is null or public.main_example_label_writable(w.extras, p_sentence))
         and public.main_example_label_patch(
           w.extras, btrim(p_sentence), p_scene, p_chunks, p_stale_chunks, p_drop, p_recount)
           is distinct from w.extras;
@@ -121,7 +138,7 @@ begin
         and e.explain_lang = p_explain_lang
         and e.l1 = p_l1
         and e.source is distinct from 'verified'
-        and (p_scene is null or (e.extras ->> 'example_scene_for') is distinct from btrim(p_sentence))
+        and (p_scene is null or public.main_example_label_writable(e.extras, p_sentence))
         and public.main_example_label_patch(
           e.extras, btrim(p_sentence), p_scene, p_chunks, p_stale_chunks, p_drop, p_recount)
           is distinct from e.extras;
@@ -135,6 +152,11 @@ revoke all on function public.main_example_label_patch(jsonb, text, text, jsonb,
 revoke all on function public.main_example_label_patch(jsonb, text, text, jsonb, jsonb, text[], boolean) from anon;
 revoke all on function public.main_example_label_patch(jsonb, text, text, jsonb, jsonb, text[], boolean) from authenticated;
 grant execute on function public.main_example_label_patch(jsonb, text, text, jsonb, jsonb, text[], boolean) to service_role;
+
+revoke all on function public.main_example_label_writable(jsonb, text) from public;
+revoke all on function public.main_example_label_writable(jsonb, text) from anon;
+revoke all on function public.main_example_label_writable(jsonb, text) from authenticated;
+grant execute on function public.main_example_label_writable(jsonb, text) to service_role;
 
 revoke all on function public.apply_main_example_label(uuid, text, text, text, text, jsonb, jsonb, text[], boolean, text) from public;
 revoke all on function public.apply_main_example_label(uuid, text, text, text, text, jsonb, jsonb, text[], boolean, text) from anon;

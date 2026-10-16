@@ -86,6 +86,39 @@ function extrasLanguage(e: Record<string, unknown>): string {
  *   その人向けの解説は `word_explanations` に入る）
  * - 同じ言語 → **空の項目だけ**埋める。埋まっている項目は上書きしない
  */
+/**
+ * **場面の札は、札・目印・パーツを組で埋める**（PR #189 の点検 — 目印の無い札を別の文の札にしない）。
+ * 空の所だけ埋める決まりを鍵ごとに当てると、目印の無い札（人が書いた・目印より前の札）の横に、別の札の
+ * 目印だけが入り、その札が「この文の札」になってしまう。だから:
+ * - 前の行に札が在れば、届いた札・目印・パーツは使わない（前の札は入れ替えない）
+ * - 前の行に札が無く、届いた札で埋めたら、目印（とパーツが届いていればパーツ）もその札の物にする
+ */
+const SCENE_PAIR = ["example_scene", "example_scene_for", "example_chunks"] as const;
+const hasScene = (e: Record<string, unknown>) =>
+  typeof e.example_scene === "string" && e.example_scene.trim().length > 0;
+
+function withoutSceneIfLabelled(
+  prev: Record<string, unknown>,
+  inc: Record<string, unknown>,
+): Record<string, unknown> {
+  if (!hasScene(prev)) return inc;
+  const out = { ...inc };
+  for (const k of SCENE_PAIR) delete out[k];
+  return out;
+}
+
+function keepScenePair(
+  out: Record<string, unknown>,
+  prev: Record<string, unknown>,
+  inc: Record<string, unknown>,
+): void {
+  if (hasScene(prev) || !hasScene(out) || !hasScene(inc)) return;
+  out.example_scene_for = typeof inc.example_scene_for === "string" ? inc.example_scene_for : "";
+  if (Array.isArray(inc.example_chunks) && inc.example_chunks.length > 0) {
+    out.example_chunks = inc.example_chunks;
+  }
+}
+
 export function fillEmptySharedExtras(
   prevRaw: unknown,
   incoming: Record<string, unknown> | null | undefined,
@@ -97,14 +130,16 @@ export function fillEmptySharedExtras(
       : {};
   if (!hasExtrasContent(normalizeExtras(prev))) return { ...prev, ...incoming };
   if (extrasLanguage(prev) !== extrasLanguage(incoming)) return null;
+  const inc = withoutSceneIfLabelled(prev, incoming);
   const out: Record<string, unknown> = { ...prev };
   let changed = false;
-  for (const [k, v] of Object.entries(incoming)) {
+  for (const [k, v] of Object.entries(inc)) {
     if (k === "explain_lang" || k === "explain_l1") continue;
     if (!filledValue(v) || filledValue(prev[k])) continue;
     out[k] = v;
     changed = true;
   }
+  if (changed) keepScenePair(out, prev, inc);
   return changed ? out : null;
 }
 
@@ -186,13 +221,14 @@ export function fillReaderExplanation(
     existing.extras && typeof existing.extras === "object" && !Array.isArray(existing.extras)
       ? (existing.extras as Record<string, unknown>)
       : {};
-  const inc = incoming.extras ?? {};
-  if (hasExtrasContent(normalizeExtras(inc))) {
+  const incAll = (incoming.extras ?? {}) as Record<string, unknown>;
+  if (hasExtrasContent(normalizeExtras(incAll))) {
     const prevLang = typeof prev.explain_lang === "string" ? prev.explain_lang.trim() : "";
     const prevHas = hasExtrasContent(normalizeExtras(prev));
     if (!prevHas || (prevLang && prevLang !== readerLang)) {
-      patch.extras = { ...prev, ...inc };
+      patch.extras = { ...prev, ...incAll };
     } else {
+      const inc = withoutSceneIfLabelled(prev, incAll);
       const out: Record<string, unknown> = { ...prev };
       let changed = false;
       for (const [k, v] of Object.entries(inc)) {
@@ -210,6 +246,7 @@ export function fillReaderExplanation(
         out[k] = v;
         changed = true;
       }
+      if (changed) keepScenePair(out, prev, inc);
       if (changed) patch.extras = out;
     }
   }

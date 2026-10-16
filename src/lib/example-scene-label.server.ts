@@ -5,7 +5,7 @@ import {
   mainExampleNeedsTidy,
   mainExampleRepair,
   mainSceneFor,
-  needsMainSceneLabel,
+  mayWriteMainLabel,
   sceneMaxChars,
   type CheckedMainLabel,
   type MainExampleRepair,
@@ -116,6 +116,7 @@ type WordRow = {
   language: string | null;
   example_sentence: string | null;
   extras: Record<string, unknown> | null;
+  source: string;
 };
 
 const asObject = (v: unknown): Record<string, unknown> | null =>
@@ -124,7 +125,7 @@ const asObject = (v: unknown): Record<string, unknown> | null =>
 async function readWord(admin: unknown, wordId: string): Promise<WordRow | null> {
   const { data, error } = await (admin as LooseDb)
     .from("words")
-    .select("headword, language, example_sentence, extras")
+    .select("headword, language, example_sentence, extras, source")
     .eq("id", wordId)
     .maybeSingle();
   if (error || !data) return null;
@@ -134,6 +135,7 @@ async function readWord(admin: unknown, wordId: string): Promise<WordRow | null>
     language: (r.language as string | null) ?? null,
     example_sentence: (r.example_sentence as string | null) ?? null,
     extras: asObject(r.extras),
+    source: String(r.source ?? "ai"),
   };
 }
 
@@ -155,11 +157,29 @@ function sharedInLang(extras: Record<string, unknown> | null, lang: string): boo
   return ((typeof v === "string" && v.trim()) || "ja") === lang;
 }
 
+/**
+ * 1つの行に直す物があるか: 札を書いてよい（`mayWriteMainLabel` — 札が無い・別の文の札）か、その文の札が在って
+ * 掃除（同じパターンの追加の例文・数）だけが要るか。目印の無い札の行は、どちらにも当たらない（触らない）。
+ */
 const needsWork = (extras: Record<string, unknown> | null, sentence: string, head: string) =>
-  needsMainSceneLabel(sentence, extras) || mainExampleNeedsTidy(extras, sentence, head);
+  mayWriteMainLabel(sentence, extras) || mainExampleNeedsTidy(extras, sentence, head);
 
-/** 1つの行の見え方（書けるか・中身）。 */
+/** 1つの行の見え方（書けるか・中身）。書けない = 人が確かめた行・共有の行なら違う言語の解説。 */
 type RowView = { extras: Record<string, unknown> | null; writable: boolean };
+
+/** 読む人の行の見え方。人が確かめた行は書かない。 */
+const readerView = (row: { extras: unknown; source?: string | null } | null): RowView | null =>
+  row ? { extras: asObject(row.extras), writable: row.source !== "verified" } : null;
+
+/** 共有の行の見え方。人が確かめた語・違う言語の解説は書かない。 */
+const sharedView = (
+  row: { extras: unknown; source?: string | null } | null,
+  lang: string,
+): RowView | null => {
+  if (!row) return null;
+  const extras = asObject(row.extras);
+  return { extras, writable: row.source !== "verified" && sharedInLang(extras, lang) };
+};
 
 /**
  * **何をするか**（仕事と、頼むかの判断で同じ物を使う）。
@@ -178,8 +198,8 @@ function planRepair(
   const readerScene = reader ? mainSceneFor(sentence, reader.extras) : "";
   const sharedScene = shared ? mainSceneFor(sentence, shared.extras) : "";
   const needsLabel =
-    (readerTodo && needsMainSceneLabel(sentence, reader?.extras)) ||
-    (sharedTodo && needsMainSceneLabel(sentence, shared?.extras));
+    (readerTodo && mayWriteMainLabel(sentence, reader?.extras)) ||
+    (sharedTodo && mayWriteMainLabel(sentence, shared?.extras));
   return {
     readerTodo,
     sharedTodo,
@@ -219,8 +239,8 @@ export async function labelMainExample(
     const plan = planRepair(
       sentence,
       head,
-      reader ? { extras: reader.extras, writable: reader.source !== "verified" } : null,
-      { extras: word.extras, writable: sharedInLang(word.extras, input.key.explainLang) },
+      readerView(reader),
+      sharedView(word, input.key.explainLang),
     );
     if (!plan.readerTodo && !plan.sharedTodo) return skipped("nothing to do");
 
@@ -287,7 +307,7 @@ export async function labelMainExample(
       mainExampleRepair(extras, {
         sentence,
         headword: head,
-        label: needsMainSceneLabel(sentence, extras) ? label : null,
+        label: mayWriteMainLabel(sentence, extras) ? label : null,
         samePattern,
       });
     let wrote = false;
@@ -356,12 +376,13 @@ export async function persistMainLabel(input: {
     if (!word || !sentence || (word.example_sentence ?? "").trim() !== sentence) return false;
     const reader = await readReaderRaw(admin, input.wordId, input.key);
     const label: CheckedMainLabel = { ...input.label, sameAsMain: [] };
+    // 札を書いてよい行だけ（札が無い・別の文の札。目印の無い札・人が確かめた行は触らない）。
     const repairFor = (extras: Record<string, unknown> | null) =>
-      needsMainSceneLabel(sentence, extras)
+      mayWriteMainLabel(sentence, extras)
         ? mainExampleRepair(extras, { sentence, headword: word.headword.trim(), label })
         : null;
     let wrote = false;
-    if (reader && reader.source !== "verified") {
+    if (reader && readerView(reader)?.writable) {
       const repair = repairFor(reader.extras);
       if (repair) {
         wrote =
@@ -375,7 +396,7 @@ export async function persistMainLabel(input: {
           })) || wrote;
       }
     }
-    if (sharedInLang(word.extras, input.key.explainLang)) {
+    if (sharedView(word, input.key.explainLang)?.writable) {
       const repair = repairFor(word.extras);
       if (repair) {
         wrote =
@@ -517,23 +538,23 @@ export async function runMainExampleLabel(input: {
 export async function shouldLabelMainExample(input: {
   userId: string;
   wordId: string;
+  /** 選んだ読む人の行（無ければ null。在って extras が空の行も行として扱う）。 */
   reader: { extras: unknown; source?: string | null } | null;
-  /** 同じ言語で書かれた共有の解説（違う言語なら null）。 */
-  shared: unknown;
+  /** 共有の行（語の extras と source。言語は `lang` と比べる）。 */
+  shared: { extras: unknown; source?: string | null } | null;
+  /** 読む人の言語（共有の行が同じ言語で書かれている時だけ、共有の行も直す）。 */
+  lang: string;
   word: { language: string | null; headword: string; example_sentence: string | null };
   consentStatus?: (userId: string) => Promise<{ agreed: boolean; recorded: boolean }>;
   owns?: (userId: string, wordId: string) => Promise<boolean>;
 }): Promise<boolean> {
   const sentence = (input.word.example_sentence ?? "").trim();
   if (!sentence || !looksLikeTargetLanguage(sentence, input.word.language)) return false;
-  const shared = asObject(input.shared);
   const plan = planRepair(
     sentence,
     input.word.headword.trim(),
-    input.reader
-      ? { extras: asObject(input.reader.extras), writable: input.reader.source !== "verified" }
-      : null,
-    shared ? { extras: shared, writable: true } : null,
+    readerView(input.reader),
+    sharedView(input.shared, input.lang),
   );
   if (!plan.readerTodo && !plan.sharedTodo) return false;
   if (plan.needAi) {

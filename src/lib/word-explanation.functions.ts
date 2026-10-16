@@ -111,11 +111,12 @@ export const getWordExplanation = createServerFn({ method: "GET" })
       headword: string;
       example_sentence: string | null;
       extras: unknown;
+      source: string | null;
     } | null = null;
     try {
       const { data: ws } = await db
         .from("words")
-        .select("language, headword, example_sentence, extras")
+        .select("language, headword, example_sentence, extras, source")
         .eq("id", data.word_id);
       const w = ws?.[0];
       if (w) {
@@ -124,6 +125,7 @@ export const getWordExplanation = createServerFn({ method: "GET" })
           headword: String(w.headword ?? ""),
           example_sentence: (w.example_sentence as string | null | undefined) ?? null,
           extras: w.extras ?? null,
+          source: (w.source as string | null | undefined) ?? null,
         };
       }
     } catch (e) {
@@ -140,7 +142,7 @@ export const getWordExplanation = createServerFn({ method: "GET" })
             wordId: data.word_id,
             key: explanationKey(data.explain_lang, data.l1),
             reader: null,
-            shared: sharedExtrasIn(word.extras, data.explain_lang),
+            shared: { extras: word.extras, source: word.source },
             word,
           })
         : false;
@@ -172,19 +174,12 @@ export const getWordExplanation = createServerFn({ method: "GET" })
           key: { explainLang: picked.explain_lang, l1: picked.l1 },
           // 選んだ読む人の行と、同じ言語の共有の行（図鑑から開いた詳細が出す）の**どちらか**が直せれば頼む。
           reader: { extras: picked.extras, source: picked.source },
-          shared: sharedExtrasIn(word.extras, picked.explain_lang),
+          shared: { extras: word.extras, source: word.source },
           word,
         })
       : false;
     return { picked, unavailable: false, ...(labelPending ? { labelPending } : {}) };
   });
-
-/** 共有の解説が読む人の言語で書かれていればそれ（違えば null — 画面はそれを出さない）。 */
-function sharedExtrasIn(raw: unknown, lang: string): unknown {
-  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
-  const v = (raw as Record<string, unknown>).explain_lang;
-  return ((typeof v === "string" && v.trim()) || "ja") === lang ? raw : null;
-}
 
 /**
  * 画面に出し得る解説（選んだ読む人の行・同じ言語の共有の行）のメインの例文に札が無ければ、返事の後で
@@ -195,11 +190,12 @@ async function scheduleLabelIfNeeded(input: {
   userId: string;
   wordId: string;
   key: { explainLang: string; l1: string };
+  /** 選んだ読む人の行（無ければ null。在って extras が空の行も、札の無い行として扱う）。 */
   reader: { extras: unknown; source?: string | null } | null;
-  shared: unknown;
+  /** 共有の行（言語と、人が確かめた語かは `shouldLabelMainExample` が見る）。 */
+  shared: { extras: unknown; source?: string | null };
   word: { language: string | null; headword: string; example_sentence: string | null };
 }): Promise<boolean> {
-  if (!input.reader?.extras && !input.shared) return false;
   try {
     const label = await import("./example-scene-label.server");
     if (
@@ -208,6 +204,7 @@ async function scheduleLabelIfNeeded(input: {
         wordId: input.wordId,
         reader: input.reader,
         shared: input.shared,
+        lang: input.key.explainLang,
         word: input.word,
       }))
     ) {

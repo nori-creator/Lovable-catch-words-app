@@ -849,3 +849,24 @@ export function mainExampleRepair(
     !repair.recount;
   return empty ? null : repair;
 }
+
+/**
+ * **その行のメインの例文に札を書いてよいか**（PR #189 の点検 — 行の札を消さない決まり）。書いてよいのは:
+ * - 札が無い（`example_scene` が空）
+ * - 札は在るが、目印（`example_scene_for`）が**別の文**を指している — 別の文の札だと分かる時だけ入れ替える
+ *
+ * 目印の無い札（人が書いた・目印より前の札）は、どの文の札か分からないので**入れ替えない**。その文の札が
+ * もう在る行も書かない。人が確かめた行（verified）は呼ぶ側が外す（どんな札も入れ替えない）。
+ * 同じ決まりは SQL の `apply_main_example_label` にもある（DB の側でも入れ替えない）。
+ */
+export function mayWriteMainLabel(
+  sentence: string | null | undefined,
+  extras: ExtrasLike,
+): boolean {
+  if (!norm(sentence)) return false;
+  const e = (extras ?? {}) as Record<string, unknown>;
+  const scene = typeof e.example_scene === "string" ? e.example_scene.trim() : "";
+  if (!scene) return true;
+  const forSentence = typeof e.example_scene_for === "string" ? e.example_scene_for.trim() : "";
+  return !!forSentence && !sameSentence(forSentence, sentence);
+}

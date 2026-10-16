@@ -11,6 +11,7 @@ import {
   mainExampleNeedsTidy,
   mainExamplePatch,
   mainExampleRepair,
+  mayWriteMainLabel,
   needsMainSceneLabel,
   pickExamplePatterns,
   sameSentence,
@@ -18,6 +19,7 @@ import {
   type ExamplePattern,
 } from "./example-patterns";
 import { CardReplySchema } from "./card-schema";
+import { fillEmptySharedExtras, fillReaderExplanation } from "./shared-word-guard";
 import { wordExplanationQuery } from "./reader-explanation";
 import { reusableForMainSentence, sameHeadword } from "./generated-cards";
 import {
@@ -488,13 +490,13 @@ describe("どの道もメインの例文の札を作る（配線）", () => {
     expect(we).toMatch(/scheduleMainExampleLabel\(/);
     // 読む人の行が無くても、返す前に共有の行（同じ言語）の札を頼む
     expect(we).toMatch(
-      /if \(!picked\) \{[\s\S]{0,600}scheduleLabelIfNeeded\(\{[\s\S]{0,200}reader: null,\s*shared: sharedExtrasIn\(word\.extras, data\.explain_lang\)/,
+      /if \(!picked\) \{[\s\S]{0,600}scheduleLabelIfNeeded\(\{[\s\S]{0,200}reader: null,\s*shared: \{ extras: word\.extras, source: word\.source \}/,
     );
     expect(we).toMatch(/labelPending/);
     // 画面に出す行の出どころ（verified か）も渡す
     // 読む人の行があっても、同じ言語の共有の行（図鑑から開いた詳細が出す）も見る
     expect(we).toMatch(
-      /reader: \{ extras: picked\.extras, source: picked\.source \},\s*shared: sharedExtrasIn\(word\.extras, picked\.explain_lang\)/,
+      /reader: \{ extras: picked\.extras, source: picked\.source \},\s*shared: \{ extras: word\.extras, source: word\.source \}/,
     );
     // サーバだけの道具は handler の中で読み込む（画面の束に入れない）
     expect(we).not.toMatch(/^import .*example-scene-label\.server/m);
@@ -664,10 +666,15 @@ function applyLikeSql(w: World, c: RepairCall): boolean {
   if (String(w.word.example_sentence ?? "").trim() !== c.sentence) return false;
   const target = c.l1 === null ? (w.word.extras as Row | null) : (w.reader?.extras as Row | null);
   if (c.l1 === null) {
+    if (w.word.source === "verified") return false;
     const lang = String((target?.explain_lang as string | undefined)?.trim() || "ja");
     if (lang !== c.explainLang) return false;
   } else if (!w.reader || w.reader.source === "verified") return false;
-  if (c.repair.scene !== null && target?.example_scene_for === c.sentence) return false;
+  // main_example_label_writable: 札が無い、または目印が別の文を指す行だけ
+  const scene = String(target?.example_scene ?? "").trim();
+  const forS = String(target?.example_scene_for ?? "").trim();
+  if (c.repair.scene !== null && !(scene === "" || (forS !== "" && forS !== c.sentence)))
+    return false;
   const next = patchLikeSql(target, c.sentence, c.repair);
   if (JSON.stringify(next) === JSON.stringify(target)) return false;
   if (c.l1 === null) w.word = { ...w.word, extras: next };
@@ -685,7 +692,8 @@ function applyLikeSql(w: World, c: RepairCall): boolean {
 function setup(opts: {
   lang: (typeof READERS)[number];
   reader?: Row | null;
-  sharedExtras?: Row;
+  sharedExtras?: Row | null;
+  sharedSource?: string;
   owned?: boolean;
   reply?: string;
   allow?: MainExampleLabelDeps["allow"];
@@ -695,7 +703,8 @@ function setup(opts: {
       headword: "冰淇淋",
       language: "zh-TW",
       example_sentence: MAIN,
-      extras: opts.sharedExtras ?? productionExtras(),
+      extras: opts.sharedExtras === undefined ? productionExtras() : opts.sharedExtras,
+      source: opts.sharedSource ?? "ai",
     },
     reader:
       opts.reader === undefined
@@ -1046,11 +1055,9 @@ describe("mainExampleRepair / apply_main_example_label — 部分的に書く（
       /e := e \|\| jsonb_build_object\('example_scene', p_scene, 'example_scene_for', p_sentence\)/,
     );
     expect(sql).toMatch(
-      /\(w\.extras ->> 'example_scene_for'\) is distinct from btrim\(p_sentence\)/,
+      /w\.source is distinct from 'verified'[\s\S]{0,200}public\.main_example_label_writable\(w\.extras, p_sentence\)/,
     );
-    expect(sql).toMatch(
-      /\(e\.extras ->> 'example_scene_for'\) is distinct from btrim\(p_sentence\)/,
-    );
+    expect(sql).toMatch(/public\.main_example_label_writable\(e\.extras, p_sentence\)/);
     expect(sql).toMatch(/e\.source is distinct from 'verified'/);
     expect(sql).toMatch(/for share;/);
     expect(sql).toMatch(
@@ -1069,7 +1076,7 @@ describe("shouldLabelMainExample — 直せる行がある時だけ頼む（PR #
   const word = { language: "zh-TW", headword: "冰淇淋", example_sentence: MAIN };
   const agreed = vi.fn(async () => ({ agreed: true, recorded: true }));
   const none = vi.fn(async () => ({ agreed: false, recorded: true }));
-  const base = { userId: "u1", wordId: "w1", word, owns: async () => true };
+  const base = { userId: "u1", wordId: "w1", word, lang: "ja", owns: async () => true };
   const done = { ...productionExtras(), example_scene: LABELS.ja, example_scene_for: MAIN };
   beforeEach(() => {
     agreed.mockClear();
@@ -1093,7 +1100,7 @@ describe("shouldLabelMainExample — 直せる行がある時だけ頼む（PR #
       await shouldLabelMainExample({
         ...base,
         reader: { extras: done, source: "ai" },
-        shared: productionExtras(),
+        shared: { extras: productionExtras(), source: "ai" },
         consentStatus: none,
       }),
     ).toBe(true);
@@ -1105,7 +1112,7 @@ describe("shouldLabelMainExample — 直せる行がある時だけ頼む（PR #
       await shouldLabelMainExample({
         ...base,
         reader: null,
-        shared: productionExtras(),
+        shared: { extras: productionExtras(), source: "ai" },
         consentStatus: agreed,
       }),
     ).toBe(true);
@@ -1113,7 +1120,7 @@ describe("shouldLabelMainExample — 直せる行がある時だけ頼む（PR #
       await shouldLabelMainExample({
         ...base,
         reader: null,
-        shared: productionExtras(),
+        shared: { extras: productionExtras(), source: "ai" },
         consentStatus: none,
       }),
     ).toBe(false);
@@ -1124,7 +1131,7 @@ describe("shouldLabelMainExample — 直せる行がある時だけ頼む（PR #
       await shouldLabelMainExample({
         ...base,
         reader: { extras: done, source: "ai" },
-        shared: done,
+        shared: { extras: done, source: "ai" },
         consentStatus: agreed,
       }),
     ).toBe(false);
@@ -1214,5 +1221,252 @@ describe("persistMainLabel — 項目の作り直しが書かせた札を部分�
     });
     await persistMainLabel({ wordId: "w1", key, sentence: MAIN, label, admin: verified.db });
     expect(verified.rpc.mock.calls.map((c) => c[1].p_l1)).toEqual([null]);
+  });
+});
+
+/**
+ * **行の種類ごとの決まりの表**（PR #189 の点検 5 回目 — 札の直しの全部の枝）。
+ * 列: 読む人の行（無い・extras が空・中身が一部・目印の無い札・別の文の札・その文の札・人が確かめた行）×
+ * 共有の行（AI・seed・人が確かめた語・目印の無い札・違う言語・extras が null）。各行で、仕事の後の札と、AI を
+ * 呼んだかを確かめる。偽の SQL（`applyLikeSql`）は migration の決まり（`main_example_label_writable`・
+ * verified を触らない・言語・文が変わっていない）と同じ。SQL そのものは手元の Postgres 16 で同じ表を流して確かめた。
+ */
+describe("札の直しの決まりの表（読む人の行 × 共有の行）", () => {
+  beforeEach(() => forgetMainExampleLabelAttempts());
+  const done = { explain_lang: "ja", example_scene: LABELS.ja, example_scene_for: MAIN };
+  const human = "人が書いた札";
+  const NEW = "AI が書いた札";
+  type Case = {
+    name: string;
+    reader: Row | null;
+    shared: Row | null;
+    sharedSource?: string;
+    /** 仕事の後の札（undefined = 札なし）。 */
+    readerScene?: string;
+    sharedScene?: string;
+    ai: boolean;
+  };
+  const r = (extras: Row | null, source = "ai") => ({ example_translation: "x", extras, source });
+  const cases: Case[] = [
+    {
+      name: "読む人の行なし × 共有 AI・札なし → 共有に AI の札",
+      reader: null,
+      shared: { explain_lang: "ja" },
+      sharedScene: NEW,
+      ai: true,
+    },
+    {
+      name: "読む人の行の extras が null × 共有は人が確かめた語 → 読む人の行だけ AI の札",
+      reader: r(null),
+      shared: { explain_lang: "ja" },
+      sharedSource: "verified",
+      readerScene: NEW,
+      sharedScene: undefined,
+      ai: true,
+    },
+    {
+      name: "読む人の行 {} × 共有に札 → 写す（AI なし）",
+      reader: r({}),
+      shared: done,
+      readerScene: LABELS.ja,
+      sharedScene: LABELS.ja,
+      ai: false,
+    },
+    {
+      name: "読む人の行の中身が一部 × 共有に札 → 写す（ほかの鍵は残る）",
+      reader: r({ usage_chunks: [{ ja: "u" }] }),
+      shared: done,
+      readerScene: LABELS.ja,
+      sharedScene: LABELS.ja,
+      ai: false,
+    },
+    {
+      name: "読む人の行に目印の無い札 × 共有に札 → 入れ替えない",
+      reader: r({ example_scene: human }),
+      shared: done,
+      readerScene: human,
+      sharedScene: LABELS.ja,
+      ai: false,
+    },
+    {
+      name: "読む人の行に別の文の札 × 共有に札 → その文の札に入れ替える",
+      reader: r({ example_scene: "別の札", example_scene_for: "別的句子。" }),
+      shared: done,
+      readerScene: LABELS.ja,
+      sharedScene: LABELS.ja,
+      ai: false,
+    },
+    {
+      name: "読む人の行にその文の札 × 共有 AI・札なし → 共有へ写す",
+      reader: r(done),
+      shared: { explain_lang: "ja" },
+      readerScene: LABELS.ja,
+      sharedScene: LABELS.ja,
+      ai: false,
+    },
+    {
+      name: "読む人の行は人が確かめた行 × 共有 AI・札なし → 共有だけ AI の札",
+      reader: r({}, "verified"),
+      shared: { explain_lang: "ja" },
+      readerScene: undefined,
+      sharedScene: NEW,
+      ai: true,
+    },
+    {
+      name: "読む人の行に札 × 共有は人が確かめた語で目印の無い札 → 何もしない",
+      reader: r(done),
+      shared: { explain_lang: "ja", example_scene: human },
+      sharedSource: "verified",
+      readerScene: LABELS.ja,
+      sharedScene: human,
+      ai: false,
+    },
+    {
+      name: "読む人の行に札 × 共有 AI で目印の無い札 → 入れ替えない",
+      reader: r(done),
+      shared: { explain_lang: "ja", example_scene: human },
+      readerScene: LABELS.ja,
+      sharedScene: human,
+      ai: false,
+    },
+    {
+      name: "読む人の行に札 × 共有 seed・札なし → 写す",
+      reader: r(done),
+      shared: { explain_lang: "ja" },
+      sharedSource: "seed",
+      readerScene: LABELS.ja,
+      sharedScene: LABELS.ja,
+      ai: false,
+    },
+    {
+      name: "読む人の行に札 × 共有は違う言語 → 触らない",
+      reader: r(done),
+      shared: { explain_lang: "en" },
+      readerScene: LABELS.ja,
+      sharedScene: undefined,
+      ai: false,
+    },
+    {
+      name: "読む人の行に札 × 共有の extras が null → 触らない",
+      reader: r(done),
+      shared: null,
+      readerScene: LABELS.ja,
+      sharedScene: undefined,
+      ai: false,
+    },
+    {
+      name: "読む人の行なし × 共有は人が確かめた語・札なし → 何もしない",
+      reader: null,
+      shared: { explain_lang: "ja" },
+      sharedSource: "verified",
+      sharedScene: undefined,
+      ai: false,
+    },
+  ];
+  it.each(cases)("$name", async (c) => {
+    const t = setup({
+      lang: "ja",
+      reader: c.reader,
+      sharedExtras: c.shared,
+      sharedSource: c.sharedSource,
+      reply: JSON.stringify({ example_main: { scene: NEW } }),
+    });
+    await run(t.deps);
+    expect(t.deps.generate).toHaveBeenCalledTimes(c.ai ? 1 : 0);
+    if (c.reader)
+      expect(t.w.reader?.extras ? (t.w.reader.extras as Row).example_scene : undefined).toBe(
+        c.readerScene,
+      );
+    expect(t.w.word.extras ? (t.w.word.extras as Row).example_scene : undefined).toBe(
+      c.sharedScene,
+    );
+    // 中身が一部の行は、ほかの鍵を残す
+    if (c.reader?.extras && "usage_chunks" in (c.reader.extras as Row)) {
+      expect((t.w.reader?.extras as Row).usage_chunks).toEqual([{ ja: "u" }]);
+    }
+    // 人が確かめた行には何も書かない
+    if (c.sharedSource === "verified") expect(t.w.calls.some((x) => x.l1 === null)).toBe(false);
+    if (c.reader?.source === "verified") expect(t.w.calls.some((x) => x.l1 !== null)).toBe(false);
+  });
+
+  it("mayWriteMainLabel: 札なし・別の文の札は書いてよい / 目印の無い札・その文の札は書かない", () => {
+    expect(mayWriteMainLabel(MAIN, null)).toBe(true);
+    expect(mayWriteMainLabel(MAIN, {})).toBe(true);
+    expect(mayWriteMainLabel(MAIN, { example_scene: "  " })).toBe(true);
+    expect(mayWriteMainLabel(MAIN, { example_scene: "x", example_scene_for: "別的句子。" })).toBe(
+      true,
+    );
+    expect(mayWriteMainLabel(MAIN, { example_scene: human })).toBe(false);
+    expect(mayWriteMainLabel(MAIN, { example_scene: "x", example_scene_for: "夏天吃冰淇淋" })).toBe(
+      false,
+    );
+    expect(mayWriteMainLabel("", {})).toBe(false);
+  });
+
+  it("getWordExplanation: extras が空の読む人の行も行として渡す（無い行と分ける — P2）", async () => {
+    expect(
+      await shouldLabelMainExample({
+        userId: "u1",
+        wordId: "w1",
+        lang: "ja",
+        word: { language: "zh-TW", headword: "冰淇淋", example_sentence: MAIN },
+        reader: { extras: null, source: "ai" },
+        shared: { extras: null, source: "ai" },
+        consentStatus: async () => ({ agreed: true, recorded: true }),
+        owns: async () => true,
+      }),
+    ).toBe(true);
+    const we = fs.readFileSync(path.join(__dirname, "word-explanation.functions.ts"), "utf8");
+    expect(we).not.toMatch(/if \(!input\.reader\?\.extras && !input\.shared\) return false;/);
+  });
+});
+
+describe("保存の時も、場面の札は札・目印・パーツを組で埋める（目印の無い札を別の文の札にしない）", () => {
+  const human = { explain_lang: "ja", example_scene: "人が書いた札", usage_context: "u" };
+  const card = {
+    explain_lang: "ja",
+    example_scene: LABELS.ja,
+    example_scene_for: MAIN,
+    example_chunks: MAIN_CHUNKS,
+    usage_context: "新しい",
+  };
+
+  it("共有の行: 目印の無い札が在れば、札・目印・パーツを入れない（ほかの空の鍵は埋める）", () => {
+    const out = fillEmptySharedExtras(human, { ...card, mnemonic_x: "x" }) as Row | null;
+    expect(out?.example_scene).toBe("人が書いた札");
+    expect(out?.example_scene_for).toBeUndefined();
+    expect(out?.example_chunks).toBeUndefined();
+  });
+
+  it("共有の行: 札が無ければ、札と一緒に目印・パーツもその札の物にする", () => {
+    const prev = {
+      explain_lang: "ja",
+      usage_context: "u",
+      example_scene_for: "別的句子。",
+      example_chunks: OTHER_SENTENCE_CHUNKS,
+    };
+    const out = fillEmptySharedExtras(prev, card) as Row;
+    expect(out.example_scene).toBe(LABELS.ja);
+    expect(out.example_scene_for).toBe(MAIN);
+    expect(out.example_chunks).toEqual(MAIN_CHUNKS);
+  });
+
+  it("読む人の行: 目印の無い札は残し、人が確かめた行は触らない", () => {
+    const w = fillReaderExplanation(
+      { meaning: "アイス", example_translation: "x", extras: human, source: "ai" },
+      { meaning: "アイス", example_translation: "x", extras: card } as never,
+      "ja",
+    );
+    const extras: Row =
+      (w.kind === "update" ? (w.patch.extras as Row | undefined) : undefined) ?? human;
+    expect(extras.example_scene).toBe("人が書いた札");
+    expect(extras.example_scene_for).toBeUndefined();
+    expect(
+      fillReaderExplanation(
+        { meaning: "", extras: {}, source: "verified" },
+        { meaning: "アイス", extras: card } as never,
+        "ja",
+      ).kind,
+    ).toBe("skip");
   });
 });
