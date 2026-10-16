@@ -58,6 +58,7 @@ import {
   pickExamplePatterns,
   applyFixedMainExample,
   checkMainExampleLabel,
+  chunksMatchSentence,
   mainExampleLabelRule,
   mainSceneFor,
 } from "./example-patterns";
@@ -2733,13 +2734,25 @@ async function runSectionRegen(
               !sameSentence(e.sentence, main.sentence) &&
               !(main.sentence && nearDuplicateExample(main, e, head)),
           );
+          // 共有の行にだけ札が在る（読む人の行に無い）時は、その札を読む人の行へ写す（パーツもその文の物なら）。
+          const sharedChunks = (normalizeExtras(word.extras) as Record<string, unknown> | null)
+            ?.example_chunks;
+          const copied =
+            !label && mainUsable && !readerMainScene && sharedMainScene
+              ? {
+                  scene: sharedMainScene,
+                  chunks: chunksMatchSentence(sharedChunks, mainSentence)
+                    ? (sharedChunks as unknown[])
+                    : [],
+                }
+              : null;
+          const fields = label ? mainLabelFields(label) : copied ? mainLabelFields(copied) : {};
           return {
-            // 共有の行にだけ札が在る（読む人の行に無い）時は、その札を読む人の行へ写す。
-            ...(label
-              ? mainLabelFields(label)
-              : mainUsable && !readerMainScene && sharedMainScene
-                ? mainLabelFields({ scene: sharedMainScene, chunks: [] })
-                : {}),
+            ...fields,
+            // 目印でこの文を正と記すのに、この文のパーツが無い: 別の文のパーツは書く時に消す（PR #189 の点検 P2）。
+            ...((label || copied) && !("example_chunks" in fields)
+              ? { clear_main_chunks: true }
+              : {}),
             ...(label?.translation ? { main_translation: label.translation } : {}),
             examples_extra: picked.map(toExtraExample),
             example_pattern_count: 1 + picked.length,
@@ -2941,6 +2954,18 @@ async function runSectionRegen(
   const mainTranslation =
     typeof extrasPatch.main_translation === "string" ? extrasPatch.main_translation : null;
   delete extrasPatch.main_translation;
+  /**
+   * 札の無い古い文に札を付けた時、その行のパーツが**別の文の物**なら空にする（行ごとに確かめる — 合っている
+   * パーツは残す。`chunksMatchSentence`）。extras には入れない印。
+   */
+  const clearMainChunks = extrasPatch.clear_main_chunks === true;
+  delete extrasPatch.clear_main_chunks;
+  const staleChunks = (e: unknown) => {
+    const c = (e as Record<string, unknown> | null | undefined)?.example_chunks;
+    return (
+      clearMainChunks && Array.isArray(c) && c.length > 0 && !chunksMatchSentence(c, mainSentence)
+    );
+  };
   if (data.section === "example") {
     delete extrasPatch.example_sentence;
     delete extrasPatch.example_translation;
@@ -2964,10 +2989,13 @@ async function runSectionRegen(
    * 例文を作り直した時は、追加の例文を**入れ替える**（空でも — 1つの場面でしか使わない語に古い追加の例文を
    * 残さない）。`mergeExtras` は空の値で上書きしないので、ここで直に置く。
    */
-  const replaceExtras = (e: Record<string, unknown>) =>
-    data.section === "example" && Array.isArray(extrasPatch.examples_extra)
-      ? { ...e, examples_extra: extrasPatch.examples_extra }
-      : e;
+  const replaceExtras = (e: Record<string, unknown>) => {
+    const out =
+      data.section === "example" && Array.isArray(extrasPatch.examples_extra)
+        ? { ...e, examples_extra: extrasPatch.examples_extra }
+        : e;
+    return staleChunks(out) ? { ...out, example_chunks: [] } : out;
+  };
   const merged = replaceExtras(
     mergeExtras(
       (word.extras ?? null) as Parameters<typeof mergeExtras>[0],
@@ -3002,9 +3030,13 @@ async function runSectionRegen(
    */
   // その人向けの解説の行にも重ねる（画面はこちらを出す）。
   if (readerRow) {
+    const clearReaderChunks = staleChunks(readerRow.extras);
     await mergeIntoReaderExplanation(supabaseAdmin, data.word_id, readerKey, {
-      extras: extrasPatch,
-      replaceKeys: data.section === "example" ? ["examples_extra"] : undefined,
+      extras: clearReaderChunks ? { ...extrasPatch, example_chunks: [] } : extrasPatch,
+      replaceKeys: [
+        ...(data.section === "example" ? ["examples_extra"] : []),
+        ...(clearReaderChunks ? ["example_chunks"] : []),
+      ],
       meaning: data.section === "meaning" ? shortMeaning(String(out.meaning_ja ?? "")) : null,
       example_translation:
         data.section === "example" && !keepVerifiedExample

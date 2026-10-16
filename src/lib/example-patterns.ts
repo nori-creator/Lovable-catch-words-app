@@ -520,6 +520,21 @@ export const MainExampleLabelSchema = z.object({
 });
 export type MainExampleLabel = z.infer<typeof MainExampleLabelSchema>;
 
+/** 文を比べる形（空白・句読点・記号を除き、小文字に）。パーツをつないだ物と文を突き合わせる。 */
+const chunkKey = (s: string) => s.replace(/[\s\p{P}\p{S}]/gu, "").toLowerCase();
+
+/**
+ * パーツ（`example_chunks`）が**その文を分けた物**か: パーツの文字をつなぐと文になる（空白・句読点・記号の違いは
+ * 同じとみなす）。古い行のパーツは、AI が書いて保存で外れた別の文の物のことがある（本番 2026-10-16: 目印の無い
+ * 144 行のうち 65 行 — 床「我的床很舒服。」に「我|昨天|太|累|了|…」）。
+ */
+export function chunksMatchSentence(chunks: unknown, sentence: string | null | undefined): boolean {
+  if (!Array.isArray(chunks) || chunks.length === 0) return false;
+  const joined = chunks.map((c) => String((c as { text?: unknown })?.text ?? "")).join("");
+  const key = chunkKey(joined);
+  return key.length > 0 && key === chunkKey(sentence ?? "");
+}
+
 /** 確かめた札（画面に出せる物）。 */
 export type CheckedMainLabel = {
   scene: string;
@@ -616,7 +631,8 @@ export function checkMainExampleLabel(
   return {
     scene,
     translation: readerText(l.translation.trim(), opts.readerLang, opts.sentence).trim(),
-    chunks: l.chunks,
+    // パーツはその文を分けた物だけ（AI が別の文・直した文を分けて返した回は使わない）。
+    chunks: chunksMatchSentence(l.chunks, opts.sentence) ? l.chunks : [],
     sameAsMain: [...new Set(l.same_as_main.filter((n) => Number.isInteger(n) && n >= 0))],
   };
 }
@@ -724,6 +740,20 @@ export function mainExamplePatch(
   if (opts.label) {
     patch.example_scene = opts.label.scene;
     patch.example_scene_for = opts.sentence;
+    /**
+     * 目印でこの文を正と記すので、パーツもこの文の物にそろえる（PR #189 の点検 P2）。在るパーツがこの文を
+     * 分けた物なら残す。そうでなければ、札と一緒に書かせたパーツ（この文の物だけ — `checkMainExampleLabel`）に
+     * 入れ替え、それも無ければ空にする（`replaceKeys` — 空で上書きする）。
+     */
+    if (!chunksMatchSentence(e.example_chunks, opts.sentence)) {
+      const hadChunks = Array.isArray(e.example_chunks) && e.example_chunks.length > 0;
+      if (opts.label.chunks.length > 0) {
+        patch.example_chunks = opts.label.chunks;
+      } else if (hadChunks) {
+        patch.example_chunks = [];
+        replaceKeys.push("example_chunks");
+      }
+    }
   }
   const dropped = kept.length < list.length;
   if (dropped) {

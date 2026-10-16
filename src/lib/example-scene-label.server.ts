@@ -1,5 +1,6 @@
 import {
   checkMainExampleLabel,
+  chunksMatchSentence,
   mainExampleLabelRule,
   mainExampleNeedsTidy,
   mainExamplePatch,
@@ -185,7 +186,12 @@ export async function labelMainExample(
     const existing = readerScene || sharedScene;
     if (existing) {
       recent.set(memo, now);
-      label = { scene: existing, translation: "", chunks: [], sameAsMain: [] };
+      // 札を写す行のパーツも、この文を分けた物なら一緒に写す（違えば写さない — 書く側が別の文のパーツを消す）。
+      const source = readerScene ? readerExtras : word.extras;
+      const chunks = chunksMatchSentence(source?.example_chunks, sentence)
+        ? (source?.example_chunks as CheckedMainLabel["chunks"])
+        : [];
+      label = { scene: existing, translation: "", chunks, sameAsMain: [] };
     } else if (needLabel) {
       await deps.allow(input.userId);
       // 呼んでよいと分かってから記録する（同意の無い人・枠の尽きた人が、ほかの人の札を止めないように）。
@@ -197,6 +203,11 @@ export async function labelMainExample(
         .filter(Boolean);
       const wantTranslation = readerOpen && !(reader?.example_translation ?? "").trim();
       const profile = targetProfile(word.language);
+      // 書く行にこの文のパーツが無ければ（無い・別の文の物）、同じ呼び出しでこの文のパーツも書かせる。
+      const wantChunks =
+        (readerTodo && !chunksMatchSentence(readerExtras?.example_chunks, sentence)) ||
+        (sharedTodo && !chunksMatchSentence(word.extras?.example_chunks, sentence));
+      const chunkRoles = wantChunks ? profile.chunkRoles.join(" / ") : undefined;
       const nl = deps.languageName(input.key.explainLang);
       const prompt = [
         `${profile.promptName}の単語「${head}」の例文に、場面の札だけを付けます。例文は変えません。出力はJSONオブジェクト1つだけ(前置き不要)。`,
@@ -207,9 +218,10 @@ export async function labelMainExample(
           nl,
           sceneMax: sceneMaxChars(input.key.explainLang),
           translation: wantTranslation,
+          chunkRoles,
           extras: extrasList,
         }),
-        `{"example_main":{"scene":"短い1行(${nl})",${wantTranslation ? `"translation":"訳(${nl})",` : ""}"scene_fits":true${extrasList?.length ? `,"same_as_main":[]` : ""}}}`,
+        `{"example_main":{"scene":"短い1行(${nl})",${wantTranslation ? `"translation":"訳(${nl})",` : ""}${chunkRoles ? `"chunks":[{"text":"","pos":""}],` : ""}"scene_fits":true${extrasList?.length ? `,"same_as_main":[]` : ""}}}`,
       ].join("\n");
       const text = await deps.generate(prompt);
       const raw = deps.parseJson(text) as { example_main?: unknown } | null;

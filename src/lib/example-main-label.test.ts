@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   ExamplePatternSchema,
   alignExampleExtras,
+  chunksMatchSentence,
   applyFixedMainExample,
   checkMainExampleLabel,
   mainExampleLabelRule,
@@ -31,6 +32,27 @@ import {
  */
 
 const MAIN = "夏天吃冰淇淋。";
+/** 「夏天吃冰淇淋。」を分けたパーツ。 */
+const MAIN_CHUNKS = [
+  { text: "夏天", pos: "M" },
+  { text: "吃", pos: "V" },
+  { text: "冰淇淋", pos: "O" },
+];
+/** 本番の 床 の行（目印なし）のパーツ: 文「我的床很舒服。」ではなく、保存で外れた別の文の物。 */
+const OTHER_SENTENCE_CHUNKS = [
+  "我",
+  "昨天",
+  "太",
+  "累",
+  "了",
+  "一",
+  "躺到",
+  "床",
+  "上",
+  "就",
+  "睡著",
+  "了",
+].map((text) => ({ text, pos: "" }));
 const p = (o: Partial<ExamplePattern>): ExamplePattern => ExamplePatternSchema.parse(o);
 
 /** 本番の 冰淇淋 の読む人の行（ja）の例文の欄（2026-10-16 06:51Z の形）。 */
@@ -166,7 +188,7 @@ describe("applyFixedMainExample — カード生成・例文の作り直し（�
 
   it("文は変えず、その文のための札を付け、同じパターンの追加の例文を落とす", () => {
     const label = checkMainExampleLabel(
-      { scene: LABELS.ja, translation: TRANSLATIONS.ja, chunks: [{ text: "冰淇淋", pos: "O" }] },
+      { scene: LABELS.ja, translation: TRANSLATIONS.ja, chunks: MAIN_CHUNKS },
       { sentence: MAIN, readerLang: "ja" },
     );
     const card = applyFixedMainExample(
@@ -179,7 +201,7 @@ describe("applyFixedMainExample — カード生成・例文の作り直し（�
     expect(ex.example_scene).toBe(LABELS.ja);
     expect(ex.example_scene_for).toBe(MAIN);
     expect(sameSentence(ex.example_scene_for as string, card.example_sentence)).toBe(true);
-    expect(ex.example_chunks).toEqual([{ text: "冰淇淋", pos: "O" }]);
+    expect(ex.example_chunks).toEqual(MAIN_CHUNKS);
     const list = ex.examples_extra as Array<{ zh: string; scene_for: string }>;
     expect(list.map((e) => e.zh)).toEqual(["這家店的冰淇淋口味很多，每一種都想試試。"]);
     expect(list[0].scene_for).toBe(list[0].zh);
@@ -278,6 +300,75 @@ describe("mainExamplePatch — 保存済みの行に札を付ける差分", () =
     const ex = { ...productionExtras(), example_scene: LABELS.ja, example_scene_for: MAIN };
     expect(mainExamplePatch(ex, { sentence: MAIN, headword: "冰淇淋", label: null })).toBeNull();
     expect(mainExampleNeedsTidy(ex, MAIN, "冰淇淋")).toBe(false);
+  });
+});
+
+describe("パーツもその文の物にそろえる（PR #189 の点検 P2）", () => {
+  it("chunksMatchSentence: つなぐと文になるパーツだけ（空白・句読点の違いは同じ）", () => {
+    expect(chunksMatchSentence(MAIN_CHUNKS, MAIN)).toBe(true);
+    expect(chunksMatchSentence(MAIN_CHUNKS, "夏天 吃冰淇淋！")).toBe(true);
+    expect(chunksMatchSentence(OTHER_SENTENCE_CHUNKS, "我的床很舒服。")).toBe(false);
+    expect(
+      chunksMatchSentence(
+        ["I", "eat", "ice cream", "in summer"].map((text) => ({ text })),
+        "I eat ice cream in summer.",
+      ),
+    ).toBe(true);
+    expect(chunksMatchSentence([], MAIN)).toBe(false);
+    expect(chunksMatchSentence(undefined, MAIN)).toBe(false);
+  });
+
+  it("checkMainExampleLabel: 別の文を分けたパーツは受け取らない（札は使う）", () => {
+    const label = checkMainExampleLabel(
+      {
+        scene: LABELS.ja,
+        chunks: [
+          { text: "我要", pos: "V" },
+          { text: "冰淇淋", pos: "O" },
+        ],
+      },
+      { sentence: MAIN, readerLang: "ja" },
+    );
+    expect(label?.scene).toBe(LABELS.ja);
+    expect(label?.chunks).toEqual([]);
+  });
+
+  const BED = "我的床很舒服。";
+  const bedRow = () => ({
+    explain_lang: "ja",
+    example_chunks: OTHER_SENTENCE_CHUNKS,
+    example_pattern_count: 1,
+  });
+
+  it("札を付ける行の別の文のパーツは空にする（空で上書きする鍵として渡す）", () => {
+    const label = checkMainExampleLabel(
+      { scene: "ベッドに寝転んだとき" },
+      { sentence: BED, readerLang: "ja" },
+    );
+    const fix = mainExamplePatch(bedRow(), { sentence: BED, headword: "床", label });
+    expect(fix?.patch.example_scene_for).toBe(BED);
+    expect(fix?.patch.example_chunks).toEqual([]);
+    expect(fix?.replaceKeys).toContain("example_chunks");
+  });
+
+  it("札と一緒に書かせたこの文のパーツがあれば、それに入れ替える", () => {
+    const bedChunks = ["我的", "床", "很", "舒服"].map((text) => ({ text, pos: "" }));
+    const label = checkMainExampleLabel(
+      { scene: "ベッドに寝転んだとき", chunks: bedChunks },
+      { sentence: BED, readerLang: "ja" },
+    );
+    const fix = mainExamplePatch(bedRow(), { sentence: BED, headword: "床", label });
+    expect(fix?.patch.example_chunks).toEqual(bedChunks);
+    expect(fix?.replaceKeys).not.toContain("example_chunks");
+  });
+
+  it("在るパーツがこの文の物なら残す（触らない）", () => {
+    const label = checkMainExampleLabel({ scene: LABELS.ja }, { sentence: MAIN, readerLang: "ja" });
+    const fix = mainExamplePatch(
+      { ...productionExtras(), example_chunks: MAIN_CHUNKS },
+      { sentence: MAIN, headword: "冰淇淋", label },
+    );
+    expect(fix?.patch).toEqual({ example_scene: LABELS.ja, example_scene_for: MAIN });
   });
 });
 
@@ -520,6 +611,43 @@ describe("labelMainExample — 古い行を開いた時に札だけを書く", (
     expect(shared.example_scene_for).toBe(MAIN);
   });
 
+  it("行のパーツが別の文の物なら、同じ呼び出しでこの文のパーツを書かせて入れ替える（P2）", async () => {
+    const legacy = { ...productionExtras(), example_chunks: OTHER_SENTENCE_CHUNKS };
+    const t = setup({
+      lang: "ja",
+      reader: { example_translation: "x", extras: legacy, source: "ai" },
+      sharedExtras: legacy,
+      reply: JSON.stringify({ example_main: { scene: LABELS.ja, chunks: MAIN_CHUNKS } }),
+    });
+    await labelMainExample(t.deps, {
+      userId: "u1",
+      wordId: "w1",
+      key: { explainLang: "ja", l1: "ja" },
+    });
+    expect(t.prompts[0]).toContain("chunks: その文をパーツ分解した");
+    expect((t.merges[0].patch.extras as Row).example_chunks).toEqual(MAIN_CHUNKS);
+    expect((t.state.word.extras as Row).example_chunks).toEqual(MAIN_CHUNKS);
+  });
+
+  it("この文のパーツを書けなかった回は、別の文のパーツを両方の行から消す（P2）", async () => {
+    const legacy = { ...productionExtras(), example_chunks: OTHER_SENTENCE_CHUNKS };
+    const t = setup({
+      lang: "ja",
+      reader: { example_translation: "x", extras: legacy, source: "ai" },
+      sharedExtras: legacy,
+    });
+    await labelMainExample(t.deps, {
+      userId: "u1",
+      wordId: "w1",
+      key: { explainLang: "ja", l1: "ja" },
+    });
+    const patch = t.merges[0].patch as { extras: Row; replaceKeys: string[] };
+    expect(patch.extras.example_chunks).toEqual([]);
+    expect(patch.replaceKeys).toContain("example_chunks");
+    expect((t.state.word.extras as Row).example_chunks).toEqual([]);
+    expect((t.state.word.extras as Row).example_scene_for).toBe(MAIN);
+  });
+
   it("呼んでよくない人（同意なし）は、ほかの人の札を止めない（記録は許された後だけ — P2）", async () => {
     const denied = setup({
       lang: "ja",
@@ -661,5 +789,12 @@ describe("どの道もメインの例文の札を作る（配線）", () => {
     expect(we).toMatch(/labelPending/);
     // サーバだけの道具は handler の中で読み込む（画面の束に入れない）
     expect(we).not.toMatch(/^import .*example-scene-label\.server/m);
+  });
+
+  it("項目の作り直しでも、札を付けた行の別の文のパーツは行ごとに確かめて消す（P2）", () => {
+    const ai = src("ai.functions.ts");
+    expect(ai).toMatch(/clear_main_chunks: true/);
+    expect(ai).toMatch(/const clearReaderChunks = staleChunks\(readerRow\.extras\)/);
+    expect(ai).toMatch(/return staleChunks\(out\) \? \{ \.\.\.out, example_chunks: \[\] \} : out;/);
   });
 });
