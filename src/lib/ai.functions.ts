@@ -2609,7 +2609,17 @@ async function runSectionRegen(
     normalizeExtras(word.extras) as Record<string, unknown> | null,
   );
   const mainScene = readerMainScene || sharedMainScene;
-  const needMainLabel = mainUsable && !mainScene;
+  /**
+   * 読む人の行へ写してよい共有の札: 共有の解説が読む人の言語で書かれていて、札そのものも読む人の言語の物だけ
+   * （英語で読む人の行に日本語の札を写さない — PR #189 の点検）。違えば、読む人の行には札を書かせる。
+   */
+  const sharedExtrasLang =
+    String((word.extras as Record<string, unknown> | null)?.explain_lang ?? "").trim() || "ja";
+  const sharedSceneForReader =
+    sharedExtrasLang === regenLang && readerText(sharedMainScene, regenLang, mainSentence).trim()
+      ? sharedMainScene
+      : "";
+  const needMainLabel = mainUsable && !readerMainScene && !sharedSceneForReader;
   /** 人が確かめた語（verified）の例文は書き換えないので、例文を作り直す時もその文を決まった文として扱う。 */
   const fixedExampleMain = data.section === "example" && word.source === "verified" && mainUsable;
   const mainLabelRule = (extraOpts: { translation: boolean }) =>
@@ -2760,9 +2770,9 @@ async function runSectionRegen(
           const sharedChunks = (normalizeExtras(word.extras) as Record<string, unknown> | null)
             ?.example_chunks;
           const copied =
-            !label && mainUsable && !readerMainScene && sharedMainScene
+            !label && mainUsable && !readerMainScene && sharedSceneForReader
               ? {
-                  scene: sharedMainScene,
+                  scene: sharedSceneForReader,
                   chunks: chunksMatchSentence(sharedChunks, mainSentence)
                     ? (sharedChunks as unknown[])
                     : [],
@@ -2987,6 +2997,7 @@ async function runSectionRegen(
     if (!mainLabel) return;
     const { persistMainLabel } = await import("./example-scene-label.server");
     await persistMainLabel({
+      userId,
       wordId: data.word_id,
       key: readerKey,
       sentence: mainSentence,

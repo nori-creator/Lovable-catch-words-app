@@ -217,7 +217,16 @@ async function scheduleLabelIfNeeded(input: {
     });
     return true;
   } catch (e) {
-    console.warn("getWordExplanation: 例文の札を頼めなかった", (e as Error)?.message);
+    // 頼む段の失敗も開発者の記録に数える（読む道は落とさない — PR #189 の点検）。
+    try {
+      const { reportServerBackgroundFailure } = await import("./background-failure.server");
+      await reportServerBackgroundFailure("scene_label", input.userId, e, {
+        where: "scheduleLabelIfNeeded",
+        word_id: input.wordId,
+      });
+    } catch {
+      console.warn("getWordExplanation: 例文の札を頼めなかった", (e as Error)?.message);
+    }
     return false;
   }
 }

@@ -404,6 +404,7 @@ async function buildDetail(userId: string) {
         thumbUpload: kinds.bg_failed_thumb_upload ?? 0,
         reviewGrade: kinds.bg_failed_review_grade ?? 0,
         firstCatchAi: kinds.bg_failed_first_catch_ai ?? 0,
+        sceneLabel: kinds.bg_failed_scene_label ?? 0,
       },
     },
     ai: {

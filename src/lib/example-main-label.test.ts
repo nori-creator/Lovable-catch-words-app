@@ -21,10 +21,20 @@ import {
 import { CardReplySchema } from "./card-schema";
 import { fillEmptySharedExtras, fillReaderExplanation } from "./shared-word-guard";
 import { wordExplanationQuery } from "./reader-explanation";
-import { reusableForMainSentence, sameHeadword } from "./generated-cards";
+import {
+  headwordVariants,
+  readExistingMainSentence,
+  reusableForMainSentence,
+  sameHeadword,
+} from "./generated-cards";
+import {
+  reportServerBackgroundFailure,
+  resetServerBackgroundFailureForTest,
+} from "./background-failure.server";
 import {
   allowSceneLabel,
   applyRepairViaRpc,
+  isReportableFailure,
   persistMainLabel,
   shouldLabelMainExample,
   forgetMainExampleLabelAttempts,
@@ -523,7 +533,7 @@ describe("どの道もメインの例文の札を作る（配線）", () => {
     expect(ai).not.toMatch(/clear_main_chunks|main_translation/);
     expect(ai).toMatch(/main_label: mainLabel/);
     expect(ai).toMatch(
-      /persistMainLabel\(\{\s*wordId: data\.word_id,\s*key: readerKey,\s*sentence: mainSentence,/,
+      /persistMainLabel\(\{\s*userId,\s*wordId: data\.word_id,\s*key: readerKey,\s*sentence: mainSentence,/,
     );
   });
 });
@@ -1194,9 +1204,16 @@ describe("persistMainLabel — 項目の作り直しが書かせた札を部分�
 
   it("札の無い行（読む人の行・同じ言語の共有の行）にだけ、名前を挙げた鍵で書く", async () => {
     const a = admin(word, { extras: productionExtras(), example_translation: "", source: "ai" });
-    expect(await persistMainLabel({ wordId: "w1", key, sentence: MAIN, label, admin: a.db })).toBe(
-      true,
-    );
+    expect(
+      await persistMainLabel({
+        userId: "u1",
+        wordId: "w1",
+        key,
+        sentence: MAIN,
+        label,
+        admin: a.db,
+      }),
+    ).toBe(true);
     expect(a.rpc).toHaveBeenCalledTimes(2);
     const [reader, shared] = a.rpc.mock.calls.map((c) => c[1]);
     expect(reader).toMatchObject({
@@ -1211,7 +1228,14 @@ describe("persistMainLabel — 項目の作り直しが書かせた札を部分�
   it("語のメインの例文が変わっていたら書かない・人が確かめた読む人の行は書かない", async () => {
     const changed = admin({ ...word, example_sentence: "別的句子。" }, null);
     expect(
-      await persistMainLabel({ wordId: "w1", key, sentence: MAIN, label, admin: changed.db }),
+      await persistMainLabel({
+        userId: "u1",
+        wordId: "w1",
+        key,
+        sentence: MAIN,
+        label,
+        admin: changed.db,
+      }),
     ).toBe(false);
     expect(changed.rpc).not.toHaveBeenCalled();
     const verified = admin(word, {
@@ -1219,7 +1243,14 @@ describe("persistMainLabel — 項目の作り直しが書かせた札を部分�
       example_translation: "",
       source: "verified",
     });
-    await persistMainLabel({ wordId: "w1", key, sentence: MAIN, label, admin: verified.db });
+    await persistMainLabel({
+      userId: "u1",
+      wordId: "w1",
+      key,
+      sentence: MAIN,
+      label,
+      admin: verified.db,
+    });
     expect(verified.rpc.mock.calls.map((c) => c[1].p_l1)).toEqual([null]);
   });
 });
@@ -1248,6 +1279,14 @@ describe("札の直しの決まりの表（読む人の行 × 共有の行）", 
   };
   const r = (extras: Row | null, source = "ai") => ({ example_translation: "x", extras, source });
   const cases: Case[] = [
+    {
+      name: "読む人の行（ja）× 共有は英語の解説で札あり → 写さず AI の札（共有は触らない）",
+      reader: r({}),
+      shared: { explain_lang: "en", example_scene: "On a hot day", example_scene_for: MAIN },
+      readerScene: NEW,
+      sharedScene: "On a hot day",
+      ai: true,
+    },
     {
       name: "読む人の行なし × 共有 AI・札なし → 共有に AI の札",
       reader: null,
@@ -1468,5 +1507,168 @@ describe("保存の時も、場面の札は札・目印・パーツを組で埋�
         "ja",
       ).kind,
     ).toBe("skip");
+  });
+});
+
+describe("言語をまたいで札を写さない（PR #189 の点検 6 回目）", () => {
+  beforeEach(() => forgetMainExampleLabelAttempts());
+
+  it("英語で読む人の行へ、日本語で書かれた札を写さない（行が同じ言語の印でも、札そのものを確かめる）", async () => {
+    const t = setup({
+      lang: "en",
+      reader: { example_translation: "x", extras: {}, source: "ai" },
+      sharedExtras: { explain_lang: "en", example_scene: LABELS.ja, example_scene_for: MAIN },
+      reply: JSON.stringify({ example_main: { scene: LABELS.en } }),
+    });
+    await run(t.deps, "en");
+    expect(t.deps.generate).toHaveBeenCalledTimes(1);
+    expect(t.readerExtras().example_scene).toBe(LABELS.en);
+  });
+
+  it("項目の作り直し: 共有の札は読む人の言語で書かれた時だけ読む人の行へ写す", () => {
+    const ai = fs.readFileSync(path.join(__dirname, "ai.functions.ts"), "utf8");
+    expect(ai).toMatch(
+      /sharedExtrasLang === regenLang && readerText\(sharedMainScene, regenLang, mainSentence\)/,
+    );
+    expect(ai).toMatch(/!label && mainUsable && !readerMainScene && sharedSceneForReader/);
+  });
+});
+
+describe("裏の仕事の失敗は開発者の記録に数える（scene_label — PR #189 の点検）", () => {
+  beforeEach(() => resetServerBackgroundFailureForTest());
+
+  it("usage_events に bg_failed_scene_label を1行（同じ人は1分に1回）", async () => {
+    const rows: unknown[] = [];
+    vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    const insert = async (row: unknown) => {
+      rows.push(row);
+    };
+    await reportServerBackgroundFailure(
+      "scene_label",
+      "u1",
+      new Error("x"),
+      {},
+      { insert, now: () => 0 },
+    );
+    await reportServerBackgroundFailure(
+      "scene_label",
+      "u1",
+      new Error("y"),
+      {},
+      { insert, now: () => 1_000 },
+    );
+    await reportServerBackgroundFailure(
+      "scene_label",
+      "u2",
+      new Error("z"),
+      {},
+      { insert, now: () => 1_000 },
+    );
+    expect(rows).toEqual([
+      { user_id: "u1", kind: "bg_failed_scene_label" },
+      { user_id: "u2", kind: "bg_failed_scene_label" },
+    ]);
+  });
+
+  it("数えるのは本当の失敗だけ（同意なし・枠切れ・先に書かれた は数えない）", () => {
+    expect(isReportableFailure("no usable label")).toBe(true);
+    expect(isReportableFailure("network down")).toBe(true);
+    expect(isReportableFailure("AI_CONSENT_REQUIRED: scene label needs recorded AI consent")).toBe(
+      false,
+    );
+    expect(isReportableFailure("AI_DAILY_CAP: 200")).toBe(false);
+    expect(isReportableFailure("nothing written")).toBe(false);
+  });
+
+  it("SQL の失敗（関数が無いなど）は onError に渡す・persistMainLabel も数える", async () => {
+    vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    const onError = vi.fn();
+    const rpc = vi.fn(async () => ({ data: null, error: { message: "function does not exist" } }));
+    await applyRepairViaRpc(
+      { rpc },
+      {
+        wordId: "w1",
+        explainLang: "ja",
+        l1: null,
+        sentence: MAIN,
+        repair: { scene: "x", chunks: null, staleChunks: null, drop: [], recount: false },
+        translation: null,
+      },
+      onError,
+    );
+    expect(onError).toHaveBeenCalledTimes(1);
+    const report = vi.fn(async () => undefined);
+    const chain = (data: unknown): Record<string, unknown> => {
+      const q: Record<string, unknown> = {
+        eq: () => q,
+        maybeSingle: async () => ({ data, error: null }),
+      };
+      return q;
+    };
+    const word = {
+      headword: "冰淇淋",
+      language: "zh-TW",
+      example_sentence: MAIN,
+      extras: productionExtras(),
+    };
+    await persistMainLabel({
+      userId: "u1",
+      wordId: "w1",
+      key: { explainLang: "ja", l1: "ja" },
+      sentence: MAIN,
+      label: { scene: LABELS.ja, chunks: [], translation: "" },
+      admin: { rpc, from: (t: string) => ({ select: () => chain(t === "words" ? word : null) }) },
+      report,
+    });
+    expect(report).toHaveBeenCalledWith(
+      "scene_label",
+      "u1",
+      expect.anything(),
+      expect.objectContaining({ where: "persistMainLabel" }),
+    );
+  });
+
+  it("管理画面の数え方と記録の種類に scene_label がある", () => {
+    const metrics = fs.readFileSync(path.join(__dirname, "metrics.functions.ts"), "utf8");
+    expect(metrics).toMatch(/"bg_failed_scene_label"/);
+    const admin = fs.readFileSync(path.join(__dirname, "admin-users.functions.ts"), "utf8");
+    expect(admin).toMatch(/sceneLabel: kinds\.bg_failed_scene_label/);
+  });
+});
+
+describe("前から在る文は、同じ語の書き方の行からも引く（PR #189 の点検）", () => {
+  it("headwordVariants: 冠詞・大文字小文字・かなの違いを並べる", () => {
+    expect(headwordVariants("An Apple", "en")).toEqual(
+      expect.arrayContaining(["An Apple", "an apple", "apple", "the apple"]),
+    );
+    expect(headwordVariants("りんご", "ja")).toEqual(expect.arrayContaining(["りんご", "リンゴ"]));
+    expect(headwordVariants("冰淇淋", "zh-TW")).toEqual(["冰淇淋"]);
+  });
+
+  it("readExistingMainSentence: 同じ語の行の文を返す（打った形の行を先に）", async () => {
+    const rows = [
+      { headword: "the apple", example_sentence: "I ate the apple." },
+      { headword: "apple", example_sentence: "Apples are red." },
+    ];
+    let asked: string[] = [];
+    const db = {
+      from: () => ({
+        select: () => ({
+          eq: () => ({
+            in: async (_k: string, v: string[]) => {
+              asked = v;
+              return { data: rows.filter((r) => v.includes(r.headword)), error: null };
+            },
+          }),
+        }),
+      }),
+    };
+    expect(await readExistingMainSentence(db, { language: "en", headword: "Apple" })).toBe(
+      "Apples are red.",
+    );
+    expect(asked).toEqual(expect.arrayContaining(["Apple", "apple", "an apple", "the apple"]));
+    expect(await readExistingMainSentence(db, { language: "en", headword: "the apple" })).toBe(
+      "I ate the apple.",
+    );
   });
 });

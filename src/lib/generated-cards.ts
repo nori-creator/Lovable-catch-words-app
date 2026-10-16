@@ -264,6 +264,22 @@ export function sameHeadword(a: string, b: string, language: string): boolean {
 }
 
 /**
+ * `sameHeadword` が同じ語と言う書き方を、行を引くために並べる（語の行は見出し語そのままで引くので）。
+ * 打った形・小文字・図鑑の比べ方の形（`normDexHeadword`）に加えて、英語は冠詞つき（a / an / the）、
+ * 日本語はひらがなとカタカナの両方。比べ方と引き方を同じ物（`normDexHeadword`）から作るので、ずれない。
+ */
+export function headwordVariants(headword: string, language: string): string[] {
+  const h = headword.trim();
+  const core = normDexHeadword(h, language);
+  const out = [h, h.toLowerCase(), core];
+  if (core && language === "en") out.push(`a ${core}`, `an ${core}`, `the ${core}`);
+  if (core && language === "ja") {
+    out.push(core.replace(/[ぁ-ゖ]/g, (c) => String.fromCharCode(c.charCodeAt(0) + 0x60)));
+  }
+  return [...new Set(out.filter((x) => x.length > 0))];
+}
+
+/**
  * **共有の語にもう在るメインの例文**（`generateCard`、2026-10-16 冰淇淋）。共有の行の例文は空の時だけ埋まるので、
  * 在る文は保存の後も残る — カードはその文に札を付けて作る。**投げない** — 読めなければ null（今までどおり作る）。
  */
@@ -273,9 +289,9 @@ export async function readExistingMainSentence(
 ): Promise<string | null> {
   const headword = (opts.headword ?? "").trim();
   if (!headword || headword.length > 100) return null;
-  // 打った形と、大文字小文字をそろえた形の両方で引く（`Apple` と打っても `apple` の行の文 — 比べ方は
-  // `sameHeadword` と同じ考え）。打った形の行が在ればそれを先に。
-  const candidates = [...new Set([headword, headword.toLowerCase()])];
+  // 同じ語の書き方（`headwordVariants` — 大文字小文字・英語の冠詞・かな）で引き、`sameHeadword` が同じ語と
+  // 言う行だけを使う。打った形の行が在ればそれを先に。
+  const candidates = headwordVariants(headword, opts.language);
   try {
     const q = (admin as LooseDb).from("words") as {
       select: (c: string) => {
@@ -298,7 +314,14 @@ export async function readExistingMainSentence(
       .eq("language", opts.language)
       .in("headword", candidates);
     if (error || !data) return null;
-    const pick = data.find((r) => r.headword === headword) ?? data[0];
+    // 同じ語の行のうち、並べた順（打った形 → 小文字 → 比べ方の形 → ほか）で先の物。
+    const rank = (h: string | null | undefined) => {
+      const i = candidates.indexOf(h ?? "");
+      return i < 0 ? candidates.length : i;
+    };
+    const pick = data
+      .filter((r) => sameHeadword(r.headword ?? "", headword, opts.language))
+      .sort((a, b) => rank(a.headword) - rank(b.headword))[0];
     const s = (pick?.example_sentence ?? "").trim();
     return s || null;
   } catch {

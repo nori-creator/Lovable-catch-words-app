@@ -11,6 +11,8 @@ import {
   type MainExampleRepair,
 } from "./example-patterns";
 import { looksLikeTargetLanguage } from "./text-language";
+import { readerText } from "./note-language";
+import { reportServerBackgroundFailure } from "./background-failure.server";
 import { targetProfile } from "./target-profile";
 import type { UiLang } from "./i18n";
 
@@ -164,21 +166,26 @@ function sharedInLang(extras: Record<string, unknown> | null, lang: string): boo
 const needsWork = (extras: Record<string, unknown> | null, sentence: string, head: string) =>
   mayWriteMainLabel(sentence, extras) || mainExampleNeedsTidy(extras, sentence, head);
 
-/** 1つの行の見え方（書けるか・中身）。書けない = 人が確かめた行・共有の行なら違う言語の解説。 */
-type RowView = { extras: Record<string, unknown> | null; writable: boolean };
+/**
+ * 1つの行の見え方。
+ * - `inLang`: 読む人の言語で書かれた行か（違えば、その行の札を写さない・その行に書かない）
+ * - `writable`: 書いてよいか（読む人の言語で、人が確かめた行でない）
+ */
+type RowView = { extras: Record<string, unknown> | null; writable: boolean; inLang: boolean };
 
-/** 読む人の行の見え方。人が確かめた行は書かない。 */
+/** 読む人の行の見え方（鍵が読む人の言語の行）。人が確かめた行は書かない。 */
 const readerView = (row: { extras: unknown; source?: string | null } | null): RowView | null =>
-  row ? { extras: asObject(row.extras), writable: row.source !== "verified" } : null;
+  row ? { extras: asObject(row.extras), writable: row.source !== "verified", inLang: true } : null;
 
-/** 共有の行の見え方。人が確かめた語・違う言語の解説は書かない。 */
+/** 共有の行の見え方。違う言語の解説は写さず書かない。人が確かめた語は書かない（写すのはよい）。 */
 const sharedView = (
   row: { extras: unknown; source?: string | null } | null,
   lang: string,
 ): RowView | null => {
   if (!row) return null;
   const extras = asObject(row.extras);
-  return { extras, writable: row.source !== "verified" && sharedInLang(extras, lang) };
+  const inLang = sharedInLang(extras, lang);
+  return { extras, writable: inLang && row.source !== "verified", inLang };
 };
 
 /**
@@ -192,11 +199,21 @@ function planRepair(
   head: string,
   reader: RowView | null,
   shared: RowView | null,
+  lang: string,
 ) {
   const readerTodo = !!reader?.writable && needsWork(reader.extras, sentence, head);
   const sharedTodo = !!shared?.writable && needsWork(shared.extras, sentence, head);
-  const readerScene = reader ? mainSceneFor(sentence, reader.extras) : "";
-  const sharedScene = shared ? mainSceneFor(sentence, shared.extras) : "";
+  /**
+   * 写してよい札: 読む人の言語の行にある、その文の札で、札そのものも読む人の言語で書かれた物だけ
+   * （英語で読む人の行に日本語の札を写さない — PR #189 の点検）。
+   */
+  const copyable = (row: RowView | null) => {
+    if (!row?.inLang) return "";
+    const scene = mainSceneFor(sentence, row.extras);
+    return scene && readerText(scene, lang, sentence).trim() ? scene : "";
+  };
+  const readerScene = copyable(reader);
+  const sharedScene = copyable(shared);
   const needsLabel =
     (readerTodo && mayWriteMainLabel(sentence, reader?.extras)) ||
     (sharedTodo && mayWriteMainLabel(sentence, shared?.extras));
@@ -241,6 +258,7 @@ export async function labelMainExample(
       head,
       readerView(reader),
       sharedView(word, input.key.explainLang),
+      input.key.explainLang,
     );
     if (!plan.readerTodo && !plan.sharedTodo) return skipped("nothing to do");
 
@@ -361,13 +379,22 @@ function skipped(reason: string): MainExampleLabelResult {
  * 語のメインの例文が変わっていれば書かない（SQL が確かめる）。**投げない**。
  */
 export async function persistMainLabel(input: {
+  /** 失敗を数える人（作り直しを頼んだ人）。 */
+  userId: string;
   wordId: string;
   key: ExplanationKey;
   /** 札を書かせた時のメインの例文（語の文がもう違えば書かない）。 */
   sentence: string;
   label: { scene: string; chunks: CheckedMainLabel["chunks"]; translation: string };
   admin?: unknown;
+  report?: typeof reportServerBackgroundFailure;
 }): Promise<boolean> {
+  const report = input.report ?? reportServerBackgroundFailure;
+  const onError = (e: unknown) =>
+    void report("scene_label", input.userId, e, {
+      where: "persistMainLabel",
+      word_id: input.wordId,
+    });
   try {
     const admin =
       input.admin ?? (await import("@/integrations/supabase/client.server")).supabaseAdmin;
@@ -386,33 +413,41 @@ export async function persistMainLabel(input: {
       const repair = repairFor(reader.extras);
       if (repair) {
         wrote =
-          (await applyRepairViaRpc(admin, {
-            wordId: input.wordId,
-            explainLang: input.key.explainLang,
-            l1: input.key.l1,
-            sentence,
-            repair,
-            translation: input.label.translation || null,
-          })) || wrote;
+          (await applyRepairViaRpc(
+            admin,
+            {
+              wordId: input.wordId,
+              explainLang: input.key.explainLang,
+              l1: input.key.l1,
+              sentence,
+              repair,
+              translation: input.label.translation || null,
+            },
+            onError,
+          )) || wrote;
       }
     }
     if (sharedView(word, input.key.explainLang)?.writable) {
       const repair = repairFor(word.extras);
       if (repair) {
         wrote =
-          (await applyRepairViaRpc(admin, {
-            wordId: input.wordId,
-            explainLang: input.key.explainLang,
-            l1: null,
-            sentence,
-            repair,
-            translation: null,
-          })) || wrote;
+          (await applyRepairViaRpc(
+            admin,
+            {
+              wordId: input.wordId,
+              explainLang: input.key.explainLang,
+              l1: null,
+              sentence,
+              repair,
+              translation: null,
+            },
+            onError,
+          )) || wrote;
       }
     }
     return wrote;
   } catch (e) {
-    console.warn("persistMainLabel failed", e instanceof Error ? e.message : e);
+    onError(e);
     return false;
   }
 }
@@ -440,7 +475,11 @@ export async function allowSceneLabel(
 }
 
 /** 本番の `applyRepair`: `apply_main_example_label` を呼ぶ（無い・失敗した時は書かない）。 */
-export async function applyRepairViaRpc(admin: unknown, call: RepairCall): Promise<boolean> {
+export async function applyRepairViaRpc(
+  admin: unknown,
+  call: RepairCall,
+  onError?: (error: unknown) => void,
+): Promise<boolean> {
   const rpc = (admin as LooseDb).rpc;
   if (!rpc) return false;
   const { data, error } = await rpc.call(admin, "apply_main_example_label", {
@@ -457,6 +496,7 @@ export async function applyRepairViaRpc(admin: unknown, call: RepairCall): Promi
   });
   if (error) {
     console.warn("labelMainExample: apply_main_example_label failed", error);
+    onError?.(error);
     return false;
   }
   return data === true;
@@ -503,7 +543,13 @@ export async function runMainExampleLabel(input: {
     {
       admin: supabaseAdmin,
       readReader: readReaderRaw,
-      applyRepair: (call) => applyRepairViaRpc(supabaseAdmin, call),
+      applyRepair: (call) =>
+        applyRepairViaRpc(supabaseAdmin, call, (e) =>
+          reportServerBackgroundFailure("scene_label", input.userId, e, {
+            where: "apply_main_example_label",
+            word_id: input.wordId,
+          }),
+        ),
       allow: (userId) =>
         allowSceneLabel(userId, {
           consentStatus: (id) => consent.getAiConsentStatus(id),
@@ -555,6 +601,7 @@ export async function shouldLabelMainExample(input: {
     input.word.headword.trim(),
     readerView(input.reader),
     sharedView(input.shared, input.lang),
+    input.lang,
   );
   if (!plan.readerTodo && !plan.sharedTodo) return false;
   if (plan.needAi) {
@@ -573,6 +620,15 @@ export async function shouldLabelMainExample(input: {
 }
 
 /**
+ * 開発者の記録に数える失敗か。数えない: 同意が無い・その日の枠を使い切った（決まりどおりに止めた）、
+ * 書く物が無かった（ほかの処理が先に書いた — 正しい動き。SQL の失敗は `applyRepair` が別に数える）。
+ * 数える: AI の失敗・使えない札・読み書きの失敗など。
+ */
+export function isReportableFailure(reason: string): boolean {
+  return !/AI_CONSENT_REQUIRED|AI_DAILY_CAP|nothing written/.test(reason);
+}
+
+/**
  * `getWordExplanation` から: 返事の後で札を付ける（返事は待たせない）。結果は記録に残すだけ。
  */
 export async function scheduleMainExampleLabel(input: {
@@ -587,8 +643,11 @@ export async function scheduleMainExampleLabel(input: {
       const r = await runMainExampleLabel(input);
       if (r.outcome === "labelled" || r.outcome === "tidied") {
         console.info(`labelMainExample: ${r.outcome}`, { word_id: input.wordId });
-      } else if (r.outcome === "failed") {
-        console.warn("labelMainExample: failed", { word_id: input.wordId, reason: r.reason });
+      } else if (r.outcome === "failed" && isReportableFailure(r.reason)) {
+        await reportServerBackgroundFailure("scene_label", input.userId, new Error(r.reason), {
+          where: "labelMainExample",
+          word_id: input.wordId,
+        });
       }
     },
     { timeoutMs: 1_000 },
