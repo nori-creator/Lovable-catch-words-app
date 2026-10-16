@@ -792,3 +792,60 @@ export function mainExampleNeedsTidy(
   if (!norm(sentence) || needsMainSceneLabel(sentence, extras)) return false;
   return mainExamplePatch(extras, { sentence: sentence ?? "", headword, label: null }) !== null;
 }
+
+/**
+ * **保存済みの行を直す引数**（`apply_main_example_label` に渡す。PR #189 の点検 P1）。
+ *
+ * 行を丸ごと書き戻さない — 書く時点の行に、名前を挙げた鍵だけを重ねる（ほかの処理が間に書いた鍵を消さない）。
+ * だから「何を足す・何を落とす」を値で渡す:
+ * - `scene`: 札（目印 = その文は SQL が付ける）。札が要らなければ null
+ * - `chunks`: その文のパーツ（置き換える）。`staleChunks`: いまのパーツがこの値のままなら空にする
+ * - `drop`: 落とす追加の例文の文（zh。読んだ行の文そのまま）
+ * - `recount`: パターンの数を書く時点の 1 + 残った数にする
+ *
+ * 直す物が無ければ null。中身は `mainExamplePatch` と同じ決まり。
+ */
+export type MainExampleRepair = {
+  scene: string | null;
+  chunks: z.infer<typeof ChunkPartSchema>[] | null;
+  staleChunks: unknown[] | null;
+  drop: string[];
+  recount: boolean;
+};
+
+export function mainExampleRepair(
+  extras: ExtrasLike,
+  opts: Parameters<typeof mainExamplePatch>[1],
+): MainExampleRepair | null {
+  const fix = mainExamplePatch(extras, opts);
+  if (!fix) return null;
+  const e = (extras ?? {}) as Record<string, unknown>;
+  const list = Array.isArray(e.examples_extra) ? (e.examples_extra as unknown[]) : [];
+  const kept = Array.isArray(fix.patch.examples_extra)
+    ? (fix.patch.examples_extra as unknown[])
+    : null;
+  const drop = kept
+    ? list
+        .filter((x) => !kept.includes(x))
+        .map((x) => extraAsExample(x).sentence)
+        .filter((s) => s.length > 0)
+    : [];
+  const ch = fix.patch.example_chunks;
+  const repair: MainExampleRepair = {
+    scene: typeof fix.patch.example_scene === "string" ? fix.patch.example_scene : null,
+    chunks: Array.isArray(ch) && ch.length > 0 ? (ch as MainExampleRepair["chunks"]) : null,
+    staleChunks:
+      Array.isArray(ch) && ch.length === 0 && Array.isArray(e.example_chunks)
+        ? (e.example_chunks as unknown[])
+        : null,
+    drop: [...new Set(drop)],
+    recount: "example_pattern_count" in fix.patch,
+  };
+  const empty =
+    !repair.scene &&
+    !repair.chunks &&
+    !repair.staleChunks &&
+    repair.drop.length === 0 &&
+    !repair.recount;
+  return empty ? null : repair;
+}

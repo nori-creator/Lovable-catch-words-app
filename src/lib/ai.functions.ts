@@ -61,6 +61,7 @@ import {
   chunksMatchSentence,
   mainExampleLabelRule,
   mainSceneFor,
+  type CheckedMainLabel,
 } from "./example-patterns";
 import { exampleLevelRule } from "./level-instruction";
 import {
@@ -76,6 +77,7 @@ import {
   loadGeneratedCardRows,
   readExistingMainSentence,
   reusableForMainSentence,
+  sameHeadword,
   pickReusableCard,
   recordGeneratedCards,
   trustedCardFrom,
@@ -1254,7 +1256,12 @@ export const generateCard = createServerFn({ method: "POST" })
           )
         : null;
       const fits =
-        !!reused && reusableForMainSentence(reused, { inputHeadword: data.headword, currentMain });
+        !!reused &&
+        reusableForMainSentence(reused, {
+          inputHeadword: data.headword,
+          currentMain,
+          language: targetProfile(data.targetLanguage).code,
+        });
       const reply = reused && fits ? reusedCardReply(reused, data.headword, data.sections) : null;
       if (reused && fits && reply) {
         // 確保した1回は返事の後で返す（確保が終わるのを待たない — 待つと確保の往復ぶん遅くなる）。
@@ -1742,7 +1749,7 @@ ${data.hintCategory && data.hintCategory !== "other" ? `カテゴリのヒント
       }
       // メインの例文が決まっている語は、その文に札を付け、ほかのパターンを追加の例文にする。
       // 見出し語が入力と変わった回（母語で打った語）は、引いた文が別の語の物なので使わない。
-      if (fixedMain && resolvedHead === data.headword.trim()) {
+      if (fixedMain && sameHeadword(resolvedHead, data.headword, cardLanguage)) {
         const label = checkMainExampleLabel(card.example_main, {
           sentence: fixedMain,
           readerLang: explainLang,
@@ -2615,15 +2622,6 @@ async function runSectionRegen(
       chunkRoles: regenPatternBase.chunkRoles,
       translation: extraOpts.translation,
     });
-  /** 決まったメインの例文の札の欄（札を作れた時・共有の行にだけ在る札を読む人の行へ写す時）。 */
-  const mainLabelFields = (label: { scene: string; chunks: unknown[] } | null) =>
-    label
-      ? {
-          example_scene: label.scene,
-          example_scene_for: mainSentence,
-          ...(label.chunks.length > 0 ? { example_chunks: label.chunks } : {}),
-        }
-      : {};
 
   // 各項目のプロンプトと出力形。extras へのマージで反映する。
   const spec: Record<RegenSection, { prompt: string; schema: z.ZodTypeAny }> = {
@@ -2679,7 +2677,22 @@ async function runSectionRegen(
                   headword: head,
                 },
               );
-              return card.extras as Record<string, unknown>;
+              // 札は extras の書き戻しに混ぜず、`persistMainLabel` が名前を挙げた鍵だけを書く（PR #189 の点検）。
+              const {
+                example_scene: _scene,
+                example_scene_for: _for,
+                example_chunks: _chunks,
+                ...rest
+              } = card.extras as Record<string, unknown>;
+              void _scene;
+              void _for;
+              void _chunks;
+              return {
+                ...rest,
+                ...(label
+                  ? { main_label: { scene: label.scene, chunks: label.chunks, translation: "" } }
+                  : {}),
+              };
             }),
         }
       : {
@@ -2755,14 +2768,14 @@ async function runSectionRegen(
                     : [],
                 }
               : null;
-          const fields = label ? mainLabelFields(label) : copied ? mainLabelFields(copied) : {};
+          // 札は extras の書き戻しに混ぜない（下で `persistMainLabel` が名前を挙げた鍵だけを書く — PR #189 の点検）。
+          const mainLabel = label
+            ? { scene: label.scene, chunks: label.chunks, translation: label.translation }
+            : copied
+              ? { scene: copied.scene, chunks: copied.chunks, translation: "" }
+              : null;
           return {
-            ...fields,
-            // 目印でこの文を正と記すのに、この文のパーツが無い: 別の文のパーツは書く時に消す（PR #189 の点検 P2）。
-            ...((label || copied) && !("example_chunks" in fields)
-              ? { clear_main_chunks: true }
-              : {}),
-            ...(label?.translation ? { main_translation: label.translation } : {}),
+            ...(mainLabel ? { main_label: mainLabel } : {}),
             examples_extra: picked.map(toExtraExample),
             example_pattern_count: 1 + picked.length,
           };
@@ -2959,27 +2972,32 @@ async function runSectionRegen(
   // 人が確かめた語（verified）は例文の列を書き換えない。その時、新しい文のために書いた札・パーツ・訳を
   // 古い文の横に置かない（2026-10-15 眼鏡と同じ食い違いになる）。
   const keepVerifiedExample = data.section === "example" && word.source === "verified";
-  // 古いメインの例文の訳（読む人の行に訳が無い時だけ頼んだ物）。extras には入れない。
-  const mainTranslation =
-    typeof extrasPatch.main_translation === "string" ? extrasPatch.main_translation : null;
-  delete extrasPatch.main_translation;
   /**
-   * 札の無い古い文に札を付けた時、その行のパーツが**別の文の物**なら空にする（行ごとに確かめる — 合っている
-   * パーツは残す。`chunksMatchSentence`）。extras には入れない印。
+   * 札の無い古いメインの例文の札（追加の例文の節で一緒に書かせた・共有の行から写す物）。extras の書き戻しには
+   * 入れず、書き終えた後で `persistMainLabel` が**名前を挙げた鍵だけ**を書く（行を丸ごと書き戻さない。
+   * 別の文のパーツの片付け・訳もそこで — PR #189 の点検）。
    */
-  const clearMainChunks = extrasPatch.clear_main_chunks === true;
-  delete extrasPatch.clear_main_chunks;
-  const staleChunks = (e: unknown) => {
-    const c = (e as Record<string, unknown> | null | undefined)?.example_chunks;
-    return (
-      clearMainChunks && Array.isArray(c) && c.length > 0 && !chunksMatchSentence(c, mainSentence)
-    );
+  const mainLabel = (extrasPatch.main_label ?? null) as {
+    scene: string;
+    chunks: CheckedMainLabel["chunks"];
+    translation: string;
+  } | null;
+  delete extrasPatch.main_label;
+  const persistLabel = async () => {
+    if (!mainLabel) return;
+    const { persistMainLabel } = await import("./example-scene-label.server");
+    await persistMainLabel({
+      wordId: data.word_id,
+      key: readerKey,
+      sentence: mainSentence,
+      label: mainLabel,
+    });
   };
   if (data.section === "example") {
     delete extrasPatch.example_sentence;
     delete extrasPatch.example_translation;
-    // 決まった文（`fixedExampleMain`）の札はその文のために書いた物なので残す。
-    if (keepVerifiedExample && !fixedExampleMain) {
+    // 決まった文（`fixedExampleMain`）の札は `main_label` で別に書く（`persistMainLabel`）。
+    if (keepVerifiedExample) {
       for (const k of ["example_scene", "example_chunks", "example_scene_for", "example_v"]) {
         delete extrasPatch[k];
       }
@@ -2998,13 +3016,10 @@ async function runSectionRegen(
    * 例文を作り直した時は、追加の例文を**入れ替える**（空でも — 1つの場面でしか使わない語に古い追加の例文を
    * 残さない）。`mergeExtras` は空の値で上書きしないので、ここで直に置く。
    */
-  const replaceExtras = (e: Record<string, unknown>) => {
-    const out =
-      data.section === "example" && Array.isArray(extrasPatch.examples_extra)
-        ? { ...e, examples_extra: extrasPatch.examples_extra }
-        : e;
-    return staleChunks(out) ? { ...out, example_chunks: [] } : out;
-  };
+  const replaceExtras = (e: Record<string, unknown>) =>
+    data.section === "example" && Array.isArray(extrasPatch.examples_extra)
+      ? { ...e, examples_extra: extrasPatch.examples_extra }
+      : e;
   const merged = replaceExtras(
     mergeExtras(
       (word.extras ?? null) as Parameters<typeof mergeExtras>[0],
@@ -3039,23 +3054,20 @@ async function runSectionRegen(
    */
   // その人向けの解説の行にも重ねる（画面はこちらを出す）。
   if (readerRow) {
-    const clearReaderChunks = staleChunks(readerRow.extras);
     await mergeIntoReaderExplanation(supabaseAdmin, data.word_id, readerKey, {
-      extras: clearReaderChunks ? { ...extrasPatch, example_chunks: [] } : extrasPatch,
-      replaceKeys: [
-        ...(data.section === "example" ? ["examples_extra"] : []),
-        ...(clearReaderChunks ? ["example_chunks"] : []),
-      ],
+      extras: extrasPatch,
+      replaceKeys: data.section === "example" ? ["examples_extra"] : undefined,
       meaning: data.section === "meaning" ? shortMeaning(String(out.meaning_ja ?? "")) : null,
       example_translation:
         data.section === "example" && !keepVerifiedExample
           ? ((out.example_translation as string | null) ?? null)
-          : mainTranslation,
+          : null,
     });
   }
   // 共有の行に既に在る項目は、裏の自動生成では書き換えない（他の人のカードも
   // 同じ行を見ている）。その人向けの行だけを埋めれば足りる。
   if (data.only_if_empty && sharedHas) {
+    await persistLabel();
     return { ok: true, section: data.section, filled: true };
   }
   const { data: fresh } = await supabaseAdmin
@@ -3076,6 +3088,7 @@ async function runSectionRegen(
     .update({ ...baseUpdate, extras: latest as never } as never)
     .eq("id", data.word_id);
   if (upErr) throw new Error(upErr.message);
+  await persistLabel();
 
   return { ok: true, section: data.section, filled: true };
 }

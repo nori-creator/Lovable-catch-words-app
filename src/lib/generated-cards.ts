@@ -24,6 +24,7 @@
  */
 
 import { alignExampleExtras, guardExampleColumns, sameSentence } from "./example-patterns";
+import { normDexHeadword } from "./dex-catalog";
 import {
   fillEmptySharedColumns,
   fillEmptySharedExtras,
@@ -245,12 +246,21 @@ export async function loadGeneratedCardRows(
  */
 export function reusableForMainSentence(
   card: { example_sentence?: string; headword_zh?: string },
-  opts: { inputHeadword: string; currentMain: string | null },
+  opts: { inputHeadword: string; currentMain: string | null; language: string },
 ): boolean {
   if (!opts.currentMain) return true;
   const head = (card.headword_zh ?? "").trim();
-  if (head && head !== opts.inputHeadword.trim()) return true;
+  if (head && !sameHeadword(head, opts.inputHeadword, opts.language)) return true;
   return sameSentence(card.example_sentence ?? "", opts.currentMain);
+}
+
+/**
+ * 同じ見出し語か（学習言語ごとの比べ方 — 図鑑と同じ `normDexHeadword`: 大文字小文字・前後の空白・英語の冠詞・
+ * かなの違いは同じ語）。`Apple` と `apple` を別の語として、決まった文を外さない（PR #189 の点検）。
+ */
+export function sameHeadword(a: string, b: string, language: string): boolean {
+  const x = normDexHeadword(a, language);
+  return x.length > 0 && x === normDexHeadword(b, language);
 }
 
 /**
@@ -263,6 +273,9 @@ export async function readExistingMainSentence(
 ): Promise<string | null> {
   const headword = (opts.headword ?? "").trim();
   if (!headword || headword.length > 100) return null;
+  // 打った形と、大文字小文字をそろえた形の両方で引く（`Apple` と打っても `apple` の行の文 — 比べ方は
+  // `sameHeadword` と同じ考え）。打った形の行が在ればそれを先に。
+  const candidates = [...new Set([headword, headword.toLowerCase()])];
   try {
     const q = (admin as LooseDb).from("words") as {
       select: (c: string) => {
@@ -270,25 +283,23 @@ export async function readExistingMainSentence(
           k: string,
           v: string,
         ) => {
-          eq: (
+          in: (
             k: string,
-            v: string,
-          ) => {
-            maybeSingle: () => PromiseLike<{
-              data: { example_sentence?: string | null } | null;
-              error: LooseError;
-            }>;
-          };
+            v: string[],
+          ) => PromiseLike<{
+            data: Array<{ headword?: string | null; example_sentence?: string | null }> | null;
+            error: LooseError;
+          }>;
         };
       };
     };
     const { data, error } = await q
-      .select("example_sentence")
+      .select("headword, example_sentence")
       .eq("language", opts.language)
-      .eq("headword", headword)
-      .maybeSingle();
-    if (error) return null;
-    const s = (data?.example_sentence ?? "").trim();
+      .in("headword", candidates);
+    if (error || !data) return null;
+    const pick = data.find((r) => r.headword === headword) ?? data[0];
+    const s = (pick?.example_sentence ?? "").trim();
     return s || null;
   } catch {
     return null;

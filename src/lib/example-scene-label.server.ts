@@ -3,14 +3,13 @@ import {
   chunksMatchSentence,
   mainExampleLabelRule,
   mainExampleNeedsTidy,
-  mainExamplePatch,
+  mainExampleRepair,
   mainSceneFor,
   needsMainSceneLabel,
   sceneMaxChars,
   type CheckedMainLabel,
+  type MainExampleRepair,
 } from "./example-patterns";
-import { normalizeExtras } from "./extras";
-import { casSceneFor, rawSceneFor, type CasQuery } from "./scene-label-cas";
 import { looksLikeTargetLanguage } from "./text-language";
 import { targetProfile } from "./target-profile";
 import type { UiLang } from "./i18n";
@@ -26,13 +25,14 @@ import type { UiLang } from "./i18n";
  * - 文は変えない。札は**その文のために**書かせ、`example_scene_for` = その文を付ける（iOS はこれが無いと出さない）
  * - 札の決まりは例文のパターンと同じ（短い1行・読む人の言語・字数の上限 — `mainExampleLabelRule`）
  * - 追加の例文のうちメインと同じパターンの物は落とし、`example_pattern_count` を 1 + 残った数にする
+ * - 別の文のパーツ（`example_chunks`）は、その文のパーツに入れ替えるか空にする
  * - 札がもう片方の行（読む人の行 ⇔ 共有の行）に在れば AI を呼ばずに写す。札が在って同じパターンの追加の
- *   例文だけが残っている行も、AI を呼ばずに直す
- * - 同じ語・同じ読む人には、しばらく呼び直さない（`RETRY_AFTER_MS`。AI が札を書けなかった語で開くたびに呼ばない）
+ *   例文だけが残っている行も、AI を呼ばずに直す。**AI を呼ぶ時だけ**記録された同意と枠が要る（`allowSceneLabel`）
  *
- * **重なり**（PR #189 の点検）: 同じ行の仕事は1つずつ（`inFlight` — 読む前に同期で取るので、同時に来た2つ目は
- * 何もしない）。実行環境をまたぐ重なりは、書く時の条件で止める: 読んだ時の `example_scene_for` のままの行
- * にだけ書く（`casSceneFor`）。先に誰かが札を付けた行には書かない — 同じ行に2度書かない。
+ * **書き方**（PR #189 の点検）: 行を丸ごと書き戻さない。`apply_main_example_label`（SQL の関数、1回の文）が、
+ * 書く時点の行に名前を挙げた鍵だけを重ねる — 間にほかの処理が書いた鍵（使い方の型など）は残る。札は目印が
+ * まだその文でない行にだけ、語のメインの例文がまだその文の時だけ書く。人が確かめた読む人の行は触らない。
+ * 同じ行の仕事は1つずつ（`inFlight`、同じ実行環境の中）。同じ行は `RETRY_AFTER_MS` の間、呼び直さない。
  */
 
 /** 同じ行を呼び直すまでの間（同じ実行環境の中だけ）。 */
@@ -47,41 +47,33 @@ export function forgetMainExampleLabelAttempts(): void {
   inFlight.clear();
 }
 
-export { casSceneFor, rawSceneFor };
-
-const wroteRows = (data: unknown) => Array.isArray(data) && data.length > 0;
-
 type ExplanationKey = { explainLang: string; l1: string };
 
+/** 読む人の行（**生の** extras — 書く時の比べ（`staleChunks`・`drop`）が行の値そのものと合うように）。 */
 type ReaderRow = {
   example_translation: string | null;
   extras: Record<string, unknown> | null;
   source: string;
 };
 
-/** 読む人の行に書く差分（`build` が、書く直前に読み直した行から作る）。 */
-export type ReaderWrite = {
-  extras: Record<string, unknown>;
-  replaceKeys?: readonly string[];
-  example_translation?: string | null;
+/** `apply_main_example_label` に渡す物。`l1` が null なら共有の行。 */
+export type RepairCall = {
+  wordId: string;
+  explainLang: string;
+  l1: string | null;
+  sentence: string;
+  repair: MainExampleRepair;
+  translation: string | null;
 };
 
 export type MainExampleLabelDeps = {
-  /** service role の Supabase クライアント（`words` / `stickers` を読み書きする）。 */
+  /** service role の Supabase クライアント（`words` / `stickers` を読む）。 */
   admin: unknown;
-  /** 読む人の行を1つ引く（`readReaderExplanation`）。 */
+  /** 読む人の行を1つ引く（生の extras）。 */
   readReader: (admin: unknown, wordId: string, key: ExplanationKey) => Promise<ReaderRow | null>;
-  /**
-   * 読む人の行に書く（`updateReaderExplanationIfUnchanged`）: 書く直前に読み直した行から `build` で差分を作り、
-   * 読み直した時の `example_scene_for` のままの行にだけ書く。人が確かめた行・差分が無い時は書かない。書けたら true。
-   */
-  writeReader: (
-    admin: unknown,
-    wordId: string,
-    key: ExplanationKey,
-    build: (current: ReaderRow) => ReaderWrite | null,
-  ) => Promise<boolean>;
-  /** AI を呼んでよいか（同意・その日の枠）。駄目なら投げる。 */
+  /** 1つの行を部分的に直す（`apply_main_example_label`）。何か書いたら true。 */
+  applyRepair: (call: RepairCall) => Promise<boolean>;
+  /** AI を呼んでよいか（同意・その日の枠）。駄目なら投げる。AI を呼ぶ時だけ呼ばれる。 */
   allow: (userId: string) => Promise<void>;
   /** 指示を渡し、返事の文を受け取る。 */
   generate: (prompt: string) => Promise<string>;
@@ -108,13 +100,15 @@ type LooseDb = {
           limit: (n: number) => {
             maybeSingle: () => PromiseLike<{ data: unknown; error: unknown }>;
           };
+          eq: (
+            k: string,
+            v: string,
+          ) => { maybeSingle: () => PromiseLike<{ data: unknown; error: unknown }> };
         };
       };
     };
-    update: (row: unknown) => {
-      eq: (k: string, v: string) => CasQuery;
-    };
   };
+  rpc?: (fn: string, args: unknown) => PromiseLike<{ data: unknown; error: unknown }>;
 };
 
 type WordRow = {
@@ -124,6 +118,9 @@ type WordRow = {
   extras: Record<string, unknown> | null;
 };
 
+const asObject = (v: unknown): Record<string, unknown> | null =>
+  v && typeof v === "object" && !Array.isArray(v) ? (v as Record<string, unknown>) : null;
+
 async function readWord(admin: unknown, wordId: string): Promise<WordRow | null> {
   const { data, error } = await (admin as LooseDb)
     .from("words")
@@ -132,16 +129,23 @@ async function readWord(admin: unknown, wordId: string): Promise<WordRow | null>
     .maybeSingle();
   if (error || !data) return null;
   const r = data as Record<string, unknown>;
-  const extras = r.extras;
   return {
     headword: String(r.headword ?? ""),
     language: (r.language as string | null) ?? null,
     example_sentence: (r.example_sentence as string | null) ?? null,
-    extras:
-      extras && typeof extras === "object" && !Array.isArray(extras)
-        ? (extras as Record<string, unknown>)
-        : null,
+    extras: asObject(r.extras),
   };
+}
+
+async function ownsWord(admin: unknown, userId: string, wordId: string): Promise<boolean> {
+  const { data } = await (admin as LooseDb)
+    .from("stickers")
+    .select("id")
+    .eq("user_id", userId)
+    .eq("word_id", wordId)
+    .limit(1)
+    .maybeSingle();
+  return !!data;
 }
 
 /** 共有の解説が読む人の言語で書かれているか（`stickers.functions.ts` の `sharedExtrasInLang` と同じ）。 */
@@ -153,6 +157,37 @@ function sharedInLang(extras: Record<string, unknown> | null, lang: string): boo
 
 const needsWork = (extras: Record<string, unknown> | null, sentence: string, head: string) =>
   needsMainSceneLabel(sentence, extras) || mainExampleNeedsTidy(extras, sentence, head);
+
+/** 1つの行の見え方（書けるか・中身）。 */
+type RowView = { extras: Record<string, unknown> | null; writable: boolean };
+
+/**
+ * **何をするか**（仕事と、頼むかの判断で同じ物を使う）。
+ * - `readerTodo` / `sharedTodo`: 書ける行のうち、直す物がある行
+ * - `copy`: どちらかの行に在る、その文の札（在れば AI を呼ばずに写す）
+ * - `needAi`: 札を付ける行があるのに、写せる札が無い（AI を呼ぶ = 同意と枠が要る）
+ */
+function planRepair(
+  sentence: string,
+  head: string,
+  reader: RowView | null,
+  shared: RowView | null,
+) {
+  const readerTodo = !!reader?.writable && needsWork(reader.extras, sentence, head);
+  const sharedTodo = !!shared?.writable && needsWork(shared.extras, sentence, head);
+  const readerScene = reader ? mainSceneFor(sentence, reader.extras) : "";
+  const sharedScene = shared ? mainSceneFor(sentence, shared.extras) : "";
+  const needsLabel =
+    (readerTodo && needsMainSceneLabel(sentence, reader?.extras)) ||
+    (sharedTodo && needsMainSceneLabel(sentence, shared?.extras));
+  return {
+    readerTodo,
+    sharedTodo,
+    copy: readerScene || sharedScene,
+    copySource: readerScene ? reader : sharedScene ? shared : null,
+    needAi: needsLabel && !(readerScene || sharedScene),
+  };
+}
 
 /**
  * その語・その読む人の行のメインの例文に、札が無ければ付ける（同じパターンの追加の例文も落とす）。
@@ -177,57 +212,45 @@ export async function labelMainExample(
     if (!sentence || !looksLikeTargetLanguage(sentence, word.language)) {
       return skipped("no main example");
     }
-
     // 自分の図鑑に在る語だけ（`regenerateCardSection` と同じ持ち主の確かめ）。
-    const { data: owned } = await (deps.admin as LooseDb)
-      .from("stickers")
-      .select("id")
-      .eq("user_id", input.userId)
-      .eq("word_id", input.wordId)
-      .limit(1)
-      .maybeSingle();
-    if (!owned) return skipped("not owned");
+    if (!(await ownsWord(deps.admin, input.userId, input.wordId))) return skipped("not owned");
 
     const reader = await deps.readReader(deps.admin, input.wordId, input.key);
-    const readerExtras = (reader?.extras ?? null) as Record<string, unknown> | null;
-    const readerOpen = !!reader && reader.source !== "verified";
-    const sharedOpen = sharedInLang(word.extras, input.key.explainLang);
-    const readerTodo = readerOpen && needsWork(readerExtras, sentence, head);
-    const sharedTodo = sharedOpen && needsWork(word.extras, sentence, head);
-    if (!readerTodo && !sharedTodo) return skipped("nothing to do");
+    const plan = planRepair(
+      sentence,
+      head,
+      reader ? { extras: reader.extras, writable: reader.source !== "verified" } : null,
+      { extras: word.extras, writable: sharedInLang(word.extras, input.key.explainLang) },
+    );
+    if (!plan.readerTodo && !plan.sharedTodo) return skipped("nothing to do");
 
-    // 札: 片方の行に在ればそれを写す。どちらにも無ければ AI に札だけを書かせる。
-    const readerScene = mainSceneFor(sentence, readerExtras);
-    const sharedScene = mainSceneFor(sentence, word.extras);
-    const needLabel = (readerTodo && !readerScene) || (sharedTodo && !sharedScene && !readerScene);
     let label: CheckedMainLabel | null = null;
     let viaAi = false;
     /** AI がメインと同じパターンと言った追加の例文の**文**（番号は AI に見せた一覧の中だけの位置）。 */
     let samePattern: string[] = [];
-    const existing = readerScene || sharedScene;
-    if (existing) {
+    if (plan.copy) {
       recent.set(memo, now);
       // 札を写す行のパーツも、この文を分けた物なら一緒に写す（違えば写さない — 書く側が別の文のパーツを消す）。
-      const source = readerScene ? readerExtras : word.extras;
-      const chunks = chunksMatchSentence(source?.example_chunks, sentence)
-        ? (source?.example_chunks as CheckedMainLabel["chunks"])
+      const src = plan.copySource?.extras;
+      const chunks = chunksMatchSentence(src?.example_chunks, sentence)
+        ? (src?.example_chunks as CheckedMainLabel["chunks"])
         : [];
-      label = { scene: existing, translation: "", chunks, sameAsMain: [] };
-    } else if (needLabel) {
+      label = { scene: plan.copy, translation: "", chunks, sameAsMain: [] };
+    } else if (plan.needAi) {
+      // AI を呼ぶ時だけ: 記録された同意と、その日の枠（同意の無い人も、写す・掃除するだけの仕事はできる）。
       await deps.allow(input.userId);
       // 呼んでよいと分かってから記録する（同意の無い人・枠の尽きた人が、ほかの人の札を止めないように）。
       recent.set(memo, now);
-      const extrasList = (
-        (readerOpen ? readerExtras : word.extras)?.examples_extra as unknown[] | undefined
-      )
+      const listFrom = plan.readerTodo ? reader?.extras : word.extras;
+      const extrasList = (listFrom?.examples_extra as unknown[] | undefined)
         ?.map((x) => String((x as { zh?: unknown })?.zh ?? "").trim())
         .filter(Boolean);
-      const wantTranslation = readerOpen && !(reader?.example_translation ?? "").trim();
+      const wantTranslation = plan.readerTodo && !(reader?.example_translation ?? "").trim();
       const profile = targetProfile(word.language);
       // 書く行にこの文のパーツが無ければ（無い・別の文の物）、同じ呼び出しでこの文のパーツも書かせる。
       const wantChunks =
-        (readerTodo && !chunksMatchSentence(readerExtras?.example_chunks, sentence)) ||
-        (sharedTodo && !chunksMatchSentence(word.extras?.example_chunks, sentence));
+        (plan.readerTodo && !chunksMatchSentence(reader?.extras?.example_chunks, sentence)) ||
+        (plan.sharedTodo && !chunksMatchSentence(word.extras?.example_chunks, sentence));
       const chunkRoles = wantChunks ? profile.chunkRoles.join(" / ") : undefined;
       const nl = deps.languageName(input.key.explainLang);
       const prompt = [
@@ -259,55 +282,48 @@ export async function labelMainExample(
       recent.set(memo, now);
     }
 
-    /** 書く直前に読み直した行から差分を作る（その間に札が付いていれば札は書かず、要る掃除だけ）。 */
-    const patchFor = (extras: Record<string, unknown> | null) =>
-      mainExamplePatch(extras, {
+    /** 1つの行の直し。何を足す・落とすは読んだ行で決め、書くのは SQL が書く時点の行に重ねる。 */
+    const repairFor = (extras: Record<string, unknown> | null) =>
+      mainExampleRepair(extras, {
         sentence,
         headword: head,
         label: needsMainSceneLabel(sentence, extras) ? label : null,
         samePattern,
       });
     let wrote = false;
-    if (readerTodo) {
-      wrote =
-        (await deps.writeReader(deps.admin, input.wordId, input.key, (current) => {
-          const fix = patchFor(current.extras);
-          if (!fix) return null;
-          return {
-            extras: fix.patch,
-            replaceKeys: fix.replaceKeys,
-            example_translation:
-              viaAi && !(current.example_translation ?? "").trim() ? label?.translation : null,
-          };
-        })) || wrote;
+    let labelled = false;
+    if (plan.readerTodo) {
+      const repair = repairFor(reader?.extras ?? null);
+      if (repair) {
+        wrote =
+          (await deps.applyRepair({
+            wordId: input.wordId,
+            explainLang: input.key.explainLang,
+            l1: input.key.l1,
+            sentence,
+            repair,
+            translation: viaAi && label?.translation ? label.translation : null,
+          })) || wrote;
+        labelled ||= repair.scene !== null;
+      }
     }
-    if (sharedTodo) {
-      // 書く直前に読み直す（裏の項目の生成と重なるので — `runSectionRegen` と同じ理由）。
-      const fresh = await readWord(deps.admin, input.wordId);
-      if (
-        fresh &&
-        sameText(fresh.example_sentence, sentence) &&
-        sharedInLang(fresh.extras, input.key.explainLang)
-      ) {
-        const fix = patchFor(fresh.extras);
-        if (fix) {
-          // 共有の extras は ExtrasSchema に無いキー（復習の足場の控えなど）も残す（丸ごと重ねるだけ）。
-          // 読み直した時の目印のままの行にだけ書く（ほかの実行環境が先に書いていたら書かない）。
-          const { data, error } = await casSceneFor(
-            (deps.admin as LooseDb)
-              .from("words")
-              .update({ extras: { ...(fresh.extras ?? {}), ...fix.patch } })
-              .eq("id", input.wordId),
-            rawSceneFor(fresh.extras),
-            "id",
-          );
-          if (error) console.warn("labelMainExample: 共有の行に書けない", error);
-          else wrote = wroteRows(data) || wrote;
-        }
+    if (plan.sharedTodo) {
+      const repair = repairFor(word.extras);
+      if (repair) {
+        wrote =
+          (await deps.applyRepair({
+            wordId: input.wordId,
+            explainLang: input.key.explainLang,
+            l1: null,
+            sentence,
+            repair,
+            translation: null,
+          })) || wrote;
+        labelled ||= repair.scene !== null;
       }
     }
     if (!wrote) return { outcome: "failed", reason: "nothing written" };
-    return { outcome: viaAi || needLabel ? "labelled" : "tidied" };
+    return { outcome: labelled ? "labelled" : "tidied" };
   } catch (e) {
     return { outcome: "failed", reason: e instanceof Error ? e.message : String(e) };
   } finally {
@@ -319,10 +335,69 @@ function skipped(reason: string): MainExampleLabelResult {
   return { outcome: "skipped", reason };
 }
 
-const sameText = (a: string | null | undefined, b: string) => (a ?? "").trim() === b;
+/**
+ * **項目の作り直し（追加の例文の節）が一緒に書かせた札を書く**（`runSectionRegen`）。行を丸ごと書き戻さず、
+ * 札を付ける行（札がまだ無い・書ける行）にだけ `apply_main_example_label` で名前を挙げた鍵を書く。
+ * 語のメインの例文が変わっていれば書かない（SQL が確かめる）。**投げない**。
+ */
+export async function persistMainLabel(input: {
+  wordId: string;
+  key: ExplanationKey;
+  /** 札を書かせた時のメインの例文（語の文がもう違えば書かない）。 */
+  sentence: string;
+  label: { scene: string; chunks: CheckedMainLabel["chunks"]; translation: string };
+  admin?: unknown;
+}): Promise<boolean> {
+  try {
+    const admin =
+      input.admin ?? (await import("@/integrations/supabase/client.server")).supabaseAdmin;
+    const word = await readWord(admin, input.wordId);
+    const sentence = input.sentence.trim();
+    if (!word || !sentence || (word.example_sentence ?? "").trim() !== sentence) return false;
+    const reader = await readReaderRaw(admin, input.wordId, input.key);
+    const label: CheckedMainLabel = { ...input.label, sameAsMain: [] };
+    const repairFor = (extras: Record<string, unknown> | null) =>
+      needsMainSceneLabel(sentence, extras)
+        ? mainExampleRepair(extras, { sentence, headword: word.headword.trim(), label })
+        : null;
+    let wrote = false;
+    if (reader && reader.source !== "verified") {
+      const repair = repairFor(reader.extras);
+      if (repair) {
+        wrote =
+          (await applyRepairViaRpc(admin, {
+            wordId: input.wordId,
+            explainLang: input.key.explainLang,
+            l1: input.key.l1,
+            sentence,
+            repair,
+            translation: input.label.translation || null,
+          })) || wrote;
+      }
+    }
+    if (sharedInLang(word.extras, input.key.explainLang)) {
+      const repair = repairFor(word.extras);
+      if (repair) {
+        wrote =
+          (await applyRepairViaRpc(admin, {
+            wordId: input.wordId,
+            explainLang: input.key.explainLang,
+            l1: null,
+            sentence,
+            repair,
+            translation: null,
+          })) || wrote;
+      }
+    }
+    return wrote;
+  } catch (e) {
+    console.warn("persistMainLabel failed", e instanceof Error ? e.message : e);
+    return false;
+  }
+}
 
 /**
- * 札だけの呼び出しをしてよいか。**サーバに記録された今の版の同意が要る**（PR #189 の点検 P2）。
+ * 札だけの呼び出し（AI）をしてよいか。**サーバに記録された今の版の同意が要る**（PR #189 の点検 P2）。
  *
  * `assertAiConsent` は同意の見出しを送らない古い iOS（`/api/native-fn`）を通す — 端末が同意を確かめてから
  * AI の機能を呼ぶから。ここは読むだけの `getWordExplanation` から裏で始まる呼び出しで、端末の確認を経ていない。
@@ -343,35 +418,71 @@ export async function allowSceneLabel(
   await deps.reserve(userId);
 }
 
+/** 本番の `applyRepair`: `apply_main_example_label` を呼ぶ（無い・失敗した時は書かない）。 */
+export async function applyRepairViaRpc(admin: unknown, call: RepairCall): Promise<boolean> {
+  const rpc = (admin as LooseDb).rpc;
+  if (!rpc) return false;
+  const { data, error } = await rpc.call(admin, "apply_main_example_label", {
+    p_word_id: call.wordId,
+    p_explain_lang: call.explainLang,
+    p_l1: call.l1,
+    p_sentence: call.sentence,
+    p_scene: call.repair.scene,
+    p_chunks: call.repair.chunks,
+    p_stale_chunks: call.repair.staleChunks,
+    p_drop: call.repair.drop,
+    p_recount: call.repair.recount,
+    p_translation: call.translation,
+  });
+  if (error) {
+    console.warn("labelMainExample: apply_main_example_label failed", error);
+    return false;
+  }
+  return data === true;
+}
+
+/** 本番の `readReader`: 読む人の行を生のまま引く。 */
+async function readReaderRaw(
+  admin: unknown,
+  wordId: string,
+  key: ExplanationKey,
+): Promise<ReaderRow | null> {
+  const { data, error } = await (admin as LooseDb)
+    .from("word_explanations")
+    .select("extras, example_translation, source")
+    .eq("word_id", wordId)
+    .eq("explain_lang", key.explainLang)
+    .eq("l1", key.l1)
+    .maybeSingle();
+  if (error || !data) return null;
+  const r = data as Record<string, unknown>;
+  return {
+    extras: asObject(r.extras),
+    example_translation: (r.example_translation as string | null) ?? null,
+    source: String(r.source ?? "ai"),
+  };
+}
+
 /**
- * 本番の道具をそろえて `labelMainExample` を呼ぶ（AI は速いモデル、枠は `scene_label`、記録された同意が要る）。
+ * 本番の道具をそろえて `labelMainExample` を呼ぶ（AI は速いモデル、枠は `scene_label`、AI を呼ぶ時だけ
+ * 記録された同意が要る）。
  */
 export async function runMainExampleLabel(input: {
   userId: string;
   wordId: string;
   key: ExplanationKey;
 }): Promise<MainExampleLabelResult> {
-  const [{ supabaseAdmin }, ai, consent, explanation, { generateText }] = await Promise.all([
+  const [{ supabaseAdmin }, ai, consent, { generateText }] = await Promise.all([
     import("@/integrations/supabase/client.server"),
     import("./ai-provider.server"),
     import("./ai-consent.server"),
-    import("./word-explanation.functions"),
     import("ai"),
   ]);
   return labelMainExample(
     {
       admin: supabaseAdmin,
-      readReader: async (admin, wordId, key) => {
-        const row = await explanation.readReaderExplanation(admin, wordId, key);
-        return row
-          ? {
-              example_translation: row.example_translation,
-              extras: (row.extras ?? null) as Record<string, unknown> | null,
-              source: row.source,
-            }
-          : null;
-      },
-      writeReader: explanation.updateReaderExplanationIfUnchanged,
+      readReader: readReaderRaw,
+      applyRepair: (call) => applyRepairViaRpc(supabaseAdmin, call),
       allow: (userId) =>
         allowSceneLabel(userId, {
           consentStatus: (id) => consent.getAiConsentStatus(id),
@@ -396,49 +507,48 @@ export async function runMainExampleLabel(input: {
 }
 
 /**
- * `getWordExplanation` から、札を付けに行くか。**画面に出す行**（`extras`・`source`）で決める:
- * - 人が確かめた行（verified）は書き換えないので頼まない（頼んでも直せず、開くたびに頼み直すだけ — PR #189 の点検）
- * - その行のメインの例文に札が無い・同じパターンの追加の例文が残っている時だけ
- * - 記録された AI の同意がある人・自分の図鑑に在る語だけ（どちらかが無ければ仕事は何もできず、開くたびに
- *   頼み直すだけになる。`labelPending` も立てない）
+ * `getWordExplanation` から、札を付けに行くか。画面に出し得る行（選んだ読む人の行と、同じ言語の共有の行 —
+ * 図鑑から開いた詳細は共有の行を出す）の**どちらか**に、仕事が直せる物がある時だけ:
+ * - 人が確かめた読む人の行は書き換えない（その行だけなら頼まない — 頼んでも直せず、開くたびに頼み直すだけ）
+ * - AI を呼ぶ時（写せる札が無い）だけ、記録された AI の同意が要る。写す・掃除するだけなら要らない
+ * - 自分の図鑑に在る語だけ
+ * どれかが欠ければ頼まない（`labelPending` も立てない）。
  */
 export async function shouldLabelMainExample(input: {
   userId: string;
   wordId: string;
-  shown: { extras: unknown; source?: string | null } | null;
+  reader: { extras: unknown; source?: string | null } | null;
+  /** 同じ言語で書かれた共有の解説（違う言語なら null）。 */
+  shared: unknown;
   word: { language: string | null; headword: string; example_sentence: string | null };
   consentStatus?: (userId: string) => Promise<{ agreed: boolean; recorded: boolean }>;
   owns?: (userId: string, wordId: string) => Promise<boolean>;
 }): Promise<boolean> {
-  if (!input.shown?.extras || input.shown.source === "verified") return false;
-  if (
-    !mainExampleNeedsWork(
-      input.shown.extras,
-      input.word.example_sentence,
-      input.word.headword,
-      input.word.language,
-    )
-  ) {
-    return false;
+  const sentence = (input.word.example_sentence ?? "").trim();
+  if (!sentence || !looksLikeTargetLanguage(sentence, input.word.language)) return false;
+  const shared = asObject(input.shared);
+  const plan = planRepair(
+    sentence,
+    input.word.headword.trim(),
+    input.reader
+      ? { extras: asObject(input.reader.extras), writable: input.reader.source !== "verified" }
+      : null,
+    shared ? { extras: shared, writable: true } : null,
+  );
+  if (!plan.readerTodo && !plan.sharedTodo) return false;
+  if (plan.needAi) {
+    const status = input.consentStatus
+      ? await input.consentStatus(input.userId)
+      : await (await import("./ai-consent.server")).getAiConsentStatus(input.userId);
+    if (!status.recorded || !status.agreed) return false;
   }
-  const status = input.consentStatus
-    ? await input.consentStatus(input.userId)
-    : await (await import("./ai-consent.server")).getAiConsentStatus(input.userId);
-  if (!status.recorded || !status.agreed) return false;
-  return (input.owns ?? ownsWord)(input.userId, input.wordId);
-}
-
-/** 自分の図鑑にその語の札が在るか（`labelMainExample` と同じ確かめ）。 */
-async function ownsWord(userId: string, wordId: string): Promise<boolean> {
-  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-  const { data } = await (supabaseAdmin as unknown as LooseDb)
-    .from("stickers")
-    .select("id")
-    .eq("user_id", userId)
-    .eq("word_id", wordId)
-    .limit(1)
-    .maybeSingle();
-  return !!data;
+  const owns =
+    input.owns ??
+    (async (userId: string, wordId: string) => {
+      const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+      return ownsWord(supabaseAdmin, userId, wordId);
+    });
+  return owns(input.userId, input.wordId);
 }
 
 /**
@@ -462,17 +572,4 @@ export async function scheduleMainExampleLabel(input: {
     },
     { timeoutMs: 1_000 },
   );
-}
-
-/** 読む人の行を `normalizeExtras` の形で比べたい呼び出し側のために（`getWordExplanation`）。 */
-export function mainExampleNeedsWork(
-  extras: unknown,
-  sentence: string | null | undefined,
-  headword: string,
-  language: string | null | undefined,
-): boolean {
-  const s = (sentence ?? "").trim();
-  if (!s || !looksLikeTargetLanguage(s, language)) return false;
-  const ex = (normalizeExtras(extras) ?? null) as Record<string, unknown> | null;
-  return needsWork(ex, s, headword.trim());
 }

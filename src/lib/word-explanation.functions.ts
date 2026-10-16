@@ -139,7 +139,8 @@ export const getWordExplanation = createServerFn({ method: "GET" })
             userId: context.userId,
             wordId: data.word_id,
             key: explanationKey(data.explain_lang, data.l1),
-            shown: { extras: sharedExtrasIn(word.extras, data.explain_lang) },
+            reader: null,
+            shared: sharedExtrasIn(word.extras, data.explain_lang),
             word,
           })
         : false;
@@ -169,7 +170,9 @@ export const getWordExplanation = createServerFn({ method: "GET" })
           userId: context.userId,
           wordId: data.word_id,
           key: { explainLang: picked.explain_lang, l1: picked.l1 },
-          shown: { extras: picked.extras, source: picked.source },
+          // 選んだ読む人の行と、同じ言語の共有の行（図鑑から開いた詳細が出す）の**どちらか**が直せれば頼む。
+          reader: { extras: picked.extras, source: picked.source },
+          shared: sharedExtrasIn(word.extras, picked.explain_lang),
           word,
         })
       : false;
@@ -184,25 +187,27 @@ function sharedExtrasIn(raw: unknown, lang: string): unknown {
 }
 
 /**
- * 画面に出す解説（`shown`）のメインの例文に札が無ければ、返事の後で札を付けに行く。頼んだら true。
- * 頼むかは `shouldLabelMainExample`（人が確かめた行・同意の無い人には頼まない）。
- * **投げない**（読むだけの道を落とさない）。
+ * 画面に出し得る解説（選んだ読む人の行・同じ言語の共有の行）のメインの例文に札が無ければ、返事の後で
+ * 札を付けに行く。頼んだら true。頼むかは `shouldLabelMainExample`（直せる行が無い・AI が要るのに同意が
+ * 無い・自分の語でない時は頼まない）。**投げない**（読むだけの道を落とさない）。
  */
 async function scheduleLabelIfNeeded(input: {
   userId: string;
   wordId: string;
   key: { explainLang: string; l1: string };
-  shown: { extras: unknown; source?: string | null };
+  reader: { extras: unknown; source?: string | null } | null;
+  shared: unknown;
   word: { language: string | null; headword: string; example_sentence: string | null };
 }): Promise<boolean> {
-  if (!input.shown.extras) return false;
+  if (!input.reader?.extras && !input.shared) return false;
   try {
     const label = await import("./example-scene-label.server");
     if (
       !(await label.shouldLabelMainExample({
         userId: input.userId,
         wordId: input.wordId,
-        shown: input.shown,
+        reader: input.reader,
+        shared: input.shared,
         word: input.word,
       }))
     ) {
@@ -528,69 +533,6 @@ export async function mergeIntoReaderExplanation(
     return true;
   } catch (e) {
     console.warn("mergeIntoReaderExplanation threw", e);
-    return false;
-  }
-}
-
-/**
- * その人向けの解説の行を、**読み直した時のまま**なら書き換える（`example-scene-label.server.ts`）。
- *
- * - 書く直前に生の行を読み直し、`build` に渡して差分を作る（無ければ書かない）。人が確かめた行は触らない
- * - 書く時の条件: 読み直した時の `example_scene_for` のままの行だけ（`casSceneFor`）。ほかの実行環境が先に
- *   札を付けていれば何も書かない — 同じ行に2度書かない
- * - 書けた行があれば true
- */
-export async function updateReaderExplanationIfUnchanged(
-  admin: unknown,
-  wordId: string,
-  key: { explainLang: string; l1: string },
-  build: (current: {
-    extras: Record<string, unknown> | null;
-    example_translation: string | null;
-    source: string;
-  }) => {
-    extras: Record<string, unknown>;
-    replaceKeys?: readonly string[];
-    example_translation?: string | null;
-  } | null,
-): Promise<boolean> {
-  try {
-    const { data, error } = await (admin as LooseRowDb)
-      .from("word_explanations")
-      .select("extras, example_translation, source")
-      .eq("word_id", wordId)
-      .eq("explain_lang", key.explainLang)
-      .eq("l1", key.l1)
-      .maybeSingle();
-    if (error || !data) return false;
-    const r = data as Record<string, unknown>;
-    const source = String(r.source ?? "ai");
-    if (source === "verified") return false;
-    const extras = normalizeExtras(r.extras) as Record<string, unknown> | null;
-    const example_translation = (r.example_translation as string | null) ?? null;
-    const patch = build({ extras, example_translation, source });
-    if (!patch) return false;
-    const { mergeExtras } = await import("./extras");
-    const next: Record<string, unknown> = mergeExtras(extras as never, patch.extras as never);
-    for (const k of patch.replaceKeys ?? []) if (k in patch.extras) next[k] = patch.extras[k];
-    const row: Record<string, unknown> = { extras: next, updated_at: new Date().toISOString() };
-    const tr = readerText(patch.example_translation ?? null, key.explainLang);
-    if (tr) row.example_translation = tr;
-    const { casSceneFor, rawSceneFor } = await import("./scene-label-cas");
-    const q = (admin as LooseRowDb)
-      .from("word_explanations")
-      .update(row)
-      .eq("word_id", wordId)
-      .eq("explain_lang", key.explainLang)
-      .eq("l1", key.l1) as unknown as Parameters<typeof casSceneFor>[0];
-    const res = await casSceneFor(q, rawSceneFor(r.extras), "word_id");
-    if (res.error) {
-      console.warn("updateReaderExplanationIfUnchanged failed", res.error);
-      return false;
-    }
-    return Array.isArray(res.data) && res.data.length > 0;
-  } catch (e) {
-    console.warn("updateReaderExplanationIfUnchanged threw", e);
     return false;
   }
 }
