@@ -691,24 +691,34 @@ function extraAsExample(e: unknown): { sentence: string; scene: string } {
  * **保存済みの行**のメインの例文に札を付ける差分（札だけの呼び出しの後、`example-scene-label.server.ts`）。
  *
  * - `example_scene` / `example_scene_for`（= その文）
- * - メインと同じパターンの追加の例文を落とす（`label.sameAsMain` の番号・似た場面・同じ文型）。落とした時は
+ * - メインと同じパターンの追加の例文を落とす（`samePattern` の文・似た場面・同じ文型）。落とした時は
  *   `examples_extra` を入れ替える（`replaceKeys` に入る）
+ * - AI が同じパターンと言った物は**文で**渡す（`samePattern`）。番号（`label.sameAsMain`）は AI に見せた
+ *   一覧の中の位置で、読む人の行と共有の行では一覧が違うので、ここでは使わない（PR #189 の点検 P1）
  * - `example_pattern_count` は 1 + 残った数（数が在った行・落とした行だけ。無い行に新しく数を置かない）
  *
  * `label` が null（札は既に在る）なら、同じパターンの追加の例文を落とすだけ。変える物が無ければ null。
  */
 export function mainExamplePatch(
   extras: ExtrasLike,
-  opts: { sentence: string; headword: string; label: CheckedMainLabel | null },
+  opts: {
+    sentence: string;
+    headword: string;
+    label: CheckedMainLabel | null;
+    /** AI がメインと同じパターンと言った追加の例文の**文**（どの行の一覧でも、文で突き合わせる）。 */
+    samePattern?: readonly string[];
+  },
 ): { patch: Record<string, unknown>; replaceKeys: string[] } | null {
   const e = (extras ?? {}) as Record<string, unknown>;
   const scene = opts.label?.scene ?? mainSceneFor(opts.sentence, e);
   const main = { sentence: opts.sentence, scene };
   const list = Array.isArray(e.examples_extra) ? (e.examples_extra as unknown[]) : [];
-  const sameAsMain = new Set(opts.label?.sameAsMain ?? []);
-  const kept = list.filter(
-    (x, i) => !sameAsMain.has(i) && !duplicatesMain(main, extraAsExample(x), opts.headword),
-  );
+  const same = (opts.samePattern ?? []).filter((x) => norm(x));
+  const kept = list.filter((x) => {
+    const ex = extraAsExample(x);
+    if (same.some((s) => sameSentence(s, ex.sentence))) return false;
+    return !duplicatesMain(main, ex, opts.headword);
+  });
   const patch: Record<string, unknown> = {};
   const replaceKeys: string[] = [];
   if (opts.label) {

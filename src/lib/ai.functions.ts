@@ -1327,6 +1327,11 @@ export const generateCard = createServerFn({ method: "POST" })
             ? `- example_patterns: メインの例文「${fixedMain}」の**パターンと似たパターンは除き**、ほかによく使うパターンだけを返す。ほかに無ければ空配列 []（数を合わせるために作らない）。\n` +
               examplePatternsRule({ ...patternBase, max: MAX_EXAMPLE_PATTERNS - 1 })
             : `- example_patterns: 空配列 [] を返す（メインの例文は上で決まっている）。`,
+          // 見出し語は AI が決める（母語の入力なら別の語になる — 手紙 → 信）。その時、決まった文は別の語の物で
+          // 使えないので、**予備の例文**を1つ必ず書かせる（PR #189 の点検 P2。往復は増やさない）。
+          `- example_fallback: **予備の例文1つ**（example_patterns の1つと同じ形 {share,sentence,translation,scene,chunks,scene_fits}）。` +
+            `headword_zh が「${data.headword}」と違う語になった時だけ、その語のメインの例文として使う（その時は headword_zh の語を入れた文にする）。` +
+            `同じなら使わないので短くてよいが、必ず書く。`,
         ].join("\n")
       : examplePatternsRule({ ...patternBase, max: maxPatterns });
     const prompt = `「${data.headword}」について、${cardProfile.promptName}の語彙カードを生成してください。
@@ -1430,7 +1435,9 @@ ${data.hintCategory && data.hintCategory !== "other" ? `カテゴリのヒント
       `headword_zh / reading_zhuyin / pinyin / meaning_ja / part_of_speech / level / ` +
       `category_key / new_shelf / ` +
       `example_patterns[{share,sentence,translation,scene,chunks:[{text,pos}],scene_fits}] / ` +
-      (fixedMain ? `example_main{scene,translation,chunks:[{text,pos}],scene_fits} / ` : "") +
+      (fixedMain
+        ? `example_main{scene,translation,chunks:[{text,pos}],scene_fits} / example_fallback{share,sentence,translation,scene,chunks:[{text,pos}],scene_fits} / `
+        : "") +
       `extras{ ` +
       [
         want("usage_chunks") &&
@@ -1742,6 +1749,23 @@ ${data.hintCategory && data.hintCategory !== "other" ? `カテゴリのヒント
           withExtra: want("examples_extra"),
           headword: resolvedHead,
         });
+      } else if (fixedMain) {
+        // 見出し語が変わった（決まった文は別の語の物）: 予備の例文をメインに、ほかのパターンを追加の例文にする。
+        const fallback = pickExamplePatterns(
+          [...(card.example_fallback ? [card.example_fallback] : []), ...card.example_patterns],
+          {
+            headword: resolvedHead,
+            language: cardLanguage,
+            readerLang: explainLang,
+            max: maxPatterns,
+          },
+        );
+        console.info("generateCard: 見出し語が変わったので予備の例文を使う", {
+          input: data.headword,
+          headword: resolvedHead,
+          kept: fallback.length,
+        });
+        card = applyExamplePatterns(card, fallback, { withExtra: want("examples_extra") });
       } else {
         card = applyExamplePatterns(card, picked, { withExtra: want("examples_extra") });
       }
@@ -1879,9 +1903,15 @@ ${data.hintCategory && data.hintCategory !== "other" ? `カテゴリのヒント
       if (picked) categoryKey = normalizeCategory(resolvedHead, picked);
     }
     // パターンの生の配列は返さない・控えない（写した欄だけが正）。
-    const { example_patterns: _patterns, example_main: _main, ...cardFields } = card;
+    const {
+      example_patterns: _patterns,
+      example_main: _main,
+      example_fallback: _fallback,
+      ...cardFields
+    } = card;
     void _patterns;
     void _main;
+    void _fallback;
     const out = {
       ...cardFields,
       // **訳は読む人の言語で**（2026-09-29「例文の訳に中文が混ざってる」）。例文の写しや

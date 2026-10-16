@@ -16,7 +16,9 @@ import {
   type ExamplePattern,
 } from "./example-patterns";
 import { CardReplySchema } from "./card-schema";
+import { wordExplanationQuery } from "./reader-explanation";
 import {
+  allowSceneLabel,
   forgetMainExampleLabelAttempts,
   labelMainExample,
   mainExampleNeedsWork,
@@ -235,12 +237,22 @@ describe("mainExamplePatch — 保存済みの行に札を付ける差分", () =
     expect(fix?.patch).toEqual({ example_scene: LABELS.ja, example_scene_for: MAIN });
     expect(fix?.replaceKeys).toEqual([]);
   });
-  it("AI が同じパターンと言った追加の例文は落とし、数は 1 + 残った数", () => {
+  it("AI が同じパターンと言った追加の例文（文で渡す）は落とし、数は 1 + 残った数", () => {
     const label = checkMainExampleLabel(
       { scene: LABELS.ja, same_as_main: [0] },
       { sentence: MAIN, readerLang: "ja" },
     );
-    const fix = mainExamplePatch(productionExtras(), { sentence: MAIN, headword: "冰淇淋", label });
+    // 番号（label.sameAsMain）だけでは落とさない — どの一覧の番号か分からないので
+    expect(
+      mainExamplePatch(productionExtras(), { sentence: MAIN, headword: "冰淇淋", label })?.patch
+        .examples_extra,
+    ).toBeUndefined();
+    const fix = mainExamplePatch(productionExtras(), {
+      sentence: MAIN,
+      headword: "冰淇淋",
+      label,
+      samePattern: ["這家店的冰淇淋口味很多，每一種都想試試"],
+    });
     expect(fix?.patch.examples_extra).toEqual([]);
     expect(fix?.patch.example_pattern_count).toBe(1);
     expect(fix?.replaceKeys).toEqual(["examples_extra"]);
@@ -330,6 +342,7 @@ function setup(opts: {
   sharedExtras?: Row;
   owned?: boolean;
   reply?: string;
+  allow?: MainExampleLabelDeps["allow"];
 }) {
   const state = {
     word: {
@@ -358,7 +371,7 @@ function setup(opts: {
       merges.push({ key, patch: patch as Record<string, unknown> });
       return true;
     },
-    allow: async () => undefined,
+    allow: opts.allow ?? (async () => undefined),
     generate: vi.fn(async (prompt: string) => {
       prompts.push(prompt);
       return (
@@ -468,6 +481,61 @@ describe("labelMainExample — 古い行を開いた時に札だけを書く", (
     expect(patch.replaceKeys).toEqual(["examples_extra"]);
   });
 
+  it("読む人の行と共有の行で一覧が違っても、AI の番号は AI に見せた一覧の文で突き合わせる（P1）", async () => {
+    const readerOnly = {
+      zh: "我想吃草莓口味的冰淇淋。",
+      ja: "",
+      scene: "店で味を選ぶとき",
+      chunks: [],
+    };
+    const sharedOnly = {
+      zh: "冰淇淋融化了，滴到手上。",
+      ja: "",
+      scene: "公園でアイスが溶けたとき",
+      chunks: [],
+    };
+    const t = setup({
+      lang: "ja",
+      reader: {
+        example_translation: "x",
+        extras: { explain_lang: "ja", example_pattern_count: 2, examples_extra: [readerOnly] },
+        source: "ai",
+      },
+      sharedExtras: { explain_lang: "ja", example_pattern_count: 2, examples_extra: [sharedOnly] },
+      // 0 番 = 読む人の行の一覧（AI に見せた物）の「我想吃草莓口味的冰淇淋。」
+      reply: JSON.stringify({ example_main: { scene: LABELS.ja, same_as_main: [0] } }),
+    });
+    await labelMainExample(t.deps, {
+      userId: "u1",
+      wordId: "w1",
+      key: { explainLang: "ja", l1: "ja" },
+    });
+    expect(t.prompts[0]).toContain(`0. ${readerOnly.zh}`);
+    // 読む人の行からは落ちる
+    expect((t.merges[0].patch.extras as Row).examples_extra).toEqual([]);
+    // 共有の行の 0 番（別の文）は残る — 札だけが付く
+    const shared = t.state.word.extras as Row;
+    expect(shared.examples_extra).toEqual([sharedOnly]);
+    expect(shared.example_pattern_count).toBe(2);
+    expect(shared.example_scene_for).toBe(MAIN);
+  });
+
+  it("呼んでよくない人（同意なし）は、ほかの人の札を止めない（記録は許された後だけ — P2）", async () => {
+    const denied = setup({
+      lang: "ja",
+      allow: async () => {
+        throw new Error("AI_CONSENT_REQUIRED");
+      },
+    });
+    const input = { userId: "u-no-consent", wordId: "w1", key: { explainLang: "ja", l1: "ja" } };
+    expect((await labelMainExample(denied.deps, input)).outcome).toBe("failed");
+    expect(denied.deps.generate).not.toHaveBeenCalled();
+    const ok = setup({ lang: "ja" });
+    const r = await labelMainExample(ok.deps, { ...input, userId: "u-consent" });
+    expect(r.outcome).toBe("labelled");
+    expect(ok.deps.generate).toHaveBeenCalledTimes(1);
+  });
+
   it("札がもう在る行は何もしない（開くたびに呼ばない）", async () => {
     const done = { ...productionExtras(), example_scene: LABELS.ja, example_scene_for: MAIN };
     const t = setup({
@@ -502,6 +570,53 @@ describe("mainExampleNeedsWork — getWordExplanation が裏の呼び出しを�
   });
 });
 
+describe("allowSceneLabel — 記録された同意だけを見る（古い iOS の見出しの免除を使わない — P2）", () => {
+  const reserve = vi.fn(async () => undefined);
+  beforeEach(() => reserve.mockClear());
+
+  it.each([
+    ["同意なし", { agreed: false, recorded: true }],
+    ["表が無い（記録できない）", { agreed: false, recorded: false }],
+    ["表が無いのに agreed（来ない形だが通さない）", { agreed: true, recorded: false }],
+  ])("%s: 投げて、枠もとらない", async (_name, status) => {
+    await expect(
+      allowSceneLabel("u1", { consentStatus: async () => status, reserve }),
+    ).rejects.toThrow("AI_CONSENT_REQUIRED");
+    expect(reserve).not.toHaveBeenCalled();
+  });
+
+  it("記録された今の版の同意があれば、その日の枠を1回分とる", async () => {
+    await allowSceneLabel("u1", {
+      consentStatus: async () => ({ agreed: true, recorded: true }),
+      reserve,
+    });
+    expect(reserve).toHaveBeenCalledWith("u1");
+  });
+
+  it("本番の道は assertAiConsent（見出しの無い iOS を通す）を使わない", () => {
+    const src = fs.readFileSync(path.join(__dirname, "example-scene-label.server.ts"), "utf8");
+    expect(src).not.toMatch(/assertAiConsent\(/);
+    expect(src).toMatch(/consent\.getAiConsentStatus\(id\)/);
+  });
+});
+
+describe("wordExplanationQuery — 札を書きに行った返事はすぐ古くする（P2）", () => {
+  const q = wordExplanationQuery(
+    async () => ({ picked: null, unavailable: false }),
+    "w1",
+    { explainLang: "ja", l1: "ja" },
+    undefined,
+  );
+  const stale = q.staleTime as (x: { state: { data?: unknown } }) => number;
+  it("labelPending の返事は 0（次に開いた時に読み直す）・ふつうの返事は 30 分", () => {
+    expect(
+      stale({ state: { data: { picked: null, unavailable: false, labelPending: true } } }),
+    ).toBe(0);
+    expect(stale({ state: { data: { picked: null, unavailable: false } } })).toBe(30 * 60 * 1000);
+    expect(stale({ state: {} })).toBe(30 * 60 * 1000);
+  });
+});
+
 describe("どの道もメインの例文の札を作る（配線）", () => {
   const src = (f: string) => fs.readFileSync(path.join(__dirname, f), "utf8");
 
@@ -520,10 +635,30 @@ describe("どの道もメインの例文の札を作る（配線）", () => {
     expect(ai).toMatch(/keepVerifiedExample && !fixedExampleMain/);
   });
 
-  it("単語の詳細を開いた時: 札の無い行は返事の後で札だけを書く", () => {
+  it("generateCard: 見出し語が変わった回（手紙 → 信）は予備の例文をメインにする（P2）", () => {
+    const ai = src("ai.functions.ts");
+    expect(ai).toMatch(/- example_fallback: \*\*予備の例文1つ\*\*/);
+    expect(ai).toMatch(/\} else if \(fixedMain\) \{[\s\S]{0,400}card\.example_fallback/);
+    expect(ai).toMatch(/example_fallback: _fallback/);
+    const parsed = CardReplySchema.parse({
+      meaning_ja: "手紙",
+      example_fallback: { sentence: "我收到一封信。", scene: "郵便受けを開けたとき" },
+    });
+    expect(parsed.example_fallback?.sentence).toBe("我收到一封信。");
+    expect(
+      CardReplySchema.parse({ meaning_ja: "手紙", example_fallback: "壊れた形" }).example_fallback,
+    ).toBeUndefined();
+  });
+
+  it("単語の詳細を開いた時: 札の無い行は返事の後で札だけを書く（読む人の行が無い語は共有の行 — P2）", () => {
     const we = src("word-explanation.functions.ts");
     expect(we).toMatch(/mainExampleNeedsWork\(/);
     expect(we).toMatch(/scheduleMainExampleLabel\(/);
+    // 読む人の行が無くても、返す前に共有の行（同じ言語）の札を頼む
+    expect(we).toMatch(
+      /if \(!picked\) \{[\s\S]{0,600}scheduleLabelIfNeeded\(\{[\s\S]{0,200}extras: sharedExtrasIn\(word\.extras, data\.explain_lang\)/,
+    );
+    expect(we).toMatch(/labelPending/);
     // サーバだけの道具は handler の中で読み込む（画面の束に入れない）
     expect(we).not.toMatch(/^import .*example-scene-label\.server/m);
   });

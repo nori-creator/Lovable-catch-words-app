@@ -67,6 +67,11 @@ export type WordExplanationResult = {
    * 保存できないので、呼ぶ側が無駄なAIを呼ばずに済む。
    */
   unavailable: boolean;
+  /**
+   * メインの例文の札を、返事の後で書きに行った（`example-scene-label.server.ts`）。画面はこの返事を
+   * 「すぐ古くなる」扱いにして、次に開いた時に読み直す（PR #189 の点検 P2 — 30 分持たない）。
+   */
+  labelPending?: boolean;
 };
 
 export const getWordExplanation = createServerFn({ method: "GET" })
@@ -99,17 +104,18 @@ export const getWordExplanation = createServerFn({ method: "GET" })
       source: (r.source as string | null) ?? "ai",
     }));
     const picked = pickExplanation(parsed, explanationKey(data.explain_lang, data.l1));
-    if (!picked) return { picked, unavailable: false };
-    // 語の行（言語・見出し語・メインの例文）。読みを付ける時と、メインの例文の札を確かめる時に使う（1回の読み）。
+    // 語の行（言語・見出し語・メインの例文・共有の解説）。読みを付ける時と、メインの例文の札を確かめる時に
+    // 使う（1回の読み）。
     let word: {
       language: string | null;
       headword: string;
       example_sentence: string | null;
+      extras: unknown;
     } | null = null;
     try {
       const { data: ws } = await db
         .from("words")
-        .select("language, headword, example_sentence")
+        .select("language, headword, example_sentence, extras")
         .eq("id", data.word_id);
       const w = ws?.[0];
       if (w) {
@@ -117,10 +123,27 @@ export const getWordExplanation = createServerFn({ method: "GET" })
           language: (w.language as string | null | undefined) ?? null,
           headword: String(w.headword ?? ""),
           example_sentence: (w.example_sentence as string | null | undefined) ?? null,
+          extras: w.extras ?? null,
         };
       }
     } catch (e) {
       console.warn("getWordExplanation: 語の行を読めない", (e as Error)?.message);
+    }
+    if (!picked) {
+      /**
+       * 読む人の行が無い語は、画面が共有の解説（同じ言語で書かれていれば）を出す。その共有の行の札の無い
+       * 例文も、返事の後で札を付ける（PR #189 の点検 P2）。
+       */
+      const labelPending = word
+        ? await scheduleLabelIfNeeded({
+            userId: context.userId,
+            wordId: data.word_id,
+            key: explanationKey(data.explain_lang, data.l1),
+            extras: sharedExtrasIn(word.extras, data.explain_lang),
+            word,
+          })
+        : false;
+      return { picked, unavailable: false, ...(labelPending ? { labelPending } : {}) };
     }
     /**
      * 台湾華語の語なら、型の札に読み（拼音・注音）を付けて返す（2026-10-15、`chunk-readings.server.ts`）。
@@ -141,29 +164,60 @@ export const getWordExplanation = createServerFn({ method: "GET" })
      * **札の無い古いメインの例文**（2026-10-16 冰淇淋「夏天吃冰淇淋。」）。返事の後で札だけを書く小さな呼び出しを
      * 1回する（文は変えない。次に開いた時に出る — `example-scene-label.server.ts`）。返事は待たせない。
      */
-    if (word) {
-      try {
-        const label = await import("./example-scene-label.server");
-        if (
-          label.mainExampleNeedsWork(
-            picked.extras,
-            word.example_sentence,
-            word.headword,
-            word.language,
-          )
-        ) {
-          await label.scheduleMainExampleLabel({
-            userId: context.userId,
-            wordId: data.word_id,
-            key: { explainLang: picked.explain_lang, l1: picked.l1 },
-          });
-        }
-      } catch (e) {
-        console.warn("getWordExplanation: 例文の札を頼めなかった", (e as Error)?.message);
-      }
-    }
-    return { picked, unavailable: false };
+    const labelPending = word
+      ? await scheduleLabelIfNeeded({
+          userId: context.userId,
+          wordId: data.word_id,
+          key: { explainLang: picked.explain_lang, l1: picked.l1 },
+          extras: picked.extras,
+          word,
+        })
+      : false;
+    return { picked, unavailable: false, ...(labelPending ? { labelPending } : {}) };
   });
+
+/** 共有の解説が読む人の言語で書かれていればそれ（違えば null — 画面はそれを出さない）。 */
+function sharedExtrasIn(raw: unknown, lang: string): unknown {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
+  const v = (raw as Record<string, unknown>).explain_lang;
+  return ((typeof v === "string" && v.trim()) || "ja") === lang ? raw : null;
+}
+
+/**
+ * 画面に出す解説（`extras`）のメインの例文に札が無ければ、返事の後で札を付けに行く。頼んだら true。
+ * **投げない**（読むだけの道を落とさない）。
+ */
+async function scheduleLabelIfNeeded(input: {
+  userId: string;
+  wordId: string;
+  key: { explainLang: string; l1: string };
+  extras: unknown;
+  word: { language: string | null; headword: string; example_sentence: string | null };
+}): Promise<boolean> {
+  if (!input.extras) return false;
+  try {
+    const label = await import("./example-scene-label.server");
+    if (
+      !label.mainExampleNeedsWork(
+        input.extras,
+        input.word.example_sentence,
+        input.word.headword,
+        input.word.language,
+      )
+    ) {
+      return false;
+    }
+    await label.scheduleMainExampleLabel({
+      userId: input.userId,
+      wordId: input.wordId,
+      key: input.key,
+    });
+    return true;
+  } catch (e) {
+    console.warn("getWordExplanation: 例文の札を頼めなかった", (e as Error)?.message);
+    return false;
+  }
+}
 
 /**
  * 解説を共有キャッシュへ置く。

@@ -174,19 +174,22 @@ export async function labelMainExample(
     const sharedTodo = sharedOpen && needsWork(word.extras, sentence, head);
     if (!readerTodo && !sharedTodo) return skipped("nothing to do");
 
-    recent.set(memo, now);
-
     // 札: 片方の行に在ればそれを写す。どちらにも無ければ AI に札だけを書かせる。
     const readerScene = mainSceneFor(sentence, readerExtras);
     const sharedScene = mainSceneFor(sentence, word.extras);
     const needLabel = (readerTodo && !readerScene) || (sharedTodo && !sharedScene && !readerScene);
     let label: CheckedMainLabel | null = null;
     let viaAi = false;
+    /** AI がメインと同じパターンと言った追加の例文の**文**（番号は AI に見せた一覧の中だけの位置）。 */
+    let samePattern: string[] = [];
     const existing = readerScene || sharedScene;
     if (existing) {
+      recent.set(memo, now);
       label = { scene: existing, translation: "", chunks: [], sameAsMain: [] };
     } else if (needLabel) {
       await deps.allow(input.userId);
+      // 呼んでよいと分かってから記録する（同意の無い人・枠の尽きた人が、ほかの人の札を止めないように）。
+      recent.set(memo, now);
       const extrasList = (
         (readerOpen ? readerExtras : word.extras)?.examples_extra as unknown[] | undefined
       )
@@ -216,6 +219,11 @@ export async function labelMainExample(
       });
       if (!label) return { outcome: "failed", reason: "no usable label" };
       viaAi = true;
+      samePattern = label.sameAsMain
+        .map((i) => extrasList?.[i] ?? "")
+        .filter((x): x is string => !!x);
+    } else {
+      recent.set(memo, now);
     }
 
     let wrote = false;
@@ -224,6 +232,7 @@ export async function labelMainExample(
         sentence,
         headword: head,
         label: needsMainSceneLabel(sentence, readerExtras) ? label : null,
+        samePattern,
       });
       if (fix) {
         wrote =
@@ -247,6 +256,7 @@ export async function labelMainExample(
           sentence,
           headword: head,
           label: needsMainSceneLabel(sentence, fresh.extras) ? label : null,
+          samePattern,
         });
         if (fix) {
           // 共有の extras は ExtrasSchema に無いキー（復習の足場の控えなど）も残す（丸ごと重ねるだけ）。
@@ -273,7 +283,29 @@ function skipped(reason: string): MainExampleLabelResult {
 const sameText = (a: string | null | undefined, b: string) => (a ?? "").trim() === b;
 
 /**
- * 本番の道具をそろえて `labelMainExample` を呼ぶ（AI は速いモデル、枠は `scene_label`、同意が要る）。
+ * 札だけの呼び出しをしてよいか。**サーバに記録された今の版の同意が要る**（PR #189 の点検 P2）。
+ *
+ * `assertAiConsent` は同意の見出しを送らない古い iOS（`/api/native-fn`）を通す — 端末が同意を確かめてから
+ * AI の機能を呼ぶから。ここは読むだけの `getWordExplanation` から裏で始まる呼び出しで、端末の確認を経ていない。
+ * だから見出し・環境変数に関わらず、記録された同意だけを見る（表が無い・取り消した・古い版なら呼ばない）。
+ * 同意があれば、その日の枠（`scene_label`）を1回分とる。駄目なら投げる。
+ */
+export async function allowSceneLabel(
+  userId: string,
+  deps: {
+    consentStatus: (userId: string) => Promise<{ agreed: boolean; recorded: boolean }>;
+    reserve: (userId: string) => Promise<void>;
+  },
+): Promise<void> {
+  const status = await deps.consentStatus(userId);
+  if (!status.recorded || !status.agreed) {
+    throw new Error("AI_CONSENT_REQUIRED: scene label needs recorded AI consent");
+  }
+  await deps.reserve(userId);
+}
+
+/**
+ * 本番の道具をそろえて `labelMainExample` を呼ぶ（AI は速いモデル、枠は `scene_label`、記録された同意が要る）。
  */
 export async function runMainExampleLabel(input: {
   userId: string;
@@ -301,10 +333,11 @@ export async function runMainExampleLabel(input: {
           : null;
       },
       mergeReader: explanation.mergeIntoReaderExplanation,
-      allow: async (userId) => {
-        await consent.assertAiConsent(userId);
-        await ai.assertWithinDailyCap(userId, "scene_label");
-      },
+      allow: (userId) =>
+        allowSceneLabel(userId, {
+          consentStatus: (id) => consent.getAiConsentStatus(id),
+          reserve: (id) => ai.assertWithinDailyCap(id, "scene_label"),
+        }),
       generate: async (prompt) => {
         const cfg = await ai.getAiFor("card", "section_regen");
         const result = await ai.withModelFallback(cfg, cfg.modelFast, (m) =>
