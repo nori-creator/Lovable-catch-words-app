@@ -44,6 +44,8 @@ import { readerText, scrubForReader, scrubForeignNotes } from "./note-language";
 import { looksLikeTargetLanguage } from "./text-language";
 import { explanationKey } from "./word-explanation";
 import { mergeIntoReaderExplanation, readReaderExplanation } from "./word-explanation.functions";
+import { mayWriteSharedReaderText } from "./shared-word-guard";
+import { fitsReaderMeaning } from "./first-catch-meaning";
 import { worldExampleRule, sharedExampleSourceRule } from "./example-sources";
 import {
   MAX_EXAMPLE_PATTERNS,
@@ -73,6 +75,7 @@ import {
 } from "./card-schema";
 import {
   CARD_REUSE_VERSION,
+  candidateCard,
   fillSharedWordFromCard,
   loadGeneratedCardRows,
   readExistingMainSentence,
@@ -253,6 +256,8 @@ const SuggestionSchema = z.object({
  */
 async function recordCandidateReceipts(
   language: string,
+  /** 意味を書いた言語（読む人の言語）。控えの `extras.explain_lang` に刻む（`candidateCard`）。 */
+  explainLang: string,
   items: ReadonlyArray<{
     headword: string;
     meaning_ja?: string;
@@ -270,12 +275,16 @@ async function recordCandidateReceipts(
         language,
         headword: c.headword,
         kind: "candidate" as const,
-        card: {
-          meaning_ja: c.meaning_ja,
-          reading_zhuyin: c.reading_zhuyin,
-          pinyin: c.pinyin,
-          category_key: c.category_key,
-        },
+        card: candidateCard(
+          {
+            // 別の言語で返った意味は控えない（控えの目印と中身の言語を食い違わせない）。
+            meaning_ja: fitsReaderMeaning(c.meaning_ja, explainLang) ? c.meaning_ja : undefined,
+            reading_zhuyin: c.reading_zhuyin,
+            pinyin: c.pinyin,
+            category_key: c.category_key,
+          },
+          explainLang,
+        ),
       })),
     );
   });
@@ -790,7 +799,7 @@ export const suggestWords = createServerFn({ method: "POST" })
       data.targetLanguage,
       correctTaiwanReading,
     );
-    await recordCandidateReceipts(profile.code, suggestions);
+    await recordCandidateReceipts(profile.code, reader, suggestions);
     return { suggestions };
   });
 
@@ -1159,7 +1168,7 @@ ${langRule}
       ranked[0] ? rowTagOf(ranked[0].headword, reader, data.targetLanguage) : null,
     );
     const candidates = withTypedLabels(ranked, objectLabel);
-    await recordCandidateReceipts(candProfile.code, candidates);
+    await recordCandidateReceipts(candProfile.code, reader, candidates);
     /**
      * 打った語が学習言語の語か。表示言語として読んだ語（`display` / `display_first`）は false — 古い画面は
      * この値で「打った字のまま剥がす」を決める（漢字だからというだけで 犬 を台湾華語の見出し語にしない）。
@@ -1992,6 +2001,7 @@ ${data.hintCategory && data.hintCategory !== "other" ? `カテゴリのヒント
           language: cardLanguage,
           headwords: heads,
           card: trusted,
+          explainLang: key.explainLang,
         }),
       );
     }
@@ -2075,7 +2085,7 @@ export const generatePhraseCard = createServerFn({ method: "POST" })
       }
     })();
     // 意味と読みだけを候補として控える（保存の時に共有の行に入る。`generated-cards.ts`）。
-    await recordCandidateReceipts(phraseProfile.code, [
+    await recordCandidateReceipts(phraseProfile.code, explainLang, [
       {
         headword: data.phrase,
         meaning_ja: shortMeaning(card.meaning_ja),
@@ -2452,6 +2462,13 @@ type SectionProposal = {
   after: unknown;
   headword: string;
   language: string | null;
+  /**
+   * 共有の行が**この人の言語の行か**（`mayWriteSharedReaderText`）。違えば直した物は共有の行ではなく、
+   * その人の言語の解説の行（`readerKey`）に書く（`readerPatch`）。
+   */
+  sharedWritable: boolean;
+  readerKey: { explainLang: string; l1: string };
+  readerPatch: Parameters<typeof mergeIntoReaderExplanation>[3];
 };
 
 async function runSectionRegen(
@@ -2546,8 +2563,25 @@ async function runSectionRegen(
   );
   const readerRow =
     mode === "write" ? await readReaderExplanation(supabaseAdmin, data.word_id, readerKey) : null;
+  /**
+   * **共有の行に書くのは、その行の言語の人だけ**（2026-10-20「決して言語が混ざらないようにして」、
+   * `mayWriteSharedReaderText`）。別の言語の人が作り直した意味・例文・解説を共有の行に書くと、行の
+   * 目印（`explain_lang`）と中身の言語が食い違い、目印でも文字でも見分けられない行になる。
+   */
+  const sharedWritable = mayWriteSharedReaderText(
+    word as Parameters<typeof mayWriteSharedReaderText>[0],
+    readerKey.explainLang,
+  );
+  if (mode === "write" && !readerRow && !sharedWritable) {
+    // 書く先が無い（共有の行は別の言語の行、その人の行はまだ無い）。その人の行は、単語の詳細の
+    // 自動生成（`generateCard` → `updateWordExtras`）が全部の項目つきで作る。AI は呼ばない。
+    return { ok: true, section: data.section, filled: false };
+  }
   const readerHas = readerRow
-    ? hasSection(readerRow.extras, readerRow.meaning || (word.meaning_ja as string | null))
+    ? hasSection(
+        readerRow.extras,
+        readerRow.meaning || (sharedWritable ? (word.meaning_ja as string | null) : null),
+      )
     : sharedHas;
   if (data.only_if_empty && readerHas) {
     return { ok: true, section: data.section, filled: false };
@@ -3027,6 +3061,16 @@ async function runSectionRegen(
    * 例文を作り直した時は、追加の例文を**入れ替える**（空でも — 1つの場面でしか使わない語に古い追加の例文を
    * 残さない）。`mergeExtras` は空の値で上書きしないので、ここで直に置く。
    */
+  /** その人の言語の解説の行（`word_explanations`）に重ねる分。 */
+  const readerPatch = (): SectionProposal["readerPatch"] => ({
+    extras: extrasPatch,
+    replaceKeys: data.section === "example" ? ["examples_extra"] : undefined,
+    meaning: data.section === "meaning" ? shortMeaning(String(out.meaning_ja ?? "")) : null,
+    example_translation:
+      data.section === "example" && !keepVerifiedExample
+        ? ((out.example_translation as string | null) ?? null)
+        : null,
+  });
   const replaceExtras = (e: Record<string, unknown>) =>
     data.section === "example" && Array.isArray(extrasPatch.examples_extra)
       ? { ...e, examples_extra: extrasPatch.examples_extra }
@@ -3050,6 +3094,9 @@ async function runSectionRegen(
         after: out,
         headword: word.headword as string,
         language: (word.language as string | null) ?? null,
+        sharedWritable,
+        readerKey,
+        readerPatch: readerPatch(),
       },
     };
   }
@@ -3065,19 +3112,12 @@ async function runSectionRegen(
    */
   // その人向けの解説の行にも重ねる（画面はこちらを出す）。
   if (readerRow) {
-    await mergeIntoReaderExplanation(supabaseAdmin, data.word_id, readerKey, {
-      extras: extrasPatch,
-      replaceKeys: data.section === "example" ? ["examples_extra"] : undefined,
-      meaning: data.section === "meaning" ? shortMeaning(String(out.meaning_ja ?? "")) : null,
-      example_translation:
-        data.section === "example" && !keepVerifiedExample
-          ? ((out.example_translation as string | null) ?? null)
-          : null,
-    });
+    await mergeIntoReaderExplanation(supabaseAdmin, data.word_id, readerKey, readerPatch());
   }
   // 共有の行に既に在る項目は、裏の自動生成では書き換えない（他の人のカードも
   // 同じ行を見ている）。その人向けの行だけを埋めれば足りる。
-  if (data.only_if_empty && sharedHas) {
+  // 共有の行が別の言語の行なら、なおさら書かない（`sharedWritable`）。
+  if ((data.only_if_empty && sharedHas) || !sharedWritable) {
     await persistLabel();
     return { ok: true, section: data.section, filled: true };
   }
@@ -3317,6 +3357,17 @@ async function fixReportedWordItemImpl(
   });
   if (!shouldApplyCorrection(verdict)) return { fixed: false, by: verdict.by, item };
 
+  // 共有の行が報告した人の言語の行でなければ、その人の言語の解説の行だけを直す
+  // （別の言語の文を共有の行に書かない — `SectionProposal.sharedWritable`）。
+  if (!proposal.sharedWritable) {
+    const fixed = await mergeIntoReaderExplanation(
+      supabaseAdmin,
+      p.wordId,
+      proposal.readerKey,
+      proposal.readerPatch,
+    );
+    return { fixed, by: verdict.by, item };
+  }
   const { error: upErr } = await supabaseAdmin
     .from("words")
     .update({ ...proposal.baseUpdate, extras: proposal.merged as never } as never)

@@ -5,7 +5,7 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { z } from "zod";
 import { normalizeExtras, publicExtras } from "./extras";
 import { UI_LANGS } from "./i18n";
-import { fillReaderExplanation } from "./shared-word-guard";
+import { fillReaderExplanation, sharedRowLanguage } from "./shared-word-guard";
 import {
   explanationKey,
   pickExplanation,
@@ -635,7 +635,12 @@ export const fillReaderMeanings = createServerFn({ method: "POST" })
         out[w.id] = have;
         continue;
       }
-      const shared = shortMeaning(readerMeaning(w.meaning, lang));
+      // 共有の意味は、**その行がこの言語の行の時だけ**写す（`sharedRowLanguage`）。文字だけで選ぶと、
+      // スペイン語の意味（"paraguas"）が英語の行に入り、英語で読む全員に出る。
+      const shared =
+        sharedRowLanguage({ extras: w.extras }) === lang
+          ? shortMeaning(readerMeaning(w.meaning, lang))
+          : "";
       if (shared) fresh.set(w.id, shared);
       else missing.push(w);
     }

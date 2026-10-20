@@ -254,6 +254,12 @@ export const detectScan = createServerFn({ method: "POST" })
      * （`alternatives`）も同じ関所に通す。
      */
     parsed.items = keepTargetHeadwords(parsed.items, target);
+    // 意味は読む人の言語（下の `detectParts` と同じ）。**別の言語で返った意味は空にしてから**、控え・辞書・
+    // 画面に渡す（控えには意味の言語の目印を付けるので、目印と中身が食い違う控えを作らない）。
+    const scanReader = await (await import("./ai-provider.server")).getExplanationLanguage(userId);
+    parsed.items = parsed.items.map((it) =>
+      fitsReaderMeaning(it.meaning_ja, scanReader) ? it : { ...it, meaning_ja: "" },
+    );
 
     /**
      * 見つけた語の意味と読みを控える（監査 2026-10-03 M3、`generated-cards.ts`）。
@@ -265,14 +271,17 @@ export const detectScan = createServerFn({ method: "POST" })
       const items = parsed.items;
       await runAfterResponse("scan: record candidate receipts", async () => {
         const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-        const { recordGeneratedCards } = await import("./generated-cards");
+        const { recordGeneratedCards, candidateCard } = await import("./generated-cards");
         await recordGeneratedCards(
           supabaseAdmin,
           items.map((it) => ({
             language: target,
             headword: it.headword,
             kind: "candidate" as const,
-            card: { meaning_ja: it.meaning_ja, reading_zhuyin: it.zhuyin, pinyin: it.pinyin },
+            card: candidateCard(
+              { meaning_ja: it.meaning_ja, reading_zhuyin: it.zhuyin, pinyin: it.pinyin },
+              scanReader,
+            ),
           })),
         );
       });
@@ -283,8 +292,7 @@ export const detectScan = createServerFn({ method: "POST" })
     // ついでに1日1回の自己改善(辞書監査+ニュースコーパス観察)も起動。
     // 意味は読む人の言語で返ってくる。日本語だけが辞書の `meaning_ja`、ほかの言語は `meanings[言語]`（2026-10-15）。
     void import("./lexicon.server").then(async (m) => {
-      const { getExplanationLanguage } = await import("./ai-provider.server");
-      void m.learnLexiconEntries(parsed.items, await getExplanationLanguage(userId));
+      void m.learnLexiconEntries(parsed.items, scanReader);
       void m.maybeRunDailySelfImprovement(userId);
     });
 
