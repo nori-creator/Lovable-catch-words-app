@@ -3,11 +3,12 @@ import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { lovable } from "@/integrations/lovable/index";
 import { waitForAppleTokenCapture } from "@/lib/apple-token-capture";
-import { tStatic, useT } from "@/lib/i18n";
+import { setUiLang, tStatic, useT, webUiLangOf } from "@/lib/i18n";
 import {
   clearLocalSupabaseSession,
   nativeAuthPath,
   nativeCallbackUrl,
+  sanitizeNativeLang,
   sanitizeNativeProvider,
   sanitizeNativeState,
   type NativeProvider,
@@ -32,6 +33,7 @@ export const Route = createFileRoute("/native-auth")({
   validateSearch: (s: Record<string, unknown>) => ({
     state: sanitizeNativeState(s.state),
     provider: sanitizeNativeProvider(s.provider),
+    lang: sanitizeNativeLang(s.lang),
   }),
   head: () => ({
     meta: [{ title: tStatic("page.nativeAuth") }, { name: "robots", content: "noindex, nofollow" }],
@@ -46,7 +48,11 @@ const WAIT_MS = 8000;
 
 function NativeAuthPage() {
   const t = useT();
-  const { state, provider } = Route.useSearch();
+  const { state, provider, lang } = Route.useSearch();
+  // アプリの表示言語で描く（Web に無い言語は英語 — `webUiLangOf`）。窓は毎回まっさらなので、保存は窓の中だけ。
+  useEffect(() => {
+    if (lang) setUiLang(webUiLangOf(lang));
+  }, [lang]);
   const [phase, setPhase] = useState<Phase>("waiting");
   const [appUrl, setAppUrl] = useState<string | null>(null);
   const started = useRef(false);
@@ -91,7 +97,7 @@ function NativeAuthPage() {
         const { data } = await supabase.auth.getSession();
         if (data.session?.user.is_anonymous) await supabase.auth.signOut({ scope: "local" });
         const res = await lovable.auth.signInWithOAuth(p, {
-          redirect_uri: `${window.location.origin}${nativeAuthPath("", state)}`,
+          redirect_uri: `${window.location.origin}${nativeAuthPath("", state, lang)}`,
         });
         if (res.error) setPhase("failed");
       } catch {
@@ -122,7 +128,7 @@ function NativeAuthPage() {
       window.clearTimeout(timer);
       sub.subscription.unsubscribe();
     };
-  }, [state, provider]);
+  }, [state, provider, lang]);
 
   return (
     <main className="mx-auto flex min-h-[100dvh] max-w-md flex-col items-center justify-center gap-4 p-6 text-center">
@@ -142,13 +148,13 @@ function NativeAuthPage() {
         <>
           <p className="text-body text-muted-foreground">{t("native.failed")}</p>
           <a
-            href={nativeAuthPath("google", state)}
+            href={nativeAuthPath("google", state, lang)}
             className="inline-flex h-12 items-center justify-center rounded-2xl border border-border bg-card px-6 text-body font-semibold"
           >
             {t("native.retryGoogle")}
           </a>
           <a
-            href={nativeAuthPath("apple", state)}
+            href={nativeAuthPath("apple", state, lang)}
             className="inline-flex h-12 items-center justify-center rounded-2xl border border-border bg-card px-6 text-body font-semibold"
           >
             {t("native.retryApple")}

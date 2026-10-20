@@ -1,6 +1,6 @@
 # 言語を足す手順（表示言語・学習言語）
 
-最終確認: 2026-09-27 ／ 対象: 開発を頼む人（オーナー）と、実作業をする AI・開発者
+最終確認: 2026-10-20 ／ 対象: 開発を頼む人（オーナー）と、実作業をする AI・開発者
 
 ## 2種類の「言語」
 
@@ -30,6 +30,28 @@
 4. `src/lib/meaning-language.ts` — 「その文が読み手の言語か」を文字の種類で見分けている。**ハングルの判定を足す**（足さないと、4択や通知で韓国語の意味が別の言語と見なされる）
 5. 規約・プライバシー（`terms.tsx` / `privacy.tsx`）— 法的な文なので**機械訳のまま出さない**。訳が用意できるまでは、英語版＋「この言語の版はまだ無い」の一言を出す形（繁體中文と同じ）
 6. 確認: `npx tsc --noEmit`、`npx vitest run`、確認用ページで表示言語を `ko` にして主要画面を見る（`?lang=ko`）
+
+## 解説の言語を足す（iOS の表示言語。例: フランス語 `fr`）
+
+最終確認: 2026-10-20。iOS の表示言語はスペイン語 `es`・韓国語 `ko`・ベトナム語 `vi` を含む6つ。Web の画面（上の
+「表示言語を足す」）は日本語・英語・繁體中文のままで、**サーバは6つ全部の言語で解説を書く**。iOS で言語を足した
+ら（iOS リポジトリの `docs/adding-a-display-language.md`）、サーバ側はここだけ。
+
+1. `src/lib/explain-languages.ts` の `EXPLAIN_LANGUAGES` の**末尾に**1つ足す（iOS の
+   `ios/Localization/languages.json` と同じ符号・同じ順。順を変えると iOS が別の解説の行を探す）
+   - `promptName`（日本語の指示文での呼び名）、`englishName`・`autonym`、`script`（`latin` / `hangul` / `han` / `kana`）、
+     `locale`、欧文なら `markerWords` / `markerLetters`（iOS の languages.json と同じ値）、`writingRule`（英語の一言）
+2. 型のエラーが出る所を埋める（`Record<ExplainLang, …>` の表）: `quiz-choices.ts`（4択の受け皿4つ）、
+   `basic-level.ts`（基本の語8つの名前）、`chunk-grammar.ts`（程度の語の訳 — 型の外なので手で）
+3. `src/lib/l1.ts` — `L1Code` と `L1_ORDER` の末尾に足し、`L1_TABLE` にその母語の欄を書く（`docs/l1-archive.md` に
+   在れば戻す）。`npx tsx` で `__fixtures__/l1-prompts.zh-TW.json` にその母語の4つを足す（既存の12は1文字も変えない）
+4. 書く文字が今までに無い種類（タイ文字・キリル文字・アラビア文字など）なら、`note-language.ts`・
+   `meaning-language.ts`・`first-catch-meaning.ts` にその文字の判定を足す（iOS の `LanguageRules.swift` と同じ規則）
+5. 確認: `npx tsc --noEmit`、`npx vitest run`（`explain-languages.test.ts` が、呼び名・受け皿・基本の語の名前が
+   全部の言語に在るかを見る）。iOS 側の毎日の確認（「iOS ↔ Web contract」）が、iOS の表示言語がここに全部在るかを見る
+
+Web の画面にその言語が無い人には、Web は**英語で描き**（`normalizeUiLang`）、その人の設定は**書き換えない**
+（`reconcileUiLanguage`・設定画面の `appOnlyUiLanguage`）。
 
 ## 学習言語を足す（例: 韓国語 `ko`）
 

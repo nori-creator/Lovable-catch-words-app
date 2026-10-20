@@ -1,3 +1,6 @@
+import { isExplainLang } from "./explain-languages";
+import { isUiLang } from "./i18n";
+
 /**
  * **一度選んだ言語を、あとから勝手に戻さない。**
  *
@@ -54,4 +57,23 @@ export function reconcileLanguage(input: {
   }
   // 選んである。**端末が勝つ。** 違っていればサーバへ書き戻す。
   return { value: stored, pushToServer: server !== stored };
+}
+
+/**
+ * **表示言語の突き合わせ。** `reconcileLanguage` に1つだけ例外を足した物。
+ *
+ * サーバの値が **Web の画面に無い表示言語**（スペイン語・韓国語・ベトナム語 — iOS で選べる。
+ * `explain-languages.ts`）なら、**サーバが勝ち、書き戻さない。** Web はその言語で画面を描けないので
+ * 英語で描くが（`normalizeUiLang`）、端末の写しは Web の言語しか持てない。端末を勝たせると、
+ * iOS で選んだスペイン語が Web を開いただけで日本語・英語に塗り替わる（その人の解説も
+ * 塗り替わった言語で作られる）。Web の設定で言語を選び直したときだけ変わる（設定の保存）。
+ */
+export function reconcileUiLanguage(input: {
+  stored: string | null | undefined;
+  server: string | null | undefined;
+  fallback: string;
+}): LanguageReconcile {
+  const server = (input.server ?? "").trim();
+  if (isExplainLang(server) && !isUiLang(server)) return { value: server, pushToServer: false };
+  return reconcileLanguage(input);
 }

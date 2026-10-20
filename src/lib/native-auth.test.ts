@@ -3,6 +3,7 @@ import {
   NATIVE_CALLBACK,
   clearLocalSupabaseSession,
   nativeAuthPath,
+  sanitizeNativeLang,
   nativeCallbackUrl,
   sanitizeNativeProvider,
   sanitizeNativeState,
@@ -43,6 +44,13 @@ describe("native-auth (iPhone アプリへのログインの受け渡し)", () =
       "/native-auth?state=s0123456789abcdef&provider=google",
     );
     expect(nativeAuthPath("", "s0123456789abcdef")).toBe("/native-auth?state=s0123456789abcdef");
+    // アプリの表示言語も運ぶ（まっさらな窓で、その言語で描くため）。
+    expect(nativeAuthPath("apple", "s0123456789abcdef", "ko")).toBe(
+      "/native-auth?state=s0123456789abcdef&provider=apple&lang=ko",
+    );
+    expect(sanitizeNativeLang("vi")).toBe("vi");
+    expect(sanitizeNativeLang("xx")).toBe("");
+    expect(sanitizeNativeLang("<script>")).toBe("");
   });
 
   it("ブラウザのセッションの控えだけ消す（ほかの鍵は残す）", () => {

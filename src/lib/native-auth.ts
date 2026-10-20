@@ -1,4 +1,5 @@
 import { DEEP_LINK_SCHEME } from "./deep-link";
+import { isExplainLang } from "./explain-languages";
 
 /**
  * **iPhone アプリへのログインの受け渡し**（`/native-auth`）。
@@ -53,10 +54,23 @@ export function nativeCallbackUrl(session: HandoffSession, state: string): strin
 }
 
 /** この Web の `/native-auth` を、同じ `state` で開き直す URL（やり直し用）。 */
-export function nativeAuthPath(provider: NativeProvider | "", state: string): string {
+export function nativeAuthPath(
+  provider: NativeProvider | "",
+  state: string,
+  lang: string = "",
+): string {
   const p = new URLSearchParams({ state });
   if (provider) p.set("provider", provider);
+  if (lang) p.set("lang", lang);
   return `/native-auth?${p.toString()}`;
+}
+
+/**
+ * アプリの表示言語（`lang`）。解説の言語の符号だけ受け付ける。サインインの窓は毎回まっさらな
+ * ブラウザ（`prefersEphemeralWebBrowserSession`）で、Web の保存した言語が無いので、アプリが渡す。
+ */
+export function sanitizeNativeLang(raw: unknown): string {
+  return typeof raw === "string" && isExplainLang(raw) ? raw : "";
 }
 
 /**

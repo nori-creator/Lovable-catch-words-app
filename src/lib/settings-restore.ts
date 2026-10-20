@@ -1,4 +1,4 @@
-import { reconcileLanguage } from "./language-sync";
+import { reconcileLanguage, reconcileUiLanguage } from "./language-sync";
 import { restoreLevel, type LevelScale } from "./level-scale";
 import { targetProfile } from "./target-profile";
 import { DEFAULT_TARGET_LANGUAGE } from "./target-lang";
@@ -65,7 +65,7 @@ export function restoreSettings(input: {
   const partial = !!input.server.partial;
   const srv = <T>(v: T): T | null => (partial ? null : v);
 
-  const ui = reconcileLanguage({
+  const ui = reconcileUiLanguage({
     stored: input.device.uiLanguage,
     server: srv(input.server.uiLanguage),
     fallback: "ja",
