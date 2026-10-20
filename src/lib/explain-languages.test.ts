@@ -9,7 +9,7 @@ import {
 } from "./explain-languages";
 import { UI_LANGS } from "./i18n";
 import { explanationLanguageName } from "./ai-provider.server";
-import { looksWrongForReader } from "./note-language";
+import { looksWrongForReader, scrubExtrasForReader } from "./note-language";
 import { fitsReaderLanguage, quizMeaningLanguage } from "./meaning-language";
 import { FALLBACK_MEANINGS_BY_LANG } from "./quiz-choices";
 import { fitsReaderMeaning, fitsReaderNote } from "./first-catch-meaning";
@@ -178,5 +178,84 @@ describe("Web が iOS だけの表示言語を書き換えない（reconcileUiLa
       value: "zh-TW",
       pushToServer: false,
     });
+  });
+});
+
+describe("解説のすべての欄を読む人の言語に揃える（scrubExtrasForReader、2026-10-20）", () => {
+  const extras = {
+    explain_lang: "es",
+    usage_context: "通学のときに使う",
+    taiwan_note: "En Taiwán se dice así.",
+    example_scene: "朝ごはんのとき",
+    region_scope: "台南",
+    measure_words: [{ word: "支", note: "細長い物に" }],
+    related_words: [{ word: "雨衣", kind: "rel", note: "impermeable" }],
+    usage_chunks: [
+      {
+        ja: "abrir el paraguas",
+        parts: [{ text: "打開", ja: "開く", alts: [{ text: "收起", ja: "cerrar" }] }],
+      },
+    ],
+    countability: { kind: "countable", article: "", note: "数えられる" },
+    kanji_breakdown: [{ kanji: "傘", meaning: "かさ" }],
+    pitch_accent: "か↘さ＝頭高型",
+    image_query: "umbrella",
+  };
+
+  it("スペイン語の読み手: 日本語の欄だけ空、スペイン語と学ぶ言語の部分は残す", () => {
+    const out = scrubExtrasForReader(extras, "es") as typeof extras;
+    expect(out.usage_context).toBe("");
+    expect(out.taiwan_note).toBe("En Taiwán se dice así.");
+    expect(out.example_scene).toBe("");
+    expect(out.region_scope).toBe("");
+    expect(out.measure_words[0]).toEqual({ word: "支", note: "" });
+    expect(out.related_words[0].note).toBe("impermeable");
+    expect(out.usage_chunks[0].ja).toBe("abrir el paraguas");
+    expect(out.usage_chunks[0].parts[0].ja).toBe("");
+    expect(out.usage_chunks[0].parts[0].alts[0]).toEqual({ text: "收起", ja: "cerrar" });
+    expect(out.countability.note).toBe("");
+    expect(out.kanji_breakdown[0]).toEqual({ kanji: "傘", meaning: "" });
+    expect(out.pitch_accent).toBe("");
+    // 画像の検索語は英語のまま（画面には出ない）。
+    expect(out.image_query).toBe("umbrella");
+  });
+
+  it("日本語の読み手: 日本語の欄は残し、スペイン語の文を落とす", () => {
+    const out = scrubExtrasForReader(extras, "ja") as typeof extras;
+    expect(out.usage_context).toBe("通学のときに使う");
+    expect(out.region_scope).toBe("台南");
+    expect(out.measure_words[0].note).toBe("細長い物に");
+    expect(out.pitch_accent).toBe("か↘さ＝頭高型");
+    expect(out.taiwan_note).toBe("");
+  });
+
+  it("**日本語の読み手に、漢字だけの中文の注記・札・型の訳を出さない**（量詞の説明が台湾華語）。漢字だけの意味の語は残す", () => {
+    const out = scrubExtrasForReader(
+      {
+        measure_words: [{ word: "支", note: "用於細長的東西" }],
+        example_scene: "在夜市點餐時",
+        usage_chunks: [{ ja: "打開這把雨傘吧", parts: [{ text: "雨傘", ja: "雨傘" }] }],
+        kanji_breakdown: [{ kanji: "鐵", meaning: "鉄" }],
+      },
+      "ja",
+    );
+    expect(out.measure_words[0].note).toBe("");
+    expect(out.example_scene).toBe("");
+    expect(out.usage_chunks[0].ja).toBe("");
+    expect(out.usage_chunks[0].parts[0].ja).toBe("雨傘");
+    expect(out.kanji_breakdown[0].meaning).toBe("鉄");
+  });
+
+  it("韓国語の読み手: ハングルの無い欄は落とす", () => {
+    const out = scrubExtrasForReader(
+      { usage_context: "우산은 비 올 때 써요", taiwan_note: "台湾では傘をよく使う" },
+      "ko",
+    );
+    expect(out).toEqual({ usage_context: "우산은 비 올 때 써요", taiwan_note: "" });
+  });
+
+  it("形の違う物はそのまま返す", () => {
+    expect(scrubExtrasForReader(null, "es")).toBeNull();
+    expect(scrubExtrasForReader([], "es")).toEqual([]);
   });
 });

@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { ExtrasSchema, hasExtrasContent, normalizeExtras } from "./extras";
 import { DEFAULT_TARGET_LANGUAGE } from "./target-lang";
-import { readerMeaning, readerText } from "./note-language";
+import { readerMeaning, readerText, scrubExtrasForReader } from "./note-language";
 import { lacksNotes } from "./explanation-cache";
 
 /**
@@ -280,6 +280,14 @@ export function fillReaderExplanation(
 ): ReaderRowWrite {
   const meaningFits = (t: string) => readerMeaning(t, readerLang).trim().length > 0;
   const textFits = (t: string) => readerText(t, readerLang).trim().length > 0;
+  // **入れる物も読む人の言語の物だけ**（2026-10-20）。この行は同じ言語で読む全員に出る。
+  const tr = incoming.example_translation;
+  incoming = {
+    ...incoming,
+    meaning: meaningFits(incoming.meaning ?? "") ? incoming.meaning : "",
+    ...(typeof tr === "string" && tr.trim() && !textFits(tr) ? { example_translation: "" } : {}),
+    extras: scrubExtrasForReader(incoming.extras, readerLang),
+  };
   if (!existing) return { kind: "insert", row: incoming };
   if (existing.source === "verified") return { kind: "skip", reason: "verified" };
   const patch: Partial<ReaderRowContent> = {};

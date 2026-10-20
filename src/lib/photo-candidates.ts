@@ -1,7 +1,7 @@
 import { normalizeCategory, shareCategoryWithinGroups } from "./category";
 import { applyObjectLabels, finalizeNameRegisters } from "./candidate-register";
 import { alignRowMeanings, ensureBasicLevel, rowTagOf } from "./basic-level";
-import { fitSuggestionsToReader } from "./first-catch-meaning";
+import { fitSuggestionsToReader, fitsReaderNote } from "./first-catch-meaning";
 import { shortMeaning } from "./meaning-rule";
 import { readerText } from "./note-language";
 import { detectQueryLang } from "./text-query-lang";
@@ -15,6 +15,8 @@ export type PhotoSuggestion = {
   reading_zhuyin?: string;
   pinyin?: string;
   distinction?: string;
+  /** 使う場面の札（読む人の言語）。 */
+  scene?: string;
   category_key?: string;
   register?: string | null;
   label?: string | null;
@@ -52,6 +54,8 @@ export function finishPhotoCandidates<T extends PhotoSuggestion>(
     // 候補の意味も語の長さに（R17「湯咖哩の英語の単語の候補…が長すぎる」）。
     meaning_ja: shortMeaning(s.meaning_ja),
     category_key: normalizeCategory(s.headword, s.category_key),
+    // 使う場面の札も読む人の言語の物だけ（2026-10-20、`suggestWordCandidates` と同じ）。
+    ...(s.scene && !fitsReaderNote(s.scene, reader, targetLanguage) ? { scene: "" } : {}),
   }));
   // 基本の語の意味を表で確かめる（別の物の名前・細かい名前・空 → 表の名前。細かい語は別の物の名前なら空）。
   const aligned = alignRowMeanings(fitted, reader, targetLanguage);

@@ -1080,7 +1080,13 @@ export async function explanationLanguageRule(
     ).trim();
   }
   const name = explanationLanguageName(lang);
-  return `解説・意味・訳・注記はすべて${name}で書く(${target}の見出し語・例文・読みはそのまま)。`;
+  // 繁體中文で読む人にも、例の言語（日本語）で書かないことを言う（2026-10-20 — 指示文の例は日本語なので、
+  // 例につられて注記が日本語で返ることがある。返った物は `scrubExtrasForReader` が落とすが、欄が空になる）。
+  const notExamples =
+    lang === "ja"
+      ? ""
+      : `指示文の中の例は形を示すための日本語で、解説は日本語で書かない(かなを使わない)。`;
+  return `解説・意味・訳・注記はすべて${name}で書く(${target}の見出し語・例文・読みはそのまま)。${notExamples}`;
 }
 
 /**

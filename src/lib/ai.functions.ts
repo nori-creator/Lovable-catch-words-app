@@ -40,12 +40,17 @@ import {
 } from "./extras";
 import { chunkVerifyMode, describeChunkGate, gateUsageChunks } from "./chunk-quality";
 import { normalizeTargetLanguage } from "./target-lang";
-import { readerText, scrubForReader, scrubForeignNotes } from "./note-language";
+import {
+  readerMeaning,
+  readerText,
+  scrubExtrasForReader,
+  scrubForeignNotes,
+} from "./note-language";
 import { looksLikeTargetLanguage } from "./text-language";
 import { explanationKey } from "./word-explanation";
 import { mergeIntoReaderExplanation, readReaderExplanation } from "./word-explanation.functions";
 import { mayWriteSharedReaderText } from "./shared-word-guard";
-import { fitsReaderMeaning } from "./first-catch-meaning";
+import { fitSuggestionsToReader, fitsReaderMeaning, fitsReaderNote } from "./first-catch-meaning";
 import { worldExampleRule, sharedExampleSourceRule } from "./example-sources";
 import {
   MAX_EXAMPLE_PATTERNS,
@@ -1146,7 +1151,12 @@ ${langRule}
     // （1つ目は必ず一般的な言い方。`candidate-register.ts`）。一般的な言い方は会話で言う語
     // （書き言葉・専門の形を1つ目にしない）、日本語で「犬」と打ったら 狗 が1つ目（`typed-candidates.ts`）。
     // 学習言語で打った語は、打った語のまま1つ目（並べ替えない）。
-    const registered = finalizeNameRegisters(listed);
+    // 意味（と、そこから作る短い意味 `gloss`）・使い分け・使う場面は、**読む人の言語の物だけ**（2026-10-20）。
+    // 指示文の例は日本語なので、別の言語の読み手にも日本語で返ることがある。
+    const fitted = fitSuggestionsToReader(listed, reader, data.targetLanguage).map((c) =>
+      c.scene && !fitsReaderNote(c.scene, reader, data.targetLanguage) ? { ...c, scene: "" } : c,
+    );
+    const registered = finalizeNameRegisters(fitted);
     // 表の基本の語の意味は、その語の物の意味だけ（写真の候補と同じ確かめ。貓 に「犬」を出さない）。
     const ranked = alignRowMeanings(
       ensureTypedBasic(
@@ -1940,6 +1950,9 @@ ${data.hintCategory && data.hintCategory !== "other" ? `カテゴリのヒント
     void _fallback;
     const out = {
       ...cardFields,
+      // **意味も読む人の言語で**（2026-10-20「決して言語が混ざらないようにして」）。別の言語で返った意味は空に
+      // する — この控えは読む人の言語の鍵で残り、共有の行にもその言語の印で入る（目印と中身を食い違わせない）。
+      meaning_ja: readerMeaning(card.meaning_ja, explainLang),
       // **訳は読む人の言語で**（2026-09-29「例文の訳に中文が混ざってる」）。例文の写しや
       // 別の言語で返ってきた訳は落とす（空なら画面は訳を出さず、作り直しが埋める）。
       example_translation: readerText(card.example_translation, explainLang, card.example_sentence),
@@ -1959,7 +1972,7 @@ ${data.hintCategory && data.hintCategory !== "other" ? `カテゴリのヒント
         // もう作らない節（発音のコツ・覚え方・語源と部首）の欄も落とす（`stripNotGenerated`）。
         ...stripNotGenerated(
           stripUnrequested(
-            scrubForReader(scrubForeignNotes(card.extras ?? {}, explainLang), explainLang),
+            scrubExtrasForReader(scrubForeignNotes(card.extras ?? {}, explainLang), explainLang),
             data.sections,
           ),
         ),
@@ -3002,16 +3015,24 @@ async function runSectionRegen(
   const baseUpdate: Record<string, unknown> = {};
   // 作り直しの経路にも同じ掃除を通す。**片方だけ直すと、もう片方から
   // 中国語の注記が入り続ける**(この app が何度も踏んだ兄弟の取りこぼし)。
+  // 読む人の言語で書く欄はすべて（`scrubExtrasForReader`、2026-10-20）。
   const extrasPatch: Record<string, unknown> = {
-    ...scrubForReader(
+    ...scrubExtrasForReader(
       scrubForeignNotes(out as Parameters<typeof scrubForeignNotes>[0], regenLang),
       regenLang,
     ),
   };
+  /**
+   * 作り直した意味。**読む人の言語でない意味は使わない**。指示文は共有の意味（別の言語のことがある）を
+   * 「(意味: …)」として渡すので、それを写しただけの答えも使わない（共有の行がこの人の言語の行でない時）。
+   */
+  const regenMeaning = (() => {
+    const m = readerMeaning(shortMeaning(String(out.meaning_ja ?? "")), regenLang);
+    return !sharedWritable && m && m === String(word.meaning_ja ?? "").trim() ? "" : m;
+  })();
   if (data.section === "meaning") {
     delete extrasPatch.meaning_ja;
-    if (word.source !== "verified")
-      baseUpdate.meaning_ja = shortMeaning(String(out.meaning_ja ?? ""));
+    if (word.source !== "verified" && regenMeaning) baseUpdate.meaning_ja = regenMeaning;
   }
   // 人が確かめた語（verified）は例文の列を書き換えない。その時、新しい文のために書いた札・パーツ・訳を
   // 古い文の横に置かない（2026-10-15 眼鏡と同じ食い違いになる）。
@@ -3065,7 +3086,7 @@ async function runSectionRegen(
   const readerPatch = (): SectionProposal["readerPatch"] => ({
     extras: extrasPatch,
     replaceKeys: data.section === "example" ? ["examples_extra"] : undefined,
-    meaning: data.section === "meaning" ? shortMeaning(String(out.meaning_ja ?? "")) : null,
+    meaning: data.section === "meaning" ? regenMeaning || null : null,
     example_translation:
       data.section === "example" && !keepVerifiedExample
         ? ((out.example_translation as string | null) ?? null)

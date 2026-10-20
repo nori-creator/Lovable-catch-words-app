@@ -5606,7 +5606,7 @@ describe("単語の詳細は既定で8項目（オーナー指示 2026-09-23）"
     // 追加の例文は場面のパターンの数で頼む（頼まれなければ、いちばんよく使う場面の1つだけ。2026-10-15）。
     expect(ai).toMatch(/const maxPatterns = want\("examples_extra"\) \? MAX_EXAMPLE_PATTERNS : 1;/);
     expect(ai).toMatch(
-      /stripUnrequested\(\s*scrubForReader\(scrubForeignNotes\(card\.extras \?\? \{\}, explainLang\), explainLang\),\s*data\.sections,?\s*\)/,
+      /stripUnrequested\(\s*scrubExtrasForReader\(scrubForeignNotes\(card\.extras \?\? \{\}, explainLang\), explainLang\),\s*data\.sections,?\s*\)/,
     );
   });
 });

@@ -225,3 +225,117 @@ export function readerMeaning(
 ): string {
   return looksWrongForReader(text, readerLang, null, { hanOnlyOk: true }) ? "" : (text ?? "");
 }
+
+/**
+ * **解説の中の、読む人の言語で書く欄をすべて**、読む人の言語でない物だけ空にする（2026-10-20 オーナー指示
+ * 「決して言語が混ざらないようにして」）。`scrubForReader` は例文の訳とチャンクの訳だけ、`scrubForeignNotes` は
+ * 日本語で読む人の短い注記だけだったので、スペイン語・韓国語・ベトナム語などの読み手に、AI が別の言語で返した
+ * 注記（関連語・量詞の注・使う場面・漢字の意味…）がそのまま保存されて出ていた。
+ *
+ * 欄の一覧は iOS の `ReaderLanguage.scrub` と同じ（と、Web だけが描く欄）。**学ぶ言語の部分**（チャンクの文・
+ * 語形・漢字・読み・活用した形・数え方の語・画像の検索語）は触らない。書き換えず、落とすだけ。
+ */
+export function scrubExtrasForReader<T>(extras: T, readerLang: string): T {
+  if (!extras || typeof extras !== "object" || Array.isArray(extras)) return extras;
+  const wrong = (v: unknown, opts: { source?: unknown; short?: boolean } = {}) =>
+    typeof v === "string" &&
+    looksWrongForReader(v, readerLang, typeof opts.source === "string" ? opts.source : null, {
+      hanOnlyOk: opts.short,
+    });
+  const out: Record<string, unknown> = { ...(extras as Record<string, unknown>) };
+  /** 配列の各項目の欄を落とす（`short` = 意味のような短い語句: 漢字だけの和文を残す）。 */
+  const eachItem = (
+    key: string,
+    fields: Array<{ name: string; short?: boolean; source?: string }>,
+  ) => {
+    const list = out[key];
+    if (!Array.isArray(list)) return;
+    out[key] = list.map((item) => {
+      if (!item || typeof item !== "object") return item;
+      const it = { ...(item as Record<string, unknown>) };
+      for (const f of fields) {
+        if (wrong(it[f.name], { short: f.short, source: f.source ? it[f.source] : undefined })) {
+          it[f.name] = "";
+        }
+      }
+      return it;
+    });
+  };
+  // 文の欄（注記・説明）。
+  for (const k of [
+    "mnemonic",
+    "taiwan_note",
+    "pronunciation_tips",
+    "study_tips",
+    "etymology",
+    "trivia",
+    "usage_note",
+    "synonym_diff",
+    "usage_context",
+    "radicals",
+    "culture_note",
+    "japan_note",
+    "common_situation",
+    "register_note",
+    "word_order",
+  ]) {
+    if (wrong(out[k])) out[k] = "";
+  }
+  // 場面の札は文の欄と同じ（漢字だけ5字以上の札は、日本語の読み手には中文 — 「在夜市點餐時」）。地名は短い欄。
+  if (wrong(out.example_scene)) out.example_scene = "";
+  if (wrong(out.region_scope, { short: true })) out.region_scope = "";
+  // 日本語のカードの注記は、語のかなをそのまま引く（「は↘し＝頭高型」）: 日本語以外の読み手には、かなを除いて
+  // 判じる（日本語の読み手には、かなごと日本語の文）。
+  for (const k of ["pitch_accent", "politeness", "word_origin"]) {
+    const v = out[k];
+    if (typeof v !== "string") continue;
+    if (wrong(readerLang === "ja" ? v : v.replace(/[\u3040-\u30ff]/g, ""))) out[k] = "";
+  }
+  // `short`（漢字だけの和文を残す）は語の欄だけ。注記・札・型の訳は文の欄（オーナー報告「量詞の説明が台湾華語に
+  // なってる」 — 漢字だけ5字以上の注記は、日本語の読み手には中文）。
+  eachItem("examples_extra", [{ name: "ja", source: "zh" }, { name: "scene" }]);
+  eachItem("measure_words", [{ name: "note" }]);
+  eachItem("related_words", [{ name: "note" }]);
+  eachItem("phrasal_verbs", [{ name: "meaning", short: true }]);
+  eachItem("etymology_relatives", [{ name: "note" }]);
+  eachItem("kanji_breakdown", [{ name: "meaning", short: true }]);
+  eachItem("conjugation", [{ name: "form", short: true }]);
+  eachItem("counters", [{ name: "note" }]);
+  eachItem("encounter_labels", [{ name: "label", short: true }]);
+  eachItem("quick_facts", [
+    { name: "label", short: true },
+    { name: "value", short: true },
+  ]);
+  for (const k of ["countability", "stress"]) {
+    const v = out[k];
+    if (v && typeof v === "object" && !Array.isArray(v)) {
+      const o = v as Record<string, unknown>;
+      if (wrong(o.note)) out[k] = { ...o, note: "" };
+    }
+  }
+  // 使い方の型: 型の訳、入れ替えられる部品の意味、その選択肢の意味（R6）。
+  if (Array.isArray(out.usage_chunks)) {
+    out.usage_chunks = out.usage_chunks.map((chunk) => {
+      if (!chunk || typeof chunk !== "object") return chunk;
+      const c = { ...(chunk as Record<string, unknown>) };
+      if (wrong(c.ja)) c.ja = "";
+      if (Array.isArray(c.parts)) {
+        c.parts = c.parts.map((part) => {
+          if (!part || typeof part !== "object") return part;
+          const p = { ...(part as Record<string, unknown>) };
+          if (wrong(p.ja, { short: true })) p.ja = "";
+          if (Array.isArray(p.alts)) {
+            p.alts = p.alts.map((alt) =>
+              alt && typeof alt === "object" && wrong((alt as { ja?: unknown }).ja, { short: true })
+                ? { ...(alt as Record<string, unknown>), ja: "" }
+                : alt,
+            );
+          }
+          return p;
+        });
+      }
+      return c;
+    });
+  }
+  return out as T;
+}
