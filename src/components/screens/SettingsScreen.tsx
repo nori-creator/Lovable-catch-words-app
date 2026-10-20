@@ -47,7 +47,14 @@ import { useTheme } from "@/components/theme-provider";
 import { useReadingPref, setReadingPref, readingChoices } from "@/lib/phonetic";
 import { targetProfile } from "@/lib/target-profile";
 import { levelOptions, restoreLevel } from "@/lib/level-scale";
-import { UI_LANGS, UI_LANG_LABEL_KEYS, TARGET_LANG_LABEL_KEYS, normalizeUiLang } from "@/lib/i18n";
+import {
+  UI_LANGS,
+  UI_LANG_LABEL_KEYS,
+  TARGET_LANG_LABEL_KEYS,
+  isUiLang,
+  normalizeUiLang,
+} from "@/lib/i18n";
+import { isExplainLang } from "@/lib/explain-languages";
 import { useT, setUiLang, storedUiLang, useUiLang, localeOf } from "@/lib/i18n";
 import { AI_CONSENT_VERSION, PRIVACY_AI_SECTION_URL } from "@/lib/ai-consent";
 import { askAiConsent, writeLocalConsent } from "@/lib/ai-consent-client";
@@ -444,6 +451,12 @@ export function SettingsPage() {
    */
   const [nativeLanguage, setNativeLanguage] = useState("ja");
   const [uiLanguage, setUiLanguage] = useState("ja");
+  /**
+   * **Web の画面に無い表示言語**（iOS で選んだスペイン語・韓国語・ベトナム語）。画面は英語で描くが、
+   * 保存では**この値を書き戻す** — 名前を直しただけで、その人の表示言語（と解説の言語）が英語に
+   * 変わってしまわないように。ここで言語を選び直したら消える。
+   */
+  const appOnlyUiLanguage = useRef<string | null>(null);
   const [targetLanguage, setTargetLanguage] = useState<string>(DEFAULT_TARGET_LANGUAGE);
   const [levelGoal, setLevelGoal] = useState(() => LEVEL_SCALE_DEFAULT.goal);
   const [currentLevel, setCurrentLevel] = useState(() => LEVEL_SCALE_DEFAULT.current);
@@ -467,6 +480,7 @@ export function SettingsPage() {
    * 別の効き方をしていた** — 押した人には片方が壊れて見える。
    */
   const pickUiLanguage = (next: string) => {
+    appOnlyUiLanguage.current = null;
     const normalized = normalizeUiLang(next);
     setUiLanguage(normalized);
     setUiLang(normalized);
@@ -632,6 +646,8 @@ export function SettingsPage() {
     // 渡すと「どれも選ばれていない」見た目になり、保存もできない。
     setNativeLanguage(pickL1(profile.native_language, targetPick.value));
     // **知らない値をそのまま渡さない。** 一覧に無い値だと選択が空に見える。
+    appOnlyUiLanguage.current =
+      isExplainLang(picked.uiLanguage) && !isUiLang(picked.uiLanguage) ? picked.uiLanguage : null;
     const nextUi = normalizeUiLang(picked.uiLanguage);
     setUiLanguage(nextUi);
     setUiLang(nextUi);
@@ -698,11 +714,11 @@ export function SettingsPage() {
           // **母語は表示言語から決まる。** 列は残すので、統合後も
           // 食い違わないように同じ値の側から書く(`reader-language.ts`)。
           native_language: readerL1({
-            uiLanguage,
+            uiLanguage: appOnlyUiLanguage.current ?? uiLanguage,
             nativeLanguage,
             targetLanguage,
           }),
-          ui_language: uiLanguage,
+          ui_language: appOnlyUiLanguage.current ?? uiLanguage,
           target_language: targetLanguage,
         },
       });

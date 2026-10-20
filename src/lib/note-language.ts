@@ -23,6 +23,8 @@
  * 外の世界に触れるものをここに入れないこと。
  */
 
+import { explainScript, latinLanguageOf } from "./explain-languages";
+
 /** かな。1文字でもあれば日本語。 */
 const KANA = /[ぁ-ゟァ-ヺ]/;
 /** ラテン文字・キリル文字・ハングル。 */
@@ -103,11 +105,14 @@ export function scrubForeignNotes<T extends NoteBearingExtras>(
  * 「例文の訳に中文が混ざってる。例文の訳は母語（表示言語）にして」— 小腿の例文の訳に、
  * 例文そのもの（中文）がそのまま入っていた）。
  *
- * `looksLikeTargetNote` は日本語で読む人の短い注記だけを見ていた。こちらは表示言語ごとに:
+ * `looksLikeTargetNote` は日本語で読む人の短い注記だけを見ていた。こちらは表示言語ごとに
+ * （言語は書く文字で分かれる — `explain-languages.ts`。iOS の `LanguageRules.looksWrong` と同じ規則）:
  *  - 元の文（例文）と同じ文字列 → 訳していない写し。どの言語でも落とす
  *  - 日本語: かなが無く漢字だけのまとまった文（中文）／かなも漢字も無い欧文の文
- *  - 英語: 漢字・かな・ハングルが混じっている（欧文より多い）
+ *  - 欧文の言語（英語・スペイン語・ベトナム語）: 漢字・かな・ハングルが混じっている（欧文より多い）／
+ *    **別の欧文の言語だとはっきり分かる**（"the … of" をスペイン語の読者に、đ ơ ư を英語の読者に）
  *  - 台湾華語: かなが入っている（日本語）／漢字が無い欧文の文
+ *  - 韓国語: ハングルが無い（漢字・かな・欧文の文）／漢字・かながハングルの2倍より多い
  * 分からないものは落とさない（正しい訳を消さない方を選ぶ）。
  */
 export function looksWrongForReader(
@@ -128,6 +133,7 @@ export function looksWrongForReader(
   const latinWords = (text ?? "").match(/[A-Za-z]{2,}/g)?.length ?? 0;
   const cjk = (s.match(/[㐀-䶿一-鿿々ぁ-ゟァ-ヺ가-힯]/g) ?? []).length;
   const latin = (s.match(/[A-Za-z]/g) ?? []).length;
+  const script = explainScript(readerLang);
   // 欧文だけの訳・意味（「Soup curry」のように2語でも）は、日本語・台湾華語で読む人には
   // 違う言語（R17「日本語にしてるのに、図鑑のスライドの意味や例文の訳に英語が表示される」）。
   // 5文字未満（「OK」「USB」）は略語として残す。漢字・かなが在っても、欧文が大半なら違う。
@@ -142,8 +148,39 @@ export function looksWrongForReader(
     if (!HAN.test(s) && latin >= 5) return true;
     return mostlyLatin;
   }
-  if (lang === "en") return cjk >= 2 && cjk > latin;
+  if (script === "latin") {
+    if (cjk >= 2 && cjk > latin) return true;
+    // 引用（「」『』“”）は学習言語の例なので外して、空白を残した文で見る（語の切れ目が要る）。
+    const other = latinLanguageOf(unquoted(text ?? "") || (text ?? ""));
+    return other !== null && other !== (readerLang ?? "").trim();
+  }
+  if (script === "hangul") {
+    const judged = core(unquoted(text ?? "")) || s;
+    const hangul = (judged.match(/[가-힯ᄀ-ᇿ]/g) ?? []).length;
+    const kana = (judged.match(/[ぁ-ゟァ-ヺ]/g) ?? []).length;
+    const han = (judged.match(/[㐀-䶿一-鿿々]/g) ?? []).length;
+    if (kana >= 2 && kana * 2 >= hangul) return true;
+    if (hangul === 0) return han + kana > 0 || mostlyLatin || latin >= 5;
+    return han + kana > hangul * 2;
+  }
   return false;
+}
+
+/** 引用された部分（「…」『…』“…”"…"）を除いた文。 */
+function unquoted(text: string): string {
+  const pairs: Record<string, string> = { "「": "」", "『": "』", "“": "”", '"': '"' };
+  let out = "";
+  let closing: string | null = null;
+  for (const ch of text) {
+    if (closing) {
+      if (ch === closing) closing = null;
+    } else if (pairs[ch]) {
+      closing = pairs[ch];
+    } else {
+      out += ch;
+    }
+  }
+  return out;
 }
 
 /** 読む人の言語でない訳は空にする。**書き換えず、落とすだけ。** */

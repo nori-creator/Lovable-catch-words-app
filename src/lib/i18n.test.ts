@@ -34,8 +34,14 @@ describe("UI_LANGS", () => {
   });
 
   it("知らない値は既定に落とす(未知の言語のまま描かない)", () => {
-    for (const bad of [null, undefined, "", "  ", "zh-CN", "ko", "en-US"]) {
+    for (const bad of [null, undefined, "", "  ", "zh-CN", "th", "en-US"]) {
       expect([bad, normalizeUiLang(bad)]).toEqual([bad, "ja"]);
+    }
+  });
+
+  it("**iOS だけの表示言語（スペイン語・韓国語・ベトナム語）は英語で描く**(日本語に落とさない)", () => {
+    for (const appOnly of ["es", "ko", "vi"]) {
+      expect([appOnly, normalizeUiLang(appOnly)]).toEqual([appOnly, "en"]);
     }
   });
 

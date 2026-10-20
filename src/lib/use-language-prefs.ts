@@ -33,7 +33,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { getMyProfile, updateMyProfile } from "@/lib/profile.functions";
 import { setTargetLang, storedTargetLang, useTargetLang } from "@/lib/target-lang-pref";
 import { setUiLang, normalizeUiLang, storedUiLang } from "@/lib/i18n";
-import { reconcileLanguage } from "@/lib/language-sync";
+import { reconcileLanguage, reconcileUiLanguage } from "@/lib/language-sync";
 import { DEFAULT_TARGET_LANGUAGE } from "@/lib/target-lang";
 
 /**
@@ -97,7 +97,8 @@ export function useLanguagePrefsSync(): void {
       server: p.target_language,
       fallback: DEFAULT_TARGET_LANGUAGE,
     });
-    const ui = reconcileLanguage({
+    // Web の画面に無い表示言語（iOS のスペイン語など）はサーバが勝ち、書き戻さない（`reconcileUiLanguage`）。
+    const ui = reconcileUiLanguage({
       stored: foreign ? null : storedUiLang(),
       server: p.ui_language,
       fallback: "ja",

@@ -6,7 +6,7 @@ import { shortMeaning } from "./meaning-rule";
 import { readerText } from "./note-language";
 import { detectQueryLang } from "./text-query-lang";
 import { DEFAULT_TARGET_LANGUAGE } from "./target-lang";
-import type { UiLang } from "./i18n";
+import type { ExplainLang } from "./explain-languages";
 
 /** 写真の候補1つ（`suggestWords` の生成の形のうち、ここで読む欄）。 */
 export type PhotoSuggestion = {
@@ -41,7 +41,7 @@ export type ReadingCheck = <T extends { pinyin?: string; reading_zhuyin?: string
  */
 export function finishPhotoCandidates<T extends PhotoSuggestion>(
   usable: readonly T[],
-  reader: UiLang,
+  reader: ExplainLang,
   targetLanguage: string,
   correctReading: ReadingCheck,
 ) {
@@ -71,7 +71,7 @@ const HAN_ONLY = /^\p{Script=Han}+$/u;
  * ただし日本語で読む人には、見出し語と同じ字でも日本語の語なら出す（花・花瓶・椅子 — 台湾の字にしか無い形
  * 「貓」「腳」を含む物は写し）。前はこれも写しとして落とし、タグが空になっていた（画面は見出し語を出していた）。
  */
-export function isReaderTagText(text: string, reader: UiLang, headword: string): boolean {
+export function isReaderTagText(text: string, reader: ExplainLang, headword: string): boolean {
   if (readerText(text, reader, headword)) return true;
   const t = (text ?? "").trim();
   return (

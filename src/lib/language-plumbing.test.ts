@@ -429,8 +429,9 @@ describe("中身の無いプロフィールで端末の言語を上書きしな�
     expect(src).toMatch(
       /reconcileLanguage\(\{[\s\S]{0,120}?stored: (?:foreign \? null : )?storedTargetLang\(\)/,
     );
+    // 表示言語は `reconcileUiLanguage`（Web に無い iOS の言語はサーバが勝つ — それ以外は同じ規則）。
     expect(src).toMatch(
-      /reconcileLanguage\(\{[\s\S]{0,120}?stored: (?:foreign \? null : )?storedUiLang\(\)/,
+      /reconcileUiLanguage\(\{[\s\S]{0,120}?stored: (?:foreign \? null : )?storedUiLang\(\)/,
     );
     // 生のサーバの値をそのまま書かないこと。
     expect(src).not.toMatch(/setTargetLang\(p\.target_language\)/);
@@ -1083,7 +1084,8 @@ describe("2026-08-26 の報告: 言語が混ざる", () => {
     const src = codeOnly(read("components/screens/SettingsScreen.tsx"));
     const first = src.slice(src.indexOf("async function handleSave"));
     const call = first.slice(first.indexOf("await updateProfile"), first.indexOf("});") + 3);
-    expect(call).toMatch(/ui_language: uiLanguage/);
+    // Web に無い iOS の表示言語（スペイン語など）は、それをそのまま書き戻す。
+    expect(call).toMatch(/ui_language: (?:appOnlyUiLanguage\.current \?\? )?uiLanguage/);
     expect(call).toMatch(/target_language: targetLanguage/);
     // **同じ塊にレベルや名前を入れない。**
     expect(call).not.toMatch(/level_goal/);
