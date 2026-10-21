@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
 import { Route as AdsDottxtRouteImport } from './routes/ads[.]txt'
+import { Route as AppAdsDottxtRouteImport } from './routes/app-ads[.]txt'
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as McpRouteImport } from './routes/mcp'
 import { Route as NativeAuthRouteImport } from './routes/native-auth'
@@ -56,6 +57,11 @@ const AuthenticatedRouteRoute = AuthenticatedRouteRouteImport.update({
 const AdsDottxtRoute = AdsDottxtRouteImport.update({
   id: '/ads.txt',
   path: '/ads.txt',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AppAdsDottxtRoute = AppAdsDottxtRouteImport.update({
+  id: '/app-ads.txt',
+  path: '/app-ads.txt',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AuthRoute = AuthRouteImport.update({
@@ -223,6 +229,7 @@ const AuthenticatedDexStickerIdRoute =
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/ads.txt': typeof AdsDottxtRoute
+  '/app-ads.txt': typeof AppAdsDottxtRoute
   '/auth': typeof AuthRoute
   '/mcp': typeof McpRoute
   '/native-auth': typeof NativeAuthRoute
@@ -258,6 +265,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/ads.txt': typeof AdsDottxtRoute
+  '/app-ads.txt': typeof AppAdsDottxtRoute
   '/auth': typeof AuthRoute
   '/mcp': typeof McpRoute
   '/native-auth': typeof NativeAuthRoute
@@ -295,6 +303,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/_authenticated': typeof AuthenticatedRouteRouteWithChildren
   '/ads.txt': typeof AdsDottxtRoute
+  '/app-ads.txt': typeof AppAdsDottxtRoute
   '/auth': typeof AuthRoute
   '/mcp': typeof McpRoute
   '/native-auth': typeof NativeAuthRoute
@@ -332,6 +341,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/ads.txt'
+    | '/app-ads.txt'
     | '/auth'
     | '/mcp'
     | '/native-auth'
@@ -367,6 +377,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/ads.txt'
+    | '/app-ads.txt'
     | '/auth'
     | '/mcp'
     | '/native-auth'
@@ -403,6 +414,7 @@ export interface FileRouteTypes {
     | '/'
     | '/_authenticated'
     | '/ads.txt'
+    | '/app-ads.txt'
     | '/auth'
     | '/mcp'
     | '/native-auth'
@@ -440,6 +452,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AuthenticatedRouteRoute: typeof AuthenticatedRouteRouteWithChildren
   AdsDottxtRoute: typeof AdsDottxtRoute
+  AppAdsDottxtRoute: typeof AppAdsDottxtRoute
   AuthRoute: typeof AuthRoute
   McpRoute: typeof McpRoute
   NativeAuthRoute: typeof NativeAuthRoute
@@ -481,6 +494,13 @@ declare module '@tanstack/react-router' {
       path: '/ads.txt'
       fullPath: '/ads.txt'
       preLoaderRoute: typeof AdsDottxtRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/app-ads.txt': {
+      id: '/app-ads.txt'
+      path: '/app-ads.txt'
+      fullPath: '/app-ads.txt'
+      preLoaderRoute: typeof AppAdsDottxtRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/auth': {
@@ -751,6 +771,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
   AdsDottxtRoute: AdsDottxtRoute,
+  AppAdsDottxtRoute: AppAdsDottxtRoute,
   AuthRoute: AuthRoute,
   McpRoute: McpRoute,
   NativeAuthRoute: NativeAuthRoute,
@@ -774,13 +795,3 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}
