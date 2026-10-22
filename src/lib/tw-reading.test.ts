@@ -96,6 +96,24 @@ describe("台湾華語の読みの検査（2026-10-03「拿鐵」が nálǎtiě 
     expect(checkTaiwanReading("不要", "bú yào", "ㄅㄨˊ ㄧㄠˋ").fixed).toEqual([]);
   });
 
+  it("別の語の読み・区切りの無い注音を直す（2026-10-22 面紙 の行が 衛生紙 の読みだった）", () => {
+    expect(checkTaiwanReading("面紙", "wèishēngzhǐ", "ㄨㄟˋ ㄕㄥ ㄓˇ")).toMatchObject({
+      pinyin: "miàn zhǐ",
+      zhuyin: "ㄇㄧㄢˋ ㄓˇ",
+    });
+    // 音節が合っていても、空白で区切られていない注音は区切った物にする（iOS は空白で字ごとに並べる）。
+    const unspaced = checkTaiwanReading("學生證", "xuéshēngzhèng", "ㄒㄩㄝˊㄕㄥㄓㄥˋ");
+    expect(unspaced.zhuyin).toBe("ㄒㄩㄝˊ ㄕㄥ ㄓㄥˋ");
+    expect(unspaced.fixed).toEqual(["zhuyin"]);
+    // 酪 は台湾では ㄌㄨㄛˋ（教育部《重編國語辭典》乳酪・優酪乳）。
+    expect(checkTaiwanReading("優酪乳", "yōuluòlǔ", "ㄧㄡ ㄌㄨㄛˋ ㄌㄩˇ")).toMatchObject({
+      pinyin: "yōu luò rǔ",
+      zhuyin: "ㄧㄡ ㄌㄨㄛˋ ㄖㄨˇ",
+    });
+    expect(checkTaiwanReading("乳酪", "", "").zhuyin).toBe("ㄖㄨˇ ㄌㄨㄛˋ");
+    expect(checkTaiwanReading("面紙", "miàn zhǐ", "ㄇㄧㄢˋ ㄓˇ").fixed).toEqual([]);
+  });
+
   it("英語の学習語・漢字以外が混ざる見出しは触らない", () => {
     const en = { headword_zh: "apple", pinyin: "", reading_zhuyin: "/ˈæp.əl/" };
     expect(correctTaiwanReading("en", "apple", en)).toBe(en);

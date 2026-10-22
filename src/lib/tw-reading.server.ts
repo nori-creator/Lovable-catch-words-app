@@ -48,6 +48,9 @@ export const TW_WORDS: Readonly<Record<string, string>> = {
   意識: "yì shì",
   品質: "pǐn zhí",
   性質: "xìng zhí",
+  // 酪 は台湾では語の中で ㄌㄨㄛˋ（教育部: 乳酪 ㄖㄨˇ ㄌㄨㄛˋ・優酪乳 ㄧㄡ ㄌㄨㄛˋ ㄖㄨˇ。辞書は大陸の lào）。
+  優酪乳: "yōu luò rǔ",
+  乳酪: "rǔ luò",
 };
 
 /**
@@ -207,7 +210,10 @@ export function checkTaiwanReading(
     reason = "taiwan";
   }
   const zhuyinFromAi = parseZhuyin(aiZhuyin, n);
-  const zhuyinKept = zhuyinFromAi !== null && sameSyllables(taiwan, zhuyinFromAi);
+  // 音節が空白で区切られていない注音（「ㄒㄩㄝˊㄕㄥㄓㄥˋ」）は作り直す。iOS は空白で区切って字ごとの横に並べるので、
+  // 区切りが無いと字の下に1行で出ていた（2026-10-22、學生證・吸塵器・塑膠袋・青椒）。
+  const spaced = (aiZhuyin ?? "").trim().split(/\s+/).length === n;
+  const zhuyinKept = zhuyinFromAi !== null && spaced && sameSyllables(taiwan, zhuyinFromAi);
   const zhuyin = zhuyinKept ? aiZhuyin : syllablesToZhuyin(taiwan);
   if (zhuyin === null) return untouched;
   const out: ReadingCheck = {

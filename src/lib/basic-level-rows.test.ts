@@ -359,12 +359,12 @@ describe("ほかの行も同じ取り違えをしない（字が同じ 花・椅
     ]) {
       expect([h, basicLevelOf(h, "zh-TW")?.headword]).toEqual([h, basic]);
     }
-    // パンダの写真に 貓・「猫」を足さない。
+    // パンダの写真に 貓・「猫」を足さない（大熊貓 は大陸の言い方なので 熊貓 になる。`taiwan-words.ts`）。
     expect(
       finish([
         { headword: "大熊貓", meaning_ja: "ジャイアントパンダ", category_key: "animal", group: 0 },
       ]).map((c) => [c.headword, c.tag]),
-    ).toEqual([["大熊貓", "ジャイアントパンダ"]]);
+    ).toEqual([["熊貓", "ジャイアントパンダ"]]);
   });
 });
 
@@ -393,12 +393,16 @@ describe("打った語の候補も同じ表で確かめる", () => {
   });
 });
 
-describe("指示文: label・意味は写真の物の headword の訳（例を写さない）", () => {
+describe("指示文: label は写真の物そのものの表示言語の名前（例を写さない）", () => {
   it("猫の例と、例を写さない一言が入っている", () => {
     const rule = objectLabelRule("日本語");
     expect(rule).toMatch(/キジトラの猫 → 「猫」/);
-    expect(rule).toMatch(/headword そのものを日本語に訳した語/);
+    expect(rule).toMatch(/写真の物そのものの日本語の名前/);
     expect(rule).toMatch(/上の例の語を写さない/);
+    // 2026-10-22: label は学習言語の語の訳ではない（衛生紙 の訳「トイレットペーパー」をティッシュの箱のタグにしない）。
+    expect(rule).toMatch(/label は学習言語の語の訳ではない/);
+    expect(rule).toMatch(/ティッシュの箱 → label「ティッシュ」/);
+    expect(rule).toMatch(/先に写真を見て label を決め/);
     expect(BASIC_LEVEL_RULE).toMatch(/キジトラの猫 → 貓 → 虎斑貓/);
   });
 });

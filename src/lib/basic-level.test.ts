@@ -236,6 +236,6 @@ describe("写真のタグは基本の名詞・1つ目はタグと同じ物（オ
     const rule = objectLabelRule("日本語");
     expect(rule).toMatch(/「花」（「コスモス」「花束」にしない）/);
     expect(rule).toMatch(/「ケーキ」（「ストロベリーケーキ」/);
-    expect(rule).toMatch(/蛋糕 ↔ ケーキ/);
+    expect(rule).toMatch(/ケーキ ↔ 蛋糕/);
   });
 });

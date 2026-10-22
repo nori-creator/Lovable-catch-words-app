@@ -621,6 +621,28 @@ describe("upsertWord（新しい語の行はサーバの中身だけ — M3 / M4
     expect(JSON.stringify(db.inserts[0])).not.toContain("ATTACKER");
   });
 
+  it("新しい行の読みも検める（2026-10-22 面紙 の行が別の語の読みで作られていた）", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const db = fakeDb({
+      receipts: [
+        receipt({
+          card: {
+            ...(receipt().card as Row),
+            pinyin: "zì xíng chē",
+            reading_zhuyin: "ㄐㄧㄠˇㄊㄚˋㄔㄜ",
+          },
+        }),
+      ],
+    });
+    adminMock.current = db.admin;
+    await upsertWord(db.user, "u", word(), "zh-TW");
+    expect(db.inserts[0]).toMatchObject({
+      pinyin: "jiǎo tà chē",
+      reading_zhuyin: "ㄐㄧㄠˇ ㄊㄚˋ ㄔㄜ",
+    });
+    warn.mockRestore();
+  });
+
   it("どちらも無ければ見出しだけの行（後からサーバの生成が埋める）。誤答は作らない", async () => {
     const db = fakeDb({ receipts: [] });
     adminMock.current = db.admin;
