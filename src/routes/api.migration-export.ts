@@ -48,7 +48,13 @@ const PER_USER: Record<string, { user: string; order: string }> = {
 
 /** 写真の場所を持つ列（中身は保管庫の中の場所か、その場所を含む URL）。 */
 const PHOTO_COLUMNS: Record<string, string[]> = {
-  stickers: ["object_image_url", "cutout_image_url", "selfie_image_url", "placeholder_image_url", "voice_video_url"],
+  stickers: [
+    "object_image_url",
+    "cutout_image_url",
+    "selfie_image_url",
+    "placeholder_image_url",
+    "voice_video_url",
+  ],
   encounters: ["image_path", "cutout_path"],
   profiles: ["avatar_url"],
 };
@@ -79,7 +85,10 @@ export const Route = createFileRoute("/api/migration-export")({
         const url = new URL(request.url);
         const what = url.searchParams.get("what") ?? "";
         const offset = Math.max(0, Number(url.searchParams.get("offset") ?? "0") || 0);
-        const limit = Math.min(MAX_LIMIT, Math.max(1, Number(url.searchParams.get("limit") ?? "500") || 500));
+        const limit = Math.min(
+          MAX_LIMIT,
+          Math.max(1, Number(url.searchParams.get("limit") ?? "500") || 500),
+        );
         const json = (body: unknown) =>
           Response.json(body, { headers: { "Cache-Control": "no-store" } });
 
@@ -87,7 +96,10 @@ export const Route = createFileRoute("/api/migration-export")({
         const realUsers = async (): Promise<string[]> => {
           const ids: string[] = [];
           for (let page = 1; page < 100; page++) {
-            const { data, error } = await supabaseAdmin.auth.admin.listUsers({ page, perPage: 1000 });
+            const { data, error } = await supabaseAdmin.auth.admin.listUsers({
+              page,
+              perPage: 1000,
+            });
             if (error) throw error;
             for (const u of data.users) if (!u.is_anonymous) ids.push(u.id);
             if (data.users.length < 1000) break;
@@ -99,14 +111,19 @@ export const Route = createFileRoute("/api/migration-export")({
 
         if (what === "table") {
           const table = url.searchParams.get("table") ?? "";
-          const shared = Object.prototype.hasOwnProperty.call(SHARED, table) ? SHARED[table] : undefined;
-          const perUser = Object.prototype.hasOwnProperty.call(PER_USER, table) ? PER_USER[table] : undefined;
+          const shared = Object.prototype.hasOwnProperty.call(SHARED, table)
+            ? SHARED[table]
+            : undefined;
+          const perUser = Object.prototype.hasOwnProperty.call(PER_USER, table)
+            ? PER_USER[table]
+            : undefined;
           if (!shared && !perUser) return json({ error: "unknown table" });
           // 型の付いた表の一覧に無い名前も読むので、ここだけ型を外す。
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           let q: any = (supabaseAdmin as any).from(table).select("*");
           if (perUser) q = q.in(perUser.user, await realUsers());
-          for (const col of (shared ?? perUser!.order).split(",")) q = q.order(col, { ascending: true });
+          for (const col of (shared ?? perUser!.order).split(","))
+            q = q.order(col, { ascending: true });
           const { data, error } = await q.range(offset, offset + limit - 1);
           if (error) return json({ error: error.message });
           return json({ rows: data ?? [] });
@@ -148,7 +165,8 @@ export const Route = createFileRoute("/api/migration-export")({
                   if (error) throw error;
                   for (const item of data ?? []) {
                     const name = `${prefix}/${item.name}`;
-                    if (item.id === null) await walk(name); // フォルダ
+                    if (item.id === null)
+                      await walk(name); // フォルダ
                     else all.push({ bucket, name });
                   }
                   if ((data ?? []).length < 1000) break;
