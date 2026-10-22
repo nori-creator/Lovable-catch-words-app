@@ -33,6 +33,7 @@ import { Route as AuthenticatedOnboardingRouteImport } from './routes/_authentic
 import { Route as AuthenticatedReviewRouteImport } from './routes/_authenticated/review'
 import { Route as AuthenticatedScanRouteImport } from './routes/_authenticated/scan'
 import { Route as AuthenticatedSettingsRouteImport } from './routes/_authenticated/settings'
+import { Route as ApiMigrationExportRouteImport } from './routes/api.migration-export'
 import { Route as ApiNativeAiRouteImport } from './routes/api.native-ai'
 import { Route as ApiNativeFnRouteImport } from './routes/api.native-fn'
 import { Route as ApiStripeWebhookRouteImport } from './routes/api.stripe-webhook'
@@ -166,6 +167,11 @@ const AuthenticatedSettingsRoute = AuthenticatedSettingsRouteImport.update({
   path: '/settings',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const ApiMigrationExportRoute = ApiMigrationExportRouteImport.update({
+  id: '/api/migration-export',
+  path: '/api/migration-export',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiNativeAiRoute = ApiNativeAiRouteImport.update({
   id: '/api/native-ai',
   path: '/api/native-ai',
@@ -250,6 +256,7 @@ export interface FileRoutesByFullPath {
   '/review': typeof AuthenticatedReviewRoute
   '/scan': typeof AuthenticatedScanRoute
   '/settings': typeof AuthenticatedSettingsRoute
+  '/api/migration-export': typeof ApiMigrationExportRoute
   '/api/native-ai': typeof ApiNativeAiRoute
   '/api/native-fn': typeof ApiNativeFnRoute
   '/api/stripe-webhook': typeof ApiStripeWebhookRoute
@@ -286,6 +293,7 @@ export interface FileRoutesByTo {
   '/review': typeof AuthenticatedReviewRoute
   '/scan': typeof AuthenticatedScanRoute
   '/settings': typeof AuthenticatedSettingsRoute
+  '/api/migration-export': typeof ApiMigrationExportRoute
   '/api/native-ai': typeof ApiNativeAiRoute
   '/api/native-fn': typeof ApiNativeFnRoute
   '/api/stripe-webhook': typeof ApiStripeWebhookRoute
@@ -324,6 +332,7 @@ export interface FileRoutesById {
   '/_authenticated/review': typeof AuthenticatedReviewRoute
   '/_authenticated/scan': typeof AuthenticatedScanRoute
   '/_authenticated/settings': typeof AuthenticatedSettingsRoute
+  '/api/migration-export': typeof ApiMigrationExportRoute
   '/api/native-ai': typeof ApiNativeAiRoute
   '/api/native-fn': typeof ApiNativeFnRoute
   '/api/stripe-webhook': typeof ApiStripeWebhookRoute
@@ -362,6 +371,7 @@ export interface FileRouteTypes {
     | '/review'
     | '/scan'
     | '/settings'
+    | '/api/migration-export'
     | '/api/native-ai'
     | '/api/native-fn'
     | '/api/stripe-webhook'
@@ -398,6 +408,7 @@ export interface FileRouteTypes {
     | '/review'
     | '/scan'
     | '/settings'
+    | '/api/migration-export'
     | '/api/native-ai'
     | '/api/native-fn'
     | '/api/stripe-webhook'
@@ -435,6 +446,7 @@ export interface FileRouteTypes {
     | '/_authenticated/review'
     | '/_authenticated/scan'
     | '/_authenticated/settings'
+    | '/api/migration-export'
     | '/api/native-ai'
     | '/api/native-fn'
     | '/api/stripe-webhook'
@@ -465,6 +477,7 @@ export interface RootRouteChildren {
   WelcomeRoute: typeof WelcomeRoute
   Char91DotmcpChar93ListToolsRoute: typeof Char91DotmcpChar93ListToolsRoute
   Char91DotwellKnownChar93OauthProtectedResourceRoute: typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
+  ApiMigrationExportRoute: typeof ApiMigrationExportRoute
   ApiNativeAiRoute: typeof ApiNativeAiRoute
   ApiNativeFnRoute: typeof ApiNativeFnRoute
   ApiStripeWebhookRoute: typeof ApiStripeWebhookRoute
@@ -643,6 +656,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedSettingsRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/api/migration-export': {
+      id: '/api/migration-export'
+      path: '/api/migration-export'
+      fullPath: '/api/migration-export'
+      preLoaderRoute: typeof ApiMigrationExportRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/native-ai': {
       id: '/api/native-ai'
       path: '/api/native-ai'
@@ -785,6 +805,7 @@ const rootRouteChildren: RootRouteChildren = {
   Char91DotmcpChar93ListToolsRoute: Char91DotmcpChar93ListToolsRoute,
   Char91DotwellKnownChar93OauthProtectedResourceRoute:
     Char91DotwellKnownChar93OauthProtectedResourceRoute,
+  ApiMigrationExportRoute: ApiMigrationExportRoute,
   ApiNativeAiRoute: ApiNativeAiRoute,
   ApiNativeFnRoute: ApiNativeFnRoute,
   ApiStripeWebhookRoute: ApiStripeWebhookRoute,
@@ -795,3 +816,13 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { startInstance } from './start.ts'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
+  }
+}
