@@ -1414,8 +1414,8 @@ ${examplesRule}
 
 extras 項目（**すべて具体的な内容で必ず埋めること**。空文字・空配列で返さない）:
 
-チャンク分解の共通ルール: parts/chunks は {text: ${cardProfile.promptName}のパーツ, pos: 役割} の配列。
-pos は ${cardProfile.chunkRoles.join(" / ")} を使う。
+チャンク分解の共通ルール: parts/chunks は {text: ${cardProfile.promptName}のパーツ, pos: 品詞} の配列。
+${cardProfile.chunkPrompt.posRule}
 「${data.headword}」自体は必ずどれかのパーツとして含める。${NO_PLUS_PART_RULE}
 
 ${
