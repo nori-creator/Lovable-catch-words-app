@@ -359,12 +359,12 @@ describe("ほかの行も同じ取り違えをしない（字が同じ 花・椅
     ]) {
       expect([h, basicLevelOf(h, "zh-TW")?.headword]).toEqual([h, basic]);
     }
-    // パンダの写真に 貓・「猫」を足さない。
+    // パンダの写真に 貓・「猫」を足さない（大熊貓 は大陸の言い方なので 熊貓 になる。`taiwan-words.ts`）。
     expect(
       finish([
         { headword: "大熊貓", meaning_ja: "ジャイアントパンダ", category_key: "animal", group: 0 },
       ]).map((c) => [c.headword, c.tag]),
-    ).toEqual([["大熊貓", "ジャイアントパンダ"]]);
+    ).toEqual([["熊貓", "ジャイアントパンダ"]]);
   });
 });
 

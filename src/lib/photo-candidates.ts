@@ -5,7 +5,8 @@ import { fitSuggestionsToReader, fitsReaderNote } from "./first-catch-meaning";
 import { shortMeaning } from "./meaning-rule";
 import { readerText } from "./note-language";
 import { detectQueryLang } from "./text-query-lang";
-import { DEFAULT_TARGET_LANGUAGE } from "./target-lang";
+import { DEFAULT_TARGET_LANGUAGE, normalizeTargetLanguage } from "./target-lang";
+import { toTaiwanWords } from "./taiwan-words";
 import type { ExplainLang } from "./explain-languages";
 
 /** 写真の候補1つ（`suggestWords` の生成の形のうち、ここで読む欄）。 */
@@ -34,6 +35,7 @@ export type ReadingCheck = <T extends { pinyin?: string; reading_zhuyin?: string
  * **写真の候補を、画面に出す順・形にする**（本番の `suggestWords` と「固定の写真で試す」で同じ。学習言語の語だけに
  * した後 — `keepTargetHeadwords` — に呼ぶ）。AI は呼ばない。
  *
+ * 0. 大陸の言い方の見出し語は台湾の言い方に（塑料袋 → 塑膠袋。`toTaiwanWords`、2026-10-22）。
  * 1. 全部の候補に印を付け、物ごとに 一般的 → 口語 → より詳しい → 学術的 → 固有名詞 に並べる（`finalizeNameRegisters`）。
  * 2. 物の1つ目は基本の名詞（波斯菊 → 花、草莓蛋糕 → 蛋糕。`ensureBasicLevel`、2026-10-15）。
  * 3. 意味は読む人の言語・語の長さに。読みを検め、分類は見出し語の規則で直し、同じ物の別の呼び方から借りる。
@@ -47,7 +49,11 @@ export function finishPhotoCandidates<T extends PhotoSuggestion>(
   targetLanguage: string,
   correctReading: ReadingCheck,
 ) {
-  const basic = ensureBasicLevel(finalizeNameRegisters(usable), targetLanguage, reader);
+  const taiwan =
+    normalizeTargetLanguage(targetLanguage) === DEFAULT_TARGET_LANGUAGE
+      ? toTaiwanWords(usable)
+      : usable;
+  const basic = ensureBasicLevel(finalizeNameRegisters(taiwan), targetLanguage, reader);
   const fitted = fitSuggestionsToReader(basic, reader, targetLanguage).map((s) => ({
     // 候補の読みも検める（`tw-reading.server.ts`）。
     ...correctReading(targetLanguage, s.headword, s),
