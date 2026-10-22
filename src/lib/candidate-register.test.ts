@@ -147,6 +147,48 @@ describe("写真のタグは表示言語の一般的な呼び名（2026-10-15: �
     expect(out[0].object_label).toBe("いちごのショートケーキ");
   });
 
+  it("2026-10-22 ティッシュの箱: label が同じ物のどれかの候補の意味に合えば、1つ目の意味の最初でなくてもタグにする", () => {
+    // 台湾では 衛生紙 がティッシュもトイレットペーパーも指す。前は1つ目の意味の最初「トイレットペーパー」がタグになった。
+    const out = applyObjectLabels(
+      [
+        {
+          headword: "衛生紙",
+          register: "common",
+          meaning_ja: "トイレットペーパー、ティッシュ",
+          label: "ティッシュ",
+          group: 0,
+        },
+        { headword: "面紙", register: "specific", meaning_ja: "ティッシュペーパー", group: 0 },
+      ],
+      ja,
+    );
+    expect(out.map((c) => c.object_label)).toEqual(["ティッシュ", "ティッシュ"]);
+    expect(out[0].meaning_ja).toBe("トイレットペーパー、ティッシュ");
+    // 同じ言い方が無ければ、label で始まる候補の意味（ティッシュ → 面紙 の「ティッシュペーパー」）。
+    const second = applyObjectLabels(
+      [
+        {
+          headword: "衛生紙",
+          register: "common",
+          meaning_ja: "トイレットペーパー",
+          label: "ティッシュ",
+          group: 0,
+        },
+        { headword: "面紙", register: "specific", meaning_ja: "ティッシュペーパー", group: 0 },
+      ],
+      ja,
+    );
+    expect(second[0].object_label).toBe("ティッシュペーパー");
+  });
+
+  it("どの候補の意味にも合わない label はタグにしない（タグとタップした先の語を食い違わせない）", () => {
+    const out = applyObjectLabels(
+      [{ headword: "醬油", register: "common", meaning_ja: "醤油", label: "ソース", group: 0 }],
+      ja,
+    );
+    expect(out[0].object_label).toBe("醤油");
+  });
+
   it("label が読む言語でない（見出し語の写し）なら、common の意味の最初の言い方", () => {
     const out = applyObjectLabels(
       [{ headword: "內褲", meaning_ja: "下着（パンツ類）", label: "內褲", group: 0 }],

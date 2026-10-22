@@ -190,8 +190,10 @@ export function glossesOf(meaning: string | null | undefined): string[] {
  * - 1つ目が表の基本の語（貓・狗・內褲… `basic-level.ts`）なら、タグは表の表示言語の名前（猫 / cat / 貓）—
  *   呼ぶ側が `rowTag` で渡す。基本の語の名前は表が知っているので、AI の label・意味の書き間違い（2026-10-15:
  *   貓 に「犬」）をタグにしない。
- * - それ以外は1つ目の候補の意味の言い方のどれか。AI が付けた `label` がその中に在ればそれ（「パンツ、下着」と
- *   label「下着」→「下着」）、無ければ意味の最初の言い方。読む人の言語でなければ空（画面は見出し語を出す）。
+ * - それ以外は AI が写真を見て付けた `label`（表示言語の名前）が、同じ物のどれかの候補の意味に合えばそれ（「パンツ、
+ *   下着」と label「下着」→「下着」。衛生紙「トイレットペーパー、ティッシュ」と label「ティッシュ」→「ティッシュ」）、
+ *   同じ言い方が無ければ label で始まる候補の意味（面紙「ティッシュペーパー」）、どちらも無ければ1つ目の意味の最初の
+ *   言い方。読む人の言語でなければ空（画面は見出し語を出す）。
  * - **候補の意味は書き換えない**（#184 は1つ目の意味をタグに書き換えていて、草莓蛋糕 の意味が「ケーキ」に
  *   なった）。タグに合う基本の語（蛋糕 = ケーキ）が候補に無い時は、先に `ensureBasicLevel` が足す。
  * - 物の全部の候補に `object_label`（タグの文字）を付ける。
@@ -222,9 +224,19 @@ export function applyObjectLabels<
       continue;
     }
     const glosses = glossesOf(common.meaning_ja).filter((g) => isReaderText(g, common));
-    const fromModel = list
-      .map((c) => firstGloss(c.label ?? ""))
-      .find((l) => l && glosses.includes(l));
+    // タグは、AI が写真を見て付けた表示言語の名前（label）に合う、同じ物の**どれかの**候補の意味（2026-10-22
+    // ティッシュの箱のタグが「トイレットペーパー」: 1つ目の 衛生紙 の意味しか見ず、指示文も label を 衛生紙 の訳に
+    // していた）。同じ言い方が無ければ、label で始まる意味（「ティッシュ」→「ティッシュペーパー」。「花」→「花瓶」も
+    // 候補の意味なので、タグは label の「花」ではなく「花瓶」）。タグはいつも候補の意味のどれか — どの候補の意味にも
+    // 合わない label は使わない（タグとタップした先の語を食い違わせない。2026-10-15 のケーキ）。
+    const known = list.flatMap((c) => glossesOf(c.meaning_ja).filter((g) => isReaderText(g, c)));
+    let fromModel: string | undefined;
+    for (const c of list) {
+      const l = firstGloss(c.label ?? "");
+      if (!l || !isReaderText(l, common)) continue;
+      fromModel = known.find((g) => g === l) ?? known.find((g) => g.startsWith(l));
+      if (fromModel) break;
+    }
     labelOf.set(key, fromModel ?? glosses[0] ?? "");
   }
   return items.map((it) => {
@@ -240,14 +252,21 @@ export function applyObjectLabels<
 /** 指示文に入れるタグの説明（写真の候補）。`nl` は解説の言語の呼び名。 */
 export function objectLabelRule(nl: string): string {
   return (
-    `物ごとに、**1つ目（common）の候補に label を付ける**: 写っている物の**${nl}でのいちばん一般的な呼び名**` +
-    `（その common の語の${nl}の訳。写真のタグに出る）。${nl}を話す子どもがその物を見て最初に言う基本の名詞にする — ` +
+    `物ごとに、**1つ目（common）の候補に label を付ける**: **写真に写っている物を${nl}を話す人が見て呼ぶ名前**` +
+    `（写真のタグに出る）。**先に写真を見て label を決め、それから その物の${nl}ではなく学習言語の呼び名を並べる**。` +
+    `label は学習言語の語の訳ではない — 学習言語の語の意味が${nl}の語より広くても狭くても、label は写真の物の名前にする` +
+    `（2026-10-22: ティッシュの箱 → label「ティッシュ」（英語なら tissue）。台湾では 衛生紙 がティッシュもトイレット` +
+    `ペーパーも指すが、label を 衛生紙 の訳の「トイレットペーパー」（toilet paper）にしない / お好み焼きソースのボトル → ` +
+    `「ソース」（sauce）。醬油 は醤油（soy sauce）の時だけ。label の言語はいつも${nl} — 例の日本語・英語を写さない）。` +
+    `${nl}を話す子どもがその物を見て最初に言う基本の名詞にする — ` +
     `種類・品種・味・ブランドの名前、説明、上位の分類語（植物・食べ物・衣類）にしない。` +
-    `例: ボクサーパンツ → label「下着」（內褲の訳。英語なら underwear。「ボクサーパンツ」「パンツ」「男性用の下着」にしない）/ ` +
+    `例: ボクサーパンツ → label「下着」（英語なら underwear。「ボクサーパンツ」「パンツ」「男性用の下着」にしない）/ ` +
     `コスモスの花束 → 「花」（「コスモス」「花束」にしない）/ イチゴのショートケーキ → 「ケーキ」（「ストロベリーケーキ」` +
     `「イチゴのケーキ」にしない）/ 柴犬 → 「犬」/ キジトラの猫 → 「猫」/ 木の椅子 → 「椅子」。` +
-    `label と common の語は同じ物を指す（蛋糕 ↔ ケーキ、花 ↔ 花）。common の候補の meaning_ja も label と同じ言い方から始める。` +
-    `**label と meaning_ja は、その写真の物の common の headword そのものを${nl}に訳した語**（上の例の語を写さない。` +
-    `例: 貓 → 日本語「猫」・英語 cat、狗 → 日本語「犬」・英語 dog）。`
+    `**common の headword は label の物を指す学習言語の語**（ケーキ ↔ 蛋糕、花 ↔ 花、ティッシュ ↔ 衛生紙・面紙）。` +
+    `label と違う物の語（ソースに 醬油）を1つ目にしない。common の候補の meaning_ja は、その語の本当の意味を書く` +
+    `（衛生紙 なら「ティッシュ、トイレットペーパー」）。` +
+    `**label は、その写真の物そのものの${nl}の名前**（上の例の語を写さない。` +
+    `例: 猫の写真 → 日本語「猫」・英語 cat、犬の写真 → 日本語「犬」・英語 dog）。`
   );
 }

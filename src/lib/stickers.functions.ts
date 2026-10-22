@@ -41,6 +41,33 @@ async function withReadingsOnRead<T extends WordExtrasDTO | null>(
     return extras;
   }
 }
+
+/**
+ * 1枚の札を読む時、語の読み（拼音・注音）も検める（台湾華語だけ。`tw-reading.server.ts`）。共有の行は書き換えない。
+ * 読みの検めが入る前に作られた行には、別の語の読みや区切りの無い注音が残りうる（2026-10-22「面紙の注音が間違ってる」—
+ * 面紙の行が 衛生紙 の読み ㄨㄟˋ ㄕㄥ ㄓˇ を持っていた。本番の行は直した）。
+ */
+async function withWordReadingOnRead<
+  W extends {
+    headword: string;
+    language?: string | null;
+    pinyin: string | null;
+    reading_zhuyin: string | null;
+  },
+>(word: W): Promise<W> {
+  // 読みの無い行は付け足さない（後からサーバの生成が埋める）。書かれた読みだけ検める。
+  if (!word.pinyin?.trim() && !word.reading_zhuyin?.trim()) return word;
+  try {
+    const { correctTaiwanReading } = await import("./tw-reading.server");
+    const before = { pinyin: word.pinyin ?? "", reading_zhuyin: word.reading_zhuyin ?? "" };
+    const after = correctTaiwanReading(word.language, word.headword, before);
+    if (after === before) return word;
+    return { ...word, pinyin: after.pinyin || null, reading_zhuyin: after.reading_zhuyin || null };
+  } catch (e) {
+    console.warn("getSticker: 語の読みを検められなかった", (e as Error)?.message);
+    return word;
+  }
+}
 import {
   BoundedExtrasSchema,
   LanguageCodeSchema,
@@ -746,7 +773,7 @@ export const getSticker = createServerFn({ method: "GET" })
       // 退役した欄（口語/書面の札）は返さない。台湾華語の型の札には読み（拼音・注音）を付けて返す —
       // 古いカードは読みを持っていないので、読む所で辞書から付ける（`chunk-readings.server.ts`）。
       word: {
-        ...wRaw,
+        ...(await withWordReadingOnRead(wRaw)),
         extras: await withReadingsOnRead(
           publicExtras(wRaw.extras),
           (wRaw as { language?: string | null }).language ?? null,
@@ -986,7 +1013,18 @@ export async function upsertWord(
       .maybeSingle();
     if (!catRow) categoryKey = "other";
 
-    const cols = content.columns;
+    // 新しい行の読みも検める（中身がどの道 — 控えのカード・候補・辞書・画面 — から来ても。2026-10-22、面紙の行が
+    // 衛生紙 の読みのまま作られ、全員の 面紙 に出ていた）。読みの無い行は見出しだけのまま（後から生成が埋める）。
+    // 検められなくてもキャッチは止めない。
+    let cols = content.columns;
+    if (cols.pinyin?.trim() || cols.reading_zhuyin?.trim()) {
+      try {
+        const { correctTaiwanReading } = await import("./tw-reading.server");
+        cols = correctTaiwanReading(language, word.headword, cols);
+      } catch (e) {
+        console.warn("upsertWord: 読みを検められなかった", (e as Error)?.message);
+      }
+    }
     const row = {
       language,
       headword: word.headword,

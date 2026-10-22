@@ -393,12 +393,16 @@ describe("打った語の候補も同じ表で確かめる", () => {
   });
 });
 
-describe("指示文: label・意味は写真の物の headword の訳（例を写さない）", () => {
+describe("指示文: label は写真の物そのものの表示言語の名前（例を写さない）", () => {
   it("猫の例と、例を写さない一言が入っている", () => {
     const rule = objectLabelRule("日本語");
     expect(rule).toMatch(/キジトラの猫 → 「猫」/);
-    expect(rule).toMatch(/headword そのものを日本語に訳した語/);
+    expect(rule).toMatch(/写真の物そのものの日本語の名前/);
     expect(rule).toMatch(/上の例の語を写さない/);
+    // 2026-10-22: label は学習言語の語の訳ではない（衛生紙 の訳「トイレットペーパー」をティッシュの箱のタグにしない）。
+    expect(rule).toMatch(/label は学習言語の語の訳ではない/);
+    expect(rule).toMatch(/ティッシュの箱 → label「ティッシュ」/);
+    expect(rule).toMatch(/先に写真を見て label を決め/);
     expect(BASIC_LEVEL_RULE).toMatch(/キジトラの猫 → 貓 → 虎斑貓/);
   });
 });
