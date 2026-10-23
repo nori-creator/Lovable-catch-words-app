@@ -88,3 +88,48 @@ describe("型・extras", () => {
     expect(ex).not.toHaveProperty("example_chunks");
   });
 });
+
+describe("使い方パターン（2026-10-23）", () => {
+  it("パターンの公式の札と、例文を語に分けた札にも読みを付ける（入っていた欄だけ）", () => {
+    const ex = withChunkReadingsInExtras(
+      {
+        usage_patterns: [
+          {
+            kind: "action",
+            scene: "トイレを使った後",
+            share: 30,
+            chunk: {
+              parts: [
+                { text: "沖", pos: "V" },
+                { text: "馬桶", pos: "N", slot: true, alts: [{ text: "廁所", ja: "トイレ" }] },
+              ],
+              ja: "トイレを流す",
+            },
+            example: {
+              zh: "用完記得要沖馬桶喔。",
+              ja: "使ったら流してね。",
+              chunk_in_example: true,
+              chunks: [
+                { text: "沖", pos: "V" },
+                { text: "馬桶", pos: "N" },
+              ],
+            },
+            note: "",
+          },
+        ],
+      } as never,
+      "zh-TW",
+    ) as {
+      usage_patterns: Array<{
+        chunk: { parts: Array<{ pinyin?: string; alts?: Array<{ pinyin?: string }> }> };
+        example: { chunks: Array<{ zhuyin?: string }> };
+      }>;
+      usage_chunks?: unknown;
+    };
+    const p = ex.usage_patterns[0];
+    expect(p.chunk.parts.map((x) => x.pinyin)).toEqual(["chōng", "mǎ tǒng"]);
+    expect(p.chunk.parts[1].alts?.[0].pinyin).toBe("cè suǒ");
+    expect(p.example.chunks.every((c) => !!c.zhuyin)).toBe(true);
+    expect(ex).not.toHaveProperty("usage_chunks");
+  });
+});

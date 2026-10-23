@@ -19,7 +19,8 @@ import { NOT_GENERATED_SECTIONS, type SectionId } from "./card-sections";
  * 機能（棚・場面・級）もそれらを使うので、見えていなくても省かない。
  */
 export const OPTIONAL_EXTRA_KEYS: Partial<Record<SectionId, readonly string[]>> = {
-  usage_chunks: ["usage_chunks"],
+  // 使い方パターン（2026-10-23）は公式の節と同じ節（iOS の「使い方パターン」のカードが読む）。
+  usage_chunks: ["usage_chunks", "usage_patterns", "usage_v"],
   examples_extra: ["examples_extra"],
   related_words: ["related_words"],
   measure_words: ["measure_words"],

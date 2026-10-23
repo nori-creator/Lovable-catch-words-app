@@ -192,6 +192,60 @@ export function isGenericChunk(
   return content.every((w) => light.has(w));
 }
 
+/**
+ * **弱い相手**（オーナー決定 2026-10-23「使い方パターン」の設計 — 2026-08-28 の「喝珍珠奶茶 は残す」の改正）。
+ *
+ * 地瓜・蛋糕・珍珠奶茶に「〜＋很＋甜 / 好喝」、夾子に「拿＋夾子」のような、**どの名詞にも付く型**が公式として出ていた
+ * （指示文の見本 芒果＋很＋甜 そのものだった）。基準は「別の100の名詞にも当てはまるか」:
+ * - 吃/喝/拿/買/看/做/用 を**単独で**名詞に付けただけ（動詞がそれ1つ・ほかに中身が無い）
+ * - 名詞＋程度の語＋好/好吃/好喝/甜/大/貴/漂亮/美 のような、ありふれた述語だけ
+ *
+ * `LIGHT_WORDS`（落とす）とは違い、**落とさずに後ろへ回す**: 強い公式が2つ以上あれば落とし、無ければ最後に残す
+ * （`usage-patterns.ts` の `gateUsagePatterns`）。「喝珍珠奶茶」は「飲む物だ」という情報はあるので、ほかに公式が
+ * 無い語では残る。台湾華語だけ（ほかの言語の表はまだ無い）。
+ */
+export const WEAK_PARTNERS: Record<
+  string,
+  { verbs: readonly string[]; degrees: readonly string[]; predicates: readonly string[] }
+> = {
+  "zh-TW": {
+    verbs: ["吃", "喝", "拿", "買", "看", "做", "用"],
+    degrees: ["很", "超", "非常", "好", "太", "有點", "蠻", "真", "滿", "挺"],
+    predicates: ["好", "好吃", "好喝", "甜", "大", "貴", "漂亮", "美"],
+  },
+};
+
+/**
+ * その型が**弱い相手**だけで出来ているか（見出し語と骨組みを外した残りが、弱い動詞1つだけ、または
+ * 程度の語＋ありふれた述語だけ）。`isGenericChunk` が真の型は、こちらを見るまでもなく落ちる。
+ */
+export function isWeakPartnerChunk(
+  parts: ReadonlyArray<{ text?: string | null } | null | undefined> | null | undefined,
+  headword: string,
+  language?: string | null,
+): boolean {
+  const table = WEAK_PARTNERS[normalizeTargetLanguage(language)];
+  if (!table) return false;
+  const frame = listFor(FRAME_WORDS, language);
+  const head = normalize(headword);
+  const content: string[] = [];
+  for (const p of parts ?? []) {
+    const text = normalize(p?.text ?? "");
+    if (!text) continue;
+    if (head && (text === head || text.includes(head) || head.includes(text))) continue;
+    if (frame.has(text)) continue;
+    content.push(text);
+  }
+  if (content.length === 0) return false;
+  if (content.length === 1 && table.verbs.includes(content[0])) return true;
+  const degrees = new Set(table.degrees);
+  const predicates = new Set(table.predicates);
+  return (
+    content.every((w) => degrees.has(w) || predicates.has(w)) &&
+    content.some((w) => predicates.has(w))
+  );
+}
+
 /** 汎用の型を落とす。 */
 export function withoutGenericChunks<T extends { parts?: ReadonlyArray<{ text?: string | null }> }>(
   chunks: ReadonlyArray<T> | null | undefined,

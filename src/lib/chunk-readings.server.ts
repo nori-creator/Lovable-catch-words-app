@@ -104,10 +104,19 @@ export function withChunkReadingsInExtras<T extends Partial<WordExtrasDTO> | nul
       ...e,
       chunks: (e.chunks ?? []).map(fill),
     }));
+    // 使い方パターン（2026-10-23）: 公式の札と、例文を語に分けた札にも。
+    const patterns = (extras.usage_patterns ?? []).map((p) => ({
+      ...p,
+      chunk: chunkReadingsComplete(p.chunk, language)
+        ? p.chunk
+        : { ...p.chunk, parts: (p.chunk.parts ?? []).map((x) => withPartReadings(x, language)) },
+      example: { ...p.example, chunks: (p.example?.chunks ?? []).map(fill) },
+    }));
     // 入っていた欄だけを返す（無い欄を空の配列で足さない — 作り直しの差分に混ざる）。
     return {
       ...extras,
       ...("usage_chunks" in extras ? { usage_chunks: usage } : {}),
+      ...("usage_patterns" in extras ? { usage_patterns: patterns } : {}),
       ...("example_chunks" in extras ? { example_chunks: example } : {}),
       ...("examples_extra" in extras ? { examples_extra: extra } : {}),
     };

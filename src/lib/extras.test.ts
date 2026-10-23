@@ -10,7 +10,7 @@ import {
   refineUsageChunks,
   chunkMentionsHeadword,
   MAX_CHUNKS,
-  RegenUsageChunksSchema,
+  RegenUsagePatternsSchema,
 } from "./extras";
 import fs from "node:fs";
 import path from "node:path";
@@ -419,31 +419,50 @@ describe("chunkMentionsHeadword / refineUsageChunks drops chunks without the wor
 /**
  * 項目の作り直しで、入れ替える所の候補（`alts`）と意味（`ja`）が消えた（2026-10-07）。
  * `runSectionRegen` の形が `{text,pos,slot}` だけを書き出していたので、zod が黙って落とした。
+ * 2026-10-23 からは使い方パターン（場面・公式・例文）を受ける（`RegenUsagePatternsSchema`）— 公式の部品の形は同じ。
  */
-describe("RegenUsageChunksSchema — 作り直しでも入れ替えの候補を落とさない", () => {
-  it("部品の ja と alts が残る", () => {
-    const out = RegenUsageChunksSchema.parse({
-      usage_chunks: [
+describe("RegenUsagePatternsSchema — 作り直しでも入れ替えの候補を落とさない", () => {
+  it("公式の部品の ja と alts、自己点検の欄が残る", () => {
+    const out = RegenUsagePatternsSchema.parse({
+      usage_patterns: [
         {
-          parts: [
-            { text: "跟", pos: "Ptc" },
-            {
-              text: "男朋友",
-              pos: "O",
-              slot: true,
-              ja: "彼氏",
-              alts: [
-                { text: "女朋友", ja: "彼女" },
-                { text: "朋友", ja: "友だち" },
-              ],
-            },
-            { text: "吵架", pos: "V" },
-          ],
-          ja: "彼氏とけんかする",
+          kind: "action",
+          share: "60",
+          scene: "彼氏とけんかした時",
+          scene_general: true,
+          chunk: {
+            parts: [
+              { text: "跟", pos: "Prep" },
+              {
+                text: "男朋友",
+                pos: "N",
+                slot: true,
+                ja: "彼氏",
+                alts: [
+                  { text: "女朋友", ja: "彼女" },
+                  { text: "朋友", ja: "友だち" },
+                ],
+              },
+              { text: "吵架", pos: "V" },
+            ],
+            ja: "彼氏とけんかする",
+            fits: true,
+            why: "定番",
+          },
+          example: {
+            sentence: "我昨天跟男朋友吵架了。",
+            translation: "昨日彼氏とけんかした。",
+            scene_fits: "true",
+          },
+          note: "",
         },
       ],
     });
-    const slot = out.usage_chunks[0].parts[1];
+    const p = out.usage_patterns[0];
+    expect(p.share).toBe(60);
+    expect(p.chunk.fits).toBe(true);
+    expect(p.example.scene_fits).toBe(true);
+    const slot = p.chunk.parts[1];
     expect(slot.ja).toBe("彼氏");
     expect(slot.alts).toEqual([
       { text: "女朋友", ja: "彼女" },
@@ -452,12 +471,12 @@ describe("RegenUsageChunksSchema — 作り直しでも入れ替えの候補を�
   });
 
   it("空の答えは今までどおり断る（作り直しを失敗として扱う）", () => {
-    expect(RegenUsageChunksSchema.safeParse({ usage_chunks: [] }).success).toBe(false);
+    expect(RegenUsagePatternsSchema.safeParse({ usage_patterns: [] }).success).toBe(false);
   });
 
   it("`runSectionRegen` はこの形を使う（部品の形を書き出さない）", () => {
     const src = fs.readFileSync(path.join(__dirname, "ai.functions.ts"), "utf8");
-    expect(src).toMatch(/schema: RegenUsageChunksSchema/);
+    expect(src).toMatch(/schema: RegenUsagePatternsSchema/);
   });
 });
 

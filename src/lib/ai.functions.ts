@@ -31,14 +31,23 @@ import {
   CounterSchema,
   ExtrasSchema,
   KanjiBreakdownSchema,
-  RegenUsageChunksSchema,
+  RegenUsagePatternsSchema,
   emptyExtras,
   mergeExtras,
   normalizeExtras,
   withoutRetiredExtras,
-  type UsageChunk,
 } from "./extras";
-import { chunkVerifyMode, describeChunkGate, gateUsageChunks } from "./chunk-quality";
+import { chunkVerifyMode, describeChunkGate } from "./chunk-quality";
+import { NO_PLUS_PART_RULE } from "./chunk-prompt-rules";
+import {
+  USAGE_PATTERNS_KEYS,
+  asExamplePatterns,
+  gateUsagePatterns,
+  legacyFieldsFromPatterns,
+  usageFieldsFromPatterns,
+  usagePatternsJsonExample,
+  usagePatternsRule,
+} from "./usage-patterns";
 import { normalizeTargetLanguage } from "./target-lang";
 import { taiwanHeadword } from "./taiwan-words";
 import {
@@ -1370,6 +1379,21 @@ export const generateCard = createServerFn({ method: "POST" })
       chunkRoles: cardProfile.chunkRoles.join(" / "),
       sceneMax: sceneMaxChars(explainLang),
     };
+    /**
+     * **使い方パターン = 場面 ＋ 公式 ＋ 例文**（オーナー要望 2026-10-23、`usage-patterns.ts`）。前は例文（`example_patterns`）と
+     * 公式（`usage_chunks`）を別の欄として頼んでいたので、公式が例文に入っていない・例文が説明文（台灣的珍珠奶茶最有名）・
+     * 公式がどの名詞にも付く型（〜＋很＋甜）になっていた。今は1つのパターンの中で 公式 → 場面 → 例文 の順に書かせ、
+     * 返ってきた物を門で見て（`gateUsagePatterns`）、今までの欄（`usage_chunks` / 例文の欄）にも写す（`legacyFieldsFromPatterns`）。
+     * 作り直し（`runSectionRegen` の `usage_chunks`）も同じ指示文を通る。
+     */
+    const patternRule = usagePatternsRule({
+      ...patternBase,
+      code: cardProfile.code,
+      meaningHint: "上の meaning_ja に書いた意味",
+      levelGoal,
+      learnerL1,
+      l1Gram,
+    });
     const examplesRule = fixedMain
       ? [
           mainExampleLabelRule({
@@ -1381,17 +1405,15 @@ export const generateCard = createServerFn({ method: "POST" })
             translation: true,
             chunkRoles: patternBase.chunkRoles,
           }),
-          want("examples_extra")
-            ? `- example_patterns: メインの例文「${fixedMain}」の**パターンと似たパターンは除き**、ほかによく使うパターンだけを返す。ほかに無ければ空配列 []（数を合わせるために作らない）。\n` +
-              examplePatternsRule({ ...patternBase, max: MAX_EXAMPLE_PATTERNS - 1 })
-            : `- example_patterns: 空配列 [] を返す（メインの例文は上で決まっている）。`,
+          // パターンの例文は、決まったメインの文と似た物を落としてから追加の例文に入る（`applyFixedMainExample`）。
+          `- usage_patterns の example は、メインの例文「${fixedMain}」と**同じ文・似た文にしない**（その公式を使う別の自然な一文にする）。`,
           // 見出し語は AI が決める（母語の入力なら別の語になる — 手紙 → 信）。その時、決まった文は別の語の物で
           // 使えないので、**予備の例文**を1つ必ず書かせる（PR #189 の点検 P2。往復は増やさない）。
-          `- example_fallback: **予備の例文1つ**（example_patterns の1つと同じ形 {share,sentence,translation,scene,chunks,scene_fits}）。` +
+          `- example_fallback: **予備の例文1つ**（{share, sentence, translation, scene: 短い1行(${NL}), chunks:[{text,pos}], scene_fits}）。` +
             `headword_zh が「${data.headword}」と違う語になった時だけ、その語のメインの例文として使う（その時は headword_zh の語を入れた文にする）。` +
             `同じなら使わないので短くてよいが、必ず書く。`,
         ].join("\n")
-      : examplePatternsRule({ ...patternBase, max: maxPatterns });
+      : "";
     const prompt = `「${data.headword}」について、${cardProfile.promptName}の語彙カードを生成してください。
 
 ${langRule}
@@ -1419,7 +1441,7 @@ ${cardProfile.capture.readingRule}
   emoji: 絵文字1つ, room_key: ${ROOM_KEYS.join("/")} のどれか、または新しい部屋の英小文字の鍵,
   room_label: 部屋の名前(${NL}・24字まで)}。
   棚は「街で見かけて集めたくなるまとまり」の粒度で。1語専用の棚は作らない。
-${examplesRule}
+${patternRule}${examplesRule ? `\n${examplesRule}` : ""}
 
 extras 項目（**すべて具体的な内容で必ず埋めること**。空文字・空配列で返さない）:
 
@@ -1427,20 +1449,6 @@ extras 項目（**すべて具体的な内容で必ず埋めること**。空文
 ${cardProfile.chunkPrompt.posRule}
 「${data.headword}」自体は必ずどれかのパーツとして含める。${NO_PLUS_PART_RULE}
 
-${
-  want("usage_chunks")
-    ? `- usage_chunks: ${chunkCountRule(data.headword)} 各 {parts:[{text,pos,slot,ja,pinyin,zhuyin,alts}], ja:その型の自然な訳だけ(${NL}。説明・注釈・括弧書きは書かない), fits, why}。
-  ${chunkSenseRule(data.headword, "上の meaning_ja に書いた意味")}
-  ${formulaChunkRule(cardProfile.code)}
-  ${specificChunkRule(data.headword, levelGoal)}
-  **短くする**: ${cardProfile.chunkPrompt.lengthRule} それを超えるものは型ではなく例文なので、例文の欄に任せる。
-  そのまま声に出せる形にする。「${data.headword}」自体を必ず**1つのパーツとして**含める（別の語の中に埋めない）。
-  ${cardProfile.chunkPrompt.styleRule}
-  **${learnerL1}が崩しやすい型を優先する**（ただし ja は訳だけ — 注意書きを混ぜない）。
-  ${CHUNK_SELF_CHECK_RULE}
-${l1Gram}`
-    : ""
-}
 - usage_context: ネイティブがこの語をどこで見て・使うか（スーパー/夜市/レストラン/ニュース/SNS/新聞など具体的な場所・メディア）と頻度感を1〜2文(${NL})で
 - frequency_level: 使用頻度 1〜5 の整数（5=毎日レベル、1=まれ）
 - image_query: ${IMAGE_QUERY_RULE}
@@ -1492,14 +1500,13 @@ ${data.hintCategory && data.hintCategory !== "other" ? `カテゴリのヒント
       `（前置き・説明・コードフェンス不要）。含めるキー: ` +
       `headword_zh / reading_zhuyin / pinyin / meaning_ja / part_of_speech / level / ` +
       `category_key / new_shelf / ` +
-      `example_patterns[{share,sentence,translation,scene,chunks:[{text,pos}],scene_fits}] / ` +
+      // 例文と公式はパターンから作る（`example_patterns` / `usage_chunks` は頼まない — 2026-10-23）。
+      `${USAGE_PATTERNS_KEYS} / ` +
       (fixedMain
         ? `example_main{scene,translation,chunks:[{text,pos}],scene_fits} / example_fallback{share,sentence,translation,scene,chunks:[{text,pos}],scene_fits} / `
         : "") +
       `extras{ ` +
       [
-        want("usage_chunks") &&
-          "usage_chunks[{parts:[{text,pos,slot,ja?,pinyin?,zhuyin?,alts?:[{text,ja,pinyin?,zhuyin?}]}],ja,fits,why}]",
         // 口語/書面の札（register_tag / register_scale）はもう頼まない（オーナー決定 2026-10-15）。
         "usage_context, frequency_level, encounter_labels[{kind,label}]",
         "scene_weights, season_months, region_scope, region_scope_kind, image_query, image_avoid[]",
@@ -1679,6 +1686,7 @@ ${data.hintCategory && data.hintCategory !== "other" ? `カテゴリのヒント
           e.etymology,
           e.mnemonic,
         ].some((v) => !!v && v.trim().length > 0) ||
+        (c.usage_patterns?.length ?? 0) > 0 ||
         (e.usage_chunks?.length ?? 0) > 0 ||
         (e.related_words?.length ?? 0) > 0 ||
         (e.examples_extra?.length ?? 0) > 0;
@@ -1716,7 +1724,7 @@ ${data.hintCategory && data.hintCategory !== "other" ? `カテゴリのヒント
           const retry = await genOnce(
             `\n\n前回 extras が空で不十分でした。今回は ` +
               [
-                want("usage_chunks") && "usage_chunks",
+                "usage_patterns",
                 "usage_context",
                 want("related_words") && "related_words",
                 want(noteSection) && cardProfile.capture.noteField,
@@ -1770,25 +1778,45 @@ ${data.hintCategory && data.hintCategory !== "other" ? `カテゴリのヒント
       throw new Error(NOT_TARGET_LANGUAGE);
     }
     /**
-     * **場面のパターンを確かめて、今までの欄に写す**（2026-10-15 眼鏡、`example-patterns.ts`）。
-     * AI はもう呼ばない — 自己点検が false の物・札が無い物・見出し語を含まない文を落とし、よく使う順に並べる。
-     * 1つも残らなければ例文は空のまま（単語の詳細を開いた時の節の自動生成が埋める）。
+     * **使い方パターンを門に通し、今までの欄に写す**（2026-10-23、`usage-patterns.ts`。例文は 2026-10-15 眼鏡、公式は
+     * 2026-10-15 刷子「拿刷子刷牙」の門をそのまま通る）。AI はもう呼ばない — 公式が崩れた物・自己点検が false の物・
+     * 札が無い物・見出し語を含まない文を落とし、よく使う順に並べる（弱い相手は後ろ、kind の偏りは直す）。
+     * 落とした理由は記録に残す（語は残さない）。1つも残らなければ例文・公式は空のまま（単語の詳細を開いた時の
+     * 節の自動生成が埋める）。
      */
-    {
-      const picked = pickExamplePatterns(card.example_patterns, {
+    const patternGate = gateUsagePatterns(card.usage_patterns, {
+      headword: resolvedHead,
+      language: cardLanguage,
+      readerLang: explainLang,
+      meaning: card.meaning_ja,
+      measureWords: card.extras?.measure_words,
+    });
+    if (patternGate.dropped.length > 0 || patternGate.warnings.length > 0) {
+      console.info(`generateCard: pattern gate ${describeChunkGate(patternGate)}`, {
         headword: resolvedHead,
-        language: cardLanguage,
-        readerLang: explainLang,
-        // メインが決まっている時は、メインと似た物を落としてから上限まで詰めるので、多めに受け取る。
-        max: fixedMain ? MAX_EXAMPLE_PATTERNS : maxPatterns,
+        returned: card.usage_patterns.length,
+        dropped: patternGate.dropped,
+        warnings: patternGate.warnings,
       });
-      if (card.example_patterns.length > 0 && picked.length < card.example_patterns.length) {
-        console.info("generateCard: 例文のパターンを落とした", {
-          returned: card.example_patterns.length,
-          kept: picked.length,
-        });
-      }
-      // メインの例文が決まっている語は、その文に札を付け、ほかのパターンを追加の例文にする。
+    }
+    const keptPatterns = patternGate.kept;
+    const withExtra = want("examples_extra");
+    /** パターンから書いた今までの欄（`usage_chunks` と例文の欄）をカードに重ねる。 */
+    const applyLegacy = (
+      c: GeneratedCardReply,
+      legacy: ReturnType<typeof legacyFieldsFromPatterns>,
+    ): GeneratedCardReply => ({
+      ...c,
+      ...(legacy.example_sentence !== undefined
+        ? {
+            example_sentence: legacy.example_sentence,
+            example_translation: legacy.example_translation ?? "",
+          }
+        : {}),
+      extras: { ...(c.extras ?? emptyExtras()), ...legacy.extras } as GeneratedCardReply["extras"],
+    });
+    {
+      // メインの例文が決まっている語は、その文に札を付け、パターンの例文を追加の例文にする（メインの文は変えない）。
       // 見出し語が入力と変わった回（母語で打った語）は、引いた文が別の語の物なので使わない。
       if (fixedMain && sameHeadword(resolvedHead, data.headword, cardLanguage)) {
         const label = checkMainExampleLabel(card.example_main, {
@@ -1800,17 +1828,27 @@ ${data.hintCategory && data.hintCategory !== "other" ? `カテゴリのヒント
             headword: resolvedHead,
           });
         }
-        card = applyFixedMainExample(card, {
-          sentence: fixedMain,
-          label,
-          extras: picked,
-          withExtra: want("examples_extra"),
-          headword: resolvedHead,
-        });
+        card = applyLegacy(
+          card,
+          legacyFieldsFromPatterns(keptPatterns, {
+            headword: resolvedHead,
+            withExtra,
+            fixedMain: {
+              sentence: fixedMain,
+              label,
+              translation: sameSentence(card.example_sentence, fixedMain)
+                ? card.example_translation
+                : "",
+            },
+          }),
+        );
       } else if (fixedMain) {
-        // 見出し語が変わった（決まった文は別の語の物）: 予備の例文をメインに、ほかのパターンを追加の例文にする。
+        // 見出し語が変わった（決まった文は別の語の物）: 予備の例文をメインに、パターンの例文を追加の例文にする。
         const fallback = pickExamplePatterns(
-          [...(card.example_fallback ? [card.example_fallback] : []), ...card.example_patterns],
+          [
+            ...(card.example_fallback ? [card.example_fallback] : []),
+            ...asExamplePatterns(keptPatterns),
+          ],
           {
             headword: resolvedHead,
             language: cardLanguage,
@@ -1823,9 +1861,19 @@ ${data.hintCategory && data.hintCategory !== "other" ? `カテゴリのヒント
           headword: resolvedHead,
           kept: fallback.length,
         });
-        card = applyExamplePatterns(card, fallback, { withExtra: want("examples_extra") });
+        card = applyExamplePatterns(card, fallback, { withExtra });
+        card = {
+          ...card,
+          extras: {
+            ...(card.extras ?? emptyExtras()),
+            ...usageFieldsFromPatterns(keptPatterns),
+          } as GeneratedCardReply["extras"],
+        };
       } else {
-        card = applyExamplePatterns(card, picked, { withExtra: want("examples_extra") });
+        card = applyLegacy(
+          card,
+          legacyFieldsFromPatterns(keptPatterns, { headword: resolvedHead, withExtra }),
+        );
       }
     }
     // 語源の図（`etymology-diagram.ts`）はもう作らない（2026-10-15、`NOT_GENERATED_SECTIONS`）。
@@ -1835,44 +1883,26 @@ ${data.hintCategory && data.hintCategory !== "other" ? `カテゴリのヒント
     // 共有辞書（下の learnLexiconEntries）にも直した読みが入る。
     card = (await loadReadingCheck())(cardLanguage, resolvedHead, card);
     /**
-     * **使い方の型は門を通してから控える**（2026-10-15 刷子「拿刷子刷牙」、`chunk-quality.ts`）。
-     * 指示文に「その物の本来の使い方だけ」と書いたうえで、返ってきた物を AI を呼ばずに確かめる:
-     * 見出し語が1つの札か・量詞・主語つきの文・別の物の動作（意味の欄とぶつかる）・訳の言語・重複。
-     * 落とした理由は記録に残す（語は残さない）。残った型には札ごとの読み（拼音・注音）を付ける —
-     * AI の読みを字ごとに検め、外れていれば辞書の読み（`chunk-readings.server.ts`）。
-     * `AI_CHUNK_VERIFY=inline` の時だけ、締め切り 1 秒で別の AI にも見せる（既定は off。`chunk-verify.server.ts`）。
+     * **使い方の型（パターンの公式の写し）に読みを付ける**。公式はもう門を通っている（`gateUsagePatterns` の中の
+     * `gateUsageChunks` — 見出し語が1つの札か・量詞・主語つきの文・別の物の動作・訳の言語・重複）。
+     * 残った型には札ごとの読み（拼音・注音）を付ける — AI の読みを字ごとに検め、外れていれば辞書の読み
+     * （`chunk-readings.server.ts`）。`AI_CHUNK_VERIFY=inline` の時だけ、締め切り 1 秒で別の AI にも見せる
+     * （既定は off。`chunk-verify.server.ts`）。
      */
     let chunkVerify: { ms: number; dropped: number; skipped: boolean } | undefined;
     {
       const ex = card.extras ?? emptyExtras();
-      if ((ex.usage_chunks?.length ?? 0) > 0) {
-        const gate = gateUsageChunks(ex.usage_chunks, {
+      if (chunkVerifyMode() === "inline" && (ex.usage_chunks?.length ?? 0) > 0) {
+        const { verifyChunksInline } = await import("./chunk-verify.server");
+        const v = await verifyChunksInline(ex.usage_chunks, {
           headword: resolvedHead,
-          language: cardLanguage,
-          readerLang: explainLang,
           meaning: card.meaning_ja,
-          measureWords: ex.measure_words,
+          language: cardLanguage,
         });
-        if (gate.dropped.length > 0) {
-          console.info(`generateCard: chunk gate ${describeChunkGate(gate)}`, {
-            headword: resolvedHead,
-            dropped: gate.dropped,
-          });
-        }
-        let keptChunks = gate.kept;
-        if (chunkVerifyMode() === "inline" && keptChunks.length > 0) {
-          const { verifyChunksInline } = await import("./chunk-verify.server");
-          const v = await verifyChunksInline(keptChunks, {
-            headword: resolvedHead,
-            meaning: card.meaning_ja,
-            language: cardLanguage,
-          });
-          chunkVerify = { ms: v.ms, dropped: v.dropped, skipped: v.skipped };
-          keptChunks = v.kept;
-        }
-        card = { ...card, extras: { ...ex, usage_chunks: keptChunks } };
+        chunkVerify = { ms: v.ms, dropped: v.dropped, skipped: v.skipped };
+        card = { ...card, extras: { ...ex, usage_chunks: v.kept } };
       }
-      // 型と例文の札に読み（拼音・注音）を付ける（台湾華語だけ。AI の読みを字ごとに検め、外れていれば辞書の読み）。
+      // 型・パターンの公式・例文の札に読み（拼音・注音）を付ける（台湾華語だけ。AI の読みを字ごとに検め、外れていれば辞書の読み）。
       const { withChunkReadingsInExtras } = await import("./chunk-readings.server");
       card = { ...card, extras: withChunkReadingsInExtras(card.extras ?? ex, cardLanguage) };
     }
@@ -1962,11 +1992,13 @@ ${data.hintCategory && data.hintCategory !== "other" ? `カテゴリのヒント
     }
     // パターンの生の配列は返さない・控えない（写した欄だけが正）。
     const {
+      usage_patterns: _usagePatterns,
       example_patterns: _patterns,
       example_main: _main,
       example_fallback: _fallback,
       ...cardFields
     } = card;
+    void _usagePatterns;
     void _patterns;
     void _main;
     void _fallback;
@@ -2211,184 +2243,6 @@ const IMAGE_AVOID_RULE =
   `滑鼠 → ["animal","rodent","pet"]、牛蒡 → ["flower","thistle"]）。取り違える物が無い語は空配列`;
 
 /**
- * **「＋」をパーツにさせない**（オーナー報告 2026-10-08「牛蒡 [+] 炒 のように + が札で出る」）。
- * 型の例を「跟＋男朋友＋吵架」と ＋ で書いているので、AI がその ＋ をパーツとして返す回がある。
- * 返ってきた物は `chunk-grammar.ts` の `withoutSeparatorParts` でも正す（保存済みの語にも効く）。
- */
-const NO_PLUS_PART_RULE =
-  `\n**「＋」「+」は例の中で区切りを見せる記号で、パーツではない。**` +
-  `「+」「＋」「・」「/」だけのパーツを作らない。text の中にも「+」「＋」を入れない` +
-  `（✗ [{text:"牛蒡"},{text:"+"},{text:"炒"}] / ✗ {text:"牛蒡+炒"} → ○ [{text:"炒"},{text:"牛蒡"}]）。`;
-
-/**
- * **どの語にも付く組み合わせを書かせない**(オーナー指示 2026-08-28 ③)。
- *
- * > 「「買う（買）」や好きのような、どの名詞にも使える汎用的な組み合わせでは、
- * >  実践的なスピーキング力は養えません。」
- *
- * ## ここに1つだけ置く理由
- * 型の指示文は**2箇所**にある（カードを作るときと、その節だけ作り直すとき）。
- * 片方だけ直すと、作り直したカードにだけ汎用の型が戻ってくる — 使う人には
- * 「たまに悪くなる」としか見えない。この app が何度も踏んだ形。
- *
- * 返ってきた物のほうも `lib/generic-chunks.ts` が落とす。指示文と門の
- * **両方**を置くのは、指示文が守られない回が実際に在るから。
- */
-/**
- * **チャンクは公式・定理の形で**（オーナー指示 2026-09-25「チャンクは公式、
- * 定理のように、またネイティブが最も頻繁に使うカタチにして…跟＋人＋見面の
- * ようにする」）。
- *
- * 入れ替えて使う所には `slot: true` を付け、画面では点線の枠で描く。
- * 枠の中は「人」「someone」ではなく、**ネイティブがいちばんよく入れる具体語を
- * 1つ**（2026-09-27「人とかではなく、ネイティブが最も頻繁に使う具体的なものを
- * 1つ実際に挿入して」）。型ぜんぶを読み上げても自然な文になる（跟男朋友吵架）。
- */
-function formulaChunkRule(code: string): string {
-  // 例と文法の注意は言語の表から(前は `code.startsWith("zh")` の2分岐で、
-  // 日本語のカードに英語の例が渡っていた)。文はいままでと同じ形に組む。
-  const chunk = targetProfile(code).chunkPrompt;
-  return (
-    CHUNK_DEFINITION_RULE +
-    `\n**公式・定理のような型にする。** ネイティブがその語を使うとき、いちばん頻繁に口にする形を、` +
-    `どの語と一緒に・どの語順で使うかが一目で分かる公式として書く` +
-    `（例: ${chunk.formulaExample}）。` +
-    `\n入れ替えて使う所は「人」「事」「someone」のような広い言い方にしない。` +
-    `ネイティブがそこにいちばんよく入れる具体語を1つだけ入れて、そのパーツに slot: true を付ける。` +
-    `決まった語のパーツは slot を付けない。` +
-    // R17「加熱（動詞）が点線になってる。点線は…入れ替え可能な具体的なもの」。
-    // 2026-10-01「とても甘いのか、少し甘いのかは置き換え可能だよね。程度も変更できるように」
-    // （チャンクの表示ルール C5: 程度の語だけは副詞でも入れ替えられる）。
-    `**slot を付けてよいのは ① 具体的な物・人・場所を表す名詞 ② 量詞 ③ 程度の語（很・超・非常・有點・蠻）だけ。` +
-    `動詞・形容詞・程度以外の副詞・助詞には絶対に slot を付けない。**` +
-    NO_PLUS_PART_RULE +
-    // 2026-10-01「芒果冰のようにひとかたまりとして普段扱われるものはチャンクを分けなくていい」（C7）。
-    `\n**ネイティブが1語として使う語は分けずに1つのパーツにする**（✗ 芒果＋冰 → ○ 芒果冰、✗ 手搖＋飲）。` +
-    `その1語だけの型は作らない（それは語であって使い方ではない）。` +
-    `\n**型ぜんぶは文法的に正しく、ネイティブが実際にそのまま言う形にする。**` +
-    chunk.formulaGrammar +
-    `\nslot: true のパーツには alts も付ける: ネイティブがそこに**実際によく入れるほかの具体語**を` +
-    `頻度の高い順に4〜6個、[{text, ja: その語の意味（解説の言語で、短く）}]。` +
-    `slot: true のパーツ自身にも ja（その語の意味。型の訳 ja の中で**その語に当たる部分と同じ書き方**）を付ける` +
-    `（例: {text:"男朋友", ja:"彼氏"} と 型の訳「彼氏と喧嘩する」）。` +
-    `どれを入れても型ぜんぶが自然に言える語だけ（例: 跟＋男朋友＋吵架 → 女朋友・朋友・同事・爸媽・室友、` +
-    `芒果＋很＋甜 の 很 → 超・非常・有點・蠻）。` +
-    `\n型ぜんぶを続けて読んでも、そのまま自然に言える形にする。＋ などの記号はパーツに入れない。` +
-    CHUNK_INTEGRITY_RULE +
-    chunkReadingRule(code)
-  );
-}
-
-/**
- * **見出し語は「このカードの意味の物」としてだけ使う**（オーナー報告 2026-10-15「拿刷子刷牙 間違ってる。
- * 刷子と言うと掃除用や靴洗い用などの一般的なブラシを指す」）。
- *
- * ## なぜ起きたか
- * 1. 指示文は「その語とだけ強く結び付いている言い方」「買・喜歡のような汎用の動詞は書くな」と迫るが、
- *    **その語の指す物が何かを言っていなかった**。刷子（掃除のブラシ）で「結び付きの強い動作」を探した
- *    モデルは、ブラシでいちばん有名な動作 刷牙（歯を磨く — 道具は 牙刷）を借りてきた。
- * 2. 英語で読む人のカードは意味が "brush"（歯ブラシ・ヘアブラシ・刷毛を全部含む語）なので、見出し語の
- *    指す物がさらにぼやける。同じ日に 貓眼（ドアスコープ）が宝石の「猫目石」の型になったのも同じ形。
- * 3. 「3〜5個」と数を決めていたので、確かな型が2つしか無い語でも3つ目を作る。
- * 対策: 物を名指しで固定し（この関数）、数を「確かな物だけ 2〜3」にし（`chunkCountRule`）、型ごとに
- * 自己点検させ（`CHUNK_SELF_CHECK_RULE`）、返ってきた物を門で見る（`chunk-quality.ts`）。
- * 生成と作り直しの両方がここを通る。
- */
-function chunkSenseRule(headword: string, meaningHint: string): string {
-  return (
-    `**「${headword}」は、このカードの意味（${meaningHint}）の物・事としてだけ使う。** ` +
-    `型は、その物が実際にする・される動作と、その物と実際に一緒に立つ語だけ。` +
-    `「その語とだけ結び付く言い方」を探すために**別の物の動作を借りない**` +
-    `（✗ 刷子 → 拿＋刷子＋刷牙 — 歯を磨く道具は 牙刷。刷子 は掃除・靴洗いのブラシなので ○ 用＋刷子＋刷＋鞋子 / ○ 用＋刷子＋刷＋地板）。` +
-    `解説の言語の訳語（brush・ブラシ）が広い意味を持っていても、見出し語の指す物は1つ。` +
-    `多義語（機車 = スクーター / 俗語の「意地悪」、尺 = 定規 / 長さの単位）は、**このカードの意味の方だけ**で型を作る。` +
-    `入れ替えの候補（alts）も、その物でできる動作・その物と一緒に立つ語だけにする。`
-  );
-}
-
-/**
- * 型の数。**「3〜5個」と数を決めない** — 確かな型が2つしか無い語でも3つ目を作っていた（2026-10-15）。
- */
-function chunkCountRule(headword: string): string {
-  return (
-    `ネイティブが「${headword}」を**実際にいちばん高い頻度で**組み合わせて使う型を**2〜3個**` +
-    `（自信のある物だけ。本当に高頻度で確信がある時だけ4〜5個目を足す。1つしか無ければ1つでよい。` +
-    `**数を揃えるために型を作らない**）。思いつく組み合わせを並べない — その語で口を開いたときに最初に出る形だけを、頻度の高い順に。`
-  );
-}
-
-/**
- * 型ごとの自己点検の欄（`fits` / `why`）。サーバの門は `fits: false` を落とし、保存する前に欄を外す。
- */
-const CHUNK_SELF_CHECK_RULE =
-  `各型に **fits**（true/false）と **why**（10字ほど）を付ける: fits は「この物の本来の使い方で、ネイティブがそのまま言う型で、` +
-  `上の確かめ (a)〜(g) を全部満たす」時だけ true。少しでも怪しければ false にして、**false の型は配列に入れない**（入っていればサーバが捨てる）。`;
-
-/**
- * **札ごとの読み**（2026-10-15 オーナー「チャンクに拼音と注音を」）。台湾華語のカードだけ。同じ呼び出しで書かせ、
- * サーバが字ごとに検めて、外れていれば辞書の読みに直す（`chunk-readings.server.ts`）。
- */
-function chunkReadingRule(code: string): string {
-  if (!normalizeTargetLanguage(code).startsWith("zh")) return "";
-  return (
-    `\n**各パーツ（parts）と alts に読みを付ける**: pinyin は声調記号つき・音節ごとに空白で区切る（例 "shuā zi"・"yòng"）、` +
-    `zhuyin は注音・音節ごとに空白で区切り、軽声は前に ˙（例 "ㄕㄨㄚ ˙ㄗ"）。台湾の読み（垃圾 lè sè・和 hàn）で書く。`
-  );
-}
-
-/**
- * **チャンクとは何か（2026-10-14 に一から見直した定義）**。オーナー報告「チャンクが文法的に間違っている
- * 箇所が多くある… 紙箱＋裝＋東西 これ正しくない / 裝＋熱水馬克杯 これ熱湯マグカップみたいな意味になる /
- * 去冰が動詞になってる」。
- *
- * 型の指示は生成と作り直しの両方が `formulaChunkRule` を通るので、定義はここに1つだけ置く。
- * 別の AI で点検し直す呼び出しは置かない（オーナー 2026-10-14「カードの表示が遅くなるからやめて。指示の精度を
- * 上げてほしいだけ」）— 返す前の自己点検も、この同じ指示の中でさせる。
- */
-const CHUNK_DEFINITION_RULE =
-  `**チャンクの定義**: ネイティブがその語を使うときに**最もよく・最も自然に**口にする語の塊（使い方の公式）。` +
-  `その塊を覚えれば、そのまま会話で言える物だけ。\n` +
-  `1. **語順はネイティブが実際に言う順番を厳守する。** パーツを左から順に読むと、そのまま自然な句になること` +
-  `（✗ 紙箱＋裝＋東西 — この順では言わない → ○ 用＋紙箱＋裝＋東西 / ○ 把＋東西＋裝進＋紙箱）。\n` +
-  `2. **パーツの区切りは品詞が変わる所。** ネイティブが1つの塊として言う語は分けない（○ 半糖・去冰・手搖飲）。` +
-  `**逆に、1語ではない物を1つのパーツにつなげない**（✗ 熱水馬克杯 — そんな語は無く「熱湯マグカップ」に読める → ` +
-  `○ 用＋馬克杯＋裝＋熱水）。\n` +
-  `3. **pos はそのパーツがその型の中で果たす役割の品詞にする**（飲み物の注文の 去冰・少冰・半糖 は飲み物の後ろに置く注文の言い方で、` +
-  `✗ 去冰＋可樂 → ○ 可樂＋去冰）。\n` +
-  `4. **文にしない。** 主語＋動詞＋目的語をすべて書いた文（✗ 我買了一個紙箱）、句点のある文は型ではない。主語は入れない。\n` +
-  `5. **量詞の型（一個〇〇・一杯〇〇）は書かない** — 量詞は別の欄で読む。\n` +
-  `6. 入れ替えてよく使う所（名詞・形容詞・程度の副詞のバリエーション）だけ slot にする。**学ぶ語そのものは決して slot にしない。**\n` +
-  `7. 各型に必ず、型ぜんぶの自然な訳（ja）を付ける。\n` +
-  `**返す前に、型を1つずつ次の順に確かめ、1つでも当てはまれば直すか外す**: ` +
-  `(a) パーツを左から声に出して読むと、ネイティブがそのまま言う句か（語順・目的語の位置・裝 の目的語は中身か）` +
-  `(b) 1語でない物を1パーツにつないでいないか / 1塊の語を分けていないか` +
-  `(c) pos がその型の中の役割と合うか` +
-  `(d) 主語のある文・量詞の型になっていないか` +
-  `(e) 学ぶ語が slot になっていないか、slot の alts はどれを入れても自然か` +
-  `(f) ja が型ぜんぶの自然な訳で、誤訳（✗ 裝熱水馬克杯 を「熱湯マグカップに入れる」）でないか` +
-  `(g) ネイティブが実際によく言う形か（まれ・不自然なら外す）。\n` +
-  `迷ったら書かない — 自信のある型を2〜3個返すほうが、怪しい型を5個返すよりよい。`;
-
-/**
- * **崩れた型と、訳になっていない訳を作らせない**（オーナー報告 2026-10-09「嘴邊肉＋切 /
- * 嘴邊肉をする」「なんで？これは文法的に正しい？」）。
- *
- * 屋台の頼み方「嘴邊肉切一盤」から、量詞を使わない決まり（量詞は別の欄）に合わせて
- * 「一盤」だけを抜いた形が返ってきた — 「嘴邊肉切」は中国語として成り立たない。訳も
- * 見出し語をそのまま写した「嘴邊肉をする」で、訳になっていなかった。
- * カードを作る時と節を作り直す時の両方が `formulaChunkRule` を通るので、ここに置く。
- * 保存済みの語は表示の側でも落とす（`extras.ts` の `isBrokenUsageChunk`）。
- */
-const CHUNK_INTEGRITY_RULE =
-  `\n**型はどれも、ネイティブがそのまま口にする文法的に正しい句にする。**` +
-  `自然な形から必要な語を抜いて型を作らない — 自然な形に量詞などの使えない語が要るなら、` +
-  `その語を削って短くするのではなく、**別の型を選ぶ**。` +
-  `名詞の後ろに目的語を取る動詞を裸で置かない（動詞は目的語の前: ✗ 嘴邊肉＋切 → ○ 切＋嘴邊肉）。` +
-  `\nja は**型ぜんぶの本当の訳**（解説の言語で、そのまま意味が通る言い方）。` +
-  `学ぶ語をそのまま写して「〜をする」「〜する」を付けただけの訳にしない（✗ 嘴邊肉をする）。` +
-  `解説の言語にその物を表す言葉があるなら、学ぶ語の字を写さずにその言葉で訳す（✗ 嘴邊肉を注文する → ○ 豚のほほ肉を注文する）。`;
-
-/**
  * 日本語のカードだけの節の指示(2026-10-01)。
  *
  * **どの言語の節かは `wantOwn` が決める**(その言語の `sections` に在るか)。ここに
@@ -2448,30 +2302,6 @@ const JA_SECTION_RULES = {
     `語種(和語・漢語・外来語・混種語のどれか)と、それが硬さ・使う場面にどう効くかを1〜2文(${nl})。` +
     `同じ物を指す別の語種の語があれば対比を添える(例: 宿屋=和語・素朴 / 旅館=漢語・和風の宿 / ホテル=外来語・洋式)`,
 } as const;
-
-function specificChunkRule(headword: string, levelGoal: string): string {
-  return (
-    // オーナー報告 2026-10-01「チャンクに学ぶべき単語の芒果がない」— 「芒果」の型に「很+甜」だけが来た。
-    `**どの型にも「${headword}」自身（日本語・英語は活用形でもよい）を必ず1つのパーツとして入れる。**` +
-    `✗「很甜」（「${headword}」が無い — 周りの語だけでは、その語の使い方を教えていない）。\n` +
-    `**どの語にも付く組み合わせを書かない。**\n` +
-    `✗「買${headword}」「喜歡${headword}」「有${headword}」のように、買う・好き・持っている だけを` +
-    `足した形 — 名詞さえあれば言えるので、その語について何も教えていない。\n` +
-    `✗「這款${headword}」「這個${headword}」のように、この・その（指示語+量詞）だけを足した形も同じ。\n` +
-    `○ **その語とだけ強く結び付いている**言い方（飲み物なら「半糖少冰」「加珍珠」、` +
-    `動詞ならその動詞が取る決まった相手・補語、形容詞なら一緒に立つ名詞）。\n` +
-    `基準は「**その語を別の語に入れ替えたら成り立たなくなるか**」。成り立つ形は書かない。\n` +
-    `語彙のネットワーク（一緒に立つ語）と構文の型（公式）の2種類を混ぜて返す。\n` +
-    // 2026-10-15 オーナー「最も重要なのはネイティブが最も自然に使う形」— レベルは目安、自然さが決まり。
-    `**学習者の目標レベル ${levelGoal} は目安** — 周りの語彙・文型はできればこのレベルで口に出せる物にする。` +
-    `ただし**最優先はネイティブが最も自然に使う形**。レベルに合わせるために不自然な言い方を作らない。` +
-    `自然な形にレベルより上の語が要るなら、その語をそのまま使う（言い換えない）。難しい型を**わざわざ**並べない。\n` +
-    // R14「決して該当の単語はスクロールできるようにはしないで。この単語を学習したいから」。
-    `**「${headword}」自身のパーツは必ず slot:false・alts なし**（学ぶ語は入れ替えない）。` +
-    `入れ替えられるのは周りの語だけで、alts にはネイティブが実際によく入れる具体語を` +
-    `頻度の高い順に3〜5個。`
-  );
-}
 
 /**
  * 項目を1つ作る。**書くか、案だけ返すかを選べる。**
@@ -2862,29 +2692,40 @@ async function runSectionRegen(
           };
         }),
     },
+    /**
+     * **使い方パターン**（場面・公式・例文の塊、2026-10-23 `usage-patterns.ts`。iOS のパターンのカードの ↻ はこの節を呼ぶ）。
+     * 生成と同じ指示文（`usagePatternsRule`）・同じ門（`gateUsagePatterns`）。書くのは `usage_patterns` / `usage_v` と
+     * 公式の写し `usage_chunks`（**入れ替える** — `replaceKeys`）。例文の欄（`example_sentence` …）はここでは書かない
+     * （例文の節の作り直しは別のまま）。1つも残らなければ「作れなかった」— 崩れた物を書くより、空のまま次に任せる。
+     */
     usage_chunks: {
-      prompt: `${base}\n${chunkCountRule(head)}\n${chunkSenseRule(head, String(word.meaning_ja ?? ""))}\n${formulaChunkRule(regenProfile.code)}\n${specificChunkRule(head, regenLevelGoal)}\n**短くする**: ${regenProfile.chunkPrompt.lengthRule}\nそのまま声に出せる形にする。${regenProfile.chunkPrompt.styleRule}\n${learnerL1}が崩しやすい型を優先する（ja は訳だけ）。\n${l1Gram}\n${chunkRule(word.language as string | null)}\nja はその型の自然な訳だけ（説明・注釈・括弧書きは書かない）。\n${CHUNK_SELF_CHECK_RULE}\n{"usage_chunks":[{"parts":[{"text":"","pos":"","slot":false,"ja":"","pinyin":"","zhuyin":"","alts":[{"text":"","ja":"","pinyin":"","zhuyin":""}]}],"ja":"訳","fits":true,"why":""}]}`,
-      // 部品の形は `extras.ts` の1つ（`ja`・`alts` を落とさない）。返ってきた型は生成と同じ門を通す
-      // （`chunk-quality.ts`）。1つも残らなければ「作れなかった」— 崩れた型を書くより、空のまま次に任せる。
-      schema: RegenUsageChunksSchema.transform((r, ctx) => {
-        const gate = gateUsageChunks(r.usage_chunks, {
-          headword: head,
-          language: regenProfile.code,
-          readerLang: regenLang,
+      prompt: `${base}\n${usagePatternsRule({
+        ...regenPatternBase,
+        code: regenProfile.code,
+        meaningHint: String(word.meaning_ja ?? ""),
+        levelGoal: regenLevelGoal,
+        learnerL1,
+        l1Gram,
+      })}\n${usagePatternsJsonExample(targetName, NL)}`,
+      // 部品の形は `extras.ts` の1つ（`ja`・`alts` を落とさない）。
+      schema: RegenUsagePatternsSchema.transform((r, ctx) => {
+        const gate = gateUsagePatterns(r.usage_patterns, {
+          ...regenPickBase,
           meaning: String(word.meaning_ja ?? ""),
           measureWords: normalizeExtras(word.extras)?.measure_words,
         });
-        if (gate.dropped.length > 0) {
-          console.info(`regenerateCardSection: chunk gate ${describeChunkGate(gate)}`, {
+        if (gate.dropped.length > 0 || gate.warnings.length > 0) {
+          console.info(`regenerateCardSection: pattern gate ${describeChunkGate(gate)}`, {
             headword: head,
             dropped: gate.dropped,
+            warnings: gate.warnings,
           });
         }
         if (gate.kept.length === 0) {
           ctx.addIssue({ code: "custom", message: "使える型が無い" });
           return z.NEVER;
         }
-        return { usage_chunks: gate.kept };
+        return usageFieldsFromPatterns(gate.kept);
       }),
     },
     related_words: {
@@ -3024,13 +2865,12 @@ async function runSectionRegen(
   } catch {
     throw new Error("AIが項目を生成できませんでした。もう一度お試しください");
   }
-  // 作り直した型にも札ごとの読み（拼音・注音）を付ける（生成と同じ。`chunk-readings.server.ts`）。
-  if (data.section === "usage_chunks" && Array.isArray(out.usage_chunks)) {
-    const { withChunkReadings } = await import("./chunk-readings.server");
-    out.usage_chunks = withChunkReadings(out.usage_chunks as UsageChunk[], regenProfile.code);
-  }
-  // 例文の札にも（`example_chunks`・追加の例文の `chunks`）。
-  if (data.section === "example" || data.section === "examples_extra") {
+  // 作り直した型・パターンの公式・例文の札にも札ごとの読み（拼音・注音）を付ける（生成と同じ。`chunk-readings.server.ts`）。
+  if (
+    data.section === "usage_chunks" ||
+    data.section === "example" ||
+    data.section === "examples_extra"
+  ) {
     const { withChunkReadingsInExtras } = await import("./chunk-readings.server");
     out = withChunkReadingsInExtras(out as never, regenProfile.code) as Record<string, unknown>;
   }
@@ -3106,20 +2946,31 @@ async function runSectionRegen(
    * 例文を作り直した時は、追加の例文を**入れ替える**（空でも — 1つの場面でしか使わない語に古い追加の例文を
    * 残さない）。`mergeExtras` は空の値で上書きしないので、ここで直に置く。
    */
+  /**
+   * **丸ごと入れ替える鍵**（`mergeExtras` は空の値で上書きしないし、配列は重ねるのではなく置き換える — ここに挙げる
+   * 鍵は空でも置き換える）: 例文を作り直した時の追加の例文、使い方パターンを作り直した時のパターンと公式の写し
+   * （古いパターンに新しい物を足さない — 2026-10-23）。
+   */
+  const REPLACE_KEYS: Partial<Record<RegenSection, readonly string[]>> = {
+    example: ["examples_extra"],
+    usage_chunks: ["usage_patterns", "usage_chunks"],
+  };
+  const replaceKeys = REPLACE_KEYS[data.section];
   /** その人の言語の解説の行（`word_explanations`）に重ねる分。 */
   const readerPatch = (): SectionProposal["readerPatch"] => ({
     extras: extrasPatch,
-    replaceKeys: data.section === "example" ? ["examples_extra"] : undefined,
+    replaceKeys,
     meaning: data.section === "meaning" ? regenMeaning || null : null,
     example_translation:
       data.section === "example" && !keepVerifiedExample
         ? ((out.example_translation as string | null) ?? null)
         : null,
   });
-  const replaceExtras = (e: Record<string, unknown>) =>
-    data.section === "example" && Array.isArray(extrasPatch.examples_extra)
-      ? { ...e, examples_extra: extrasPatch.examples_extra }
-      : e;
+  const replaceExtras = (e: Record<string, unknown>) => {
+    const next = { ...e };
+    for (const k of replaceKeys ?? []) if (k in extrasPatch) next[k] = extrasPatch[k];
+    return next;
+  };
   const merged = replaceExtras(
     mergeExtras(
       (word.extras ?? null) as Parameters<typeof mergeExtras>[0],

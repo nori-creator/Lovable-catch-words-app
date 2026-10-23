@@ -487,8 +487,11 @@ describe("生成の指示文に分岐を書き足していない", () => {
   it('関連語・型の例は言語の表から引く(`startsWith("zh") ?` の2分岐に戻さない)', () => {
     expect(ai).toContain("cardProfile.capture.relatedExample");
     expect(ai).toContain("regenProfile.capture.relatedExample");
-    expect(ai).toContain("chunk.formulaExample");
+    // 型の見本は公式の指示文の部品（`chunk-prompt-rules.ts`、2026-10-23 に移した）が言語の表から引く。
+    const rules = fs.readFileSync("src/lib/chunk-prompt-rules.ts", "utf8");
+    expect(rules).toContain("chunk.formulaExample");
     expect(ai.includes('code.startsWith("zh") ?')).toBe(false);
+    expect(rules.includes('code.startsWith("zh") ?')).toBe(false);
   });
 
   it("日本語の節は生成と作り直しが同じ書き方を読む", () => {

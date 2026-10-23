@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { isGenericChunk, withoutGenericChunks } from "./generic-chunks";
+import { isGenericChunk, isWeakPartnerChunk, withoutGenericChunks } from "./generic-chunks";
 
 /**
  * 汎用の組み合わせを型として教えない（オーナー指示 2026-08-28 ③）。
@@ -124,5 +124,35 @@ describe("isGenericChunk — この・その（指示語+量詞）だけの型�
 
   it("英語には当てない（this morning / so that）", () => {
     expect(isGenericChunk(parts("this", "morning"), "morning", "en")).toBe(false);
+  });
+});
+
+describe("isWeakPartnerChunk — 弱い相手（2026-10-23「使い方パターン」。2026-08-28 の改正）", () => {
+  it("吃/喝/拿/買/看/做/用 を単独で名詞に付けただけの型は弱い（落とさず後ろへ回す）", () => {
+    expect(isWeakPartnerChunk(parts("喝", "珍珠奶茶"), "珍珠奶茶")).toBe(true);
+    expect(isWeakPartnerChunk(parts("拿", "夾子"), "夾子")).toBe(true);
+    expect(isWeakPartnerChunk(parts("我", "喝", "珍珠奶茶"), "珍珠奶茶")).toBe(true);
+  });
+
+  it("名詞＋程度の語＋ありふれた述語（很＋甜 / 超＋好喝）も弱い", () => {
+    expect(isWeakPartnerChunk(parts("地瓜", "很", "甜"), "地瓜")).toBe(true);
+    expect(isWeakPartnerChunk(parts("珍珠奶茶", "超", "好喝"), "珍珠奶茶")).toBe(true);
+    expect(isWeakPartnerChunk(parts("蛋糕", "很", "好吃"), "蛋糕")).toBe(true);
+  });
+
+  it("相手の決まった動詞・注文の言い方・補語の付いた動詞は弱くない", () => {
+    expect(isWeakPartnerChunk(parts("帶", "雨傘"), "雨傘")).toBe(false);
+    expect(isWeakPartnerChunk(parts("珍珠奶茶", "微糖少冰"), "珍珠奶茶")).toBe(false);
+    expect(isWeakPartnerChunk(parts("用", "夾子", "夾起來"), "夾子")).toBe(false);
+    expect(isWeakPartnerChunk(parts("沖", "馬桶"), "馬桶")).toBe(false);
+    expect(isWeakPartnerChunk(parts("馬桶", "塞住了"), "馬桶")).toBe(false);
+    // 很＋状態動詞そのものの型（見出し語が状態動詞）は公式なので弱くない。
+    expect(isWeakPartnerChunk(parts("很", "好喝"), "好喝")).toBe(false);
+  });
+
+  it("汎用の型（買・喜歡）は別の門が落とす。空・ほかの言語では弱いと言わない", () => {
+    expect(isGenericChunk(parts("買", "珍珠奶茶"), "珍珠奶茶")).toBe(true);
+    expect(isWeakPartnerChunk([], "珍珠奶茶")).toBe(false);
+    expect(isWeakPartnerChunk(parts("drink", "tea"), "tea", "en")).toBe(false);
   });
 });

@@ -83,14 +83,84 @@ export const AiUsageChunkSchema = UsageChunkSchema.extend({
 export type AiUsageChunk = z.infer<typeof AiUsageChunkSchema>;
 
 /**
- * **項目の作り直し（`runSectionRegen`）で受ける「かたまり」の形。**
+ * **使い方パターン**（オーナー要望 2026-10-23「その単語を思い浮かべたとき、日常でどんな単語と一緒に・どんな形で・
+ * どんな状況で使うか」）: ①場面の一言 ②ネイティブが最もよく使う形の公式（チャンク）③その公式を使った例文 を
+ * **1つの塊**にして、頻度の高い順に最大 `MAX_USAGE_PATTERNS` 個。iOS の「使い方パターン」のカードが読む。
+ *
+ * - `kind` … 動作 / 状態・トラブル / 言い回し。**画面には出さない**（同日夕「動作とか状態トラブルという文字消して」）。
+ *   種類が偏らないための並べ替えにだけ使う（`usage-patterns.ts`）。
+ * - `scene` … その公式をネイティブが使う**一般的な状況**の一言（読む人の言語）。例文の文脈・気持ちは書かない。
+ * - `chunk` … 公式。形は `UsageChunkSchema` のまま（全パーツに `ja`）。
+ * - `example` … その公式を使った一人称のセリフと訳。`chunk_in_example` は公式の字が文にそのまま入っているか
+ *   （入っていれば iOS が下線を引く）。`chunks` は文を語に分けた物（語の途中で折り返さないため。文と合う時だけ）。
+ * - `note` … 公式のニュアンス・入れ替え候補の使い分け（読む人の言語、1〜2文。空なら出さない）。
+ *
+ * 今までの欄（`usage_chunks` / 例文の欄）もパターンから**書き続ける**（古い iOS・Web・復習の答えを壊さない）。
+ * 古いカードは持っていない（保存済みの語は作り直さない — オーナー決定）。
+ */
+export const UsagePatternKindSchema = z.enum(["action", "state", "phrase"]).catch("action");
+
+export const UsagePatternSchema = z.object({
+  kind: UsagePatternKindSchema,
+  scene: z.string().catch(""),
+  share: z.coerce.number().catch(0),
+  chunk: UsageChunkSchema,
+  example: z.object({
+    zh: z.string().catch(""),
+    ja: z.string().catch(""),
+    chunk_in_example: z.boolean().catch(false),
+    chunks: z.array(ChunkPartSchema).catch([]),
+  }),
+  note: z.string().catch(""),
+});
+export type UsagePattern = z.infer<typeof UsagePatternSchema>;
+
+/** この版のパターンの作り方（`extras.usage_v`）。古いカードは持っていない。 */
+export const USAGE_PROMPT_VERSION = 2;
+/** パターンの上限。 */
+export const MAX_USAGE_PATTERNS = 4;
+
+/** 自己点検の true/false（文字列の "false" / "no" も偽と読む）。例文の `scene_fits` と同じ。 */
+const SelfCheckSchema = z
+  .union([z.boolean(), z.string().transform((s) => !/^(false|no|いいえ|否|×)$/i.test(s.trim()))])
+  .optional()
+  .catch(undefined);
+
+/**
+ * **AI が返すパターン1つの形**（`usage_patterns` の要素）。保存する形（`UsagePatternSchema`）とは欄の名前が違う:
+ * 例文は `sentence` / `translation`、自己点検（`fits` / `why` / `scene_fits` / `scene_general`）と考えた状況のメモ
+ * （`situation`）を持つ。サーバの門（`usage-patterns.ts` の `gateUsagePatterns`）が確かめて保存の形に写す。
+ * 型違いは落とさず空にする（1つの欄の型違いでカードを丸ごと落とさない）。
+ */
+export const AiUsagePatternSchema = z.object({
+  kind: UsagePatternKindSchema,
+  share: z.coerce.number().catch(0),
+  situation: z.string().catch(""),
+  scene: z.string().catch(""),
+  /** 「この場面は、この例文以外でこの公式を言う時にも当てはまるか」の自己点検。false だけ落とす。 */
+  scene_general: SelfCheckSchema,
+  chunk: AiUsageChunkSchema.catch({ parts: [], ja: "" }),
+  example: z
+    .object({
+      sentence: z.string().catch(""),
+      translation: z.string().catch(""),
+      chunks: z.array(ChunkPartSchema).catch([]),
+      scene_fits: SelfCheckSchema,
+    })
+    .catch({ sentence: "", translation: "", chunks: [], scene_fits: undefined }),
+  note: z.string().catch(""),
+});
+export type AiUsagePattern = z.infer<typeof AiUsagePatternSchema>;
+
+/**
+ * **項目の作り直し（`runSectionRegen` の `usage_chunks`）で受ける形**（2026-10-23 からはパターン）。
  * 部品は `ChunkPartSchema` をそのまま使う — 前は `{text,pos,slot}` だけを書き出して
  * いたので、zod が `ja` と `alts` を**黙って落とし**、作り直した後は入れ替えの候補
  * （跟+男朋友+吵架 → 女朋友・朋友…）が消えていた（2026-10-07）。
- * 自己点検の欄（`fits` / `why`）も受ける — 門が見てから外す。
+ * 自己点検の欄（`fits` / `why` / `scene_fits` / `scene_general`）も受ける — 門が見てから外す。
  */
-export const RegenUsageChunksSchema = z.object({
-  usage_chunks: z.array(AiUsageChunkSchema).min(1),
+export const RegenUsagePatternsSchema = z.object({
+  usage_patterns: z.array(AiUsagePatternSchema).min(1),
 });
 
 export const RelatedWordSchema = z.object({
@@ -351,6 +421,14 @@ export const ExtrasSchema = z.object({
    * zod が**門より先に黙って落とし**、門は何も見られない。保存する物は門が外す（`stripChunkSelfCheck`）。
    */
   usage_chunks: z.array(AiUsageChunkSchema).catch([]),
+  /**
+   * **使い方パターン**（場面・公式・例文の塊。2026-10-23、`UsagePatternSchema`）。頻度順・最大 `MAX_USAGE_PATTERNS`。
+   * AI の返事はここではなく返事の根の `usage_patterns`（`AiUsagePatternSchema`）で受け、門を通した物だけがここに入る。
+   * `usage_chunks` はこのパターンの公式の写し（古い画面のため）。古いカードは空。
+   */
+  usage_patterns: z.array(UsagePatternSchema).catch([]),
+  /** パターンの作り方の版（`USAGE_PROMPT_VERSION`）。古いカードは無い。 */
+  usage_v: z.number().optional().catch(undefined),
   /** メイン例文のパーツ分解。 */
   example_chunks: z.array(ChunkPartSchema).catch([]),
   /** 類義語・反義語・関連語(使い分けノート付き)。 */
@@ -555,6 +633,7 @@ const EXTRAS_MARKER_KEYS = new Set([
   "example_scene_for",
   "example_v",
   "example_pattern_count",
+  "usage_v",
 ]);
 
 /** True when an extras object carries at least one non-empty field. */
