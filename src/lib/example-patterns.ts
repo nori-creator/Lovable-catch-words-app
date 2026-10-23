@@ -217,6 +217,53 @@ export function sameSentence(a: string | null | undefined, b: string | null | un
   return x.length > 0 && x === norm(b);
 }
 
+/** 例文1つが使えない理由（記録用）。 */
+export type ExamplePatternIssue =
+  | "empty"
+  | "not_target_language"
+  | "headword_missing"
+  | "redundant_measure"
+  | "scene_empty"
+  | "scene_fits";
+
+/**
+ * **例文1つの確かめ**（`pickExamplePatterns` と、使い方パターンの門 `usage-patterns.ts` が同じ物を通す — 2026-10-23）。
+ * 文が空・学習言語でない・（台湾華語）見出し語を含まない・量詞と見出し語の字が重なる（一束花束）・札が空か読む人の
+ * 言語でない・自己点検が `false` なら使えない。通れば、読む人の言語の訳と短くした札を返す。
+ */
+export function checkExamplePattern(
+  p: { sentence?: string; translation?: string; scene?: string; scene_fits?: boolean },
+  opts: { headword: string; language: string; readerLang: string },
+):
+  | { ok: true; sentence: string; translation: string; scene: string }
+  | { ok: false; issue: ExamplePatternIssue } {
+  // 漢字の言語（台湾華語）は語形が変わらないので、見出し語がそのまま文に入っているはず。
+  const literalHeadword = targetProfile(opts.language).scriptLang === "zh-Hant";
+  const head = (opts.headword ?? "").trim();
+  const sentence = (p.sentence ?? "").trim();
+  if (!sentence || sentence.length > 160) return { ok: false, issue: "empty" };
+  if (!looksLikeTargetLanguage(sentence, opts.language))
+    return { ok: false, issue: "not_target_language" };
+  // 入っていない文は別の語の例文。英語・日本語は活用で形が変わるので、ここでは見ない。
+  if (literalHeadword && head && !sentence.includes(head))
+    return { ok: false, issue: "headword_missing" };
+  // 量詞と見出し語の字が重なる文（一束花束）は不自然なので使わない（2026-10-15 花束）。
+  if (literalHeadword && redundantMeasure(sentence, head))
+    return { ok: false, issue: "redundant_measure" };
+  const scene = shortScene(
+    readerText((p.scene ?? "").trim(), opts.readerLang, sentence).trim(),
+    opts.readerLang,
+  );
+  if (!scene) return { ok: false, issue: "scene_empty" };
+  if (p.scene_fits === false) return { ok: false, issue: "scene_fits" };
+  return {
+    ok: true,
+    sentence,
+    translation: readerText((p.translation ?? "").trim(), opts.readerLang, sentence).trim(),
+    scene,
+  };
+}
+
 /**
  * 返ってきたパターンを**機械的に**確かめて、よく使う順に並べる（AI は呼ばない）。
  *
@@ -230,32 +277,17 @@ export function pickExamplePatterns(
   opts: { headword: string; language: string; readerLang: string; max?: number },
 ): PickedExample[] {
   const max = Math.max(1, opts.max ?? MAX_EXAMPLE_PATTERNS);
-  // 漢字の言語（台湾華語）は語形が変わらないので、見出し語がそのまま文に入っているはず。
-  const literalHeadword = targetProfile(opts.language).scriptLang === "zh-Hant";
   const head = (opts.headword ?? "").trim();
   const seen = new Set<string>();
   const ok: Array<PickedExample & { share: number; i: number }> = [];
   (patterns ?? []).forEach((p, i) => {
-    const sentence = (p.sentence ?? "").trim();
-    if (!sentence || sentence.length > 160) return;
-    if (!looksLikeTargetLanguage(sentence, opts.language)) return;
-    // 入っていない文は別の語の例文。英語・日本語は活用で形が変わるので、ここでは見ない。
-    if (literalHeadword && head && !sentence.includes(head)) return;
-    // 量詞と見出し語の字が重なる文（一束花束）は不自然なので使わない（2026-10-15 花束）。
-    if (literalHeadword && redundantMeasure(sentence, head)) return;
-    const scene = shortScene(
-      readerText((p.scene ?? "").trim(), opts.readerLang, sentence).trim(),
-      opts.readerLang,
-    );
-    if (!scene) return;
-    if (p.scene_fits === false) return;
-    const key = norm(sentence);
+    const checked = checkExamplePattern(p, opts);
+    if (!checked.ok) return;
+    const key = norm(checked.sentence);
     if (seen.has(key)) return;
     seen.add(key);
     ok.push({
-      sentence,
-      translation: readerText((p.translation ?? "").trim(), opts.readerLang, sentence).trim(),
-      scene,
+      ...checked,
       chunks: p.chunks ?? [],
       share: Number.isFinite(p.share) ? p.share : 0,
       i,

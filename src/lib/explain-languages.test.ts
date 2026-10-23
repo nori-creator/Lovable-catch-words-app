@@ -246,6 +246,56 @@ describe("解説のすべての欄を読む人の言語に揃える（scrubExtra
     expect(out.kanji_breakdown[0].meaning).toBe("鉄");
   });
 
+  it("**使い方パターン**（2026-10-23、R26）: 場面・ポイント・例文の訳・公式の訳と部品の意味も読む人の言語に揃える", () => {
+    const pattern = {
+      kind: "state",
+      share: 50,
+      scene: "トイレが詰まった時",
+      note: "塞住了は詰まって動かない状態。",
+      chunk: {
+        ja: "トイレが詰まった",
+        parts: [
+          { text: "馬桶", ja: "トイレ" },
+          { text: "塞住了", ja: "詰まった", alts: [{ text: "不通", ja: "atascado" }] },
+        ],
+      },
+      example: {
+        zh: "糟糕，馬桶塞住了！",
+        ja: "やばい、トイレが詰まった！",
+        chunk_in_example: true,
+      },
+    };
+    const es = scrubExtrasForReader({ usage_patterns: [pattern] }, "es").usage_patterns[0]!;
+    expect(es.scene).toBe("");
+    expect(es.note).toBe("");
+    expect(es.chunk.ja).toBe("");
+    expect(es.chunk.parts[0].ja).toBe("");
+    expect(es.chunk.parts[1].alts?.[0].ja).toBe("atascado");
+    expect(es.example.ja).toBe("");
+    // 学ぶ言語の部分（公式の字・例文）と印は触らない。
+    expect(es.example.zh).toBe("糟糕，馬桶塞住了！");
+    expect(es.example.chunk_in_example).toBe(true);
+    expect(es.kind).toBe("state");
+    const ja = scrubExtrasForReader({ usage_patterns: [pattern] }, "ja").usage_patterns[0]!;
+    expect(ja.scene).toBe("トイレが詰まった時");
+    expect(ja.example.ja).toBe("やばい、トイレが詰まった！");
+    // 例文の写しの訳・中文の場面は落とす。
+    const copied = scrubExtrasForReader(
+      {
+        usage_patterns: [
+          {
+            ...pattern,
+            scene: "馬桶堵住的時候",
+            example: { ...pattern.example, ja: "糟糕，馬桶塞住了！" },
+          },
+        ],
+      },
+      "ja",
+    ).usage_patterns[0]!;
+    expect(copied.scene).toBe("");
+    expect(copied.example.ja).toBe("");
+  });
+
   it("韓国語の読み手: ハングルの無い欄は落とす", () => {
     const out = scrubExtrasForReader(
       { usage_context: "우산은 비 올 때 써요", taiwan_note: "台湾では傘をよく使う" },

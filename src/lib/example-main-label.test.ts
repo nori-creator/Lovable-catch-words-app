@@ -466,7 +466,11 @@ describe("どの道もメインの例文の札を作る（配線）", () => {
     expect(ai).toMatch(/readExistingMainSentence\(cardAdmin/);
     expect(ai).toMatch(/fixedMain\s*\?\s*\[\s*mainExampleLabelRule\(/);
     expect(ai).toMatch(/example_main\{scene,translation,chunks/);
-    expect(ai).toMatch(/card = applyFixedMainExample\(card, \{/);
+    // 決まった文は変えず、パターンの例文を追加の例文にする（`legacyFieldsFromPatterns` → `applyFixedMainExample`、2026-10-23）。
+    expect(ai).toMatch(
+      /legacyFieldsFromPatterns\(keptPatterns, \{[\s\S]{0,200}fixedMain: \{\s*sentence: fixedMain,\s*label,/,
+    );
+    expect(src("usage-patterns.ts")).toMatch(/applyFixedMainExample\(/);
   });
 
   it("例文の作り直し: 札の無い古い文には同じ呼び出しで札を書かせる・人が確かめた語は文を決まった文にする", () => {

@@ -1336,11 +1336,12 @@ describe("2026-08-26 の3度目の報告", () => {
     expect(targetProfile("en").chunkPrompt.styleRule).not.toContain("量詞");
     expect(targetProfile("en").chunkPrompt.posRule).not.toContain("詞類表");
     expect(targetProfile("zh-TW").chunkPrompt.lengthRule).toContain("繁体字");
-    const ai = codeOnly(read("lib/ai.functions.ts"));
+    // 公式の指示は使い方パターンの指示文（`usage-patterns.ts`、2026-10-23）が言語の表から引く。
+    const ai = codeOnly(read("lib/ai.functions.ts")) + codeOnly(read("lib/usage-patterns.ts"));
     // 決め打ちが戻っていないこと。
     expect(ai).not.toMatch(/型1つは繁体字で/);
-    expect(ai).toMatch(/chunkPrompt\.lengthRule/);
-    expect(ai).toMatch(/chunkPrompt\.styleRule/);
+    expect(ai).toMatch(/chunk\.lengthRule/);
+    expect(ai).toMatch(/chunk\.styleRule/);
   });
 
   it("**地名が保存に届く**(画面の写しだけを直さない)", () => {
@@ -1984,16 +1985,21 @@ describe("型は「その語ならでは」だけにする（オーナー指示 
   });
 
   it("**生成と再生成が同じ指示文を使う**(片方だけ直すと作り直しで戻る)", () => {
+    // 2026-10-23: 公式は使い方パターン（場面・公式・例文）の指示文 `usagePatternsRule` の中。
+    // 定義は `usage-patterns.ts` に1つ、使う所は生成と作り直しの2つ。
     const src = codeOnly(read("lib/ai.functions.ts"));
-    const uses = src.match(/specificChunkRule\(/g) ?? [];
-    // 定義1つ + 使う所2つ。
-    expect(uses.length).toBeGreaterThanOrEqual(3);
+    const uses = src.match(/usagePatternsRule\(\{/g) ?? [];
+    expect(uses.length).toBe(2);
+    expect(src).not.toMatch(/function specificChunkRule\(|function formulaChunkRule\(/);
+    const rules = codeOnly(read("lib/usage-patterns.ts"));
+    expect(rules).toMatch(/specificChunkRule\(headword, opts\.levelGoal\)/);
+    expect(rules).toMatch(/formulaChunkRule\(code\)/);
   });
 
   it("**型はレベルで変える**(両方の道でレベルを渡している)", () => {
     const src = codeOnly(read("lib/ai.functions.ts"));
-    expect(src).toMatch(/specificChunkRule\(data\.headword, levelGoal\)/);
-    expect(src).toMatch(/specificChunkRule\(head, regenLevelGoal\)/);
+    expect(src).toMatch(/usagePatternsRule\(\{[\s\S]{0,200}levelGoal,/);
+    expect(src).toMatch(/usagePatternsRule\(\{[\s\S]{0,200}levelGoal: regenLevelGoal,/);
   });
 
   it("量詞はチャンクに出さない(2度目の指摘。門が残っている)", () => {
@@ -3835,9 +3841,9 @@ describe("N. 下のタブ帯と、札を開く動き", () => {
     expect(block).not.toMatch(/background/);
     expect(block).not.toMatch(/box-shadow/);
     expect(css).not.toMatch(/chunk-set--formula|chunk-set--lite/);
-    // 入れ替える所にも具体語を入れる（「人」「someone」にしない）。
-    const ai = codeOnly(read("lib/ai.functions.ts"));
-    expect(ai).toMatch(/いちばんよく入れる具体語を1つだけ入れて/);
+    // 入れ替える所にも具体語を入れる（「人」「someone」にしない）。公式の指示文の部品は `chunk-prompt-rules.ts`（2026-10-23）。
+    const rules = codeOnly(read("lib/chunk-prompt-rules.ts"));
+    expect(rules).toMatch(/いちばんよく入れる具体語を1つだけ入れて/);
   });
 
   it("発音ボタンは**全部、見出しと同じ青**（大きさだけが違う）", () => {

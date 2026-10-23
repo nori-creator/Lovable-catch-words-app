@@ -701,14 +701,30 @@ describe("本番で見つかった失敗の種類（1つずつ）", () => {
     expect(stripChunkSelfCheck({ ...parsed, fits: true })).not.toHaveProperty("why");
   });
 
-  it("見出し語の札と、名詞・量詞・程度の語でない札の slot・alts は外して保存する", () => {
+  it("入れ替えの札（2026-10-23）: 見出し語・候補が2つ未満・候補が程度の語だけ の slot・alts は外し、動詞でも候補が2つ以上なら残す", () => {
     const g = gateUsageChunks(
       [
         chunk(
           [
             { text: "用", pos: "Prep" },
-            { text: "刷子", pos: "N", slot: true, alts: [{ text: "鞋刷", ja: "" }] },
-            { text: "刷", pos: "V", slot: true, alts: [{ text: "洗", ja: "wash" }] },
+            {
+              text: "刷子",
+              pos: "N",
+              slot: true,
+              alts: [
+                { text: "鞋刷", ja: "" },
+                { text: "毛刷", ja: "" },
+              ],
+            },
+            {
+              text: "刷",
+              pos: "V",
+              slot: true,
+              alts: [
+                { text: "洗", ja: "wash" },
+                { text: "擦", ja: "wipe" },
+              ],
+            },
             { text: "鞋子", pos: "N", slot: true, alts: [{ text: "地板", ja: "floor" }] },
           ],
           "scrub shoes with a brush",
@@ -716,11 +732,42 @@ describe("本番で見つかった失敗の種類（1つずつ）", () => {
       ],
       { headword: "刷子", language: "zh-TW", readerLang: "en", meaning: "brush" },
     );
+    const mango = gateUsageChunks(
+      [
+        chunk(
+          [
+            { text: "芒果", pos: "N" },
+            {
+              text: "很",
+              pos: "Adv",
+              slot: true,
+              alts: [
+                { text: "超", ja: "super" },
+                { text: "非常", ja: "extremely" },
+              ],
+            },
+            { text: "甜", pos: "Vs" },
+          ],
+          "the mango is very sweet",
+        ),
+      ],
+      { headword: "芒果", language: "zh-TW", readerLang: "en", meaning: "mango" },
+    );
     const [, head, verb, noun] = g.kept[0].parts;
+    // 見出し語は決して入れ替えない（R14）。
     expect(head.slot).toBeUndefined();
-    expect(verb.slot).toBeUndefined();
-    expect(verb.alts).toBeUndefined();
-    expect(noun.slot).toBe(true);
+    expect(head.alts).toBeUndefined();
+    // 品詞は問わない — 動詞でも、1語を替えると意味が変わる所は入れ替えの札（候補が2つ以上）。
+    expect(verb.slot).toBe(true);
+    expect(verb.alts).toHaveLength(2);
+    // 候補が1つしか無い札は入れ替えにしない（押しても1つしか出ない点線は作らない）。
+    expect(noun.slot).toBeUndefined();
+    expect(noun.alts).toBeUndefined();
+    // 程度の語（很 → 超・非常）は入れ替えにしない（オーナー決定 2026-10-23）。
+    const degree = mango.kept[0].parts[1];
+    expect(degree.text).toBe("很");
+    expect(degree.slot).toBeUndefined();
+    expect(degree.alts).toBeUndefined();
   });
 
   it("extras の形も fits / why と札の読みを落とさない（門より先に zod が消さない）", () => {

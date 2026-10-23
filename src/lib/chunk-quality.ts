@@ -77,7 +77,12 @@ export type ChunkDropReason =
   | "sense_conflict"
   | "blocklist"
   | "duplicate"
-  | "duplicate_translation";
+  | "duplicate_translation"
+  /**
+   * 弱い相手（吃/喝/拿＋名詞、名詞＋很＋甜。`generic-chunks.ts` の `isWeakPartnerChunk`、2026-10-23）。この門では
+   * **落とさない** — パターンの門（`usage-patterns.ts`）が後ろへ回し、強い公式が2つ以上あれば落とす時の理由。
+   */
+  | "generic_partner";
 
 export type ChunkGateContext = {
   headword: string;
@@ -312,20 +317,28 @@ function translationKey(ja: string): string {
     .toLowerCase();
 }
 
-/** 入れ替えられる札の品詞（名詞・量詞・台湾華語の程度の語）。それ以外の slot・alts は外す。 */
-function swappable(part: ChunkPart, language: string | null | undefined): boolean {
-  const pos = normalizeChunkPos(part.pos);
-  if (!pos) return true;
-  const g = posGroup(pos);
-  if (g === "n" || g === "m") return true;
-  return (
-    normalizeTargetLanguage(language).startsWith("zh") &&
-    (DEGREE_CHOICES as readonly string[]).includes(part.text.trim())
-  );
+/** 程度の語（很・超・非常・有點・蠻）か。 */
+const isDegreeWord = (text: string) => (DEGREE_CHOICES as readonly string[]).includes(text.trim());
+
+/**
+ * **入れ替えの札として保存できるか**（オーナー決定 2026-10-23: 入れ替えは「ほぼ同じ公式で、1語を替えると意味や
+ * 場面が変わる」時だけ。程度の語（很→超・非常）を入れ替えにするのは**やめる**）。
+ *
+ * - 品詞は問わない（名詞・動詞・状態動詞のどれでも。前の「名詞・量詞・程度の語だけ」の制限は外した —
+ *   馬桶＋[塞住了/不通/壞了]・[開/關/吹]＋電風扇 のように動詞・状態動詞こそ入れ替えで意味が変わる）
+ * - 候補（alts）が2つ以上ある（札そのものと同じ語・空の語は数えない）
+ * - 候補が程度の語だけではない（很 → 超・非常・有點 は別の場面ではなく強さの違い）
+ */
+function swappableAlts(part: ChunkPart): NonNullable<ChunkPart["alts"]> | null {
+  const self = part.text.trim();
+  const alts = (part.alts ?? []).filter((a) => a && a.text.trim() && a.text.trim() !== self);
+  if (alts.length < 2) return null;
+  if (isDegreeWord(self) && alts.every((a) => isDegreeWord(a.text))) return null;
+  return alts;
 }
 
 /**
- * 保存する形に整える: 自己点検の欄を外し、見出し語の札と入れ替えられない札の slot・alts を外す。
+ * 保存する形に整える: 自己点検の欄を外し、見出し語の札と入れ替えられない札（`swappableAlts`）の slot・alts を外す。
  * （点線の判定は画面側にもあるが、保存する物から外しておけば iOS も同じ物を見る。）
  */
 export function tidyForStorage(chunk: AiUsageChunk, ctx: ChunkGateContext): UsageChunk {
@@ -334,9 +347,12 @@ export function tidyForStorage(chunk: AiUsageChunk, ctx: ChunkGateContext): Usag
     const text = p.text.trim();
     const out: ChunkPart = { ...p, text, pos: normalizeChunkPos(p.pos) };
     const isHead = text === head || (head && chunkMentionsHeadword(text, head, ctx.language));
-    if (isHead || !swappable(out, ctx.language)) {
+    const alts = isHead ? null : swappableAlts(out);
+    if (!alts) {
       delete out.slot;
       delete out.alts;
+    } else {
+      out.alts = alts;
     }
     return out;
   });
@@ -537,9 +553,12 @@ export function gateUsageChunks(
   return { kept, dropped };
 }
 
-/** 記録用の一行（語・落とした数・理由）。語の中身は入れない。 */
-export function describeChunkGate(result: ChunkGateResult): string {
-  const reasons = new Map<ChunkDropReason, number>();
+/** 記録用の一行（語・落とした数・理由）。語の中身は入れない。パターンの門（`usage-patterns.ts`）も同じ書き方で記す。 */
+export function describeChunkGate(result: {
+  kept: ReadonlyArray<unknown>;
+  dropped: ReadonlyArray<{ reason: string }>;
+}): string {
+  const reasons = new Map<string, number>();
   for (const d of result.dropped) reasons.set(d.reason, (reasons.get(d.reason) ?? 0) + 1);
   const tail = [...reasons.entries()].map(([r, n]) => `${r}×${n}`).join(", ");
   return `kept ${result.kept.length}, dropped ${result.dropped.length}${tail ? ` (${tail})` : ""}`;

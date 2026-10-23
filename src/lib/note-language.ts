@@ -314,27 +314,41 @@ export function scrubExtrasForReader<T>(extras: T, readerLang: string): T {
     }
   }
   // 使い方の型: 型の訳、入れ替えられる部品の意味、その選択肢の意味（R6）。
-  if (Array.isArray(out.usage_chunks)) {
-    out.usage_chunks = out.usage_chunks.map((chunk) => {
-      if (!chunk || typeof chunk !== "object") return chunk;
-      const c = { ...(chunk as Record<string, unknown>) };
-      if (wrong(c.ja)) c.ja = "";
-      if (Array.isArray(c.parts)) {
-        c.parts = c.parts.map((part) => {
-          if (!part || typeof part !== "object") return part;
-          const p = { ...(part as Record<string, unknown>) };
-          if (wrong(p.ja, { short: true })) p.ja = "";
-          if (Array.isArray(p.alts)) {
-            p.alts = p.alts.map((alt) =>
-              alt && typeof alt === "object" && wrong((alt as { ja?: unknown }).ja, { short: true })
-                ? { ...(alt as Record<string, unknown>), ja: "" }
-                : alt,
-            );
-          }
-          return p;
-        });
+  const scrubChunk = (chunk: unknown): unknown => {
+    if (!chunk || typeof chunk !== "object") return chunk;
+    const c = { ...(chunk as Record<string, unknown>) };
+    if (wrong(c.ja)) c.ja = "";
+    if (Array.isArray(c.parts)) {
+      c.parts = c.parts.map((part) => {
+        if (!part || typeof part !== "object") return part;
+        const p = { ...(part as Record<string, unknown>) };
+        if (wrong(p.ja, { short: true })) p.ja = "";
+        if (Array.isArray(p.alts)) {
+          p.alts = p.alts.map((alt) =>
+            alt && typeof alt === "object" && wrong((alt as { ja?: unknown }).ja, { short: true })
+              ? { ...(alt as Record<string, unknown>), ja: "" }
+              : alt,
+          );
+        }
+        return p;
+      });
+    }
+    return c;
+  };
+  if (Array.isArray(out.usage_chunks)) out.usage_chunks = out.usage_chunks.map(scrubChunk);
+  // 使い方パターン（2026-10-23、R26）: 場面・ポイントは文の欄、例文の訳は例文を元に、公式は型と同じ。
+  if (Array.isArray(out.usage_patterns)) {
+    out.usage_patterns = out.usage_patterns.map((pattern) => {
+      if (!pattern || typeof pattern !== "object") return pattern;
+      const p = { ...(pattern as Record<string, unknown>) };
+      if (wrong(p.scene)) p.scene = "";
+      if (wrong(p.note)) p.note = "";
+      p.chunk = scrubChunk(p.chunk);
+      if (p.example && typeof p.example === "object" && !Array.isArray(p.example)) {
+        const e = p.example as Record<string, unknown>;
+        if (wrong(e.ja, { source: e.zh })) p.example = { ...e, ja: "" };
       }
-      return c;
+      return p;
     });
   }
   return out as T;

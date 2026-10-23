@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { coerceCategoryKey } from "./category";
-import { ExtrasSchema, emptyExtras } from "./extras";
+import { AiUsagePatternSchema, ExtrasSchema, emptyExtras } from "./extras";
 import { ExamplePatternSchema } from "./example-patterns";
 
 /**
@@ -95,6 +95,12 @@ export type GeneratedCard = z.infer<typeof CardSchema>;
  * 壊れていても例文が無いだけでカードは使えるので、落とさず空にする。
  */
 export const CardReplySchema = CardSchema.extend({
+  /**
+   * **使い方パターン**（場面・公式・例文の塊、2026-10-23 `usage-patterns.ts`）。`example_patterns` の代わりに頼む —
+   * サーバが門を通して `extras.usage_patterns` / `usage_chunks` / 例文の欄に写す。配列そのものは返さない・控えない。
+   */
+  usage_patterns: z.array(AiUsagePatternSchema).catch([]).default([]),
+  /** 今は頼まない（パターンから作る）。モデルが書いてきても壊れないよう受ける。 */
   example_patterns: z.array(ExamplePatternSchema).catch([]).default([]),
   /**
    * メインの例文がもう決まっている語（前から在る共有の文）の、**その文のための札**（2026-10-16 冰淇淋、

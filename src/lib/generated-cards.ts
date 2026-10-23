@@ -129,8 +129,9 @@ function readGenKey(raw: unknown): CardGenKey | null {
  * 作り方の版。`generateCard` の指示・形を変えたら上げる（上げると、それより前の控えは作り直さずに返す対象から外れる）。
  * 1 = 2026-10-15（語源・部首を作らない・カテゴリーの読み直し）。
  * 2 = 2026-10-16（前から在るメインの例文に札を付けて作る — `applyFixedMainExample`）。
+ * 3 = 2026-10-23（使い方パターン `usage_patterns` — 場面・公式・例文の塊。前の控えには無い）。
  */
-export const CARD_REUSE_VERSION = 2;
+export const CARD_REUSE_VERSION = 3;
 
 /**
  * **作り直さずに返す期間**（2026-10-15 オーナー報告: 同じ 草莓蛋糕 のカードが 20 分で3回作られた — 保存の
