@@ -75,6 +75,10 @@ export function PrivacyJa({ info }: { info: LegalPublicInfo }) {
             技術的な情報: 通信のために、IP
             アドレス、ブラウザの種類などが、下の事業者のサーバーで処理されます
           </li>
+          <li>
+            広告（iPhone アプリ）: 動画広告を表示するとき、Google（AdMob）が端末の情報（機種・OS・IP
+            アドレスなど）と、広告の表示・視聴の記録を受け取ります。広告のための識別子（IDFA）は使いません
+          </li>
         </ul>
 
         <h2>2. 利用目的</h2>
@@ -93,7 +97,7 @@ export function PrivacyJa({ info }: { info: LegalPublicInfo }) {
           <li>
             利用者全体の統計（利用者数・継続して使う人の割合など）の作成。統計は個人を特定できない形で扱います
           </li>
-          <li>広告の表示（広告が有効な場合。第6条）</li>
+          <li>広告の表示（第6条）</li>
           <li>お問い合わせへの対応</li>
         </ul>
 
@@ -149,7 +153,8 @@ export function PrivacyJa({ info }: { info: LegalPublicInfo }) {
             ID、お支払いの情報が Stripe に渡ります
           </li>
           <li>
-            <strong>広告</strong>: Google（AdSense）。広告が有効な場合のみ（第6条）
+            <strong>広告</strong>: Google（iPhone アプリは AdMob、Web 版は広告が有効な場合のみ
+            AdSense）。端末の情報と、広告の表示・視聴の記録が Google に渡ります（第6条）
           </li>
         </ul>
         <p>
@@ -184,6 +189,15 @@ export function PrivacyJa({ info }: { info: LegalPublicInfo }) {
 
         <h2>6. 広告</h2>
         <p>
+          iPhone アプリは、無料の撮影回数を使い切ったときに、利用者が選んだ場合だけ、Google の AdMob
+          による動画広告（最後まで見ると撮影の回数が1回増えます）を表示します。アプリを開いたときや撮影の途中に、広告を自動で表示することはありません。Google
+          は、端末の情報（機種・OS・IP
+          アドレスなど）と広告の表示・視聴の記録を、広告の配信・効果の測定・不正の防止に使い、利用者の興味に合わせた広告を表示することがあります。iPhone
+          アプリは、広告のための識別子（IDFA）を使わず、App Tracking Transparency
+          の許可も求めません。欧州経済領域（EEA）・英国・スイスの利用者には、Google
+          の同意の画面で同意を確認します。同意は、アプリの設定の「規約と表記」→「広告のプライバシー設定」からいつでも変えられます。
+        </p>
+        <p>
           広告が有効な場合、本サービスの Web 版では Google の AdSense による広告を表示します。Google
           は Cookie
           や端末の識別子を使い、利用者の興味に合わせた広告（パーソナライズ広告）を含む広告を表示することがあります。Google
@@ -200,8 +214,7 @@ export function PrivacyJa({ info }: { info: LegalPublicInfo }) {
             Google の広告設定
           </a>
           でオフにできます。欧州経済領域（EEA）・英国・スイスの利用者には、Google
-          の同意メッセージで同意を確認します。Pro の利用者には広告を表示しません。iPhone
-          アプリでは広告を表示せず、広告のための識別子（IDFA）も使いません。
+          の同意メッセージで同意を確認します。Pro の利用者には広告を表示しません。
         </p>
 
         <h2>7. 保存期間と削除</h2>
@@ -249,8 +262,10 @@ export function PrivacyJa({ info }: { info: LegalPublicInfo }) {
         <p>
           本サービスは、ログイン状態の保持、表示言語などの設定、通信できないときの保存待ちのデータ、画像や音声の一時保存のために、ブラウザのローカルストレージと
           IndexedDB を使います。本サービス自身は、追跡や広告のための Cookie
-          を使いません。ただし、広告が有効な場合は Google が Cookie を使い（第6条）、地図の表示では
-          Google が、決済の画面では Stripe が、それぞれの Cookie 等を使うことがあります。
+          を使いません。ただし、広告が有効な場合は Google が Cookie を使い（第6条）、iPhone
+          アプリで広告を表示するときは Google の AdMob
+          の部品が広告の配信と同意の状態に必要な情報を端末の中に保存し、地図の表示では Google
+          が、決済の画面では Stripe が、それぞれの Cookie 等を使うことがあります。
         </p>
         <p>
           iPhone
@@ -309,8 +324,8 @@ export function PrivacyJa({ info }: { info: LegalPublicInfo }) {
         </p>
         <h3 className="mt-4 font-semibold">米国カリフォルニア州にお住まいの方</h3>
         <p>
-          運営者は、個人情報を金銭と引き換えに販売しません。Web 版で広告が有効な場合、Google が
-          Cookie
+          運営者は、個人情報を金銭と引き換えに販売しません。iPhone アプリで広告を表示するときと、Web
+          版で広告が有効な場合、Google が Cookie
           等で情報を集めて興味に合わせた広告に使うことがあり（第6条）、これは州法上の「共有」に当たることがあります。Google
           の広告設定でオフにできるほか、第12条の連絡先へご請求いただければ対応します。利用者は、知る権利、削除の権利、訂正の権利、販売・共有を拒む権利を持ち、これらの権利を使ったことを理由に不利に扱われることはありません。
         </p>

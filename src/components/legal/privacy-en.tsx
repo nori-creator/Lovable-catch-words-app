@@ -72,6 +72,11 @@ export function PrivacyEn({ info }: { info: LegalPublicInfo }) {
             Technical information: to deliver the Service, your IP address, browser type and similar
             details are processed on the servers of the providers listed below
           </li>
+          <li>
+            Advertising (iPhone app): when a video ad is shown, Google (AdMob) receives device
+            information (model, OS, IP address and similar) and a record of the ad being shown and
+            watched. The advertising identifier (IDFA) is not used
+          </li>
         </ul>
 
         <h2>2. How we use it</h2>
@@ -164,8 +169,9 @@ export function PrivacyEn({ info }: { info: LegalPublicInfo }) {
             page). Your email address, user ID and payment details are provided to Stripe
           </li>
           <li>
-            <strong>Advertising</strong>: Google (AdSense), only when advertising is enabled (see
-            section 6)
+            <strong>Advertising</strong>: Google (AdMob in the iPhone app; AdSense on the web
+            version, only when advertising is enabled). Device information and a record of the ad
+            being shown and watched go to Google (see section 6)
           </li>
         </ul>
         <p>
@@ -217,6 +223,17 @@ export function PrivacyEn({ info }: { info: LegalPublicInfo }) {
 
         <h2>6. Advertising</h2>
         <p>
+          When you have used up the free captures, the iPhone app shows a video ad from Google AdMob
+          only if you choose to (watching it to the end gives you one more capture). The app never
+          shows ads on its own, at launch or during a capture. Google uses device information
+          (model, OS, IP address and similar) and the record of the ad being watched to deliver ads,
+          measure them and prevent fraud, and may show ads personalised to your interests. The
+          iPhone app does not use the advertising identifier (IDFA) and does not ask for App
+          Tracking Transparency permission. Users in the European Economic Area, the UK and
+          Switzerland are asked for consent through Google's consent message, and can change it at
+          any time in the app's Settings → “Legal” → “Ad privacy choices”.
+        </p>
+        <p>
           When advertising is enabled, the web version of the Service shows ads served by Google
           AdSense. Google may use cookies and device identifiers to show ads, including ads
           personalised to your interests. To learn how Google uses information, see{" "}
@@ -232,8 +249,7 @@ export function PrivacyEn({ info }: { info: LegalPublicInfo }) {
             Google's ad settings
           </a>
           . Users in the European Economic Area, the UK and Switzerland are asked for consent
-          through Google's consent message. Pro users do not see ads. The iPhone app shows no ads
-          and does not use the advertising identifier (IDFA).
+          through Google's consent message. Pro users do not see ads.
         </p>
 
         <h2>7. Retention and deletion</h2>
@@ -297,8 +313,10 @@ export function PrivacyEn({ info }: { info: LegalPublicInfo }) {
           remember settings such as the display language, to hold data waiting to be saved while
           offline, and to cache images and audio. The Service itself does not use cookies for
           tracking or advertising. However, when advertising is enabled Google uses cookies (section
-          6), and Google (when a map is shown) and Stripe (on the payment page) may use their own
-          cookies and similar technologies.
+          6); when the iPhone app shows an ad, Google's AdMob component stores on your device the
+          information it needs to deliver ads and to remember your consent; and Google (when a map
+          is shown) and Stripe (on the payment page) may use their own cookies and similar
+          technologies.
         </p>
         <p>
           The iPhone app stores the following on your device: what keeps you signed in (the
@@ -392,12 +410,13 @@ export function PrivacyEn({ info }: { info: LegalPublicInfo }) {
         </p>
         <h3 className="mt-4 font-semibold">Users in California, United States</h3>
         <p>
-          The operator does not sell personal information for money. When advertising is enabled on
-          the web version, Google may collect information with cookies and similar technologies and
-          use it for interest-based ads (section 6), which may count as “sharing” under state law.
-          You can turn this off in Google's ad settings, or ask us at the contact in section 12. You
-          have the rights to know, to delete, to correct and to opt out of sale or sharing, and you
-          will not be treated unfavourably for using them.
+          The operator does not sell personal information for money. When the iPhone app shows an
+          ad, and when advertising is enabled on the web version, Google may collect information
+          with cookies and similar technologies and use it for interest-based ads (section 6), which
+          may count as “sharing” under state law. You can turn this off in Google's ad settings, or
+          ask us at the contact in section 12. You have the rights to know, to delete, to correct
+          and to opt out of sale or sharing, and you will not be treated unfavourably for using
+          them.
         </p>
       </section>
     </>

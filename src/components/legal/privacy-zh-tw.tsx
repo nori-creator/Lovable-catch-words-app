@@ -61,6 +61,10 @@ export function PrivacyZhTw({ info }: { info: LegalPublicInfo }) {
           </li>
           <li>錯誤回報：你回報單字錯誤時送出的內容</li>
           <li>技術資料：為了提供服務，IP 位址、瀏覽器類型等資料會在下列業者的伺服器上處理</li>
+          <li>
+            廣告（iPhone App）：顯示影片廣告時，Google（AdMob）會取得裝置資訊（機型、作業系統、IP
+            位址等）以及廣告顯示與觀看的紀錄。不使用廣告識別碼（IDFA）
+          </li>
         </ul>
 
         <h2>2. 使用目的</h2>
@@ -77,7 +81,7 @@ export function PrivacyZhTw({ info }: { info: LegalPublicInfo }) {
             防止不當使用、調查問題與改善服務。經營者會檢視與分析每位使用者的使用數據（拍攝與複習次數、使用天數、各畫面的使用等），為了調查問題與回覆你的詢問，經營者可能會檢視你拍攝的照片與拍攝地點的名稱。電子郵件地址、精確位置（緯度、經度）與日記內容不在檢視範圍內
           </li>
           <li>製作整體統計（使用者人數、持續使用的比例等），統計以無法識別個人的形式處理</li>
-          <li>顯示廣告（僅在啟用廣告時，見第 6 條）</li>
+          <li>顯示廣告（見第 6 條）</li>
           <li>回覆詢問</li>
         </ul>
 
@@ -132,7 +136,8 @@ export function PrivacyZhTw({ info }: { info: LegalPublicInfo }) {
             與付款資料會提供給 Stripe
           </li>
           <li>
-            <strong>廣告</strong>：Google（AdSense），僅在啟用廣告時（見第 6 條）
+            <strong>廣告</strong>：Google（iPhone App 為 AdMob；網頁版僅在啟用廣告時為
+            AdSense）。裝置資訊與廣告顯示、觀看的紀錄會提供給 Google（見第 6 條）
           </li>
         </ul>
         <p>
@@ -167,6 +172,15 @@ export function PrivacyZhTw({ info }: { info: LegalPublicInfo }) {
 
         <h2>6. 廣告</h2>
         <p>
+          用完免費拍攝次數後，只有在你自行選擇時，iPhone App 才會顯示 Google AdMob
+          的影片廣告（看完後可增加 1 次拍攝）。App 不會在開啟時或拍攝途中自動顯示廣告。Google
+          會使用裝置資訊（機型、作業系統、IP
+          位址等）與廣告觀看紀錄來投放廣告、衡量成效與防止詐欺，也可能依你的興趣顯示個人化廣告。iPhone
+          App 不使用廣告識別碼（IDFA），也不要求 App 追蹤透明度（App Tracking
+          Transparency）的許可。位於歐洲經濟區、英國與瑞士的使用者，會透過 Google
+          的同意畫面確認是否同意，並可隨時在 App 設定的「條款與標示」→「廣告隱私設定」中變更。
+        </p>
+        <p>
           啟用廣告時，本服務的網頁版會顯示 Google AdSense 提供的廣告。Google 可能使用 Cookie
           與裝置識別碼來顯示廣告，包括依你的興趣顯示的個人化廣告。關於 Google 如何使用資料，請參閱「
           <a
@@ -181,8 +195,7 @@ export function PrivacyZhTw({ info }: { info: LegalPublicInfo }) {
             Google 廣告設定
           </a>
           中關閉個人化廣告。位於歐洲經濟區、英國與瑞士的使用者，會透過 Google
-          的同意訊息確認是否同意。Pro 使用者不會看到廣告。iPhone App
-          不顯示廣告，也不使用廣告識別碼（IDFA）。
+          的同意訊息確認是否同意。Pro 使用者不會看到廣告。
         </p>
 
         <h2>7. 保存期間與刪除</h2>
@@ -230,7 +243,8 @@ export function PrivacyZhTw({ info }: { info: LegalPublicInfo }) {
         <p>
           本服務會使用瀏覽器的本機儲存（localStorage）與
           IndexedDB，用來維持登入狀態、記住顯示語言等設定、保存離線時等待上傳的資料，以及暫存圖片與語音。本服務本身不使用追蹤或廣告用的
-          Cookie。但啟用廣告時 Google 會使用 Cookie（第 6 條），顯示地圖時 Google、付款頁面上 Stripe
+          Cookie。但啟用廣告時 Google 會使用 Cookie（第 6 條）；iPhone App 顯示廣告時，Google AdMob
+          的元件會在裝置上儲存投放廣告與記住同意狀態所需的資料；顯示地圖時 Google、付款頁面上 Stripe
           也可能使用各自的 Cookie 等技術。
         </p>
         <p>
@@ -285,9 +299,9 @@ export function PrivacyZhTw({ info }: { info: LegalPublicInfo }) {
         </p>
         <h3 className="mt-4 font-semibold">居住於美國加州的使用者</h3>
         <p>
-          經營者不會以金錢交換販售個人資料。網頁版啟用廣告時，Google 可能以 Cookie
-          等技術蒐集資料並用於依興趣顯示的廣告（第 6 條），這在州法上可能屬於「分享」。你可以在
-          Google 廣告設定中關閉，或寄至第 12
+          經營者不會以金錢交換販售個人資料。iPhone App 顯示廣告時，以及網頁版啟用廣告時，Google
+          可能以 Cookie 等技術蒐集資料並用於依興趣顯示的廣告（第 6
+          條），這在州法上可能屬於「分享」。你可以在 Google 廣告設定中關閉，或寄至第 12
           條的聯絡方式請求處理。你享有知情、刪除、更正以及拒絕販售或分享的權利，且不會因行使這些權利而受到不利對待。
         </p>
       </section>
